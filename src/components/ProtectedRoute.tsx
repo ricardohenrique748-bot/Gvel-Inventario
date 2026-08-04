@@ -3,10 +3,10 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { session, loading } = useAuth()
+  const { session, loading, perfil, perfilLoading } = useAuth()
   const location = useLocation()
 
-  if (loading) {
+  if (loading || (session && perfilLoading)) {
     return (
       <div className="min-h-svh flex items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
@@ -16,6 +16,10 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (!session) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
+  }
+
+  if (perfil?.deve_trocar_senha && location.pathname !== '/trocar-senha') {
+    return <Navigate to="/trocar-senha" replace />
   }
 
   return <>{children}</>

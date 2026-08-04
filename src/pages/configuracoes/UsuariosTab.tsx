@@ -76,9 +76,10 @@ export function UsuariosTab() {
                 <FieldError message={errors.email?.message} />
               </div>
               <div>
-                <Label htmlFor="senha">Senha</Label>
+                <Label htmlFor="senha">Senha temporária</Label>
                 <Input id="senha" type="password" placeholder="Mínimo de 6 caracteres" {...register('senha')} />
                 <FieldError message={errors.senha?.message} />
+                <p className="mt-1 text-xs text-secondary">A pessoa será obrigada a trocar no primeiro login.</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">

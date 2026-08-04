@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
   const { data: usuario, error: insertError } = await adminClient
     .from('usuarios')
-    .insert({ id: created.user.id, nome, email, telefone, nivel })
+    .insert({ id: created.user.id, nome, email, telefone, nivel, deve_trocar_senha: true })
     .select()
     .single()
 

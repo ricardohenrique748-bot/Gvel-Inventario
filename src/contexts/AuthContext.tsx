@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import type { Usuario } from '@/lib/types'
@@ -8,8 +8,10 @@ interface AuthContextValue {
   user: User | null
   perfil: Usuario | null
   loading: boolean
+  perfilLoading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
+  refetchPerfil: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -27,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [perfil, setPerfil] = useState<Usuario | null>(null)
   const [loading, setLoading] = useState(true)
+  const [perfilLoading, setPerfilLoading] = useState(true)
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -47,19 +50,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.subscription.unsubscribe()
   }, [])
 
-  useEffect(() => {
+  const fetchPerfil = useCallback(async () => {
     const userId = session?.user?.id
     if (!isSupabaseConfigured || !userId) {
       setPerfil(null)
+      setPerfilLoading(false)
       return
     }
-    supabase
-      .from('usuarios')
-      .select('*')
-      .eq('id', userId)
-      .single()
-      .then(({ data }) => setPerfil(data ?? null))
+    setPerfilLoading(true)
+    const { data } = await supabase.from('usuarios').select('*').eq('id', userId).single()
+    setPerfil(data ?? null)
+    setPerfilLoading(false)
   }, [session?.user?.id])
+
+  useEffect(() => {
+    fetchPerfil()
+  }, [fetchPerfil])
 
   async function signIn(email: string, password: string) {
     if (!isSupabaseConfigured) {
@@ -84,7 +90,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, perfil, loading, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user: session?.user ?? null,
+        perfil,
+        loading,
+        perfilLoading,
+        signIn,
+        signOut,
+        refetchPerfil: fetchPerfil,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

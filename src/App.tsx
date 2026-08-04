@@ -3,6 +3,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Login } from '@/pages/Login'
+import { TrocarSenha } from '@/pages/TrocarSenha'
 import { Dashboard } from '@/pages/Dashboard'
 import { Movimentacoes } from '@/pages/Movimentacoes'
 import { RegistrarEntrada } from '@/pages/RegistrarEntrada'
@@ -19,6 +20,14 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route
+            path="/trocar-senha"
+            element={
+              <ProtectedRoute>
+                <TrocarSenha />
+              </ProtectedRoute>
+            }
+          />
           <Route
             element={
               <ProtectedRoute>
