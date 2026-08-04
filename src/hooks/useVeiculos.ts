@@ -67,6 +67,7 @@ interface UpsertVeiculoInput {
   cor?: string
   ano?: number
   chassi?: string
+  operante?: boolean
 }
 
 export async function upsertVeiculo(input: UpsertVeiculoInput) {
@@ -90,6 +91,7 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
     if (input.cor !== undefined) updatePayload.cor = up(input.cor) || null
     if (input.ano !== undefined) updatePayload.ano = input.ano ?? null
     if (input.chassi !== undefined) updatePayload.chassi = up(input.chassi) || null
+    if (input.operante !== undefined) updatePayload.operante = input.operante
 
     const { data, error } = await supabase
       .from('veiculos')
@@ -112,6 +114,7 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
       cor: up(input.cor) || null,
       ano: input.ano ?? null,
       chassi: up(input.chassi) || null,
+      operante: input.operante ?? true,
     })
     .select()
     .single()
@@ -131,6 +134,7 @@ export async function atualizarVeiculo(id: string, input: UpsertVeiculoInput) {
       cor: up(input.cor) || null,
       ano: input.ano ?? null,
       chassi: up(input.chassi) || null,
+      operante: input.operante ?? true,
     })
     .eq('id', id)
     .select()

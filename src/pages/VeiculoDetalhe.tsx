@@ -173,6 +173,11 @@ export function VeiculoDetalhe() {
               </div>
             </Row>
             <Row label="Tipo">{veiculo.tipo === 'pesado' ? 'Pesado' : 'Leve'}</Row>
+            <Row label="Situação">
+              <Badge tone={veiculo.operante ? 'success' : 'danger'}>
+                {veiculo.operante ? 'Operante' : 'Inoperante'}
+              </Badge>
+            </Row>
             <Row label="Marca">{veiculo.marca?.nome}</Row>
             <Row label="Modelo">{veiculo.modelo?.nome}</Row>
             <Row label="Ano">{veiculo.ano || '—'}</Row>

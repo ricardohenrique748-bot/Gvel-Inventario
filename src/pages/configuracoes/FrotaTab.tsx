@@ -21,6 +21,7 @@ const schema = z.object({
   tipo: z.enum(['pesado', 'leve']),
   cor: z.string().trim().min(1, 'Informe a cor'),
   chassi: z.string().trim().optional(),
+  situacao: z.enum(['operante', 'inoperante']),
   ano: z
     .number({ message: 'Informe o ano' })
     .int('Ano inválido')
@@ -51,7 +52,7 @@ export function FrotaTab() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { tipo: 'pesado' },
+    defaultValues: { tipo: 'pesado', situacao: 'operante' },
   })
 
   const clienteId = watch('clienteId')
@@ -61,6 +62,7 @@ export function FrotaTab() {
 
   async function onSubmit(values: FormValues) {
     try {
+      const operante = values.situacao === 'operante'
       if (editandoId) {
         await atualizarVeiculo(editandoId, {
           placa: values.placa,
@@ -71,6 +73,7 @@ export function FrotaTab() {
           cor: values.cor,
           ano: values.ano,
           chassi: values.chassi,
+          operante,
         })
         setEditandoId(null)
       } else {
@@ -83,10 +86,11 @@ export function FrotaTab() {
           cor: values.cor,
           ano: values.ano,
           chassi: values.chassi,
+          operante,
         })
       }
       await refetchVeiculos()
-      reset({ clienteId: values.clienteId, tipo: 'pesado' })
+      reset({ clienteId: values.clienteId, tipo: 'pesado', situacao: 'operante' })
       setMostrarForm(false)
     } catch (err) {
       setError('placa', { message: err instanceof Error ? err.message : 'Não foi possível salvar o veículo.' })
@@ -101,6 +105,7 @@ export function FrotaTab() {
     setValue('tipo', v.tipo)
     setValue('cor', v.cor ?? '')
     setValue('chassi', v.chassi ?? '')
+    setValue('situacao', v.operante ? 'operante' : 'inoperante')
     setValue('ano', v.ano ?? (undefined as unknown as number))
     setValue('marcaId', v.marca_id)
     setValue('modeloId', v.modelo_id)
@@ -110,7 +115,7 @@ export function FrotaTab() {
   function handleCancelarEdicao() {
     setEditandoId(null)
     setMostrarForm(false)
-    reset({ clienteId, tipo: 'pesado' })
+    reset({ clienteId, tipo: 'pesado', situacao: 'operante' })
   }
 
   async function handleExcluir(id: string, placa: string) {
@@ -184,6 +189,24 @@ export function FrotaTab() {
                 <Label htmlFor="cor">Cor</Label>
                 <Input id="cor" placeholder="Branco" {...register('cor')} />
                 <FieldError message={errors.cor?.message} />
+              </div>
+            </div>
+
+            <div>
+              <Label>Situação</Label>
+              <div className="flex gap-3">
+                <label className="flex-1">
+                  <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
+                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-white cursor-pointer">
+                    Operante
+                  </div>
+                </label>
+                <label className="flex-1">
+                  <input type="radio" value="inoperante" className="peer sr-only" {...register('situacao')} />
+                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-danger peer-checked:bg-status-danger/10 peer-checked:text-white cursor-pointer">
+                    Inoperante
+                  </div>
+                </label>
               </div>
             </div>
 
@@ -301,9 +324,10 @@ export function FrotaTab() {
                   </p>
                   <p className="text-sm text-secondary">{v.cor || 'Sem cor'}</p>
                   {v.chassi && <p className="text-sm text-secondary">Chassi: {v.chassi}</p>}
-                  <Badge tone="neutral" className="mt-2">
-                    {v.tipo === 'pesado' ? 'Pesado' : 'Leve'}
-                  </Badge>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <Badge tone="neutral">{v.tipo === 'pesado' ? 'Pesado' : 'Leve'}</Badge>
+                    <Badge tone={v.operante ? 'success' : 'danger'}>{v.operante ? 'Operante' : 'Inoperante'}</Badge>
+                  </div>
                 </div>
               ))}
             </div>

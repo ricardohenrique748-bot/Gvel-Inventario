@@ -55,6 +55,7 @@ export interface Veiculo {
   cor: string | null
   ano: number | null
   chassi: string | null
+  operante: boolean
   created_at: string
 }
 
