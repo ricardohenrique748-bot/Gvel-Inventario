@@ -1,0 +1,209 @@
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { Card, CardContent } from '@/components/ui/Card'
+import { Input, Label, FieldError, Select } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { QuickCreateSelect } from '@/components/QuickCreateSelect'
+import { useClientes } from '@/hooks/useClientes'
+import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
+import { useVeiculosPorCliente, upsertVeiculo } from '@/hooks/useVeiculos'
+
+const anoAtual = new Date().getFullYear()
+
+const schema = z.object({
+  clienteId: z.string().min(1, 'Selecione o cliente'),
+  placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
+  tipo: z.enum(['pesado', 'leve']),
+  cor: z.string().trim().min(1, 'Informe a cor'),
+  ano: z
+    .number({ message: 'Informe o ano' })
+    .int('Ano inválido')
+    .min(1950, 'Ano inválido')
+    .max(anoAtual + 1, 'Ano inválido'),
+  marcaId: z.string().min(1, 'Selecione a marca'),
+  modeloId: z.string().min(1, 'Selecione o modelo'),
+})
+
+type FormValues = z.infer<typeof schema>
+
+export function FrotaTab() {
+  const { clientes } = useClientes()
+  const { marcas, refetch: refetchMarcas } = useMarcas()
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    reset,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { tipo: 'pesado' },
+  })
+
+  const clienteId = watch('clienteId')
+  const marcaId = watch('marcaId')
+  const { modelos, refetch: refetchModelos } = useModelos(marcaId)
+  const { veiculos, loading, refetch: refetchVeiculos } = useVeiculosPorCliente(clienteId)
+
+  async function onSubmit(values: FormValues) {
+    try {
+      await upsertVeiculo({
+        placa: values.placa,
+        marcaId: values.marcaId,
+        modeloId: values.modeloId,
+        clienteId: values.clienteId,
+        tipo: values.tipo,
+        cor: values.cor,
+        ano: values.ano,
+      })
+      await refetchVeiculos()
+      reset({ clienteId: values.clienteId, tipo: 'pesado' })
+    } catch (err) {
+      setError('placa', { message: err instanceof Error ? err.message : 'Não foi possível salvar o veículo.' })
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardContent className="pt-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <div>
+              <Label htmlFor="clienteId">Cliente</Label>
+              <Select id="clienteId" {...register('clienteId')}>
+                <option value="">Selecione o cliente</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome}
+                  </option>
+                ))}
+              </Select>
+              <FieldError message={errors.clienteId?.message} />
+            </div>
+
+            <div>
+              <Label>Tipo de veículo</Label>
+              <div className="flex gap-3">
+                <label className="flex-1">
+                  <input type="radio" value="pesado" className="peer sr-only" {...register('tipo')} />
+                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-white cursor-pointer">
+                    Pesado
+                  </div>
+                </label>
+                <label className="flex-1">
+                  <input type="radio" value="leve" className="peer sr-only" {...register('tipo')} />
+                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-white cursor-pointer">
+                    Leve
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="placa">Placa</Label>
+                <Input id="placa" placeholder="ABC1D23" className="uppercase" {...register('placa')} />
+                <FieldError message={errors.placa?.message} />
+              </div>
+              <div>
+                <Label htmlFor="cor">Cor</Label>
+                <Input id="cor" placeholder="Branco" {...register('cor')} />
+                <FieldError message={errors.cor?.message} />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="ano">Ano</Label>
+              <Input
+                id="ano"
+                type="number"
+                placeholder={String(anoAtual)}
+                {...register('ano', { valueAsNumber: true })}
+              />
+              <FieldError message={errors.ano?.message} />
+            </div>
+
+            <Controller
+              control={control}
+              name="marcaId"
+              render={({ field }) => (
+                <QuickCreateSelect
+                  label="Marca"
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={marcas}
+                  onCreate={async (nome) => {
+                    const created = await criarMarca(nome)
+                    await refetchMarcas()
+                    return created
+                  }}
+                  placeholder="Selecione a marca"
+                  error={errors.marcaId?.message}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="modeloId"
+              render={({ field }) => (
+                <QuickCreateSelect
+                  label="Modelo"
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={modelos}
+                  disabled={!marcaId}
+                  onCreate={async (nome) => {
+                    const created = await criarModelo(marcaId, nome)
+                    await refetchModelos()
+                    return created
+                  }}
+                  placeholder={marcaId ? 'Selecione o modelo' : 'Selecione a marca primeiro'}
+                  error={errors.modeloId?.message}
+                />
+              )}
+            />
+
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Salvando…' : 'Cadastrar veículo'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6">
+          {!clienteId ? (
+            <p className="text-sm text-secondary">Selecione um cliente para ver a frota cadastrada.</p>
+          ) : loading ? (
+            <p className="text-sm text-secondary">Carregando…</p>
+          ) : veiculos.length === 0 ? (
+            <p className="text-sm text-secondary">Nenhum veículo cadastrado para este cliente.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {veiculos.map((v) => (
+                <div key={v.id} className="rounded-xl bg-background px-4 py-3">
+                  <p className="text-white font-medium">{v.placa}</p>
+                  <p className="text-sm text-secondary">
+                    {v.marca?.nome} {v.modelo?.nome} {v.ano ? `· ${v.ano}` : ''}
+                  </p>
+                  <p className="text-sm text-secondary">{v.cor || 'Sem cor'}</p>
+                  <Badge tone="neutral" className="mt-2">
+                    {v.tipo === 'pesado' ? 'Pesado' : 'Leve'}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
