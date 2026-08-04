@@ -56,3 +56,20 @@ export async function excluirUsuario(id: string) {
     throw new Error(await mensagemErroFuncao(error, 'Não foi possível excluir o usuário.'))
   }
 }
+
+interface AtualizarUsuarioInput {
+  nome: string
+  telefone?: string
+  nivel: NivelUsuario
+}
+
+export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput) {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .update({ nome: up(input.nome), telefone: input.telefone || null, nivel: input.nivel })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data as Usuario
+}
