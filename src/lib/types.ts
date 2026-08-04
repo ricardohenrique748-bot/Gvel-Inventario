@@ -75,6 +75,11 @@ export interface Movimentacao {
   data_hora_saida: string | null
   observacoes: string | null
   status: StatusMovimentacao
+  foto_frente_url: string | null
+  foto_lado_esquerdo_url: string | null
+  foto_lado_direito_url: string | null
+  foto_traseira_url: string | null
+  foto_painel_url: string | null
   created_at: string
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import { MOVIMENTACAO_COM_VEICULO } from '@/lib/queries'
 import { up } from '@/lib/text'
 import type { MovimentacaoComVeiculo, StatusMovimentacao, TipoVeiculo } from '@/lib/types'
@@ -102,7 +102,26 @@ type RegistrarEntradaInput =
       ano: number
     })
 
-export async function registrarEntrada(input: RegistrarEntradaInput) {
+export interface FotosEntrada {
+  frente?: File
+  ladoEsquerdo?: File
+  ladoDireito?: File
+  traseira?: File
+  painel?: File
+}
+
+async function uploadFotoEntrada(movimentacaoId: string, campo: string, file: File) {
+  const ext = file.type === 'image/png' ? 'png' : 'jpg'
+  const path = `entrada/${movimentacaoId}/${campo}.${ext}`
+  const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: true,
+  })
+  if (error) return null
+  return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
+export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: FotosEntrada) {
   const veiculoId =
     'veiculoId' in input
       ? input.veiculoId
@@ -118,9 +137,20 @@ export async function registrarEntrada(input: RegistrarEntradaInput) {
           })
         ).id
 
+  const movimentacaoId = crypto.randomUUID()
+
+  const [fotoFrenteUrl, fotoLadoEsquerdoUrl, fotoLadoDireitoUrl, fotoTraseiraUrl, fotoPainelUrl] = await Promise.all([
+    fotos?.frente ? uploadFotoEntrada(movimentacaoId, 'frente', fotos.frente) : null,
+    fotos?.ladoEsquerdo ? uploadFotoEntrada(movimentacaoId, 'lado-esquerdo', fotos.ladoEsquerdo) : null,
+    fotos?.ladoDireito ? uploadFotoEntrada(movimentacaoId, 'lado-direito', fotos.ladoDireito) : null,
+    fotos?.traseira ? uploadFotoEntrada(movimentacaoId, 'traseira', fotos.traseira) : null,
+    fotos?.painel ? uploadFotoEntrada(movimentacaoId, 'painel', fotos.painel) : null,
+  ])
+
   const { data, error } = await supabase
     .from('movimentacoes')
     .insert({
+      id: movimentacaoId,
       veiculo_id: veiculoId,
       patio_id: input.patioId,
       status_id: input.statusId || null,
@@ -128,6 +158,11 @@ export async function registrarEntrada(input: RegistrarEntradaInput) {
       data_hora_entrada: input.dataHoraEntrada,
       observacoes: up(input.observacoes),
       status: 'no_patio',
+      foto_frente_url: fotoFrenteUrl,
+      foto_lado_esquerdo_url: fotoLadoEsquerdoUrl,
+      foto_lado_direito_url: fotoLadoDireitoUrl,
+      foto_traseira_url: fotoTraseiraUrl,
+      foto_painel_url: fotoPainelUrl,
     })
     .select()
     .single()

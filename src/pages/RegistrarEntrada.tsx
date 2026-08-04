@@ -13,8 +13,19 @@ import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarca
 import { usePatios, criarPatio } from '@/hooks/usePatios'
 import { useStatusManutencao, criarStatusManutencao } from '@/hooks/useStatusManutencao'
 import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
-import { registrarEntrada } from '@/hooks/useMovimentacoes'
+import { registrarEntrada, type FotosEntrada } from '@/hooks/useMovimentacoes'
+import { FotoInput } from '@/components/FotoInput'
 import { nowLocalInputValue } from '@/lib/format'
+
+type AnguloFoto = keyof FotosEntrada
+
+const ANGULOS_FOTO: { campo: AnguloFoto; label: string }[] = [
+  { campo: 'frente', label: 'Frente' },
+  { campo: 'ladoEsquerdo', label: 'Lado esquerdo' },
+  { campo: 'ladoDireito', label: 'Lado direito' },
+  { campo: 'traseira', label: 'Traseira' },
+  { campo: 'painel', label: 'Painel' },
+]
 
 const NOVO_VEICULO = '__novo__'
 const anoAtual = new Date().getFullYear()
@@ -54,6 +65,7 @@ type FormValues = z.infer<typeof schema>
 export function RegistrarEntrada() {
   const navigate = useNavigate()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [fotos, setFotos] = useState<Partial<Record<AnguloFoto, { file: File; previewUrl: string }>>>({})
 
   const { clientes, refetch: refetchClientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
@@ -87,33 +99,58 @@ export function RegistrarEntrada() {
     setValue('veiculoId', '')
   }, [clienteId, setValue])
 
+  function handleSelecionarFoto(campo: AnguloFoto, file: File, previewUrl: string) {
+    setFotos((prev) => ({ ...prev, [campo]: { file, previewUrl } }))
+  }
+
+  function handleRemoverFoto(campo: AnguloFoto) {
+    setFotos((prev) => {
+      const next = { ...prev }
+      delete next[campo]
+      return next
+    })
+  }
+
   async function onSubmit(values: FormValues) {
     setSubmitError(null)
+    const fotosEntrada: FotosEntrada = {
+      frente: fotos.frente?.file,
+      ladoEsquerdo: fotos.ladoEsquerdo?.file,
+      ladoDireito: fotos.ladoDireito?.file,
+      traseira: fotos.traseira?.file,
+      painel: fotos.painel?.file,
+    }
     try {
       const mov =
         values.veiculoId === NOVO_VEICULO
-          ? await registrarEntrada({
-              placa: values.placa!,
-              marcaId: values.marcaId!,
-              modeloId: values.modeloId!,
-              clienteId: values.clienteId,
-              tipo: values.tipo!,
-              cor: values.cor!,
-              ano: values.ano!,
-              patioId: values.patioId,
-              statusId: values.statusId || undefined,
-              motorista: values.motorista,
-              dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
-              observacoes: values.observacoes,
-            })
-          : await registrarEntrada({
-              veiculoId: values.veiculoId,
-              patioId: values.patioId,
-              statusId: values.statusId || undefined,
-              motorista: values.motorista,
-              dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
-              observacoes: values.observacoes,
-            })
+          ? await registrarEntrada(
+              {
+                placa: values.placa!,
+                marcaId: values.marcaId!,
+                modeloId: values.modeloId!,
+                clienteId: values.clienteId,
+                tipo: values.tipo!,
+                cor: values.cor!,
+                ano: values.ano!,
+                patioId: values.patioId,
+                statusId: values.statusId || undefined,
+                motorista: values.motorista,
+                dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
+                observacoes: values.observacoes,
+              },
+              fotosEntrada,
+            )
+          : await registrarEntrada(
+              {
+                veiculoId: values.veiculoId,
+                patioId: values.patioId,
+                statusId: values.statusId || undefined,
+                motorista: values.motorista,
+                dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
+                observacoes: values.observacoes,
+              },
+              fotosEntrada,
+            )
       navigate(`/veiculos/${mov.veiculo_id}`)
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Não foi possível registrar a entrada.')
@@ -317,6 +354,21 @@ export function RegistrarEntrada() {
             <div>
               <Label htmlFor="observacoes">Observações</Label>
               <Textarea id="observacoes" placeholder="Opcional" {...register('observacoes')} />
+            </div>
+
+            <div>
+              <Label>Fotos do veículo</Label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {ANGULOS_FOTO.map(({ campo, label }) => (
+                  <FotoInput
+                    key={campo}
+                    label={label}
+                    previewUrl={fotos[campo]?.previewUrl}
+                    onSelect={(file, previewUrl) => handleSelecionarFoto(campo, file, previewUrl)}
+                    onRemove={() => handleRemoverFoto(campo)}
+                  />
+                ))}
+              </div>
             </div>
 
             <FieldError message={submitError ?? undefined} />
