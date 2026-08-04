@@ -119,6 +119,36 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
   return data
 }
 
+export async function atualizarVeiculo(id: string, input: UpsertVeiculoInput) {
+  const { data, error } = await supabase
+    .from('veiculos')
+    .update({
+      placa: input.placa.trim().toUpperCase(),
+      marca_id: input.marcaId,
+      modelo_id: input.modeloId,
+      cliente_id: input.clienteId,
+      tipo: input.tipo,
+      cor: up(input.cor) || null,
+      ano: input.ano ?? null,
+      chassi: up(input.chassi) || null,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export async function excluirVeiculo(id: string) {
+  const { error } = await supabase.from('veiculos').delete().eq('id', id)
+  if (error) {
+    if (error.code === '23503') {
+      throw new Error('Não é possível excluir: existem movimentações ou inspeções vinculadas a este veículo.')
+    }
+    throw new Error(error.message)
+  }
+}
+
 export async function buscarVeiculoPorPlaca(placa: string) {
   const { data } = await supabase
     .from('veiculos')

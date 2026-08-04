@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { Pencil, Trash2, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
-import { useClientes, criarCliente } from '@/hooks/useClientes'
+import { useClientes, criarCliente, atualizarCliente, excluirCliente } from '@/hooks/useClientes'
 import { buscarCnpj, formatCnpj } from '@/lib/cnpj'
+import type { Cliente } from '@/lib/types'
 
 const schema = z.object({
   nome: z.string().trim().min(1, 'Informe o nome da empresa'),
@@ -21,6 +23,9 @@ export function ClientesTab() {
   const { clientes, loading, refetch } = useClientes()
   const [buscandoCnpj, setBuscandoCnpj] = useState(false)
   const [cnpjInfo, setCnpjInfo] = useState<string | null>(null)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [excluindoId, setExcluindoId] = useState<string | null>(null)
+  const [erroLista, setErroLista] = useState<string | null>(null)
   const {
     register,
     handleSubmit,
@@ -69,6 +74,20 @@ export function ClientesTab() {
     }
   }
 
+  async function handleExcluir(id: string, nome: string) {
+    if (!confirm(`Excluir o cliente "${nome}"? Essa ação não pode ser desfeita.`)) return
+    setErroLista(null)
+    setExcluindoId(id)
+    try {
+      await excluirCliente(id)
+      await refetch()
+    } catch (err) {
+      setErroLista(err instanceof Error ? err.message : 'Não foi possível excluir o cliente.')
+    } finally {
+      setExcluindoId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -114,25 +133,131 @@ export function ClientesTab() {
 
       <Card>
         <CardContent className="pt-6">
+          {erroLista && <p className="mb-3 text-sm text-status-danger">{erroLista}</p>}
           {loading ? (
             <p className="text-sm text-secondary">Carregando…</p>
           ) : clientes.length === 0 ? (
             <p className="text-sm text-secondary">Nenhum cliente cadastrado.</p>
           ) : (
             <div className="space-y-3">
-              {clientes.map((c) => (
-                <div key={c.id} className="rounded-xl bg-background px-4 py-3">
-                  <p className="text-white font-medium">{c.nome}</p>
-                  <p className="text-sm text-secondary">
-                    {c.cnpj || 'Sem CNPJ'} · {c.telefone || 'Sem telefone'}
-                  </p>
-                  {c.endereco && <p className="text-sm text-secondary">{c.endereco}</p>}
-                </div>
-              ))}
+              {clientes.map((c) =>
+                editandoId === c.id ? (
+                  <EditarClienteForm
+                    key={c.id}
+                    cliente={c}
+                    onCancel={() => setEditandoId(null)}
+                    onSalvo={async () => {
+                      setEditandoId(null)
+                      await refetch()
+                    }}
+                    onErro={setErroLista}
+                  />
+                ) : (
+                  <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl bg-background px-4 py-3">
+                    <div>
+                      <p className="text-white font-medium">{c.nome}</p>
+                      <p className="text-sm text-secondary">
+                        {c.cnpj || 'Sem CNPJ'} · {c.telefone || 'Sem telefone'}
+                      </p>
+                      {c.endereco && <p className="text-sm text-secondary">{c.endereco}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        onClick={() => setEditandoId(c.id)}
+                        aria-label={`Editar ${c.nome}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="icon"
+                        onClick={() => handleExcluir(c.id, c.nome)}
+                        disabled={excluindoId === c.id}
+                        aria-label={`Excluir ${c.nome}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ),
+              )}
             </div>
           )}
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function EditarClienteForm({
+  cliente,
+  onCancel,
+  onSalvo,
+  onErro,
+}: {
+  cliente: Cliente
+  onCancel: () => void
+  onSalvo: () => void | Promise<void>
+  onErro: (message: string) => void
+}) {
+  const {
+    register,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      nome: cliente.nome,
+      cnpj: cliente.cnpj ?? '',
+      telefone: cliente.telefone ?? '',
+      endereco: cliente.endereco ?? '',
+    },
+  })
+
+  async function onSubmit(values: FormValues) {
+    try {
+      await atualizarCliente(cliente.id, values)
+      await onSalvo()
+    } catch (err) {
+      onErro(err instanceof Error ? err.message : 'Não foi possível salvar as alterações.')
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-3 rounded-xl border border-primary/40 bg-background px-4 py-3"
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`nome-${cliente.id}`}>Nome da empresa</Label>
+          <Input id={`nome-${cliente.id}`} {...register('nome')} />
+        </div>
+        <div>
+          <Label htmlFor={`cnpj-${cliente.id}`}>CNPJ</Label>
+          <Input id={`cnpj-${cliente.id}`} {...register('cnpj')} />
+        </div>
+        <div>
+          <Label htmlFor={`telefone-${cliente.id}`}>Telefone</Label>
+          <Input id={`telefone-${cliente.id}`} placeholder="Opcional" {...register('telefone')} />
+        </div>
+        <div>
+          <Label htmlFor={`endereco-${cliente.id}`}>Endereço</Label>
+          <Input id={`endereco-${cliente.id}`} {...register('endereco')} />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="icon" onClick={onCancel} aria-label="Cancelar edição">
+          <X className="h-4 w-4" />
+        </Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Salvando…' : 'Salvar'}
+        </Button>
+      </div>
+    </form>
   )
 }

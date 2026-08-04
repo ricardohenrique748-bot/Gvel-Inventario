@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { Pencil, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -8,7 +10,8 @@ import { Badge } from '@/components/ui/Badge'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
 import { useClientes } from '@/hooks/useClientes'
 import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
-import { useVeiculosPorCliente, upsertVeiculo } from '@/hooks/useVeiculos'
+import { useVeiculosPorCliente, upsertVeiculo, atualizarVeiculo, excluirVeiculo } from '@/hooks/useVeiculos'
+import type { VeiculoComRelacoes } from '@/lib/types'
 
 const anoAtual = new Date().getFullYear()
 
@@ -32,6 +35,9 @@ type FormValues = z.infer<typeof schema>
 export function FrotaTab() {
   const { clientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [excluindoId, setExcluindoId] = useState<string | null>(null)
+  const [erroLista, setErroLista] = useState<string | null>(null)
 
   const {
     register,
@@ -39,6 +45,7 @@ export function FrotaTab() {
     control,
     watch,
     reset,
+    setValue,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
@@ -53,20 +60,67 @@ export function FrotaTab() {
 
   async function onSubmit(values: FormValues) {
     try {
-      await upsertVeiculo({
-        placa: values.placa,
-        marcaId: values.marcaId,
-        modeloId: values.modeloId,
-        clienteId: values.clienteId,
-        tipo: values.tipo,
-        cor: values.cor,
-        ano: values.ano,
-        chassi: values.chassi,
-      })
+      if (editandoId) {
+        await atualizarVeiculo(editandoId, {
+          placa: values.placa,
+          marcaId: values.marcaId,
+          modeloId: values.modeloId,
+          clienteId: values.clienteId,
+          tipo: values.tipo,
+          cor: values.cor,
+          ano: values.ano,
+          chassi: values.chassi,
+        })
+        setEditandoId(null)
+      } else {
+        await upsertVeiculo({
+          placa: values.placa,
+          marcaId: values.marcaId,
+          modeloId: values.modeloId,
+          clienteId: values.clienteId,
+          tipo: values.tipo,
+          cor: values.cor,
+          ano: values.ano,
+          chassi: values.chassi,
+        })
+      }
       await refetchVeiculos()
       reset({ clienteId: values.clienteId, tipo: 'pesado' })
     } catch (err) {
       setError('placa', { message: err instanceof Error ? err.message : 'Não foi possível salvar o veículo.' })
+    }
+  }
+
+  function handleEditar(v: VeiculoComRelacoes) {
+    setEditandoId(v.id)
+    setValue('clienteId', v.cliente_id)
+    setValue('placa', v.placa)
+    setValue('tipo', v.tipo)
+    setValue('cor', v.cor ?? '')
+    setValue('chassi', v.chassi ?? '')
+    setValue('ano', v.ano ?? (undefined as unknown as number))
+    setValue('marcaId', v.marca_id)
+    setValue('modeloId', v.modelo_id)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function handleCancelarEdicao() {
+    setEditandoId(null)
+    reset({ clienteId, tipo: 'pesado' })
+  }
+
+  async function handleExcluir(id: string, placa: string) {
+    if (!confirm(`Excluir o veículo "${placa}"? Essa ação não pode ser desfeita.`)) return
+    setErroLista(null)
+    setExcluindoId(id)
+    try {
+      await excluirVeiculo(id)
+      if (editandoId === id) handleCancelarEdicao()
+      await refetchVeiculos()
+    } catch (err) {
+      setErroLista(err instanceof Error ? err.message : 'Não foi possível excluir o veículo.')
+    } finally {
+      setExcluindoId(null)
     }
   }
 
@@ -178,9 +232,14 @@ export function FrotaTab() {
               )}
             />
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {editandoId && (
+                <Button type="button" variant="secondary" onClick={handleCancelarEdicao}>
+                  Cancelar edição
+                </Button>
+              )}
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Salvando…' : 'Cadastrar veículo'}
+                {isSubmitting ? 'Salvando…' : editandoId ? 'Salvar alterações' : 'Cadastrar veículo'}
               </Button>
             </div>
           </form>
@@ -189,6 +248,7 @@ export function FrotaTab() {
 
       <Card>
         <CardContent className="pt-6">
+          {erroLista && <p className="mb-3 text-sm text-status-danger">{erroLista}</p>}
           {!clienteId ? (
             <p className="text-sm text-secondary">Selecione um cliente para ver a frota cadastrada.</p>
           ) : loading ? (
@@ -199,7 +259,30 @@ export function FrotaTab() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {veiculos.map((v) => (
                 <div key={v.id} className="rounded-xl bg-background px-4 py-3">
-                  <p className="text-white font-medium">{v.placa}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-white font-medium">{v.placa}</p>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        onClick={() => handleEditar(v)}
+                        aria-label={`Editar ${v.placa}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="icon"
+                        onClick={() => handleExcluir(v.id, v.placa)}
+                        disabled={excluindoId === v.id}
+                        aria-label={`Excluir ${v.placa}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                   <p className="text-sm text-secondary">
                     {v.marca?.nome} {v.modelo?.nome} {v.ano ? `· ${v.ano}` : ''}
                   </p>
