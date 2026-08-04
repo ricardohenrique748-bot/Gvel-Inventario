@@ -106,10 +106,10 @@ export function Dashboard() {
     return top
   }, [noPatio])
 
-  const rankingClientes = useMemo(() => {
+  const rankingPatios = useMemo(() => {
     const counts = new Map<string, number>()
     for (const m of periodo) {
-      const nome = m.veiculo?.cliente?.nome ?? 'Sem cliente'
+      const nome = m.patio?.nome ?? 'Sem pátio'
       counts.set(nome, (counts.get(nome) ?? 0) + 1)
     }
     return [...counts.entries()]
@@ -246,15 +246,15 @@ export function Dashboard() {
 
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Ranking de clientes com mais veículos no período</CardTitle>
+            <CardTitle>Ranking de pátios com mais veículos no período</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-72">
-              {rankingClientes.length === 0 ? (
+              {rankingPatios.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-sm text-secondary">Sem dados</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={rankingClientes} layout="vertical" margin={{ left: 8, right: 24 }}>
+                  <BarChart data={rankingPatios} layout="vertical" margin={{ left: 8, right: 24 }}>
                     <CartesianGrid horizontal={false} stroke={CHART_CHROME.grid} strokeDasharray="3 3" />
                     <XAxis type="number" allowDecimals={false} stroke={CHART_CHROME.axis} fontSize={12} tickLine={false} axisLine={false} />
                     <YAxis
