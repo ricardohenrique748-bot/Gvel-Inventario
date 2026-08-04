@@ -87,95 +87,101 @@ export function Movimentacoes() {
       ) : (
         <>
           {/* Desktop: tabela */}
-          <Card className="hidden md:block overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/5 text-left text-secondary">
-                  <th className="px-5 py-3 font-medium">Placa</th>
-                  <th className="px-5 py-3 font-medium">Marca/Modelo</th>
-                  <th className="px-5 py-3 font-medium">Cliente</th>
-                  <th className="px-5 py-3 font-medium">Pátio</th>
-                  <th className="px-5 py-3 font-medium">Entrada</th>
-                  <th className="px-5 py-3 font-medium">Saída</th>
-                  <th className="px-5 py-3 font-medium">Permanência</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Manutenção</th>
-                  <th className="px-5 py-3 font-medium">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {movimentacoes.map((m) =>
-                  editandoId === m.id ? (
-                    <tr key={m.id} className="border-b border-white/5 last:border-0">
-                      <td colSpan={10} className="p-4">
-                        <EditarMovimentacaoForm
-                          movimentacao={m}
-                          onCancel={() => setEditandoId(null)}
-                          onSalvo={async () => {
-                            setEditandoId(null)
-                            await refetch()
-                          }}
-                          onErro={setErroLista}
-                        />
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr
-                      key={m.id}
-                      className="border-b border-white/5 last:border-0 hover:bg-background/60 cursor-pointer"
-                      onClick={() => navigate(`/veiculos/${m.veiculo_id}`)}
-                    >
-                      <td className="px-5 py-3 font-medium text-white">{m.veiculo?.placa}</td>
-                      <td className="px-5 py-3 text-secondary">
-                        {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
-                      </td>
-                      <td className="px-5 py-3 text-secondary">{m.veiculo?.cliente?.nome}</td>
-                      <td className="px-5 py-3 text-secondary">{m.patio?.nome || '—'}</td>
-                      <td className="px-5 py-3 text-secondary">{formatDateTime(m.data_hora_entrada)}</td>
-                      <td className="px-5 py-3 text-secondary">
-                        {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}
-                      </td>
-                      <td className="px-5 py-3 text-secondary">
-                        {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}
-                      </td>
-                      <td className="px-5 py-3">
-                        {m.status === 'no_patio' ? (
-                          <Badge tone="success">No pátio</Badge>
-                        ) : (
-                          <Badge tone="neutral">Saiu</Badge>
-                        )}
-                      </td>
-                      <td className="px-5 py-3">
-                        <StatusManutencaoBadge status={m.status_manutencao} />
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="icon"
-                            onClick={() => setEditandoId(m.id)}
-                            aria-label={`Editar movimentação de ${m.veiculo?.placa}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="danger"
-                            size="icon"
-                            onClick={() => handleExcluir(m.id, m.veiculo?.placa)}
-                            disabled={excluindoId === m.id}
-                            aria-label={`Excluir movimentação de ${m.veiculo?.placa}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ),
-                )}
-              </tbody>
-            </table>
+          <Card className="hidden md:block">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/5 text-left text-secondary">
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">Placa</th>
+                    <th className="px-3 py-3 font-medium">Marca/Modelo</th>
+                    <th className="px-3 py-3 font-medium">Cliente</th>
+                    <th className="px-3 py-3 font-medium">Pátio</th>
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">Entrada</th>
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">Saída</th>
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">Permanência</th>
+                    <th className="px-3 py-3 font-medium">Status</th>
+                    <th className="px-3 py-3 font-medium">Manutenção</th>
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {movimentacoes.map((m) =>
+                    editandoId === m.id ? (
+                      <tr key={m.id} className="border-b border-white/5 last:border-0">
+                        <td colSpan={10} className="p-4">
+                          <EditarMovimentacaoForm
+                            movimentacao={m}
+                            onCancel={() => setEditandoId(null)}
+                            onSalvo={async () => {
+                              setEditandoId(null)
+                              await refetch()
+                            }}
+                            onErro={setErroLista}
+                          />
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr
+                        key={m.id}
+                        className="border-b border-white/5 last:border-0 hover:bg-background/60 cursor-pointer"
+                        onClick={() => navigate(`/veiculos/${m.veiculo_id}`)}
+                      >
+                        <td className="px-3 py-3 font-medium text-white whitespace-nowrap">{m.veiculo?.placa}</td>
+                        <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={`${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`}>
+                          {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                        </td>
+                        <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={m.veiculo?.cliente?.nome}>
+                          {m.veiculo?.cliente?.nome}
+                        </td>
+                        <td className="px-3 py-3 text-secondary max-w-[100px] truncate">{m.patio?.nome || '—'}</td>
+                        <td className="px-3 py-3 text-secondary whitespace-nowrap">{formatDateTime(m.data_hora_entrada)}</td>
+                        <td className="px-3 py-3 text-secondary whitespace-nowrap">
+                          {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}
+                        </td>
+                        <td className="px-3 py-3 text-secondary whitespace-nowrap">
+                          {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          {m.status === 'no_patio' ? (
+                            <Badge tone="success">No pátio</Badge>
+                          ) : (
+                            <Badge tone="neutral">Saiu</Badge>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <StatusManutencaoBadge status={m.status_manutencao} />
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="icon"
+                              className="!h-8 !w-8"
+                              onClick={() => setEditandoId(m.id)}
+                              aria-label={`Editar movimentação de ${m.veiculo?.placa}`}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="danger"
+                              size="icon"
+                              className="!h-8 !w-8"
+                              onClick={() => handleExcluir(m.id, m.veiculo?.placa)}
+                              disabled={excluindoId === m.id}
+                              aria-label={`Excluir movimentação de ${m.veiculo?.placa}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
           </Card>
 
           {/* Mobile: cards */}
