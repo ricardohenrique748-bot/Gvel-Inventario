@@ -119,6 +119,19 @@ export function Dashboard() {
       .map(([name, value]) => ({ name, value }))
   }, [periodo])
 
+  const entradasHojeAgrupadas = useMemo(() => {
+    const hoje = periodo.filter((m) => isToday(new Date(m.data_hora_entrada)))
+    const porCliente = new Map<string, typeof hoje>()
+    for (const m of hoje) {
+      const nome = m.veiculo?.cliente?.nome ?? 'Sem cliente'
+      if (!porCliente.has(nome)) porCliente.set(nome, [])
+      porCliente.get(nome)!.push(m)
+    }
+    return [...porCliente.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [periodo])
+
+  const [painelAberto, setPainelAberto] = useState<'no_patio' | 'entradas_hoje' | null>(null)
+
   const loading = loadingNoPatio || loadingPeriodo
 
   return (
@@ -130,8 +143,20 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-6">
-        <StatCard icon={Truck} label="No pátio agora" value={String(noPatio.length)} />
-        <StatCard icon={LogIn} label="Entradas hoje" value={String(stats.entradasHoje)} />
+        <StatCard
+          icon={Truck}
+          label="No pátio agora"
+          value={String(noPatio.length)}
+          active={painelAberto === 'no_patio'}
+          onClick={() => setPainelAberto((p) => (p === 'no_patio' ? null : 'no_patio'))}
+        />
+        <StatCard
+          icon={LogIn}
+          label="Entradas hoje"
+          value={String(stats.entradasHoje)}
+          active={painelAberto === 'entradas_hoje'}
+          onClick={() => setPainelAberto((p) => (p === 'entradas_hoje' ? null : 'entradas_hoje'))}
+        />
         <StatCard icon={LogOut} label="Saídas hoje" value={String(stats.saidasHoje)} />
         <StatCard
           icon={Clock}
@@ -139,6 +164,72 @@ export function Dashboard() {
           value={stats.tempoMedio > 0 ? formatMinutosParaTexto(stats.tempoMedio) : '—'}
         />
       </div>
+
+      {painelAberto === 'no_patio' && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>{loadingNoPatio ? 'Carregando…' : `${noPatio.length} veículo(s) no pátio agora`}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!loadingNoPatio && noPatio.length === 0 ? (
+              <p className="text-sm text-secondary">Nenhum veículo no pátio no momento.</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {noPatio.map((m) => (
+                  <Link
+                    key={m.id}
+                    to={`/veiculos/${m.veiculo_id}`}
+                    className="block rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
+                  >
+                    <p className="text-white font-medium">{m.veiculo?.placa}</p>
+                    <p className="text-sm text-secondary">
+                      {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                    </p>
+                    <p className="text-sm text-secondary">{m.veiculo?.cliente?.nome}</p>
+                    <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {painelAberto === 'entradas_hoje' && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>{loadingPeriodo ? 'Carregando…' : `${stats.entradasHoje} entrada(s) hoje`}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!loadingPeriodo && entradasHojeAgrupadas.length === 0 ? (
+              <p className="text-sm text-secondary">Nenhuma entrada registrada hoje.</p>
+            ) : (
+              <div className="space-y-4">
+                {entradasHojeAgrupadas.map(([cliente, movs]) => (
+                  <div key={cliente}>
+                    <p className="mb-2 text-sm font-medium text-secondary">{cliente}</p>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {movs.map((m) => (
+                        <Link
+                          key={m.id}
+                          to={`/veiculos/${m.veiculo_id}`}
+                          className="block rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
+                        >
+                          <p className="text-white font-medium">{m.veiculo?.placa}</p>
+                          <p className="text-sm text-secondary">
+                            {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                          </p>
+                          <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {filters.clienteId && (
         <Card className="mb-6">
