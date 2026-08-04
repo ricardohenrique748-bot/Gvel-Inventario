@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Truck, LogIn, LogOut, Clock } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -152,7 +153,11 @@ export function Dashboard() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {noPatio.map((m) => (
-                  <div key={m.id} className="rounded-xl bg-background px-4 py-3">
+                  <Link
+                    key={m.id}
+                    to={`/veiculos/${m.veiculo_id}`}
+                    className="block rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
+                  >
                     <p className="text-white font-medium">{m.veiculo?.placa}</p>
                     <p className="text-sm text-secondary">
                       {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
@@ -162,7 +167,7 @@ export function Dashboard() {
                       <Badge tone="success">No pátio</Badge>
                       <StatusManutencaoBadge status={m.status_manutencao} />
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
