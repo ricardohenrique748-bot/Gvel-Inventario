@@ -70,6 +70,7 @@ export interface Movimentacao {
   patio_id: string | null
   status_id: string | null
   motorista: string | null
+  destino: string | null
   data_hora_entrada: string
   data_hora_saida: string | null
   observacoes: string | null

@@ -1,30 +1,75 @@
 import { useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { LogOut, Truck } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { LogOut, Truck, X } from 'lucide-react'
 import { PageHeader } from '@/components/layout/Header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { Input, Label, FieldError } from '@/components/ui/Input'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useVeiculoDetalhe } from '@/hooks/useVeiculos'
 import { registrarSaida } from '@/hooks/useMovimentacoes'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
 
+const saidaSchema = z.object({
+  motorista: z.string().optional(),
+  destino: z.string().optional(),
+  data: z.string().min(1, 'Informe a data'),
+  horario: z.string().min(1, 'Informe o horário'),
+})
+
+type SaidaFormValues = z.infer<typeof saidaSchema>
+
+function hojeInputValue() {
+  const now = new Date()
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
+  return now.toISOString().slice(0, 10)
+}
+
+function agoraInputValue() {
+  const now = new Date()
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
+  return now.toISOString().slice(11, 16)
+}
+
 export function VeiculoDetalhe() {
   const { id } = useParams<{ id: string }>()
   const { veiculo, historico, loading, refetch } = useVeiculoDetalhe(id)
-  const [saving, setSaving] = useState(false)
+  const [confirmandoSaida, setConfirmandoSaida] = useState(false)
+  const [erroSaida, setErroSaida] = useState<string | null>(null)
 
   const movimentacaoAtiva = historico.find((m) => m.status === 'no_patio')
 
-  async function handleRegistrarSaida() {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SaidaFormValues>({
+    resolver: zodResolver(saidaSchema),
+    values: {
+      motorista: movimentacaoAtiva?.motorista ?? '',
+      destino: movimentacaoAtiva?.destino ?? '',
+      data: hojeInputValue(),
+      horario: agoraInputValue(),
+    },
+  })
+
+  async function onConfirmarSaida(values: SaidaFormValues) {
     if (!movimentacaoAtiva) return
-    setSaving(true)
+    setErroSaida(null)
     try {
-      await registrarSaida(movimentacaoAtiva.id)
+      await registrarSaida(movimentacaoAtiva.id, {
+        motorista: values.motorista,
+        destino: values.destino,
+        dataHoraSaida: new Date(`${values.data}T${values.horario}`).toISOString(),
+      })
+      setConfirmandoSaida(false)
       await refetch()
-    } finally {
-      setSaving(false)
+    } catch (err) {
+      setErroSaida(err instanceof Error ? err.message : 'Não foi possível registrar a saída.')
     }
   }
 
@@ -43,14 +88,77 @@ export function VeiculoDetalhe() {
         subtitle={`${veiculo.marca?.nome ?? ''} ${veiculo.modelo?.nome ?? ''}`}
         back
         actions={
-          movimentacaoAtiva ? (
-            <Button variant="danger" onClick={handleRegistrarSaida} disabled={saving}>
+          movimentacaoAtiva && !confirmandoSaida ? (
+            <Button variant="danger" onClick={() => setConfirmandoSaida(true)}>
               <LogOut className="h-4 w-4" />
-              {saving ? 'Registrando…' : 'Registrar saída'}
+              Registrar saída
             </Button>
           ) : undefined
         }
       />
+
+      {movimentacaoAtiva && confirmandoSaida && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Saída de veículo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit(onConfirmarSaida)} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Placa</Label>
+                  <Input value={veiculo.placa} disabled />
+                </div>
+                <div>
+                  <Label>Cliente</Label>
+                  <Input value={veiculo.cliente?.nome ?? ''} disabled />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="motorista">Motorista</Label>
+                  <Input id="motorista" placeholder="Opcional" {...register('motorista')} />
+                </div>
+                <div>
+                  <Label htmlFor="destino">Destino</Label>
+                  <Input id="destino" placeholder="Opcional" {...register('destino')} />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="data">Data</Label>
+                  <Input id="data" type="date" {...register('data')} />
+                  <FieldError message={errors.data?.message} />
+                </div>
+                <div>
+                  <Label htmlFor="horario">Horário</Label>
+                  <Input id="horario" type="time" {...register('horario')} />
+                  <FieldError message={errors.horario?.message} />
+                </div>
+              </div>
+
+              <FieldError message={erroSaida ?? undefined} />
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setConfirmandoSaida(false)
+                    setErroSaida(null)
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="danger" disabled={isSubmitting}>
+                  {isSubmitting ? 'Registrando…' : 'Confirmar saída'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3 mb-6">
         <Card className="lg:col-span-1">
@@ -120,6 +228,7 @@ export function VeiculoDetalhe() {
                     <p className="text-secondary">
                       Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'} · Permanência:{' '}
                       {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}
+                      {m.destino ? ` · Destino: ${m.destino}` : ''}
                     </p>
                     {m.observacoes && <p className="text-secondary mt-1">Obs: {m.observacoes}</p>}
                   </div>

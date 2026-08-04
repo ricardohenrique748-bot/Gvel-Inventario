@@ -169,10 +169,21 @@ export async function excluirMovimentacao(id: string) {
   if (error) throw new Error(error.message)
 }
 
-export async function registrarSaida(movimentacaoId: string) {
+interface RegistrarSaidaInput {
+  motorista?: string
+  destino?: string
+  dataHoraSaida: string
+}
+
+export async function registrarSaida(movimentacaoId: string, input?: RegistrarSaidaInput) {
   const { data, error } = await supabase
     .from('movimentacoes')
-    .update({ data_hora_saida: new Date().toISOString(), status: 'saiu' })
+    .update({
+      data_hora_saida: input?.dataHoraSaida ?? new Date().toISOString(),
+      motorista: input?.motorista !== undefined ? up(input.motorista) : undefined,
+      destino: input?.destino !== undefined ? up(input.destino) : undefined,
+      status: 'saiu',
+    })
     .eq('id', movimentacaoId)
     .select()
     .single()
