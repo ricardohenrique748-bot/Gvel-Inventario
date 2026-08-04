@@ -136,6 +136,39 @@ export async function registrarEntrada(input: RegistrarEntradaInput) {
   return data
 }
 
+interface AtualizarMovimentacaoInput {
+  patioId: string
+  statusId?: string
+  motorista?: string
+  observacoes?: string
+  dataHoraEntrada: string
+  dataHoraSaida?: string
+}
+
+export async function atualizarMovimentacao(id: string, input: AtualizarMovimentacaoInput) {
+  const { data, error } = await supabase
+    .from('movimentacoes')
+    .update({
+      patio_id: input.patioId,
+      status_id: input.statusId || null,
+      motorista: up(input.motorista),
+      observacoes: up(input.observacoes),
+      data_hora_entrada: input.dataHoraEntrada,
+      data_hora_saida: input.dataHoraSaida || null,
+      status: input.dataHoraSaida ? 'saiu' : 'no_patio',
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export async function excluirMovimentacao(id: string) {
+  const { error } = await supabase.from('movimentacoes').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 export async function registrarSaida(movimentacaoId: string) {
   const { data, error } = await supabase
     .from('movimentacoes')

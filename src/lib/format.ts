@@ -32,7 +32,12 @@ export function formatMinutosParaTexto(minutos: number) {
 }
 
 export function nowLocalInputValue() {
-  const now = new Date()
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
-  return now.toISOString().slice(0, 16)
+  return toLocalInputValue(new Date().toISOString())
+}
+
+export function toLocalInputValue(iso: string | null | undefined) {
+  if (!iso) return ''
+  const date = new Date(iso)
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset())
+  return date.toISOString().slice(0, 16)
 }
