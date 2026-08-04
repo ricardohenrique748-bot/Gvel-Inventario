@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -35,6 +35,7 @@ type FormValues = z.infer<typeof schema>
 export function FrotaTab() {
   const { clientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
+  const [mostrarForm, setMostrarForm] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [erroLista, setErroLista] = useState<string | null>(null)
@@ -86,6 +87,7 @@ export function FrotaTab() {
       }
       await refetchVeiculos()
       reset({ clienteId: values.clienteId, tipo: 'pesado' })
+      setMostrarForm(false)
     } catch (err) {
       setError('placa', { message: err instanceof Error ? err.message : 'Não foi possível salvar o veículo.' })
     }
@@ -93,6 +95,7 @@ export function FrotaTab() {
 
   function handleEditar(v: VeiculoComRelacoes) {
     setEditandoId(v.id)
+    setMostrarForm(true)
     setValue('clienteId', v.cliente_id)
     setValue('placa', v.placa)
     setValue('tipo', v.tipo)
@@ -106,6 +109,7 @@ export function FrotaTab() {
 
   function handleCancelarEdicao() {
     setEditandoId(null)
+    setMostrarForm(false)
     reset({ clienteId, tipo: 'pesado' })
   }
 
@@ -128,20 +132,30 @@ export function FrotaTab() {
     <div className="space-y-6">
       <Card>
         <CardContent className="pt-6">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <Label htmlFor="clienteId">Cliente</Label>
-              <Select id="clienteId" {...register('clienteId')}>
-                <option value="">Selecione o cliente</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nome}
-                  </option>
-                ))}
-              </Select>
-              <FieldError message={errors.clienteId?.message} />
-            </div>
+          <div>
+            <Label htmlFor="clienteId">Cliente</Label>
+            <Select id="clienteId" {...register('clienteId')}>
+              <option value="">Selecione o cliente</option>
+              {clientes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </Select>
+            <FieldError message={errors.clienteId?.message} />
+          </div>
+        </CardContent>
+      </Card>
 
+      {!mostrarForm ? (
+        <Button type="button" onClick={() => setMostrarForm(true)}>
+          <Plus className="h-4 w-4" />
+          Novo veículo
+        </Button>
+      ) : (
+      <Card>
+        <CardContent className="pt-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
               <Label>Tipo de veículo</Label>
               <div className="flex gap-3">
@@ -233,11 +247,9 @@ export function FrotaTab() {
             />
 
             <div className="flex justify-end gap-2">
-              {editandoId && (
-                <Button type="button" variant="secondary" onClick={handleCancelarEdicao}>
-                  Cancelar edição
-                </Button>
-              )}
+              <Button type="button" variant="secondary" onClick={handleCancelarEdicao}>
+                {editandoId ? 'Cancelar edição' : 'Cancelar'}
+              </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? 'Salvando…' : editandoId ? 'Salvar alterações' : 'Cadastrar veículo'}
               </Button>
@@ -245,6 +257,7 @@ export function FrotaTab() {
           </form>
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardContent className="pt-6">

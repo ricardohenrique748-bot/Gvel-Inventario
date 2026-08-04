@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Trash2, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -34,6 +34,7 @@ export function UsuariosTab() {
   const { perfil } = useAuth()
   const isAdmin = perfil?.nivel === 'admin'
   const { usuarios, loading, refetch } = useUsuarios()
+  const [mostrarForm, setMostrarForm] = useState(false)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [erroLista, setErroLista] = useState<string | null>(null)
@@ -50,6 +51,7 @@ export function UsuariosTab() {
       await criarUsuario(values)
       await refetch()
       reset()
+      setMostrarForm(false)
     } catch (err) {
       setError('email', { message: err instanceof Error ? err.message : 'Não foi possível criar o usuário.' })
     }
@@ -71,48 +73,58 @@ export function UsuariosTab() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardContent className="pt-6">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <Label htmlFor="nome">Nome</Label>
-              <Input id="nome" placeholder="Nome do usuário" {...register('nome')} />
-              <FieldError message={errors.nome?.message} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+      {!mostrarForm ? (
+        <Button type="button" onClick={() => setMostrarForm(true)}>
+          <Plus className="h-4 w-4" />
+          Novo usuário
+        </Button>
+      ) : (
+        <Card>
+          <CardContent className="pt-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div>
-                <Label htmlFor="email">E-mail</Label>
-                <Input id="email" type="email" placeholder="usuario@empresa.com" {...register('email')} />
-                <FieldError message={errors.email?.message} />
+                <Label htmlFor="nome">Nome</Label>
+                <Input id="nome" placeholder="Nome do usuário" {...register('nome')} />
+                <FieldError message={errors.nome?.message} />
               </div>
-              <div>
-                <Label htmlFor="senha">Senha temporária</Label>
-                <Input id="senha" type="password" placeholder="Mínimo de 6 caracteres" {...register('senha')} />
-                <FieldError message={errors.senha?.message} />
-                <p className="mt-1 text-xs text-secondary">A pessoa será obrigada a trocar no primeiro login.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input id="email" type="email" placeholder="usuario@empresa.com" {...register('email')} />
+                  <FieldError message={errors.email?.message} />
+                </div>
+                <div>
+                  <Label htmlFor="senha">Senha temporária</Label>
+                  <Input id="senha" type="password" placeholder="Mínimo de 6 caracteres" {...register('senha')} />
+                  <FieldError message={errors.senha?.message} />
+                  <p className="mt-1 text-xs text-secondary">A pessoa será obrigada a trocar no primeiro login.</p>
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="telefone">Telefone</Label>
-                <Input id="telefone" placeholder="Opcional" {...register('telefone')} />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="telefone">Telefone</Label>
+                  <Input id="telefone" placeholder="Opcional" {...register('telefone')} />
+                </div>
+                <div>
+                  <Label htmlFor="nivel">Nível</Label>
+                  <Select id="nivel" {...register('nivel')}>
+                    <option value="usuario">Usuário</option>
+                    <option value="admin">Administrador</option>
+                  </Select>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="nivel">Nível</Label>
-                <Select id="nivel" {...register('nivel')}>
-                  <option value="usuario">Usuário</option>
-                  <option value="admin">Administrador</option>
-                </Select>
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="secondary" onClick={() => { setMostrarForm(false); reset() }}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Salvando…' : 'Cadastrar usuário'}
+                </Button>
               </div>
-            </div>
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Salvando…' : 'Cadastrar usuário'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-6">

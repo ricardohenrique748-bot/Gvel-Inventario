@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Trash2, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -21,6 +21,7 @@ type FormValues = z.infer<typeof schema>
 
 export function ClientesTab() {
   const { clientes, loading, refetch } = useClientes()
+  const [mostrarForm, setMostrarForm] = useState(false)
   const [buscandoCnpj, setBuscandoCnpj] = useState(false)
   const [cnpjInfo, setCnpjInfo] = useState<string | null>(null)
   const [editandoId, setEditandoId] = useState<string | null>(null)
@@ -69,6 +70,7 @@ export function ClientesTab() {
       await refetch()
       reset()
       setCnpjInfo(null)
+      setMostrarForm(false)
     } catch (err) {
       setError('nome', { message: err instanceof Error ? err.message : 'Não foi possível salvar o cliente.' })
     }
@@ -90,46 +92,64 @@ export function ClientesTab() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardContent className="pt-6">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <Label htmlFor="nome">Nome da empresa</Label>
-              <Input id="nome" placeholder="Razão social ou nome fantasia" {...register('nome')} />
-              <FieldError message={errors.nome?.message} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+      {!mostrarForm ? (
+        <Button type="button" onClick={() => setMostrarForm(true)}>
+          <Plus className="h-4 w-4" />
+          Novo cliente
+        </Button>
+      ) : (
+        <Card>
+          <CardContent className="pt-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div>
-                <Label htmlFor="cnpj">CNPJ</Label>
-                <Input
-                  id="cnpj"
-                  placeholder="00.000.000/0000-00"
-                  inputMode="numeric"
-                  maxLength={18}
-                  {...cnpjField}
-                  onChange={handleCnpjChange}
-                  onBlur={handleCnpjBlur}
-                />
-                {buscandoCnpj && <p className="mt-1 text-xs text-secondary">Buscando dados da empresa…</p>}
-                {!buscandoCnpj && cnpjInfo && <p className="mt-1 text-xs text-secondary">{cnpjInfo}</p>}
+                <Label htmlFor="nome">Nome da empresa</Label>
+                <Input id="nome" placeholder="Razão social ou nome fantasia" {...register('nome')} />
+                <FieldError message={errors.nome?.message} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="cnpj">CNPJ</Label>
+                  <Input
+                    id="cnpj"
+                    placeholder="00.000.000/0000-00"
+                    inputMode="numeric"
+                    maxLength={18}
+                    {...cnpjField}
+                    onChange={handleCnpjChange}
+                    onBlur={handleCnpjBlur}
+                  />
+                  {buscandoCnpj && <p className="mt-1 text-xs text-secondary">Buscando dados da empresa…</p>}
+                  {!buscandoCnpj && cnpjInfo && <p className="mt-1 text-xs text-secondary">{cnpjInfo}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="telefone">Telefone</Label>
+                  <Input id="telefone" placeholder="Opcional" {...register('telefone')} />
+                </div>
               </div>
               <div>
-                <Label htmlFor="telefone">Telefone</Label>
-                <Input id="telefone" placeholder="Opcional" {...register('telefone')} />
+                <Label htmlFor="endereco">Endereço</Label>
+                <Input id="endereco" placeholder="Endereço completo" {...register('endereco')} />
               </div>
-            </div>
-            <div>
-              <Label htmlFor="endereco">Endereço</Label>
-              <Input id="endereco" placeholder="Endereço completo" {...register('endereco')} />
-            </div>
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Salvando…' : 'Cadastrar cliente'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setMostrarForm(false)
+                    reset()
+                    setCnpjInfo(null)
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Salvando…' : 'Cadastrar cliente'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-6">
