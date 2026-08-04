@@ -66,6 +66,7 @@ interface UpsertVeiculoInput {
   tipo: TipoVeiculo
   cor?: string
   ano?: number
+  chassi?: string
 }
 
 export async function upsertVeiculo(input: UpsertVeiculoInput) {
@@ -88,6 +89,7 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
     // ao atualizar o veículo por outros fluxos (ex.: Registrar entrada).
     if (input.cor !== undefined) updatePayload.cor = up(input.cor) || null
     if (input.ano !== undefined) updatePayload.ano = input.ano ?? null
+    if (input.chassi !== undefined) updatePayload.chassi = up(input.chassi) || null
 
     const { data, error } = await supabase
       .from('veiculos')
@@ -109,6 +111,7 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
       tipo: input.tipo,
       cor: up(input.cor) || null,
       ano: input.ano ?? null,
+      chassi: up(input.chassi) || null,
     })
     .select()
     .single()

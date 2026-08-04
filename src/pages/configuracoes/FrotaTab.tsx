@@ -17,6 +17,7 @@ const schema = z.object({
   placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
   tipo: z.enum(['pesado', 'leve']),
   cor: z.string().trim().min(1, 'Informe a cor'),
+  chassi: z.string().trim().optional(),
   ano: z
     .number({ message: 'Informe o ano' })
     .int('Ano inválido')
@@ -60,6 +61,7 @@ export function FrotaTab() {
         tipo: values.tipo,
         cor: values.cor,
         ano: values.ano,
+        chassi: values.chassi,
       })
       await refetchVeiculos()
       reset({ clienteId: values.clienteId, tipo: 'pesado' })
@@ -117,15 +119,22 @@ export function FrotaTab() {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="ano">Ano</Label>
-              <Input
-                id="ano"
-                type="number"
-                placeholder={String(anoAtual)}
-                {...register('ano', { valueAsNumber: true })}
-              />
-              <FieldError message={errors.ano?.message} />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="ano">Ano</Label>
+                <Input
+                  id="ano"
+                  type="number"
+                  placeholder={String(anoAtual)}
+                  {...register('ano', { valueAsNumber: true })}
+                />
+                <FieldError message={errors.ano?.message} />
+              </div>
+              <div>
+                <Label htmlFor="chassi">Chassi</Label>
+                <Input id="chassi" placeholder="Opcional" {...register('chassi')} />
+                <FieldError message={errors.chassi?.message} />
+              </div>
             </div>
 
             <Controller
@@ -195,6 +204,7 @@ export function FrotaTab() {
                     {v.marca?.nome} {v.modelo?.nome} {v.ano ? `· ${v.ano}` : ''}
                   </p>
                   <p className="text-sm text-secondary">{v.cor || 'Sem cor'}</p>
+                  {v.chassi && <p className="text-sm text-secondary">Chassi: {v.chassi}</p>}
                   <Badge tone="neutral" className="mt-2">
                     {v.tipo === 'pesado' ? 'Pesado' : 'Leve'}
                   </Badge>

@@ -71,6 +71,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
       tipo: state.tipo,
       cor: null,
       ano: null,
+      chassi: null,
       created_at: '',
       marca,
       modelo,

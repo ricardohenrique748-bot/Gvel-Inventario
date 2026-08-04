@@ -69,6 +69,7 @@ export function VeiculoDetalhe() {
             <Row label="Modelo">{veiculo.modelo?.nome}</Row>
             <Row label="Ano">{veiculo.ano || '—'}</Row>
             <Row label="Cor">{veiculo.cor || '—'}</Row>
+            <Row label="Chassi">{veiculo.chassi || '—'}</Row>
             <Row label="Cliente">{veiculo.cliente?.nome}</Row>
           </CardContent>
         </Card>
