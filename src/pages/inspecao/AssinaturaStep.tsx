@@ -15,6 +15,7 @@ interface Props {
 
 export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
   const sigRef = useRef<SignatureCanvas>(null)
+  const nomeRef = useRef<HTMLInputElement>(null)
   const [nome, setNome] = useState(state.responsavelNome ?? '')
   const [cargo, setCargo] = useState(state.responsavelCargo ?? '')
   const [declarou, setDeclarou] = useState(Boolean(state.assinaturaDataUrl))
@@ -22,10 +23,15 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
 
   function handleLimpar() {
     sigRef.current?.clear()
+    setErro(null)
   }
 
   function handleConfirmar() {
-    if (!nome.trim()) {
+    // Alguns navegadores preenchem o campo via autofill sem disparar o onChange
+    // do React — lê o valor direto do input como reforço ao state.
+    const nomeValor = (nome || nomeRef.current?.value || '').trim()
+
+    if (!nomeValor) {
       setErro('Informe o nome do responsável.')
       return
     }
@@ -39,7 +45,7 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
     }
 
     const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL('image/png')
-    onPatch({ assinaturaDataUrl: dataUrl, responsavelNome: nome.trim(), responsavelCargo: cargo.trim() })
+    onPatch({ assinaturaDataUrl: dataUrl, responsavelNome: nomeValor, responsavelCargo: cargo.trim() })
     onNext()
   }
 
@@ -49,11 +55,24 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label htmlFor="responsavelNome">Nome do responsável</Label>
-            <Input id="responsavelNome" value={nome} onChange={(e) => setNome(e.target.value)} />
+            <Input
+              id="responsavelNome"
+              ref={nomeRef}
+              value={nome}
+              onChange={(e) => {
+                setNome(e.target.value)
+                setErro(null)
+              }}
+            />
           </div>
           <div>
             <Label htmlFor="responsavelCargo">Cargo</Label>
-            <Input id="responsavelCargo" value={cargo} onChange={(e) => setCargo(e.target.value)} placeholder="Opcional" />
+            <Input
+              id="responsavelCargo"
+              value={cargo}
+              onChange={(e) => setCargo(e.target.value)}
+              placeholder="Opcional"
+            />
           </div>
         </div>
 
@@ -64,6 +83,7 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
               ref={sigRef}
               penColor="#1a1a1a"
               canvasProps={{ className: 'w-full h-48 touch-none' }}
+              onEnd={() => setErro(null)}
             />
           </div>
           <button
@@ -80,7 +100,10 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
           <input
             type="checkbox"
             checked={declarou}
-            onChange={(e) => setDeclarou(e.target.checked)}
+            onChange={(e) => {
+              setDeclarou(e.target.checked)
+              setErro(null)
+            }}
             className="mt-0.5 h-4 w-4 accent-primary"
           />
           Declaro que as informações prestadas nesta vistoria são verdadeiras e foram conferidas junto ao veículo.
