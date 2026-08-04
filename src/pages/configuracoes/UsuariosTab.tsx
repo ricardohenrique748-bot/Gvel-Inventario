@@ -22,8 +22,8 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function UsuariosTab() {
-  const { user } = useAuth()
-  const isAdmin = user?.nivel === 'admin'
+  const { perfil } = useAuth()
+  const isAdmin = perfil?.nivel === 'admin'
   const { usuarios, loading, refetch } = useUsuarios()
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [erroExclusao, setErroExclusao] = useState<string | null>(null)
@@ -125,7 +125,7 @@ export function UsuariosTab() {
                       {u.email} · {u.telefone || 'Sem telefone'} · Desde {formatDate(u.created_at)}
                     </p>
                   </div>
-                  {isAdmin && u.id !== user?.id && (
+                  {isAdmin && u.id !== perfil?.id && (
                     <Button
                       type="button"
                       variant="danger"

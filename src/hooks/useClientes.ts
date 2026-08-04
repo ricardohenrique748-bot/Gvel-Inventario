@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiGet, apiPost } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 import type { Cliente } from '@/lib/types'
 
 export function useClientes() {
@@ -9,7 +9,7 @@ export function useClientes() {
 
   const refetch = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await apiGet<Cliente[]>('/clientes')
+    const { data, error } = await supabase.from('clientes').select('*').order('nome')
     if (error) setError(error.message)
     else setClientes(data ?? [])
     setLoading(false)
@@ -28,7 +28,11 @@ export async function criarCliente(
   cnpj?: string,
   endereco?: string,
 ) {
-  const { data, error } = await apiPost<Cliente>('/clientes', { nome, telefone, cnpj, endereco })
-  if (error) throw new Error(error.message)
+  const { data, error } = await supabase
+    .from('clientes')
+    .insert({ nome, telefone: telefone || null, cnpj: cnpj || null, endereco: endereco || null })
+    .select()
+    .single()
+  if (error) throw error
   return data as Cliente
 }

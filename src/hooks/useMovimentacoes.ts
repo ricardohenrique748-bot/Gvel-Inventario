@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiGet, apiPatch, apiPost } from '@/lib/api'
-import type { Movimentacao, MovimentacaoComVeiculo, StatusMovimentacao, TipoVeiculo } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
+import { MOVIMENTACAO_COM_VEICULO } from '@/lib/queries'
+import type { MovimentacaoComVeiculo, StatusMovimentacao, TipoVeiculo } from '@/lib/types'
+import { upsertVeiculo } from './useVeiculos'
 
 export interface MovimentacoesFilters {
   search?: string
@@ -20,23 +22,46 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
 
   const refetch = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams()
-    if (filters.status) params.set('status', filters.status)
-    if (filters.clienteId) params.set('clienteId', filters.clienteId)
-    if (filters.marcaId) params.set('marcaId', filters.marcaId)
-    if (filters.modeloId) params.set('modeloId', filters.modeloId)
-    if (filters.patioId) params.set('patioId', filters.patioId)
-    if (filters.dataInicio) params.set('dataInicio', filters.dataInicio)
-    if (filters.dataFim) params.set('dataFim', filters.dataFim)
-    if (filters.search) params.set('search', filters.search.trim())
+    let query = supabase
+      .from('movimentacoes')
+      .select(MOVIMENTACAO_COM_VEICULO)
+      .order('data_hora_entrada', { ascending: false })
 
-    const { data, error } = await apiGet<MovimentacaoComVeiculo[]>(`/movimentacoes?${params}`)
+    if (filters.status) query = query.eq('status', filters.status)
+    if (filters.clienteId) query = query.eq('veiculo.cliente_id', filters.clienteId)
+    if (filters.marcaId) query = query.eq('veiculo.marca_id', filters.marcaId)
+    if (filters.modeloId) query = query.eq('veiculo.modelo_id', filters.modeloId)
+    if (filters.patioId) query = query.eq('patio_id', filters.patioId)
+    if (filters.dataInicio) query = query.gte('data_hora_entrada', filters.dataInicio)
+    if (filters.dataFim) query = query.lte('data_hora_entrada', filters.dataFim)
+
+    const { data, error } = await query
     if (error) {
       setError(error.message)
       setLoading(false)
       return
     }
-    setMovimentacoes(data ?? [])
+
+    let result = (data as unknown as MovimentacaoComVeiculo[]) ?? []
+
+    // Filtro de placa e por cliente/marca/modelo via join precisam de checagem
+    // client-side extra pois o PostgREST não filtra por FK aninhada de forma confiável
+    // em todas as versões — mantemos como camada de segurança.
+    if (filters.search) {
+      const term = filters.search.trim().toUpperCase()
+      result = result.filter((m) => m.veiculo?.placa?.toUpperCase().includes(term))
+    }
+    if (filters.clienteId) {
+      result = result.filter((m) => m.veiculo?.cliente_id === filters.clienteId)
+    }
+    if (filters.marcaId) {
+      result = result.filter((m) => m.veiculo?.marca_id === filters.marcaId)
+    }
+    if (filters.modeloId) {
+      result = result.filter((m) => m.veiculo?.modelo_id === filters.modeloId)
+    }
+
+    setMovimentacoes(result)
     setLoading(false)
   }, [
     filters.search,
@@ -77,13 +102,46 @@ type RegistrarEntradaInput =
     })
 
 export async function registrarEntrada(input: RegistrarEntradaInput) {
-  const { data, error } = await apiPost<Movimentacao>('/movimentacoes/entrada', input)
-  if (error || !data) throw new Error(error?.message ?? 'Erro ao registrar entrada.')
+  const veiculoId =
+    'veiculoId' in input
+      ? input.veiculoId
+      : (
+          await upsertVeiculo({
+            placa: input.placa,
+            marcaId: input.marcaId,
+            modeloId: input.modeloId,
+            clienteId: input.clienteId,
+            tipo: input.tipo,
+            cor: input.cor,
+            ano: input.ano,
+          })
+        ).id
+
+  const { data, error } = await supabase
+    .from('movimentacoes')
+    .insert({
+      veiculo_id: veiculoId,
+      patio_id: input.patioId,
+      status_id: input.statusId || null,
+      motorista: input.motorista || null,
+      data_hora_entrada: input.dataHoraEntrada,
+      observacoes: input.observacoes || null,
+      status: 'no_patio',
+    })
+    .select()
+    .single()
+
+  if (error) throw error
   return data
 }
 
 export async function registrarSaida(movimentacaoId: string) {
-  const { data, error } = await apiPatch<Movimentacao>(`/movimentacoes/${movimentacaoId}/saida`)
-  if (error || !data) throw new Error(error?.message ?? 'Erro ao registrar saída.')
+  const { data, error } = await supabase
+    .from('movimentacoes')
+    .update({ data_hora_saida: new Date().toISOString(), status: 'saiu' })
+    .eq('id', movimentacaoId)
+    .select()
+    .single()
+  if (error) throw error
   return data
 }

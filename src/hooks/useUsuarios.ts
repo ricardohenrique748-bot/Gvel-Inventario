@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiDelete, apiGet, apiPost } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 import type { NivelUsuario, Usuario } from '@/lib/types'
 
 export function useUsuarios() {
@@ -9,7 +9,7 @@ export function useUsuarios() {
 
   const refetch = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await apiGet<Usuario[]>('/usuarios')
+    const { data, error } = await supabase.from('usuarios').select('*').order('nome')
     if (error) setError(error.message)
     else setUsuarios(data ?? [])
     setLoading(false)
@@ -31,12 +31,26 @@ interface CriarUsuarioInput {
 }
 
 export async function criarUsuario(input: CriarUsuarioInput) {
-  const { data, error } = await apiPost<Usuario>('/usuarios', input)
-  if (error) throw new Error(error.message)
+  const { data, error } = await supabase.functions.invoke('create-usuario', { body: input })
+  if (error) {
+    const context = (error as { context?: Response }).context
+    if (context) {
+      const body = await context.json().catch(() => null)
+      throw new Error(body?.error ?? error.message)
+    }
+    throw new Error(error.message)
+  }
   return data as Usuario
 }
 
 export async function excluirUsuario(id: string) {
-  const { error } = await apiDelete<void>(`/usuarios/${id}`)
-  if (error) throw new Error(error.message)
+  const { error } = await supabase.functions.invoke('delete-usuario', { body: { id } })
+  if (error) {
+    const context = (error as { context?: Response }).context
+    if (context) {
+      const body = await context.json().catch(() => null)
+      throw new Error(body?.error ?? error.message)
+    }
+    throw new Error(error.message)
+  }
 }

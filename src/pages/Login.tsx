@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Logo } from '@/components/ui/Logo'
 import { Button } from '@/components/ui/Button'
 import { Input, Label, FieldError } from '@/components/ui/Input'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import { cn } from '@/lib/cn'
 
 const REMEMBER_KEY = 'gvel_remember_credentials'
@@ -96,6 +97,12 @@ export function Login() {
             <div className="mb-8 flex justify-center animate-scale-in">
               <Logo size="lg" stacked />
             </div>
+
+            {!isSupabaseConfigured && (
+              <p className="mb-4 rounded-xl border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs text-status-warning animate-fade-in">
+                Modo local de desenvolvimento: entre com admin@gvel.com / admin.
+              </p>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiGet, apiPost } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 import type { StatusManutencao } from '@/lib/types'
 
 export function useStatusManutencao() {
@@ -8,7 +8,7 @@ export function useStatusManutencao() {
 
   const refetch = useCallback(async () => {
     setLoading(true)
-    const { data } = await apiGet<StatusManutencao[]>('/status-manutencao')
+    const { data } = await supabase.from('status_manutencao').select('*').order('nome')
     setStatusManutencao(data ?? [])
     setLoading(false)
   }, [])
@@ -21,7 +21,7 @@ export function useStatusManutencao() {
 }
 
 export async function criarStatusManutencao(nome: string) {
-  const { data, error } = await apiPost<StatusManutencao>('/status-manutencao', { nome })
-  if (error) throw new Error(error.message)
+  const { data, error } = await supabase.from('status_manutencao').insert({ nome }).select().single()
+  if (error) throw error
   return data as StatusManutencao
 }

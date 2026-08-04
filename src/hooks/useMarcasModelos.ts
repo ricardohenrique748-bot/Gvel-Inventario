@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiGet, apiPost } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 import type { Marca, Modelo } from '@/lib/types'
 
 export function useMarcas() {
@@ -8,7 +8,7 @@ export function useMarcas() {
 
   const refetch = useCallback(async () => {
     setLoading(true)
-    const { data } = await apiGet<Marca[]>('/marcas')
+    const { data } = await supabase.from('marcas').select('*').order('nome')
     setMarcas(data ?? [])
     setLoading(false)
   }, [])
@@ -30,7 +30,7 @@ export function useModelos(marcaId: string | undefined) {
       return
     }
     setLoading(true)
-    const { data } = await apiGet<Modelo[]>(`/modelos?marcaId=${encodeURIComponent(marcaId)}`)
+    const { data } = await supabase.from('modelos').select('*').eq('marca_id', marcaId).order('nome')
     setModelos(data ?? [])
     setLoading(false)
   }, [marcaId])
@@ -43,13 +43,17 @@ export function useModelos(marcaId: string | undefined) {
 }
 
 export async function criarMarca(nome: string) {
-  const { data, error } = await apiPost<Marca>('/marcas', { nome })
-  if (error) throw new Error(error.message)
+  const { data, error } = await supabase.from('marcas').insert({ nome }).select().single()
+  if (error) throw error
   return data as Marca
 }
 
 export async function criarModelo(marcaId: string, nome: string) {
-  const { data, error } = await apiPost<Modelo>('/modelos', { marcaId, nome })
-  if (error) throw new Error(error.message)
+  const { data, error } = await supabase
+    .from('modelos')
+    .insert({ marca_id: marcaId, nome })
+    .select()
+    .single()
+  if (error) throw error
   return data as Modelo
 }

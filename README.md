@@ -4,64 +4,36 @@ Sistema de gestão de pátio: checklist de vistoria (com geração e compartilha
 
 ## Stack
 
-- **Frontend**: React + Vite + TypeScript, React Router, Tailwind CSS, Recharts, jsPDF + html2canvas, react-hook-form + zod, react-signature-canvas, vite-plugin-pwa.
-- **Backend**: Node + Express + TypeScript (pasta `server/`), MongoDB (Atlas) via driver oficial, autenticação própria com JWT, fotos/assinaturas guardadas no MongoDB via GridFS.
+React + Vite + TypeScript, React Router, Tailwind CSS, Supabase (Postgres + Auth + Storage), Recharts, jsPDF + html2canvas, react-hook-form + zod, react-signature-canvas, vite-plugin-pwa.
 
 ## Configuração inicial
 
-### 1. Criar o cluster MongoDB
-
-1. Crie um cluster gratuito em [mongodb.com/atlas](https://www.mongodb.com/atlas).
-2. Crie um usuário de banco e copie a connection string (`mongodb+srv://usuario:senha@seu-cluster.mongodb.net`).
-3. Libere o acesso de rede (em **Network Access**, adicione seu IP ou `0.0.0.0/0` para desenvolvimento).
-
-### 2. Backend (`server/`)
-
-```bash
-cd server
-npm install
-cp .env.example .env
-```
-
-Preencha o `server/.env`:
-
-```bash
-MONGODB_URI="mongodb+srv://usuario:senha@seu-cluster.mongodb.net"
-JWT_SECRET="uma-string-aleatoria-longa"
-PORT=4000
-CORS_ORIGIN=http://localhost:5173
-```
-
-Rode o seed (cria os índices, semeia marcas comuns e um usuário admin inicial):
-
-```bash
-npm run seed
-```
-
-Isso imprime as credenciais do usuário admin criado (e-mail `admin@gvel.com`) — troque a senha depois de logar, ou crie outro usuário pela tela de Usuários.
-
-Suba a API:
-
-```bash
-npm run dev
-```
-
-### 3. Frontend
-
-Na raiz do projeto:
+### 1. Instalar dependências
 
 ```bash
 npm install
-cp .env.example .env
 ```
 
-Preencha o `.env` da raiz:
+### 2. Criar o projeto Supabase
+
+1. Crie um projeto em [supabase.com](https://supabase.com).
+2. No **SQL Editor**, rode os arquivos de `supabase/migrations/` **em ordem** (0001 até o mais recente) — juntos eles criam as tabelas, índices, políticas de RLS, os buckets de storage e um seed de marcas comuns.
+3. Em **Edge Functions**, publique as duas funções em `supabase/functions/`:
+   - `create-usuario` — cria conta de login (Supabase Auth) + registro em `usuarios`.
+   - `delete-usuario` — exclui conta de login + registro em `usuarios` (só admins podem chamar).
+   (Via `supabase functions deploy create-usuario` / `delete-usuario` com a CLI, ou colando o código na aba Edge Functions do dashboard.)
+4. Em **Authentication → Users**, crie o primeiro usuário que vai acessar o sistema (e-mail/senha) — ele também precisa existir na tabela `usuarios` (a migration `0009` promove automaticamente o usuário mais antigo a administrador). Depois disso, novos usuários são criados pela própria tela de Configurações → Usuários do app.
+
+### 3. Configurar variáveis de ambiente
+
+Copie `.env.example` para `.env` e preencha com os dados do seu projeto (em **Project Settings → API**):
 
 ```bash
-VITE_API_URL=http://localhost:4000/api
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_ANON_KEY=SUA_ANON_KEY
 ```
 
-Rode em desenvolvimento:
+### 4. Rodar em desenvolvimento
 
 ```bash
 npm run dev
@@ -80,11 +52,8 @@ npm run dev
 - `src/data/checklistSchema.ts` — seções e itens do checklist (editável em código).
 - `src/lib/pdf.ts` + `src/pages/inspecao/reportHtml.ts` — geração do relatório de vistoria em PDF.
 - `src/lib/share.ts` — compartilhamento do PDF via Web Share API (WhatsApp etc.), com fallback para download.
-- `src/lib/api.ts` — cliente HTTP fino sobre `fetch`, injeta o token JWT e fala com o backend.
-- `src/hooks` — acesso a dados (via `src/lib/api.ts`) por entidade.
-- `server/src/routes` — rotas REST da API (uma por entidade).
-- `server/src/lib/relations.ts` — pipelines de agregação Mongo que resolvem as relações (equivalente aos `select` aninhados do PostgREST).
-- `server/src/scripts/seed.ts` — cria índices e semeia dados iniciais (marcas comuns + usuário admin).
+- `src/hooks` — acesso a dados (Supabase) por entidade.
+- `supabase/migrations` — schema do banco.
 
 ## Identidade visual
 

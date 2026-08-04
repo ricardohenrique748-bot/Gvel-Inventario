@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiGet, apiPost } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 import type { Patio } from '@/lib/types'
 
 export function usePatios() {
@@ -8,7 +8,7 @@ export function usePatios() {
 
   const refetch = useCallback(async () => {
     setLoading(true)
-    const { data } = await apiGet<Patio[]>('/patios')
+    const { data } = await supabase.from('patios').select('*').order('nome')
     setPatios(data ?? [])
     setLoading(false)
   }, [])
@@ -21,7 +21,7 @@ export function usePatios() {
 }
 
 export async function criarPatio(nome: string) {
-  const { data, error } = await apiPost<Patio>('/patios', { nome })
-  if (error) throw new Error(error.message)
+  const { data, error } = await supabase.from('patios').insert({ nome }).select().single()
+  if (error) throw error
   return data as Patio
 }

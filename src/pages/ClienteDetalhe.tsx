@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/Header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { apiGet } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 import type { Cliente } from '@/lib/types'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
@@ -15,7 +15,12 @@ export function ClienteDetalhe() {
 
   useEffect(() => {
     if (!id) return
-    apiGet<Cliente>(`/clientes/${id}`).then(({ data }) => setCliente(data))
+    supabase
+      .from('clientes')
+      .select('*')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => setCliente(data))
   }, [id])
 
   const noPatio = movimentacoes.filter((m) => m.status === 'no_patio')
