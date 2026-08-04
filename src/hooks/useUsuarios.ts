@@ -30,15 +30,19 @@ interface CriarUsuarioInput {
   nivel?: NivelUsuario
 }
 
+async function mensagemErroFuncao(error: unknown, fallback: string): Promise<string> {
+  const context = (error as { context?: Response }).context
+  if (context && typeof context.json === 'function') {
+    const body = await context.json().catch(() => null)
+    if (body?.error) return body.error
+  }
+  return error instanceof Error ? error.message : fallback
+}
+
 export async function criarUsuario(input: CriarUsuarioInput) {
   const { data, error } = await supabase.functions.invoke('create-usuario', { body: input })
   if (error) {
-    const context = (error as { context?: Response }).context
-    if (context) {
-      const body = await context.json().catch(() => null)
-      throw new Error(body?.error ?? error.message)
-    }
-    throw new Error(error.message)
+    throw new Error(await mensagemErroFuncao(error, 'Não foi possível criar o usuário.'))
   }
   return data as Usuario
 }
@@ -46,11 +50,6 @@ export async function criarUsuario(input: CriarUsuarioInput) {
 export async function excluirUsuario(id: string) {
   const { error } = await supabase.functions.invoke('delete-usuario', { body: { id } })
   if (error) {
-    const context = (error as { context?: Response }).context
-    if (context) {
-      const body = await context.json().catch(() => null)
-      throw new Error(body?.error ?? error.message)
-    }
-    throw new Error(error.message)
+    throw new Error(await mensagemErroFuncao(error, 'Não foi possível excluir o usuário.'))
   }
 }
