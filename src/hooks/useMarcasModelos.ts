@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { up } from '@/lib/text'
 import type { Marca, Modelo } from '@/lib/types'
 
 export function useMarcas() {
@@ -43,7 +44,7 @@ export function useModelos(marcaId: string | undefined) {
 }
 
 export async function criarMarca(nome: string) {
-  const { data, error } = await supabase.from('marcas').insert({ nome }).select().single()
+  const { data, error } = await supabase.from('marcas').insert({ nome: up(nome) }).select().single()
   if (error) throw error
   return data as Marca
 }
@@ -51,7 +52,7 @@ export async function criarMarca(nome: string) {
 export async function criarModelo(marcaId: string, nome: string) {
   const { data, error } = await supabase
     .from('modelos')
-    .insert({ marca_id: marcaId, nome })
+    .insert({ marca_id: marcaId, nome: up(nome) })
     .select()
     .single()
   if (error) throw error

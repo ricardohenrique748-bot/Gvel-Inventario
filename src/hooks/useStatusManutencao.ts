@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { up } from '@/lib/text'
 import type { StatusManutencao } from '@/lib/types'
 
 export function useStatusManutencao() {
@@ -21,7 +22,7 @@ export function useStatusManutencao() {
 }
 
 export async function criarStatusManutencao(nome: string) {
-  const { data, error } = await supabase.from('status_manutencao').insert({ nome }).select().single()
+  const { data, error } = await supabase.from('status_manutencao').insert({ nome: up(nome) }).select().single()
   if (error) throw error
   return data as StatusManutencao
 }

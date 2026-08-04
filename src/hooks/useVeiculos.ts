@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { VEICULO_COM_RELACOES, MOVIMENTACAO_COM_VEICULO } from '@/lib/queries'
+import { up } from '@/lib/text'
 import type { VeiculoComRelacoes, MovimentacaoComVeiculo, TipoVeiculo } from '@/lib/types'
 
 export function useVeiculoDetalhe(id: string | undefined) {
@@ -85,7 +86,7 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
     }
     // Só sobrescreve cor/ano quando informados, para não apagar esses dados
     // ao atualizar o veículo por outros fluxos (ex.: Registrar entrada).
-    if (input.cor !== undefined) updatePayload.cor = input.cor || null
+    if (input.cor !== undefined) updatePayload.cor = up(input.cor) || null
     if (input.ano !== undefined) updatePayload.ano = input.ano ?? null
 
     const { data, error } = await supabase
@@ -106,7 +107,7 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
       modelo_id: input.modeloId,
       cliente_id: input.clienteId,
       tipo: input.tipo,
-      cor: input.cor || null,
+      cor: up(input.cor) || null,
       ano: input.ano ?? null,
     })
     .select()

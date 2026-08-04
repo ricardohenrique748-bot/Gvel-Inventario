@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { up } from '@/lib/text'
 import type { Patio } from '@/lib/types'
 
 export function usePatios() {
@@ -21,7 +22,7 @@ export function usePatios() {
 }
 
 export async function criarPatio(nome: string) {
-  const { data, error } = await supabase.from('patios').insert({ nome }).select().single()
+  const { data, error } = await supabase.from('patios').insert({ nome: up(nome) }).select().single()
   if (error) throw error
   return data as Patio
 }

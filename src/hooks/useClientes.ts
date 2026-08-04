@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { up } from '@/lib/text'
 import type { Cliente } from '@/lib/types'
 
 export function useClientes() {
@@ -30,7 +31,7 @@ export async function criarCliente(
 ) {
   const { data, error } = await supabase
     .from('clientes')
-    .insert({ nome, telefone: telefone || null, cnpj: cnpj || null, endereco: endereco || null })
+    .insert({ nome: up(nome), telefone: telefone || null, cnpj: cnpj || null, endereco: up(endereco) })
     .select()
     .single()
   if (error) throw error

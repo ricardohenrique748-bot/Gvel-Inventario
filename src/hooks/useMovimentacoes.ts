@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { MOVIMENTACAO_COM_VEICULO } from '@/lib/queries'
+import { up } from '@/lib/text'
 import type { MovimentacaoComVeiculo, StatusMovimentacao, TipoVeiculo } from '@/lib/types'
 import { upsertVeiculo } from './useVeiculos'
 
@@ -123,9 +124,9 @@ export async function registrarEntrada(input: RegistrarEntradaInput) {
       veiculo_id: veiculoId,
       patio_id: input.patioId,
       status_id: input.statusId || null,
-      motorista: input.motorista || null,
+      motorista: up(input.motorista),
       data_hora_entrada: input.dataHoraEntrada,
-      observacoes: input.observacoes || null,
+      observacoes: up(input.observacoes),
       status: 'no_patio',
     })
     .select()

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { up } from '@/lib/text'
 import type { NivelUsuario, Usuario } from '@/lib/types'
 
 export function useUsuarios() {
@@ -40,7 +41,9 @@ async function mensagemErroFuncao(error: unknown, fallback: string): Promise<str
 }
 
 export async function criarUsuario(input: CriarUsuarioInput) {
-  const { data, error } = await supabase.functions.invoke('create-usuario', { body: input })
+  const { data, error } = await supabase.functions.invoke('create-usuario', {
+    body: { ...input, nome: up(input.nome) },
+  })
   if (error) {
     throw new Error(await mensagemErroFuncao(error, 'Não foi possível criar o usuário.'))
   }

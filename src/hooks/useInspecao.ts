@@ -2,6 +2,7 @@ import { supabase, FOTOS_BUCKET, ASSINATURAS_BUCKET } from '@/lib/supabase'
 import { upsertVeiculo } from './useVeiculos'
 import { getChecklistParaTipo } from '@/data/checklistSchema'
 import { itemKey, type InspecaoWizardState } from '@/pages/inspecao/types'
+import { up } from '@/lib/text'
 import type { StatusChecklist } from '@/lib/types'
 
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -67,7 +68,7 @@ export async function salvarInspecao(state: InspecaoWizardState) {
         secao: secao.nome,
         item: item.label,
         status: itemState.status,
-        observacao: itemState.observacao || null,
+        observacao: up(itemState.observacao),
         foto_url: fotoUrl,
       })
     }
@@ -83,12 +84,12 @@ export async function salvarInspecao(state: InspecaoWizardState) {
     id: state.id,
     veiculo_id: veiculo.id,
     cliente_id: state.clienteId,
-    inspetor: state.inspetor,
+    inspetor: up(state.inspetor),
     km: state.km ?? null,
     data_hora: state.dataHora,
     assinatura_url: assinaturaUrl,
-    responsavel_nome: state.responsavelNome || null,
-    responsavel_cargo: state.responsavelCargo || null,
+    responsavel_nome: up(state.responsavelNome),
+    responsavel_cargo: up(state.responsavelCargo),
     status_geral: statusGeral,
   })
   if (inspecaoError) throw inspecaoError
