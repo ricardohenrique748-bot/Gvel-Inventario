@@ -37,7 +37,7 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
 
 export function MobileTopBar() {
   return (
-    <div className="md:hidden sticky top-0 z-20 flex h-14 items-center border-b border-white/5 bg-surface px-4">
+    <div className="md:hidden sticky top-0 z-20 flex min-h-14 items-center border-b border-white/5 bg-surface px-4 pt-[env(safe-area-inset-top)]">
       <Logo showText={false} />
     </div>
   )

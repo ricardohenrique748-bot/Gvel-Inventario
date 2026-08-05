@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { SplashScreen } from '@capacitor/splash-screen'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Login } from '@/pages/Login'
-import { BootSplash, BOOT_SPLASH_MS } from '@/components/BootSplash'
+import { OrbitSplash, ORBIT_SPLASH_MS } from '@/components/OrbitSplash'
 import { isNativeApp } from '@/lib/isNativeApp'
 
 const TrocarSenha = lazy(() => import('@/pages/TrocarSenha').then((m) => ({ default: m.TrocarSenha })))
@@ -32,13 +33,14 @@ export default function App() {
   const [booting, setBooting] = useState(() => isNativeApp())
 
   useEffect(() => {
-    if (!booting) return
-    const timer = setTimeout(() => setBooting(false), BOOT_SPLASH_MS)
+    if (!isNativeApp()) return
+    SplashScreen.hide()
+    const timer = setTimeout(() => setBooting(false), ORBIT_SPLASH_MS)
     return () => clearTimeout(timer)
-  }, [booting])
+  }, [])
 
   if (booting) {
-    return <BootSplash />
+    return <OrbitSplash />
   }
 
   return (
