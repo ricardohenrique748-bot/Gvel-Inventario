@@ -5,9 +5,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { PageHeader } from '@/components/layout/Header'
 import { Card, CardContent } from '@/components/ui/Card'
-import { Input, Label, FieldError, Textarea, Select } from '@/components/ui/Input'
+import { Input, Label, FieldError, Textarea } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
+import { SearchableSelect } from '@/components/SearchableSelect'
 import { useClientes, criarCliente } from '@/hooks/useClientes'
 import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
 import { usePatios, criarPatio } from '@/hooks/usePatios'
@@ -187,21 +188,25 @@ export function RegistrarEntrada() {
             />
 
             {clienteId && (
-              <div>
-                <Label htmlFor="veiculoId">Placa</Label>
-                <Select id="veiculoId" disabled={loadingFrota} {...register('veiculoId')}>
-                  <option value="">
-                    {loadingFrota ? 'Carregando frota…' : 'Selecione a placa'}
-                  </option>
-                  {frotaCliente.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.placa} — {v.marca?.nome} {v.modelo?.nome}
-                    </option>
-                  ))}
-                  <option value={NOVO_VEICULO}>+ Cadastrar veículo novo</option>
-                </Select>
-                <FieldError message={errors.veiculoId?.message} />
-              </div>
+              <Controller
+                control={control}
+                name="veiculoId"
+                render={({ field }) => (
+                  <SearchableSelect
+                    label="Placa"
+                    value={field.value}
+                    onChange={field.onChange}
+                    loading={loadingFrota}
+                    options={frotaCliente.map((v) => ({
+                      id: v.id,
+                      label: `${v.placa} — ${v.marca?.nome ?? ''} ${v.modelo?.nome ?? ''}`.trim(),
+                    }))}
+                    extraOption={{ id: NOVO_VEICULO, label: '+ Cadastrar veículo novo' }}
+                    placeholder="Buscar placa…"
+                    error={errors.veiculoId?.message}
+                  />
+                )}
+              />
             )}
 
             {veiculoSelecionado && (

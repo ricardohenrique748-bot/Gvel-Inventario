@@ -13,6 +13,15 @@ import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useVeiculoDetalhe } from '@/hooks/useVeiculos'
 import { registrarSaida } from '@/hooks/useMovimentacoes'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
+import type { Movimentacao } from '@/lib/types'
+
+const FOTOS_MOVIMENTACAO: { campo: keyof Movimentacao; label: string }[] = [
+  { campo: 'foto_frente_url', label: 'Frente' },
+  { campo: 'foto_lado_esquerdo_url', label: 'Lado esquerdo' },
+  { campo: 'foto_lado_direito_url', label: 'Lado direito' },
+  { campo: 'foto_traseira_url', label: 'Traseira' },
+  { campo: 'foto_painel_url', label: 'Painel' },
+]
 
 const saidaSchema = z.object({
   motorista: z.string().optional(),
@@ -40,6 +49,7 @@ export function VeiculoDetalhe() {
   const { veiculo, historico, loading, refetch } = useVeiculoDetalhe(id)
   const [confirmandoSaida, setConfirmandoSaida] = useState(false)
   const [erroSaida, setErroSaida] = useState<string | null>(null)
+  const [fotoAmpliada, setFotoAmpliada] = useState<{ url: string; label: string } | null>(null)
 
   const movimentacaoAtiva = historico.find((m) => m.status === 'no_patio')
 
@@ -236,6 +246,30 @@ export function VeiculoDetalhe() {
                       {m.destino ? ` · Destino: ${m.destino}` : ''}
                     </p>
                     {m.observacoes && <p className="text-secondary mt-1">Obs: {m.observacoes}</p>}
+
+                    {FOTOS_MOVIMENTACAO.some(({ campo }) => m[campo]) && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {FOTOS_MOVIMENTACAO.map(({ campo, label }) => {
+                          const url = m[campo] as string | null
+                          if (!url) return null
+                          return (
+                            <button
+                              key={campo}
+                              type="button"
+                              onClick={() => setFotoAmpliada({ url, label })}
+                              className="shrink-0"
+                              aria-label={`Ampliar foto — ${label}`}
+                            >
+                              <img
+                                src={url}
+                                alt={label}
+                                className="h-16 w-16 rounded-lg object-cover border border-white/10 hover:opacity-80"
+                              />
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {m.status === 'no_patio' ? (
@@ -251,6 +285,31 @@ export function VeiculoDetalhe() {
           )}
         </CardContent>
       </Card>
+
+      {fotoAmpliada && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setFotoAmpliada(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setFotoAmpliada(null)}
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-surface text-white"
+            aria-label="Fechar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="flex max-h-full max-w-full flex-col items-center gap-2">
+            <img
+              src={fotoAmpliada.url}
+              alt={fotoAmpliada.label}
+              className="max-h-[80vh] max-w-full rounded-xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <p className="text-sm text-secondary">{fotoAmpliada.label}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
