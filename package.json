@@ -6,10 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "cap:sync": "npx cap sync android",
+    "build:apk": "npm run build && npx cap sync android",
+    "apk:debug": "npm run build:apk && powershell -Command \"$env:JAVA_HOME='C:\\Users\\Ricardo\\.jdks\\jbr-21.0.11'; $env:ANDROID_HOME='C:\\Users\\Ricardo\\AppData\\Local\\Android\\Sdk'; cd android; .\\gradlew.bat assembleDebug\"",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@hookform/resolvers": "^5.4.0",
     "@supabase/supabase-js": "^2.110.8",
     "clsx": "^2.1.1",
@@ -26,6 +31,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

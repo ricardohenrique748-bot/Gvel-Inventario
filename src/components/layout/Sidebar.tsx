@@ -1,20 +1,30 @@
 import { useMemo, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LogOut, Search } from 'lucide-react'
+import { LogOut, Search, Home, ArrowLeftRight } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { navItems } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/cn'
+import { isNativeApp } from '@/lib/isNativeApp'
+
+const nativeNavItems = [
+  { to: '/', label: 'Home', icon: Home, end: true },
+  { to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight },
+]
+
 
 export function Sidebar() {
   const { signOut, user } = useAuth()
   const [search, setSearch] = useState('')
+  const native = isNativeApp()
+
+  const currentNavItems = native ? nativeNavItems : navItems
 
   const filteredNavItems = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return navItems
-    return navItems.filter((item) => item.label.toLowerCase().includes(q))
-  }, [search])
+    if (!q) return currentNavItems
+    return currentNavItems.filter((item) => item.label.toLowerCase().includes(q))
+  }, [search, currentNavItems])
 
   const initials = (user?.email ?? '?').slice(0, 2).toUpperCase()
 
