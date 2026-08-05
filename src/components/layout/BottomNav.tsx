@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LogOut, Home, ArrowLeftRight } from 'lucide-react'
+import { LogOut, Home, ArrowLeftRight, Settings } from 'lucide-react'
 import { navItems } from './nav'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
@@ -39,13 +39,26 @@ export function BottomNav() {
           <span className="truncate px-1">Movimentação</span>
         </NavLink>
 
+        <NavLink
+          to="/configuracoes"
+          className={({ isActive }) =>
+            cn(
+              'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
+              isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-white',
+            )
+          }
+        >
+          <Settings className="h-5 w-5" />
+          <span className="truncate px-1">Configuração</span>
+        </NavLink>
+
         <button
           type="button"
           onClick={() => signOut()}
           className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium text-secondary hover:text-white transition-colors"
         >
           <LogOut className="h-5 w-5" />
-          <span className="truncate px-1">Sair do sistema</span>
+          <span className="truncate px-1">Sair</span>
         </button>
       </nav>
     )

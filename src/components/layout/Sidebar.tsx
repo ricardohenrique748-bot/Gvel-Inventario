@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LogOut, Search, Home, ArrowLeftRight } from 'lucide-react'
+import { LogOut, Search, Home, ArrowLeftRight, Settings } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { navItems } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
@@ -10,6 +10,7 @@ import { isNativeApp } from '@/lib/isNativeApp'
 const nativeNavItems = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight },
+  { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
 

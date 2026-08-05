@@ -16,7 +16,7 @@ import type { VeiculoComRelacoes } from '@/lib/types'
 const anoAtual = new Date().getFullYear()
 
 const schema = z.object({
-  clienteId: z.string().min(1, 'Selecione o cliente'),
+  clienteId: z.string().min(1, 'Selecione o cliente').refine((val) => val !== 'todos', 'Selecione um cliente para o veículo'),
   placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
   tipo: z.enum(['pesado', 'leve']),
   cor: z.string().trim().min(1, 'Informe a cor'),
@@ -52,7 +52,7 @@ export function FrotaTab() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { tipo: 'pesado', situacao: 'operante' },
+    defaultValues: { clienteId: 'todos', tipo: 'pesado', situacao: 'operante' },
   })
 
   const clienteId = watch('clienteId')
@@ -138,9 +138,9 @@ export function FrotaTab() {
       <Card>
         <CardContent className="pt-6">
           <div>
-            <Label htmlFor="clienteId">Cliente</Label>
+            <Label htmlFor="clienteId">Filtrar por Cliente</Label>
             <Select id="clienteId" {...register('clienteId')}>
-              <option value="">Selecione o cliente</option>
+              <option value="todos">Todos os clientes (Ver toda a frota)</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.nome}
@@ -285,12 +285,14 @@ export function FrotaTab() {
       <Card>
         <CardContent className="pt-6">
           {erroLista && <p className="mb-3 text-sm text-status-danger">{erroLista}</p>}
-          {!clienteId ? (
-            <p className="text-sm text-secondary">Selecione um cliente para ver a frota cadastrada.</p>
-          ) : loading ? (
-            <p className="text-sm text-secondary">Carregando…</p>
+          {loading ? (
+            <p className="text-sm text-secondary">Carregando frota…</p>
           ) : veiculos.length === 0 ? (
-            <p className="text-sm text-secondary">Nenhum veículo cadastrado para este cliente.</p>
+            <p className="text-sm text-secondary">
+              {clienteId === 'todos' || !clienteId
+                ? 'Nenhum veículo cadastrado na frota.'
+                : 'Nenhum veículo cadastrado para este cliente.'}
+            </p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {veiculos.map((v) => (

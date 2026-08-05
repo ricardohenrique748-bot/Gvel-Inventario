@@ -34,21 +34,23 @@ export function useVeiculoDetalhe(id: string | undefined) {
 
 export function useVeiculosPorCliente(clienteId: string | undefined) {
   const [veiculos, setVeiculos] = useState<VeiculoComRelacoes[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   const refetch = useCallback(async () => {
-    if (!clienteId) {
-      setVeiculos([])
-      return
-    }
     setLoading(true)
-    const { data } = await supabase
-      .from('veiculos')
-      .select(VEICULO_COM_RELACOES)
-      .eq('cliente_id', clienteId)
-      .order('placa')
-    setVeiculos((data as unknown as VeiculoComRelacoes[]) ?? [])
-    setLoading(false)
+    try {
+      let query = supabase.from('veiculos').select(VEICULO_COM_RELACOES).order('placa')
+      if (clienteId && clienteId !== 'todos') {
+        query = query.eq('cliente_id', clienteId)
+      }
+      const { data, error } = await query
+      if (error) {
+        console.error('[useVeiculosPorCliente]', error)
+      }
+      setVeiculos((data as unknown as VeiculoComRelacoes[]) ?? [])
+    } finally {
+      setLoading(false)
+    }
   }, [clienteId])
 
   useEffect(() => {
