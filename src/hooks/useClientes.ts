@@ -61,6 +61,27 @@ export async function atualizarCliente(id: string, input: AtualizarClienteInput)
   return data as Cliente
 }
 
+export async function obterLinkPublico(clienteId: string) {
+  const { data, error } = await supabase
+    .from('clientes')
+    .select('share_token')
+    .eq('id', clienteId)
+    .single()
+  if (error) throw new Error(error.message)
+
+  let token = data.share_token as string | null
+  if (!token) {
+    token = crypto.randomUUID()
+    const { error: updateError } = await supabase
+      .from('clientes')
+      .update({ share_token: token })
+      .eq('id', clienteId)
+    if (updateError) throw new Error(updateError.message)
+  }
+
+  return `${window.location.origin}/publico/frota/${token}`
+}
+
 export async function excluirCliente(id: string) {
   const { error } = await supabase.from('clientes').delete().eq('id', id)
   if (error) {

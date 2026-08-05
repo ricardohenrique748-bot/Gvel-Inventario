@@ -19,6 +19,7 @@ export interface Cliente {
   telefone: string | null
   cnpj: string | null
   endereco: string | null
+  share_token: string | null
   created_at: string
 }
 
@@ -90,6 +91,31 @@ export interface MovimentacaoComVeiculo extends Movimentacao {
   status_manutencao?: StatusManutencao
 }
 
+export interface VeiculoPublicoItem {
+  placa: string
+  marca: string | null
+  modelo: string | null
+  cor: string | null
+  ano: number | null
+  tipo: TipoVeiculo
+  chassi: string | null
+  operante: boolean
+  movimentacao_id: string
+  patio_nome: string | null
+  status: StatusMovimentacao
+  status_manutencao: string | null
+  motorista: string | null
+  destino: string | null
+  observacoes: string | null
+  data_hora_entrada: string
+  data_hora_saida: string | null
+  foto_frente_url: string | null
+  foto_lado_esquerdo_url: string | null
+  foto_lado_direito_url: string | null
+  foto_traseira_url: string | null
+  foto_painel_url: string | null
+}
+
 export interface Inspecao {
   id: string
   veiculo_id: string
@@ -102,6 +128,20 @@ export interface Inspecao {
   responsavel_cargo: string | null
   status_geral: StatusChecklist
   created_at: string
+}
+
+export interface FrotaPublicaItem {
+  cliente_nome: string
+  movimentacao_id: string
+  veiculo_id: string
+  placa: string
+  marca: string | null
+  modelo: string | null
+  patio_nome: string | null
+  status: StatusMovimentacao
+  status_manutencao: string | null
+  data_hora_entrada: string
+  data_hora_saida: string | null
 }
 
 export interface InspecaoItem {

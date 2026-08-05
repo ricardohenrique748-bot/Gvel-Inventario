@@ -20,6 +20,12 @@ const ClienteDetalhe = lazy(() => import('@/pages/ClienteDetalhe').then((m) => (
 const Relatorios = lazy(() => import('@/pages/Relatorios').then((m) => ({ default: m.Relatorios })))
 const NovaInspecao = lazy(() => import('@/pages/inspecao/NovaInspecao').then((m) => ({ default: m.NovaInspecao })))
 const Configuracoes = lazy(() => import('@/pages/Configuracoes').then((m) => ({ default: m.Configuracoes })))
+const FrotaPublica = lazy(() =>
+  import('@/pages/publico/FrotaPublica').then((m) => ({ default: m.FrotaPublica })),
+)
+const VeiculoPublico = lazy(() =>
+  import('@/pages/publico/VeiculoPublico').then((m) => ({ default: m.VeiculoPublico })),
+)
 
 function PaginaCarregando() {
   return (
@@ -49,6 +55,8 @@ export default function App() {
         <Suspense fallback={<PaginaCarregando />}>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/publico/frota/:token" element={<FrotaPublica />} />
+            <Route path="/publico/frota/:token/veiculo/:veiculoId" element={<VeiculoPublico />} />
             <Route
               path="/trocar-senha"
               element={

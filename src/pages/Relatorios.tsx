@@ -1,13 +1,17 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { format, subDays } from 'date-fns'
-import { FileDown } from 'lucide-react'
+import { FileDown, Share2, Check, X } from 'lucide-react'
 import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
+import { obterLinkPublico } from '@/hooks/useClientes'
 import { permanenciaEmMinutos, formatMinutosParaTexto, formatDate, formatDateTime } from '@/lib/format'
 import { generatePdfFromHtml, reportHeaderHtml, reportFooterHtml } from '@/lib/pdf'
 
@@ -17,6 +21,9 @@ export function Relatorios() {
     dataFim: format(new Date(), 'yyyy-MM-dd'),
   })
   const [exporting, setExporting] = useState(false)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const { movimentacoes, loading } = useMovimentacoes({
     clienteId: filters.clienteId,
@@ -28,6 +35,36 @@ export function Relatorios() {
   })
 
   const { veiculos: frotaCliente, loading: loadingFrota } = useVeiculosPorCliente(filters.clienteId)
+
+  const { movimentacoes: movimentacoesClienteTudo, loading: loadingSituacao } = useMovimentacoes({
+    clienteId: filters.clienteId,
+  })
+
+  const situacaoFrota = useMemo(() => {
+    const porVeiculo = new Map<string, (typeof movimentacoesClienteTudo)[number]>()
+    for (const m of movimentacoesClienteTudo) {
+      const atual = porVeiculo.get(m.veiculo_id)
+      if (!atual || new Date(m.data_hora_entrada) > new Date(atual.data_hora_entrada)) {
+        porVeiculo.set(m.veiculo_id, m)
+      }
+    }
+
+    const noPatio = [...porVeiculo.values()].filter((m) => m.status === 'no_patio')
+    const jaSaiu = [...porVeiculo.values()].filter((m) => m.status === 'saiu')
+
+    const porPatio = new Map<string, { nome: string; veiculos: typeof noPatio }>()
+    for (const m of noPatio) {
+      const key = m.patio_id ?? 'sem-patio'
+      const nome = m.patio?.nome ?? 'Sem pátio'
+      if (!porPatio.has(key)) porPatio.set(key, { nome, veiculos: [] })
+      porPatio.get(key)!.veiculos.push(m)
+    }
+
+    return {
+      porPatio: [...porPatio.values()].sort((a, b) => a.nome.localeCompare(b.nome)),
+      jaSaiu: jaSaiu.sort((a, b) => new Date(b.data_hora_saida ?? 0).getTime() - new Date(a.data_hora_saida ?? 0).getTime()),
+    }
+  }, [movimentacoesClienteTudo])
 
   const resumo = useMemo(() => {
     const entradas = movimentacoes.length
@@ -42,6 +79,24 @@ export function Relatorios() {
         : 0
     return { entradas, saidas, tempoMedio }
   }, [movimentacoes])
+
+  async function handleCompartilhar() {
+    if (!filters.clienteId) return
+    setSharing(true)
+    setCopied(false)
+    try {
+      const url = await obterLinkPublico(filters.clienteId)
+      setShareUrl(url)
+    } finally {
+      setSharing(false)
+    }
+  }
+
+  async function handleCopiarLink() {
+    if (!shareUrl) return
+    await navigator.clipboard.writeText(shareUrl)
+    setCopied(true)
+  }
 
   async function handleExportarPdf() {
     setExporting(true)
@@ -115,10 +170,21 @@ export function Relatorios() {
         title="Relatórios"
         subtitle="Resumo de entradas e saídas"
         actions={
-          <Button onClick={handleExportarPdf} disabled={exporting || loading}>
-            <FileDown className="h-4 w-4" />
-            {exporting ? 'Gerando…' : 'Exportar PDF'}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={handleCompartilhar}
+              disabled={!filters.clienteId || sharing}
+              title={!filters.clienteId ? 'Selecione um cliente para compartilhar' : undefined}
+            >
+              <Share2 className="h-4 w-4" />
+              {sharing ? 'Gerando…' : 'Compartilhar'}
+            </Button>
+            <Button onClick={handleExportarPdf} disabled={exporting || loading}>
+              <FileDown className="h-4 w-4" />
+              {exporting ? 'Gerando…' : 'Exportar PDF'}
+            </Button>
+          </div>
         }
       />
 
@@ -156,6 +222,89 @@ export function Relatorios() {
         </Card>
       )}
 
+      {filters.clienteId && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Situação atual da frota</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingSituacao ? (
+              <p className="text-sm text-secondary">Carregando…</p>
+            ) : situacaoFrota.porPatio.length === 0 && situacaoFrota.jaSaiu.length === 0 ? (
+              <p className="text-sm text-secondary">Nenhuma movimentação registrada para este cliente.</p>
+            ) : (
+              <div className="space-y-6">
+                {situacaoFrota.porPatio.length > 0 && (
+                  <div>
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {situacaoFrota.porPatio.map((p) => (
+                        <Badge key={p.nome} tone="success">
+                          {p.nome}: {p.veiculos.length} {p.veiculos.length === 1 ? 'caminhão' : 'caminhões'}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="space-y-4">
+                      {situacaoFrota.porPatio.map((p) => (
+                        <div key={p.nome}>
+                          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-secondary">
+                            {p.nome}
+                          </p>
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {p.veiculos.map((m) => (
+                              <Link
+                                key={m.id}
+                                to={`/veiculos/${m.veiculo_id}`}
+                                className="flex items-center justify-between gap-2 rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
+                              >
+                                <div>
+                                  <p className="text-white font-medium">{m.veiculo?.placa}</p>
+                                  <p className="text-sm text-secondary">
+                                    {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                                  </p>
+                                </div>
+                                <StatusManutencaoBadge status={m.status_manutencao} />
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {situacaoFrota.jaSaiu.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-secondary">
+                      Fora do pátio ({situacaoFrota.jaSaiu.length})
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {situacaoFrota.jaSaiu.map((m) => (
+                        <Link
+                          key={m.id}
+                          to={`/veiculos/${m.veiculo_id}`}
+                          className="block rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-white font-medium">{m.veiculo?.placa}</p>
+                            <Badge tone="neutral">Saiu</Badge>
+                          </div>
+                          <p className="text-sm text-secondary">
+                            {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                          </p>
+                          <p className="text-xs text-secondary mt-1">
+                            Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}
+                          </p>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-3 gap-4 mb-6">
         <Card className="p-5">
           <p className="text-sm text-secondary">Entradas</p>
@@ -178,6 +327,36 @@ export function Relatorios() {
           {loading ? 'Carregando…' : `${movimentacoes.length} movimentações no período selecionado.`}
         </p>
       </Card>
+
+      {shareUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShareUrl(null)}
+        >
+          <Card className="w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-white">Link público de acompanhamento</h3>
+              <button
+                type="button"
+                onClick={() => setShareUrl(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:text-white"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mb-3 text-sm text-secondary">
+              Qualquer pessoa com este link vê a situação atual da frota deste cliente, sem precisar fazer login.
+            </p>
+            <div className="flex gap-2">
+              <Input value={shareUrl} readOnly onFocus={(e) => e.target.select()} />
+              <Button type="button" onClick={handleCopiarLink} variant={copied ? 'success' : 'primary'}>
+                {copied ? <Check className="h-4 w-4" /> : 'Copiar'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
