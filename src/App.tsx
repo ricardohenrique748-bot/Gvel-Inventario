@@ -1,9 +1,11 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Login } from '@/pages/Login'
+import { BootSplash, BOOT_SPLASH_MS } from '@/components/BootSplash'
+import { isNativeApp } from '@/lib/isNativeApp'
 
 const TrocarSenha = lazy(() => import('@/pages/TrocarSenha').then((m) => ({ default: m.TrocarSenha })))
 const Dashboard = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })))
@@ -27,6 +29,18 @@ function PaginaCarregando() {
 }
 
 export default function App() {
+  const [booting, setBooting] = useState(() => isNativeApp())
+
+  useEffect(() => {
+    if (!booting) return
+    const timer = setTimeout(() => setBooting(false), BOOT_SPLASH_MS)
+    return () => clearTimeout(timer)
+  }, [booting])
+
+  if (booting) {
+    return <BootSplash />
+  }
+
   return (
     <BrowserRouter>
       <AuthProvider>

@@ -16,7 +16,9 @@ import { Logo } from '@/components/ui/Logo'
 import { Button } from '@/components/ui/Button'
 import { Input, Label, FieldError } from '@/components/ui/Input'
 import { isSupabaseConfigured } from '@/lib/supabase'
+import { isNativeApp } from '@/lib/isNativeApp'
 import { cn } from '@/lib/cn'
+import { BrandSplash, BRAND_SPLASH_MS } from '@/components/BrandSplash'
 
 const REMEMBER_KEY = 'gvel_remember_credentials'
 
@@ -38,6 +40,7 @@ export function Login() {
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(false)
 
   const from = (location.state as { from?: string } | null)?.from ?? '/'
 
@@ -73,7 +76,17 @@ export function Login() {
     } else {
       localStorage.removeItem(REMEMBER_KEY)
     }
-    navigate(from, { replace: true })
+
+    if (isNativeApp()) {
+      setShowWelcome(true)
+      setTimeout(() => navigate(from, { replace: true }), BRAND_SPLASH_MS)
+    } else {
+      navigate(from, { replace: true })
+    }
+  }
+
+  if (showWelcome) {
+    return <BrandSplash />
   }
 
   return (
@@ -92,7 +105,7 @@ export function Login() {
 
       <div className="relative w-full max-w-sm md:max-w-4xl mx-auto grid md:grid-cols-2 rounded-3xl border border-white/10 overflow-hidden animate-fade-in-up shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.15)]">
         {/* Left: form */}
-        <div className="flex flex-col p-8 sm:p-10 md:p-12 bg-white/[0.06] backdrop-blur-2xl">
+        <div className="flex flex-col p-8 sm:p-10 md:p-12 bg-surface">
           <div className="flex-1 flex flex-col justify-center w-full max-w-xs mx-auto">
             <div className="mb-8 flex justify-center animate-scale-in">
               <Logo size="lg" stacked />
