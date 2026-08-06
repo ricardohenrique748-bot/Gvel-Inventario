@@ -82,6 +82,8 @@ export interface Movimentacao {
   foto_lado_direito_url: string | null
   foto_traseira_url: string | null
   foto_painel_url: string | null
+  usuario_entrada_id: string | null
+  usuario_saida_id: string | null
   created_at: string
 }
 
@@ -89,6 +91,8 @@ export interface MovimentacaoComVeiculo extends Movimentacao {
   veiculo: VeiculoComRelacoes
   patio?: Patio
   status_manutencao?: StatusManutencao
+  usuario_entrada?: { nome: string } | null
+  usuario_saida?: { nome: string } | null
 }
 
 export interface VeiculoPublicoItem {

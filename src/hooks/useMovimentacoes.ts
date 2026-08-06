@@ -110,6 +110,11 @@ export interface FotosEntrada {
   painel?: File
 }
 
+async function getUsuarioAtualId() {
+  const { data } = await supabase.auth.getSession()
+  return data.session?.user?.id ?? null
+}
+
 async function uploadFotoEntrada(movimentacaoId: string, campo: string, file: File) {
   const ext = file.type === 'image/png' ? 'png' : 'jpg'
   const path = `entrada/${movimentacaoId}/${campo}.${ext}`
@@ -138,6 +143,7 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
         ).id
 
   const movimentacaoId = crypto.randomUUID()
+  const usuarioId = await getUsuarioAtualId()
 
   const [fotoFrenteUrl, fotoLadoEsquerdoUrl, fotoLadoDireitoUrl, fotoTraseiraUrl, fotoPainelUrl] = await Promise.all([
     fotos?.frente ? uploadFotoEntrada(movimentacaoId, 'frente', fotos.frente) : null,
@@ -163,6 +169,7 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
       foto_lado_direito_url: fotoLadoDireitoUrl,
       foto_traseira_url: fotoTraseiraUrl,
       foto_painel_url: fotoPainelUrl,
+      usuario_entrada_id: usuarioId,
     })
     .select()
     .single()
@@ -211,6 +218,7 @@ interface RegistrarSaidaInput {
 }
 
 export async function registrarSaida(movimentacaoId: string, input?: RegistrarSaidaInput) {
+  const usuarioId = await getUsuarioAtualId()
   const { data, error } = await supabase
     .from('movimentacoes')
     .update({
@@ -218,6 +226,7 @@ export async function registrarSaida(movimentacaoId: string, input?: RegistrarSa
       motorista: input?.motorista !== undefined ? up(input.motorista) : undefined,
       destino: input?.destino !== undefined ? up(input.destino) : undefined,
       status: 'saiu',
+      usuario_saida_id: usuarioId,
     })
     .eq('id', movimentacaoId)
     .select()

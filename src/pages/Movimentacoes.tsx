@@ -101,6 +101,7 @@ export function Movimentacoes() {
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Permanência</th>
                     <th className="px-3 py-3 font-medium">Status</th>
                     <th className="px-3 py-3 font-medium">Manutenção</th>
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">Registrado por</th>
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
@@ -108,7 +109,7 @@ export function Movimentacoes() {
                   {movimentacoes.map((m) =>
                     editandoId === m.id ? (
                       <tr key={m.id} className="border-b border-white/5 last:border-0">
-                        <td colSpan={10} className="p-4">
+                        <td colSpan={11} className="p-4">
                           <EditarMovimentacaoForm
                             movimentacao={m}
                             onCancel={() => setEditandoId(null)}
@@ -150,6 +151,10 @@ export function Movimentacoes() {
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">
                           <StatusManutencaoBadge status={m.status_manutencao} />
+                        </td>
+                        <td className="px-3 py-3 text-secondary text-xs whitespace-nowrap">
+                          <p>Entrada: {m.usuario_entrada?.nome ?? '—'}</p>
+                          {m.data_hora_saida && <p>Saída: {m.usuario_saida?.nome ?? '—'}</p>}
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -224,6 +229,8 @@ export function Movimentacoes() {
                       <p>Permanência: {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}</p>
                       <p>Entrada: {formatDateTime(m.data_hora_entrada)}</p>
                       <p>Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}</p>
+                      <p>Registrado por: {m.usuario_entrada?.nome ?? '—'}</p>
+                      {m.data_hora_saida && <p>Saída por: {m.usuario_saida?.nome ?? '—'}</p>}
                     </div>
                   </Link>
                   <div className="mt-3 flex justify-end gap-2 border-t border-white/5 pt-3">

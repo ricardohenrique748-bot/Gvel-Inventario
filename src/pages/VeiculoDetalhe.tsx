@@ -245,6 +245,10 @@ export function VeiculoDetalhe() {
                       {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}
                       {m.destino ? ` · Destino: ${m.destino}` : ''}
                     </p>
+                    <p className="text-xs text-secondary mt-1">
+                      Registrado por: {m.usuario_entrada?.nome ?? '—'}
+                      {m.data_hora_saida ? ` · Saída registrada por: ${m.usuario_saida?.nome ?? '—'}` : ''}
+                    </p>
                     {m.observacoes && <p className="text-secondary mt-1">Obs: {m.observacoes}</p>}
 
                     {FOTOS_MOVIMENTACAO.some(({ campo }) => m[campo]) && (
