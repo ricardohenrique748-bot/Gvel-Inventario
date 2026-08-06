@@ -41,7 +41,7 @@ export function FrotaPublica() {
     }
   }, [token])
 
-  const { clienteNome, porPatio, jaSaiu } = useMemo(() => {
+  const { clienteNome, porPatio, jaSaiu, totalGeral } = useMemo(() => {
     const lista = itens ?? []
     const clienteNome = lista[0]?.cliente_nome ?? ''
     const noPatio = lista.filter((i) => i.status === 'no_patio')
@@ -60,6 +60,7 @@ export function FrotaPublica() {
       clienteNome,
       porPatio: [...porPatioMap.values()].sort((a, b) => a.nome.localeCompare(b.nome)),
       jaSaiu,
+      totalGeral: lista.length,
     }
   }, [itens])
 
@@ -84,18 +85,23 @@ export function FrotaPublica() {
             <p className="mb-6 text-center text-sm text-secondary">Situação atual da frota</p>
 
             {porPatio.length > 0 && (
+              <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {porPatio.map((p) => (
+                  <Card key={p.nome} className="p-5">
+                    <p className="text-sm text-secondary truncate">{p.nome}</p>
+                    <p className="mt-1 text-3xl font-semibold text-foreground">{p.veiculos.length}</p>
+                    <p className="text-xs text-secondary">{p.veiculos.length === 1 ? 'caminhão' : 'caminhões'}</p>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {porPatio.length > 0 && (
               <Card className="mb-6">
                 <CardHeader>
                   <CardTitle>No pátio</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {porPatio.map((p) => (
-                      <Badge key={p.nome} tone="success">
-                        {p.nome}: {p.veiculos.length} {p.veiculos.length === 1 ? 'caminhão' : 'caminhões'}
-                      </Badge>
-                    ))}
-                  </div>
                   <div className="space-y-4">
                     {porPatio.map((p) => (
                       <div key={p.nome}>
@@ -156,6 +162,12 @@ export function FrotaPublica() {
                 </CardContent>
               </Card>
             )}
+
+            <Card className="mt-6 p-5 text-center">
+              <p className="text-sm text-secondary">Total geral</p>
+              <p className="mt-1 text-3xl font-semibold text-foreground">{totalGeral}</p>
+              <p className="text-xs text-secondary">{totalGeral === 1 ? 'veículo' : 'veículos'}</p>
+            </Card>
           </>
         )}
       </div>
