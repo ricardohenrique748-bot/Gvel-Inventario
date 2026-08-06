@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -40,6 +40,7 @@ export function FrotaTab() {
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [erroLista, setErroLista] = useState<string | null>(null)
+  const [busca, setBusca] = useState('')
 
   const {
     register,
@@ -59,6 +60,12 @@ export function FrotaTab() {
   const marcaId = watch('marcaId')
   const { modelos, refetch: refetchModelos } = useModelos(marcaId)
   const { veiculos, loading, refetch: refetchVeiculos } = useVeiculosPorCliente(clienteId)
+
+  const veiculosFiltrados = useMemo(() => {
+    const termo = busca.trim().toUpperCase()
+    if (!termo) return veiculos
+    return veiculos.filter((v) => v.placa?.toUpperCase().includes(termo))
+  }, [veiculos, busca])
 
   async function onSubmit(values: FormValues) {
     try {
@@ -285,6 +292,19 @@ export function FrotaTab() {
       <Card>
         <CardContent className="pt-6">
           {erroLista && <p className="mb-3 text-sm text-status-danger">{erroLista}</p>}
+
+          {!loading && veiculos.length > 0 && (
+            <div className="relative mb-4">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+              <Input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar placa…"
+                className="pl-10"
+              />
+            </div>
+          )}
+
           {loading ? (
             <p className="text-sm text-secondary">Carregando frota…</p>
           ) : veiculos.length === 0 ? (
@@ -293,9 +313,11 @@ export function FrotaTab() {
                 ? 'Nenhum veículo cadastrado na frota.'
                 : 'Nenhum veículo cadastrado para este cliente.'}
             </p>
+          ) : veiculosFiltrados.length === 0 ? (
+            <p className="text-sm text-secondary">Nenhuma placa encontrada para "{busca}".</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {veiculos.map((v) => (
+              {veiculosFiltrados.map((v) => (
                 <div key={v.id} className="rounded-xl bg-background px-4 py-3">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-foreground font-medium">{v.placa}</p>
