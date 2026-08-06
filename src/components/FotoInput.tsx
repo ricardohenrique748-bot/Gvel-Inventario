@@ -21,11 +21,11 @@ export function FotoInput({ label, previewUrl, onSelect, onRemove }: Props) {
   return (
     <div className="rounded-xl bg-background p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-white">{label}</p>
+        <p className="text-xs font-medium text-foreground">{label}</p>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary hover:text-white"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary hover:text-foreground"
           aria-label={`Anexar foto — ${label}`}
         >
           <Camera className="h-4 w-4" />

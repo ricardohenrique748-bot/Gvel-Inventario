@@ -56,7 +56,7 @@ export function VeiculoPublico() {
         <div className="mb-6 flex items-center justify-between">
           <Link
             to={`/publico/frota/${token}`}
-            className="flex items-center gap-2 text-sm text-secondary hover:text-white"
+            className="flex items-center gap-2 text-sm text-secondary hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
             Voltar
@@ -72,7 +72,7 @@ export function VeiculoPublico() {
           </Card>
         ) : (
           <>
-            <h1 className="mb-1 text-2xl font-bold text-white">{veiculo!.placa}</h1>
+            <h1 className="mb-1 text-2xl font-bold text-foreground">{veiculo!.placa}</h1>
             <p className="mb-6 text-sm text-secondary">
               {veiculo!.marca} {veiculo!.modelo}
             </p>
@@ -83,31 +83,31 @@ export function VeiculoPublico() {
                   <CardTitle>Dados do veículo</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between border-b border-white/5 py-1.5">
+                  <div className="flex items-center justify-between border-b border-border/5 py-1.5">
                     <span className="text-secondary">Status</span>
                     {ativo ? <Badge tone="success">No pátio</Badge> : <Badge tone="neutral">Fora do pátio</Badge>}
                   </div>
-                  <div className="flex items-center justify-between border-b border-white/5 py-1.5">
+                  <div className="flex items-center justify-between border-b border-border/5 py-1.5">
                     <span className="text-secondary">Tipo</span>
-                    <span className="text-white font-medium">{veiculo!.tipo === 'pesado' ? 'Pesado' : 'Leve'}</span>
+                    <span className="text-foreground font-medium">{veiculo!.tipo === 'pesado' ? 'Pesado' : 'Leve'}</span>
                   </div>
-                  <div className="flex items-center justify-between border-b border-white/5 py-1.5">
+                  <div className="flex items-center justify-between border-b border-border/5 py-1.5">
                     <span className="text-secondary">Situação</span>
                     <Badge tone={veiculo!.operante ? 'success' : 'danger'}>
                       {veiculo!.operante ? 'Operante' : 'Inoperante'}
                     </Badge>
                   </div>
-                  <div className="flex items-center justify-between border-b border-white/5 py-1.5">
+                  <div className="flex items-center justify-between border-b border-border/5 py-1.5">
                     <span className="text-secondary">Ano</span>
-                    <span className="text-white font-medium">{veiculo!.ano || '—'}</span>
+                    <span className="text-foreground font-medium">{veiculo!.ano || '—'}</span>
                   </div>
-                  <div className="flex items-center justify-between border-b border-white/5 py-1.5">
+                  <div className="flex items-center justify-between border-b border-border/5 py-1.5">
                     <span className="text-secondary">Cor</span>
-                    <span className="text-white font-medium">{veiculo!.cor || '—'}</span>
+                    <span className="text-foreground font-medium">{veiculo!.cor || '—'}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5">
                     <span className="text-secondary">Chassi</span>
-                    <span className="text-white font-medium">{veiculo!.chassi || '—'}</span>
+                    <span className="text-foreground font-medium">{veiculo!.chassi || '—'}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -118,7 +118,7 @@ export function VeiculoPublico() {
                     <CardTitle>No pátio desde</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-lg font-semibold text-white">{formatDateTime(ativo.data_hora_entrada)}</p>
+                    <p className="text-lg font-semibold text-foreground">{formatDateTime(ativo.data_hora_entrada)}</p>
                     <p className="text-sm text-secondary">
                       Permanência: {formatPermanencia(ativo.data_hora_entrada)}
                       {ativo.patio_nome ? ` · Pátio: ${ativo.patio_nome}` : ''}
@@ -138,7 +138,7 @@ export function VeiculoPublico() {
                     <div key={m.movimentacao_id} className="rounded-xl bg-background px-4 py-3">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <div className="text-sm">
-                          <p className="text-white">
+                          <p className="text-foreground">
                             Entrada: {formatDateTime(m.data_hora_entrada)}
                             {m.patio_nome ? ` · Pátio: ${m.patio_nome}` : ''}
                             {m.motorista ? ` · ${m.motorista}` : ''}
@@ -176,7 +176,7 @@ export function VeiculoPublico() {
                                 <img
                                   src={url}
                                   alt={label}
-                                  className="h-16 w-16 rounded-lg object-cover border border-white/10 hover:opacity-80"
+                                  className="h-16 w-16 rounded-lg object-cover border border-border/10 hover:opacity-80"
                                 />
                               </button>
                             )

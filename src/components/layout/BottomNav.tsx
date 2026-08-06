@@ -11,14 +11,14 @@ export function BottomNav() {
 
   if (native) {
     return (
-      <nav className="fixed bottom-0 inset-x-0 z-30 flex border-t border-white/5 bg-surface pb-[env(safe-area-inset-bottom)] shadow-lg">
+      <nav className="fixed bottom-0 inset-x-0 z-30 flex border-t border-border/5 bg-surface pb-[env(safe-area-inset-bottom)] shadow-lg">
         <NavLink
           to="/"
           end
           className={({ isActive }) =>
             cn(
               'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
-              isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-white',
+              isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-foreground',
             )
           }
         >
@@ -31,7 +31,7 @@ export function BottomNav() {
           className={({ isActive }) =>
             cn(
               'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
-              isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-white',
+              isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-foreground',
             )
           }
         >
@@ -44,7 +44,7 @@ export function BottomNav() {
           className={({ isActive }) =>
             cn(
               'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
-              isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-white',
+              isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-foreground',
             )
           }
         >
@@ -55,7 +55,7 @@ export function BottomNav() {
         <button
           type="button"
           onClick={() => signOut()}
-          className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium text-secondary hover:text-white transition-colors"
+          className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium text-secondary hover:text-foreground transition-colors"
         >
           <LogOut className="h-5 w-5" />
           <span className="truncate px-1">Sair</span>
@@ -65,7 +65,7 @@ export function BottomNav() {
   }
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-white/5 bg-surface pb-[env(safe-area-inset-bottom)]">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-border/5 bg-surface pb-[env(safe-area-inset-bottom)]">
       {navItems.map((item) => (
         <NavLink
           key={item.to}

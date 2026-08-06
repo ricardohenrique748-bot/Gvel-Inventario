@@ -175,7 +175,7 @@ export function ClientesTab() {
                 ) : (
                   <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl bg-background px-4 py-3">
                     <div>
-                      <p className="text-white font-medium">{c.nome}</p>
+                      <p className="text-foreground font-medium">{c.nome}</p>
                       <p className="text-sm text-secondary">
                         {c.cnpj || 'Sem CNPJ'} · {c.telefone || 'Sem telefone'}
                       </p>

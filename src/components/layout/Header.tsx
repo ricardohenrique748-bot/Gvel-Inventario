@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Logo } from '@/components/ui/Logo'
+import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 
 interface PageHeaderProps {
   title: string
@@ -19,14 +20,14 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
         {back && (
           <button
             onClick={() => navigate(-1)}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-secondary hover:text-white md:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-secondary hover:text-foreground md:hidden"
             aria-label="Voltar"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
         )}
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-white truncate">{title}</h1>
+          <h1 className="text-xl font-semibold text-foreground truncate">{title}</h1>
           {subtitle && <p className="text-sm text-secondary truncate">{subtitle}</p>}
         </div>
       </div>
@@ -37,8 +38,9 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
 
 export function MobileTopBar() {
   return (
-    <div className="md:hidden sticky top-0 z-20 flex min-h-14 items-center border-b border-white/5 bg-surface px-4 pt-[env(safe-area-inset-top)]">
+    <div className="md:hidden sticky top-0 z-20 flex min-h-14 items-center justify-between border-b border-border/5 bg-surface px-4 pt-[env(safe-area-inset-top)]">
       <Logo showText={false} />
+      <ThemeToggleButton />
     </div>
   )
 }

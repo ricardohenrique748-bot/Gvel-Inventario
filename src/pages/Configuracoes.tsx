@@ -27,7 +27,7 @@ export function Configuracoes() {
             onClick={() => setTab(t.id)}
             className={
               t.id === tab
-                ? 'h-11 flex-1 rounded-xl border border-primary bg-primary/10 text-white font-medium sm:flex-none sm:px-6'
+                ? 'h-11 flex-1 rounded-xl border border-primary bg-primary/10 text-foreground font-medium sm:flex-none sm:px-6'
                 : 'h-11 flex-1 rounded-xl border border-secondary/30 text-secondary sm:flex-none sm:px-6'
             }
           >

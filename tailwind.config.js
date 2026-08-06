@@ -5,15 +5,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#121212',
-        surface: '#1c1c1c',
-        'surface-hover': '#242424',
+        background: 'rgb(var(--color-background) / <alpha-value>)',
+        surface: 'rgb(var(--color-surface) / <alpha-value>)',
+        'surface-hover': 'rgb(var(--color-surface-hover) / <alpha-value>)',
         primary: {
           DEFAULT: '#E23B2E',
           hover: '#C7301F',
         },
-        secondary: '#9A9A9A',
-        foreground: '#FFFFFF',
+        secondary: 'rgb(var(--color-secondary) / <alpha-value>)',
+        foreground: 'rgb(var(--color-foreground) / <alpha-value>)',
+        border: 'rgb(var(--color-border) / <alpha-value>)',
+        overlay: 'rgb(var(--color-overlay) / <alpha-value>)',
         status: {
           success: '#2E7D32',
           danger: '#E23B2E',

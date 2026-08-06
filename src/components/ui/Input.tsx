@@ -15,7 +15,7 @@ export function FieldError({ message }: FieldErrorProps) {
 }
 
 const baseInputClasses =
-  'w-full h-12 rounded-xl bg-background border border-secondary/30 px-4 text-base text-white placeholder:text-secondary/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50'
+  'w-full h-12 rounded-xl bg-background border border-secondary/30 px-4 text-base text-foreground placeholder:text-secondary/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50'
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (

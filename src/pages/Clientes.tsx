@@ -58,7 +58,7 @@ export function Clientes() {
                       <Users className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-white truncate">{c.nome}</p>
+                      <p className="font-medium text-foreground truncate">{c.nome}</p>
                       <p className="text-xs text-secondary truncate">{c.telefone || 'Sem telefone'}</p>
                     </div>
                   </div>

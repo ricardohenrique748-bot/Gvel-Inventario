@@ -13,14 +13,14 @@ export function AccordionItem({ title, subtitle, defaultOpen = false, children }
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div className="rounded-2xl bg-surface border border-white/5 overflow-hidden">
+    <div className="rounded-2xl bg-surface border border-border/5 overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left"
       >
         <div>
-          <p className="font-medium text-white">{title}</p>
+          <p className="font-medium text-foreground">{title}</p>
           {subtitle}
         </div>
         <ChevronDown

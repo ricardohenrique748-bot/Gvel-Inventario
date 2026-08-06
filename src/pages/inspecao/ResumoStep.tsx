@@ -138,7 +138,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
           {naoConformes.length > 0 && (
             <div className="rounded-xl border border-status-danger/30 bg-status-danger/10 p-4">
               <p className="text-sm font-semibold text-status-danger mb-2">Itens não conformes</p>
-              <ul className="space-y-1 text-sm text-white">
+              <ul className="space-y-1 text-sm text-foreground">
                 {naoConformes.map((i) => (
                   <li key={itemKey(i.secao.id, i.item.id)}>
                     <span className="font-medium">{i.item.label}</span>
@@ -198,9 +198,9 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between border-b border-white/5 py-1.5 last:border-0">
+    <div className="flex items-center justify-between border-b border-border/5 py-1.5 last:border-0">
       <span className="text-secondary">{label}</span>
-      <span className="text-white font-medium">{value}</span>
+      <span className="text-foreground font-medium">{value}</span>
     </div>
   )
 }

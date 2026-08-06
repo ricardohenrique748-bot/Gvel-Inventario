@@ -9,6 +9,13 @@
     <meta name="theme-color" content="#121212" />
     <meta name="description" content="Gvel Diesel — Gestão de pátio, checklist de vistoria e controle de entrada/saída de veículos." />
     <title>Gvel Diesel</title>
+    <script>
+      (function () {
+        if (localStorage.getItem('gvel_theme') !== 'light') {
+          document.documentElement.classList.add('dark')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

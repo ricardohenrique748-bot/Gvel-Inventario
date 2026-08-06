@@ -166,13 +166,13 @@ export function FrotaTab() {
               <div className="flex gap-3">
                 <label className="flex-1">
                   <input type="radio" value="pesado" className="peer sr-only" {...register('tipo')} />
-                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-white cursor-pointer">
+                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
                     Pesado
                   </div>
                 </label>
                 <label className="flex-1">
                   <input type="radio" value="leve" className="peer sr-only" {...register('tipo')} />
-                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-white cursor-pointer">
+                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
                     Leve
                   </div>
                 </label>
@@ -197,13 +197,13 @@ export function FrotaTab() {
               <div className="flex gap-3">
                 <label className="flex-1">
                   <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
-                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-white cursor-pointer">
+                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-foreground cursor-pointer">
                     Operante
                   </div>
                 </label>
                 <label className="flex-1">
                   <input type="radio" value="inoperante" className="peer sr-only" {...register('situacao')} />
-                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-danger peer-checked:bg-status-danger/10 peer-checked:text-white cursor-pointer">
+                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-danger peer-checked:bg-status-danger/10 peer-checked:text-foreground cursor-pointer">
                     Inoperante
                   </div>
                 </label>
@@ -298,7 +298,7 @@ export function FrotaTab() {
               {veiculos.map((v) => (
                 <div key={v.id} className="rounded-xl bg-background px-4 py-3">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-white font-medium">{v.placa}</p>
+                    <p className="text-foreground font-medium">{v.placa}</p>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Button
                         type="button"

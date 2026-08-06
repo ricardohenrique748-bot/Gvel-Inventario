@@ -89,7 +89,7 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
           <button
             type="button"
             onClick={handleLimpar}
-            className="mt-2 inline-flex items-center gap-1.5 text-xs text-secondary hover:text-white"
+            className="mt-2 inline-flex items-center gap-1.5 text-xs text-secondary hover:text-foreground"
           >
             <Eraser className="h-3.5 w-3.5" />
             Limpar assinatura

@@ -41,8 +41,8 @@ export function NovaInspecao() {
             >
               {i + 1}
             </div>
-            <span className={cn('text-xs', i === step ? 'text-white' : 'text-secondary')}>{label}</span>
-            {i < STEPS.length - 1 && <div className="h-px w-6 bg-white/10" />}
+            <span className={cn('text-xs', i === step ? 'text-foreground' : 'text-secondary')}>{label}</span>
+            {i < STEPS.length - 1 && <div className="h-px w-6 bg-overlay/10" />}
           </div>
         ))}
       </div>

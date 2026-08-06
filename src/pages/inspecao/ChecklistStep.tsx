@@ -43,7 +43,7 @@ export function ChecklistStep({ state, onPatch, onNext, onBack }: Props) {
     <div className="max-w-3xl">
       <Card className="p-4 mb-4 sticky top-0 z-10 md:static">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-medium text-white">
+          <p className="text-sm font-medium text-foreground">
             Progresso: {respondidos}/{totalItens}
           </p>
           <div className="flex gap-2">

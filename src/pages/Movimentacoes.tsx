@@ -91,7 +91,7 @@ export function Movimentacoes() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/5 text-left text-secondary">
+                  <tr className="border-b border-border/5 text-left text-secondary">
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Placa</th>
                     <th className="px-3 py-3 font-medium">Marca/Modelo</th>
                     <th className="px-3 py-3 font-medium">Cliente</th>
@@ -108,7 +108,7 @@ export function Movimentacoes() {
                 <tbody>
                   {movimentacoes.map((m) =>
                     editandoId === m.id ? (
-                      <tr key={m.id} className="border-b border-white/5 last:border-0">
+                      <tr key={m.id} className="border-b border-border/5 last:border-0">
                         <td colSpan={11} className="p-4">
                           <EditarMovimentacaoForm
                             movimentacao={m}
@@ -124,10 +124,10 @@ export function Movimentacoes() {
                     ) : (
                       <tr
                         key={m.id}
-                        className="border-b border-white/5 last:border-0 hover:bg-background/60 cursor-pointer"
+                        className="border-b border-border/5 last:border-0 hover:bg-background/60 cursor-pointer"
                         onClick={() => navigate(`/veiculos/${m.veiculo_id}`)}
                       >
-                        <td className="px-3 py-3 font-medium text-white whitespace-nowrap">{m.veiculo?.placa}</td>
+                        <td className="px-3 py-3 font-medium text-foreground whitespace-nowrap">{m.veiculo?.placa}</td>
                         <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={`${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`}>
                           {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
                         </td>
@@ -209,7 +209,7 @@ export function Movimentacoes() {
                   <Link to={`/veiculos/${m.veiculo_id}`}>
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-semibold text-white">{m.veiculo?.placa}</p>
+                        <p className="font-semibold text-foreground">{m.veiculo?.placa}</p>
                         <p className="text-sm text-secondary">
                           {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
                         </p>
@@ -233,7 +233,7 @@ export function Movimentacoes() {
                       {m.data_hora_saida && <p>Saída por: {m.usuario_saida?.nome ?? '—'}</p>}
                     </div>
                   </Link>
-                  <div className="mt-3 flex justify-end gap-2 border-t border-white/5 pt-3">
+                  <div className="mt-3 flex justify-end gap-2 border-t border-border/5 pt-3">
                     <Button type="button" variant="secondary" size="icon" onClick={() => setEditandoId(m.id)} aria-label="Editar">
                       <Pencil className="h-4 w-4" />
                     </Button>

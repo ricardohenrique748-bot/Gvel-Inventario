@@ -3,14 +3,33 @@
 @tailwind utilities;
 
 @layer base {
-  html {
+  :root {
+    color-scheme: light;
+    --color-background: 244 244 245;
+    --color-surface: 255 255 255;
+    --color-surface-hover: 237 237 238;
+    --color-foreground: 24 24 27;
+    --color-secondary: 107 114 128;
+    --color-border: 24 24 27;
+    --color-overlay: 24 24 27;
+  }
+
+  html.dark {
     color-scheme: dark;
+    --color-background: 18 18 18;
+    --color-surface: 28 28 28;
+    --color-surface-hover: 36 36 36;
+    --color-foreground: 255 255 255;
+    --color-secondary: 154 154 154;
+    --color-border: 255 255 255;
+    --color-overlay: 255 255 255;
   }
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
     margin: 0;
     min-height: 100svh;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   #root {

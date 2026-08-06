@@ -37,11 +37,11 @@ export function ChecklistItemRow({ label, value, onChange }: Props) {
   return (
     <div className="rounded-xl bg-background p-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-white">{label}</p>
+        <p className="text-sm font-medium text-foreground">{label}</p>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary hover:text-white"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary hover:text-foreground"
           aria-label="Anexar foto"
         >
           <Camera className="h-4 w-4" />
@@ -57,7 +57,7 @@ export function ChecklistItemRow({ label, value, onChange }: Props) {
             onClick={() => setStatus(opt.value)}
             className={cn(
               'h-10 rounded-lg border text-xs font-medium transition-colors',
-              value?.status === opt.value ? opt.activeClass : 'border-secondary/30 text-secondary hover:text-white',
+              value?.status === opt.value ? opt.activeClass : 'border-secondary/30 text-secondary hover:text-foreground',
             )}
           >
             {opt.label}
@@ -83,7 +83,7 @@ export function ChecklistItemRow({ label, value, onChange }: Props) {
         placeholder="Observação (opcional)"
         value={value?.observacao ?? ''}
         onChange={(e) => onChange({ ...value, observacao: e.target.value })}
-        className="mt-2 w-full rounded-lg bg-surface border border-secondary/20 px-3 py-2 text-xs text-white placeholder:text-secondary/60 focus:outline-none focus:border-primary resize-none"
+        className="mt-2 w-full rounded-lg bg-surface border border-secondary/20 px-3 py-2 text-xs text-foreground placeholder:text-secondary/60 focus:outline-none focus:border-primary resize-none"
         rows={2}
       />
     </div>

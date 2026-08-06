@@ -165,13 +165,13 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
                 <div className="flex gap-3">
                   <label className="flex-1">
                     <input type="radio" value="pesado" className="peer sr-only" {...register('tipo')} />
-                    <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-white cursor-pointer">
+                    <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
                       Pesado
                     </div>
                   </label>
                   <label className="flex-1">
                     <input type="radio" value="leve" className="peer sr-only" {...register('tipo')} />
-                    <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-white cursor-pointer">
+                    <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
                       Leve
                     </div>
                   </label>

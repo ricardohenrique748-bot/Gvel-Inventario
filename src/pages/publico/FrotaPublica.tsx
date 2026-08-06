@@ -80,7 +80,7 @@ export function FrotaPublica() {
           </Card>
         ) : (
           <>
-            <h1 className="mb-1 text-center text-xl font-semibold text-white">{clienteNome}</h1>
+            <h1 className="mb-1 text-center text-xl font-semibold text-foreground">{clienteNome}</h1>
             <p className="mb-6 text-center text-sm text-secondary">Situação atual da frota</p>
 
             {porPatio.length > 0 && (
@@ -112,7 +112,7 @@ export function FrotaPublica() {
                                   <Truck className="h-4 w-4" />
                                 </div>
                                 <div>
-                                  <p className="text-white font-medium">{v.placa}</p>
+                                  <p className="text-foreground font-medium">{v.placa}</p>
                                   <p className="text-sm text-secondary">
                                     {v.marca} {v.modelo}
                                   </p>
@@ -143,7 +143,7 @@ export function FrotaPublica() {
                         className="block rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-white font-medium">{v.placa}</p>
+                          <p className="text-foreground font-medium">{v.placa}</p>
                           <Badge tone="neutral">Saiu</Badge>
                         </div>
                         <p className="text-sm text-secondary">

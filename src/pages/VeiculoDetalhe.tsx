@@ -207,7 +207,7 @@ export function VeiculoDetalhe() {
                 <Truck className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-lg font-semibold text-white">
+                <p className="text-lg font-semibold text-foreground">
                   {formatDateTime(movimentacaoAtiva.data_hora_entrada)}
                 </p>
                 <p className="text-sm text-secondary">
@@ -235,7 +235,7 @@ export function VeiculoDetalhe() {
                   className="flex flex-col gap-1 rounded-xl bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="text-sm">
-                    <p className="text-white">
+                    <p className="text-foreground">
                       Entrada: {formatDateTime(m.data_hora_entrada)}
                       {m.patio?.nome ? ` · Pátio: ${m.patio.nome}` : ''}
                       {m.motorista ? ` · ${m.motorista}` : ''}
@@ -267,7 +267,7 @@ export function VeiculoDetalhe() {
                               <img
                                 src={url}
                                 alt={label}
-                                className="h-16 w-16 rounded-lg object-cover border border-white/10 hover:opacity-80"
+                                className="h-16 w-16 rounded-lg object-cover border border-border/10 hover:opacity-80"
                               />
                             </button>
                           )
@@ -298,7 +298,7 @@ export function VeiculoDetalhe() {
           <button
             type="button"
             onClick={() => setFotoAmpliada(null)}
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-surface text-white"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-surface text-foreground"
             aria-label="Fechar"
           >
             <X className="h-5 w-5" />
@@ -320,9 +320,9 @@ export function VeiculoDetalhe() {
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between border-b border-white/5 py-1.5 last:border-0">
+    <div className="flex items-center justify-between border-b border-border/5 py-1.5 last:border-0">
       <span className="text-secondary">{label}</span>
-      <span className="text-white font-medium">{children}</span>
+      <span className="text-foreground font-medium">{children}</span>
     </div>
   )
 }

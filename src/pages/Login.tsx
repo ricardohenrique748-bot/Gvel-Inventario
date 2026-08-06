@@ -103,7 +103,7 @@ export function Login() {
         />
       </div>
 
-      <div className="relative w-full max-w-sm md:max-w-4xl mx-auto grid md:grid-cols-2 rounded-3xl border border-white/10 overflow-hidden animate-fade-in-up shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.15)]">
+      <div className="relative w-full max-w-sm md:max-w-4xl mx-auto grid md:grid-cols-2 rounded-3xl border border-border/10 overflow-hidden animate-fade-in-up shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.15)]">
         {/* Left: form */}
         <div className="flex flex-col p-8 sm:p-10 md:p-12 bg-surface">
           <div className="flex-1 flex flex-col justify-center w-full max-w-xs mx-auto">
@@ -128,7 +128,7 @@ export function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
-                  className="!bg-white/5 !border-white/15 backdrop-blur-sm transition-all duration-200 hover:!border-white/25 focus:!ring-2 focus:!ring-primary/60 focus:shadow-[0_0_0_6px_rgba(226,59,46,0.15)]"
+                  className="!bg-overlay/5 !border-overlay/15 backdrop-blur-sm transition-all duration-200 hover:!border-overlay/25 focus:!ring-2 focus:!ring-primary/60 focus:shadow-[0_0_0_6px_rgba(226,59,46,0.15)]"
                 />
               </div>
               <div>
@@ -142,12 +142,12 @@ export function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="!bg-white/5 !border-white/15 backdrop-blur-sm pr-11 transition-all duration-200 hover:!border-white/25 focus:!ring-2 focus:!ring-primary/60 focus:shadow-[0_0_0_6px_rgba(226,59,46,0.15)]"
+                    className="!bg-overlay/5 !border-overlay/15 backdrop-blur-sm pr-11 transition-all duration-200 hover:!border-overlay/25 focus:!ring-2 focus:!ring-primary/60 focus:shadow-[0_0_0_6px_rgba(226,59,46,0.15)]"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-0 top-0 h-12 w-11 flex items-center justify-center rounded-lg text-secondary hover:text-white hover:bg-white/5 active:scale-90 transition-all duration-150"
+                    className="absolute right-0 top-0 h-12 w-11 flex items-center justify-center rounded-lg text-secondary hover:text-foreground hover:bg-overlay/5 active:scale-90 transition-all duration-150"
                     tabIndex={-1}
                     aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                   >
@@ -162,7 +162,7 @@ export function Login() {
                     'relative h-[18px] w-[18px] shrink-0 rounded-md border transition-all duration-150 group-hover:scale-110 group-active:scale-95',
                     rememberMe
                       ? 'bg-primary border-primary shadow-[0_0_0_3px_rgba(226,59,46,0.2)]'
-                      : 'bg-white/5 border-white/20 group-hover:border-white/40',
+                      : 'bg-overlay/5 border-overlay/20 group-hover:border-overlay/40',
                   )}
                 >
                   <input
@@ -188,7 +188,7 @@ export function Login() {
                     />
                   </svg>
                 </span>
-                <span className="text-sm text-secondary transition-colors duration-150 group-hover:text-white/90">
+                <span className="text-sm text-secondary transition-colors duration-150 group-hover:text-foreground/90">
                   Lembrar e-mail e senha
                 </span>
               </label>

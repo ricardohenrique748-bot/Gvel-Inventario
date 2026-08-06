@@ -21,7 +21,7 @@ export function Logo({ className, showText = true, size = 'md', stacked = false 
       <img src={logoIcon} alt="Gvel Diesel" className={cn(s.icon, 'shrink-0 object-contain')} />
       {showText && (
         <div className={cn('flex flex-col leading-none', stacked ? 'items-center' : 'justify-center')}>
-          <p className={cn('font-bold tracking-wide text-white whitespace-nowrap', s.title)}>GVEL DIESEL</p>
+          <p className={cn('font-bold tracking-wide text-foreground whitespace-nowrap', s.title)}>GVEL DIESEL</p>
           <p
             className={cn(
               'mt-1 font-medium uppercase tracking-wider text-secondary whitespace-nowrap',

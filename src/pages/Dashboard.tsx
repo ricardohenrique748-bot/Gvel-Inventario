@@ -181,7 +181,7 @@ export function Dashboard() {
                     to={`/veiculos/${m.veiculo_id}`}
                     className="block rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
                   >
-                    <p className="text-white font-medium">{m.veiculo?.placa}</p>
+                    <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
                     <p className="text-sm text-secondary">
                       {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
                     </p>
@@ -215,7 +215,7 @@ export function Dashboard() {
                           to={`/veiculos/${m.veiculo_id}`}
                           className="block rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
                         >
-                          <p className="text-white font-medium">{m.veiculo?.placa}</p>
+                          <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
                           <p className="text-sm text-secondary">
                             {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
                           </p>
@@ -249,7 +249,7 @@ export function Dashboard() {
                     to={`/veiculos/${m.veiculo_id}`}
                     className="block rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
                   >
-                    <p className="text-white font-medium">{m.veiculo?.placa}</p>
+                    <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
                     <p className="text-sm text-secondary">
                       {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
                     </p>

@@ -57,12 +57,12 @@ export function TrocarSenha() {
 
   return (
     <div className="min-h-svh flex items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-white/[0.06] backdrop-blur-2xl p-8 sm:p-10">
+      <div className="w-full max-w-sm rounded-3xl border border-border/10 bg-surface p-8 sm:p-10">
         <div className="mb-8 flex justify-center">
           <Logo size="lg" stacked />
         </div>
 
-        <h1 className="mb-1 text-lg font-semibold text-white text-center">Defina sua senha</h1>
+        <h1 className="mb-1 text-lg font-semibold text-foreground text-center">Defina sua senha</h1>
         <p className="mb-6 text-sm text-secondary text-center">
           Você entrou com uma senha temporária. Escolha uma nova senha para continuar.
         </p>

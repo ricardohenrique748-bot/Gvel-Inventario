@@ -151,7 +151,7 @@ export function UsuariosTab() {
                   <div key={u.id} className="flex items-center justify-between gap-3 rounded-xl bg-background px-4 py-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="text-white font-medium">{u.nome}</p>
+                        <p className="text-foreground font-medium">{u.nome}</p>
                         <Badge tone={u.nivel === 'admin' ? 'warning' : 'neutral'}>
                           {u.nivel === 'admin' ? 'Administrador' : 'Usuário'}
                         </Badge>

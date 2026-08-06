@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { ThemeProvider } from '@/contexts/ThemeContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Login } from '@/pages/Login'
@@ -50,41 +51,43 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Suspense fallback={<PaginaCarregando />}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/publico/frota/:token" element={<FrotaPublica />} />
-            <Route path="/publico/frota/:token/veiculo/:veiculoId" element={<VeiculoPublico />} />
-            <Route
-              path="/trocar-senha"
-              element={
-                <ProtectedRoute>
-                  <TrocarSenha />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              element={
-                <ProtectedRoute>
-                  <AppLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/movimentacoes" element={<Movimentacoes />} />
-              <Route path="/movimentacoes/nova" element={<RegistrarEntrada />} />
-              <Route path="/veiculos/:id" element={<VeiculoDetalhe />} />
-              <Route path="/clientes" element={<Clientes />} />
-              <Route path="/clientes/:id" element={<ClienteDetalhe />} />
-              <Route path="/relatorios" element={<Relatorios />} />
-              <Route path="/inspecoes/nova" element={<NovaInspecao />} />
-              <Route path="/configuracoes" element={<Configuracoes />} />
-            </Route>
-          </Routes>
-        </Suspense>
-      </AuthProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <Suspense fallback={<PaginaCarregando />}>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/publico/frota/:token" element={<FrotaPublica />} />
+              <Route path="/publico/frota/:token/veiculo/:veiculoId" element={<VeiculoPublico />} />
+              <Route
+                path="/trocar-senha"
+                element={
+                  <ProtectedRoute>
+                    <TrocarSenha />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <AppLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/movimentacoes" element={<Movimentacoes />} />
+                <Route path="/movimentacoes/nova" element={<RegistrarEntrada />} />
+                <Route path="/veiculos/:id" element={<VeiculoDetalhe />} />
+                <Route path="/clientes" element={<Clientes />} />
+                <Route path="/clientes/:id" element={<ClienteDetalhe />} />
+                <Route path="/relatorios" element={<Relatorios />} />
+                <Route path="/inspecoes/nova" element={<NovaInspecao />} />
+                <Route path="/configuracoes" element={<Configuracoes />} />
+              </Route>
+            </Routes>
+          </Suspense>
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }

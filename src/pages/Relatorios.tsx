@@ -206,7 +206,7 @@ export function Relatorios() {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {frotaCliente.map((v) => (
                   <div key={v.id} className="rounded-xl bg-background px-4 py-3">
-                    <p className="text-white font-medium">{v.placa}</p>
+                    <p className="text-foreground font-medium">{v.placa}</p>
                     <p className="text-sm text-secondary">
                       {v.marca?.nome} {v.modelo?.nome} {v.ano ? `· ${v.ano}` : ''}
                     </p>
@@ -257,7 +257,7 @@ export function Relatorios() {
                                 className="flex items-center justify-between gap-2 rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
                               >
                                 <div>
-                                  <p className="text-white font-medium">{m.veiculo?.placa}</p>
+                                  <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
                                   <p className="text-sm text-secondary">
                                     {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
                                   </p>
@@ -285,7 +285,7 @@ export function Relatorios() {
                           className="block rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-white font-medium">{m.veiculo?.placa}</p>
+                            <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
                             <Badge tone="neutral">Saiu</Badge>
                           </div>
                           <p className="text-sm text-secondary">
@@ -308,15 +308,15 @@ export function Relatorios() {
       <div className="grid grid-cols-3 gap-4 mb-6">
         <Card className="p-5">
           <p className="text-sm text-secondary">Entradas</p>
-          <p className="mt-1 text-3xl font-semibold text-white">{resumo.entradas}</p>
+          <p className="mt-1 text-3xl font-semibold text-foreground">{resumo.entradas}</p>
         </Card>
         <Card className="p-5">
           <p className="text-sm text-secondary">Saídas</p>
-          <p className="mt-1 text-3xl font-semibold text-white">{resumo.saidas}</p>
+          <p className="mt-1 text-3xl font-semibold text-foreground">{resumo.saidas}</p>
         </Card>
         <Card className="p-5">
           <p className="text-sm text-secondary">Tempo médio de permanência</p>
-          <p className="mt-1 text-3xl font-semibold text-white">
+          <p className="mt-1 text-3xl font-semibold text-foreground">
             {resumo.tempoMedio > 0 ? formatMinutosParaTexto(resumo.tempoMedio) : '—'}
           </p>
         </Card>
@@ -335,11 +335,11 @@ export function Relatorios() {
         >
           <Card className="w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-white">Link público de acompanhamento</h3>
+              <h3 className="text-base font-semibold text-foreground">Link público de acompanhamento</h3>
               <button
                 type="button"
                 onClick={() => setShareUrl(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:text-foreground"
                 aria-label="Fechar"
               >
                 <X className="h-4 w-4" />

@@ -18,7 +18,7 @@ export function StatCard({ icon: Icon, label, value, hint, onClick, active }: St
         <Icon className="h-4 w-4" />
         <p className="text-sm font-medium">{label}</p>
       </div>
-      <p className="mt-2 text-3xl font-semibold text-white tabular-nums">{value}</p>
+      <p className="mt-2 text-3xl font-semibold text-foreground tabular-nums">{value}</p>
       {hint && <p className="mt-1 text-xs text-secondary">{hint}</p>}
     </>
   )
@@ -27,7 +27,7 @@ export function StatCard({ icon: Icon, label, value, hint, onClick, active }: St
     return (
       <Card
         className={cn(
-          'p-5 text-left transition-colors cursor-pointer hover:bg-white/[0.04]',
+          'p-5 text-left transition-colors cursor-pointer hover:bg-overlay/[0.04]',
           active && 'border-primary',
         )}
         onClick={onClick}

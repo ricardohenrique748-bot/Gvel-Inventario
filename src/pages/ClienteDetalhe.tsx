@@ -32,22 +32,22 @@ export function ClienteDetalhe() {
       <div className="grid gap-4 lg:grid-cols-3 mb-6">
         <Card className="p-5">
           <p className="text-sm text-secondary">Veículos no pátio</p>
-          <p className="mt-1 text-3xl font-semibold text-white">{noPatio.length}</p>
+          <p className="mt-1 text-3xl font-semibold text-foreground">{noPatio.length}</p>
         </Card>
         <Card className="p-5">
           <p className="text-sm text-secondary">Total de movimentações</p>
-          <p className="mt-1 text-3xl font-semibold text-white">{movimentacoes.length}</p>
+          <p className="mt-1 text-3xl font-semibold text-foreground">{movimentacoes.length}</p>
         </Card>
         <Card className="p-5">
           <p className="text-sm text-secondary">CNPJ</p>
-          <p className="mt-1 text-lg font-medium text-white">{cliente?.cnpj || '—'}</p>
+          <p className="mt-1 text-lg font-medium text-foreground">{cliente?.cnpj || '—'}</p>
         </Card>
       </div>
 
       {cliente?.endereco && (
         <Card className="p-5 mb-6">
           <p className="text-sm text-secondary">Endereço</p>
-          <p className="mt-1 text-white">{cliente.endereco}</p>
+          <p className="mt-1 text-foreground">{cliente.endereco}</p>
         </Card>
       )}
 
@@ -69,7 +69,7 @@ export function ClienteDetalhe() {
                   className="flex flex-col gap-1 rounded-xl bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between hover:bg-background/70"
                 >
                   <div className="text-sm">
-                    <p className="text-white font-medium">
+                    <p className="text-foreground font-medium">
                       {m.veiculo?.placa} · {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
                       {m.patio?.nome ? ` · ${m.patio.nome}` : ''}
                     </p>
