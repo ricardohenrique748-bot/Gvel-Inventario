@@ -31,7 +31,7 @@ export function Sidebar() {
   const initials = (user?.email ?? '?').slice(0, 2).toUpperCase()
 
   return (
-    <aside className="hidden md:m-3 md:flex md:w-60 md:shrink-0 md:flex-col md:overflow-hidden md:rounded-2xl md:border md:border-border/[0.06] bg-surface shadow-2xl shadow-black/50">
+    <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-60 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl md:border md:border-border/[0.06] bg-surface shadow-2xl shadow-black/50">
       <div className="flex h-12 items-center px-3.5 border-b border-border/[0.06]">
         <Logo size="sm" />
       </div>
