@@ -99,6 +99,8 @@ type RegistrarEntradaInput =
       clienteId: string
       tipo: TipoVeiculo
       cor: string
+      chassi?: string
+      operante?: boolean
       ano: number
     })
 
@@ -138,6 +140,8 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
             clienteId: input.clienteId,
             tipo: input.tipo,
             cor: input.cor,
+            chassi: input.chassi,
+            operante: input.operante,
             ano: input.ano,
           })
         ).id

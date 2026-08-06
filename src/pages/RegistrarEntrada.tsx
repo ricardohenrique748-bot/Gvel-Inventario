@@ -38,6 +38,8 @@ const schema = z
     placa: z.string().optional(),
     tipo: z.enum(['pesado', 'leve']).optional(),
     cor: z.string().optional(),
+    chassi: z.string().optional(),
+    situacao: z.enum(['operante', 'inoperante']).optional(),
     ano: z.number().optional(),
     marcaId: z.string().optional(),
     modeloId: z.string().optional(),
@@ -59,6 +61,7 @@ const schema = z
     }
     if (!values.marcaId) ctx.addIssue({ code: 'custom', path: ['marcaId'], message: 'Selecione a marca' })
     if (!values.modeloId) ctx.addIssue({ code: 'custom', path: ['modeloId'], message: 'Selecione o modelo' })
+    if (!values.situacao) ctx.addIssue({ code: 'custom', path: ['situacao'], message: 'Selecione a situação' })
   })
 
 type FormValues = z.infer<typeof schema>
@@ -84,6 +87,7 @@ export function RegistrarEntrada() {
     resolver: zodResolver(schema),
     defaultValues: {
       tipo: 'pesado',
+      situacao: 'operante',
       dataHoraEntrada: nowLocalInputValue(),
     },
   })
@@ -132,6 +136,8 @@ export function RegistrarEntrada() {
                 clienteId: values.clienteId,
                 tipo: values.tipo!,
                 cor: values.cor!,
+                chassi: values.chassi,
+                operante: values.situacao === 'operante',
                 ano: values.ano!,
                 patioId: values.patioId,
                 statusId: values.statusId || undefined,
@@ -251,14 +257,40 @@ export function RegistrarEntrada() {
                 </div>
 
                 <div>
-                  <Label htmlFor="ano">Ano</Label>
-                  <Input
-                    id="ano"
-                    type="number"
-                    placeholder={String(anoAtual)}
-                    {...register('ano', { valueAsNumber: true })}
-                  />
-                  <FieldError message={errors.ano?.message} />
+                  <Label>Situação</Label>
+                  <div className="flex gap-3">
+                    <label className="flex-1">
+                      <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
+                      <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-foreground cursor-pointer">
+                        Operante
+                      </div>
+                    </label>
+                    <label className="flex-1">
+                      <input type="radio" value="inoperante" className="peer sr-only" {...register('situacao')} />
+                      <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-danger peer-checked:bg-status-danger/10 peer-checked:text-foreground cursor-pointer">
+                        Inoperante
+                      </div>
+                    </label>
+                  </div>
+                  <FieldError message={errors.situacao?.message} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="ano">Ano</Label>
+                    <Input
+                      id="ano"
+                      type="number"
+                      placeholder={String(anoAtual)}
+                      {...register('ano', { valueAsNumber: true })}
+                    />
+                    <FieldError message={errors.ano?.message} />
+                  </div>
+                  <div>
+                    <Label htmlFor="chassi">Chassi</Label>
+                    <Input id="chassi" placeholder="Opcional" {...register('chassi')} />
+                    <FieldError message={errors.chassi?.message} />
+                  </div>
                 </div>
 
                 <Controller
