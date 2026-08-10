@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "cap:sync": "npx cap sync android",
+    "cap:sync:ios": "npx cap sync ios",
     "build:apk": "npm run build && npx cap sync android",
+    "build:ios": "npm run build && npx cap sync ios",
     "apk:debug": "npm run build:apk && powershell -Command \"$env:JAVA_HOME='C:\\Users\\Ricardo\\.jdks\\jbr-21.0.11'; $env:ANDROID_HOME='C:\\Users\\Ricardo\\AppData\\Local\\Android\\Sdk'; cd android; .\\gradlew.bat assembleDebug\"",
     "lint": "oxlint",
     "preview": "vite preview"
@@ -15,6 +17,7 @@
   "dependencies": {
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@capacitor/splash-screen": "^8.0.2",
     "@hookform/resolvers": "^5.4.0",
     "@supabase/supabase-js": "^2.110.8",
