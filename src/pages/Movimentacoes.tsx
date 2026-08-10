@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { LinkButton } from '@/components/ui/LinkButton'
 import { Card } from '@/components/ui/Card'
+import { cn } from '@/lib/cn'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Label, Textarea } from '@/components/ui/Input'
@@ -45,6 +46,50 @@ export function Movimentacoes() {
     dataInicio: filters.dataInicio ? `${filters.dataInicio}T00:00:00` : undefined,
     dataFim: filters.dataFim ? `${filters.dataFim}T23:59:59` : undefined,
   })
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const dragState = useRef({ isDown: false, startX: 0, startScrollLeft: 0, moved: false })
+  const [isDragging, setIsDragging] = useState(false)
+
+  useEffect(() => {
+    function pararArraste() {
+      if (dragState.current.isDown) {
+        dragState.current.isDown = false
+        setIsDragging(false)
+      }
+    }
+    window.addEventListener('mouseup', pararArraste)
+    return () => window.removeEventListener('mouseup', pararArraste)
+  }, [])
+
+  function handleMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    const container = scrollRef.current
+    if (!container) return
+    dragState.current = { isDown: true, startX: e.pageX, startScrollLeft: container.scrollLeft, moved: false }
+    setIsDragging(true)
+  }
+
+  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const state = dragState.current
+    const container = scrollRef.current
+    if (!state.isDown || !container) return
+    const delta = e.pageX - state.startX
+    if (Math.abs(delta) > 3) state.moved = true
+    container.scrollLeft = state.startScrollLeft - delta
+  }
+
+  function handleMouseUpOuLeave() {
+    dragState.current.isDown = false
+    setIsDragging(false)
+  }
+
+  function handleClickCapture(e: React.MouseEvent<HTMLDivElement>) {
+    if (dragState.current.moved) {
+      e.stopPropagation()
+      e.preventDefault()
+      dragState.current.moved = false
+    }
+  }
 
   async function handleExcluir(id: string, placa: string | undefined) {
     if (!confirm(`Excluir a movimentação de "${placa ?? 'veículo'}"? Essa ação não pode ser desfeita.`)) return
@@ -88,11 +133,21 @@ export function Movimentacoes() {
         <>
           {/* Desktop: tabela */}
           <Card className="hidden md:block">
-            <div className="overflow-x-auto">
+            <div
+              ref={scrollRef}
+              className={cn('overflow-x-auto', isDragging ? 'cursor-grabbing select-none' : 'cursor-grab')}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUpOuLeave}
+              onMouseLeave={handleMouseUpOuLeave}
+              onClickCapture={handleClickCapture}
+            >
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/5 text-left text-secondary">
-                    <th className="px-3 py-3 font-medium whitespace-nowrap">Placa</th>
+                    <th className="sticky left-0 z-20 bg-surface px-3 py-3 font-medium whitespace-nowrap border-r border-border/5">
+                      Placa
+                    </th>
                     <th className="px-3 py-3 font-medium">Marca/Modelo</th>
                     <th className="px-3 py-3 font-medium">Cliente</th>
                     <th className="px-3 py-3 font-medium">Pátio</th>
@@ -124,10 +179,12 @@ export function Movimentacoes() {
                     ) : (
                       <tr
                         key={m.id}
-                        className="border-b border-border/5 last:border-0 hover:bg-background/60 cursor-pointer"
+                        className="group border-b border-border/5 last:border-0 hover:bg-background/60 cursor-pointer"
                         onClick={() => navigate(`/veiculos/${m.veiculo_id}`)}
                       >
-                        <td className="px-3 py-3 font-medium text-foreground whitespace-nowrap">{m.veiculo?.placa}</td>
+                        <td className="sticky left-0 z-10 bg-surface group-hover:bg-background/60 px-3 py-3 font-medium text-foreground whitespace-nowrap border-r border-border/5">
+                          {m.veiculo?.placa}
+                        </td>
                         <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={`${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`}>
                           {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
                         </td>
