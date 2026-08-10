@@ -83,8 +83,6 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>
 
-// Fotos obrigatórias para pesado/leve
-const ANGULOS_OBRIGATORIOS_PESADO_LEVE: AnguloFoto[] = ['frente', 'ladoEsquerdo', 'ladoDireito', 'traseira', 'painel']
 
 export function RegistrarEntrada() {
   const navigate = useNavigate()
@@ -144,24 +142,6 @@ export function RegistrarEntrada() {
   async function onSubmit(values: FormValues) {
     setSubmitError(null)
     setErroFotos(null)
-
-    // Valida fotos obrigatórias para pesado/leve
-    if (modoNovoVeiculo && isPesadoOuLeve) {
-      const faltando = ANGULOS_OBRIGATORIOS_PESADO_LEVE.filter((a) => !fotos[a])
-      if (faltando.length > 0) {
-        setErroFotos('Todas as fotos são obrigatórias para veículos pesados e leves.')
-        return
-      }
-    }
-
-    // Para trator/carreta, ao menos uma foto obrigatória
-    if (modoNovoVeiculo && isTratorOuCarreta) {
-      const temAlgumaFoto = Object.keys(fotos).length > 0
-      if (!temAlgumaFoto) {
-        setErroFotos('Adicione ao menos uma foto do veículo.')
-        return
-      }
-    }
 
     const fotosEntrada: FotosEntrada = {
       frente: fotos.frente?.file,
@@ -223,7 +203,7 @@ export function RegistrarEntrada() {
 
       <Card className="max-w-2xl">
         <CardContent className="pt-6">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
             <Controller
               control={control}
               name="clienteId"
@@ -339,6 +319,8 @@ export function RegistrarEntrada() {
                       id="ano"
                       type="number"
                       placeholder={String(anoAtual)}
+                      min={1950}
+                      max={anoAtual + 1}
                       {...register('ano', { valueAsNumber: true })}
                     />
                     <FieldError message={errors.ano?.message} />
@@ -473,10 +455,8 @@ export function RegistrarEntrada() {
 
             <div>
               <Label>
-                Fotos do veículo<Req />
-                {isTratorOuCarreta && modoNovoVeiculo && (
-                  <span className="ml-1 text-xs text-secondary font-normal">— ao menos uma obrigatória</span>
-                )}
+                Fotos do veículo
+                <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>
               </Label>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {ANGULOS_FOTO.map(({ campo, label }) => (
@@ -489,7 +469,6 @@ export function RegistrarEntrada() {
                   />
                 ))}
               </div>
-              {erroFotos && <FieldError message={erroFotos} />}
             </div>
 
             <FieldError message={submitError ?? undefined} />
