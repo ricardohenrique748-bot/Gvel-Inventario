@@ -6,8 +6,9 @@ import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
 
 export function BottomNav() {
-  const { signOut } = useAuth()
+  const { signOut, perfil, perfilLoading } = useAuth()
   const native = isNativeApp()
+  const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
 
   if (native) {
     return (
@@ -39,18 +40,20 @@ export function BottomNav() {
           <span className="truncate px-1">Movimentação</span>
         </NavLink>
 
-        <NavLink
-          to="/configuracoes"
-          className={({ isActive }) =>
-            cn(
-              'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
-              isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-foreground',
-            )
-          }
-        >
-          <Settings className="h-5 w-5" />
-          <span className="truncate px-1">Configuração</span>
-        </NavLink>
+        {isAdmin && (
+          <NavLink
+            to="/configuracoes"
+            className={({ isActive }) =>
+              cn(
+                'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
+                isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-foreground',
+              )
+            }
+          >
+            <Settings className="h-5 w-5" />
+            <span className="truncate px-1">Configuração</span>
+          </NavLink>
+        )}
 
         <button
           type="button"
@@ -66,7 +69,7 @@ export function BottomNav() {
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-border/5 bg-surface pb-[env(safe-area-inset-bottom)]">
-      {navItems.map((item) => (
+      {navItems.filter((item) => isAdmin || item.to !== '/configuracoes').map((item) => (
         <NavLink
           key={item.to}
           to={item.to}

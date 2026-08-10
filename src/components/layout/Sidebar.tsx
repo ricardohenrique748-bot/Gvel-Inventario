@@ -12,15 +12,19 @@ const nativeNavItems = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
-]
+] as const
 
 
 export function Sidebar() {
-  const { signOut, user } = useAuth()
+  const { signOut, user, perfil, perfilLoading } = useAuth()
   const [search, setSearch] = useState('')
   const native = isNativeApp()
+  const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
 
-  const currentNavItems = native ? nativeNavItems : navItems
+  const currentNavItems = useMemo(() => {
+    const base = native ? nativeNavItems : navItems
+    return isAdmin ? base : base.filter((item) => item.to !== '/configuracoes')
+  }, [native, isAdmin])
 
   const filteredNavItems = useMemo(() => {
     const q = search.trim().toLowerCase()

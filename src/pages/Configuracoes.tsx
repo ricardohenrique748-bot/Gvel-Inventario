@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { PageHeader } from '@/components/layout/Header'
+import { Card } from '@/components/ui/Card'
+import { useAuth } from '@/contexts/AuthContext'
 import { ClientesTab } from '@/pages/configuracoes/ClientesTab'
 import { FrotaTab } from '@/pages/configuracoes/FrotaTab'
 import { UsuariosTab } from '@/pages/configuracoes/UsuariosTab'
@@ -14,6 +16,22 @@ type TabId = (typeof TABS)[number]['id']
 
 export function Configuracoes() {
   const [tab, setTab] = useState<TabId>('clientes')
+  const { perfil, perfilLoading } = useAuth()
+
+  if (perfilLoading) {
+    return <p className="text-sm text-secondary">Carregando…</p>
+  }
+
+  if (perfil?.nivel !== 'admin') {
+    return (
+      <div>
+        <PageHeader title="Configurações" subtitle="Cadastros do sistema" />
+        <Card className="p-6 text-center">
+          <p className="text-sm text-secondary">Apenas administradores podem acessar as configurações.</p>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div>

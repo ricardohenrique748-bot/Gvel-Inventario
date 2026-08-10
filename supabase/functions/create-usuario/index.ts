@@ -46,6 +46,18 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Não autenticado.' }, 401)
   }
 
+  const adminClient = createClient(supabaseUrl, serviceRoleKey)
+
+  const { data: callerPerfil, error: perfilError } = await adminClient
+    .from('usuarios')
+    .select('nivel')
+    .eq('id', callerData.user.id)
+    .single()
+
+  if (perfilError || callerPerfil?.nivel !== 'admin') {
+    return jsonResponse({ error: 'Apenas administradores podem fazer isso.' }, 403)
+  }
+
   let body: CreateUsuarioBody
   try {
     body = await req.json()
@@ -65,8 +77,6 @@ Deno.serve(async (req) => {
   if (senha.length < 6) {
     return jsonResponse({ error: 'A senha precisa ter no mínimo 6 caracteres.' }, 400)
   }
-
-  const adminClient = createClient(supabaseUrl, serviceRoleKey)
 
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
     email,
