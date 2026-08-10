@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
+import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import type { VeiculoPublicoItem } from '@/lib/types'
 
 function StatusManutencaoBadgePublico({ status }: { status: string | null }) {
@@ -89,7 +90,7 @@ export function VeiculoPublico() {
                   </div>
                   <div className="flex items-center justify-between border-b border-border/5 py-1.5">
                     <span className="text-secondary">Tipo</span>
-                    <span className="text-foreground font-medium">{veiculo!.tipo === 'pesado' ? 'Pesado' : 'Leve'}</span>
+                    <span className="text-foreground font-medium">{tipoVeiculoLabel(veiculo!.tipo)}</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-border/5 py-1.5">
                     <span className="text-secondary">Situação</span>

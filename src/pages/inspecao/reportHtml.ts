@@ -1,6 +1,7 @@
 import { reportHeaderHtml, reportFooterHtml } from '@/lib/pdf'
 import { formatDateTime } from '@/lib/format'
 import { getChecklistParaTipo } from '@/data/checklistSchema'
+import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { itemKey, type InspecaoWizardState } from './types'
 import type { VeiculoComRelacoes, Cliente } from '@/lib/types'
 
@@ -88,7 +89,7 @@ export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: Bui
           <td style="padding:3px 0;color:#777;width:110px;">Veículo</td>
           <td style="padding:3px 0;font-weight:bold;">${veiculo.placa} — ${veiculo.marca?.nome ?? ''} ${veiculo.modelo?.nome ?? ''}</td>
           <td style="padding:3px 0;color:#777;width:80px;">Tipo</td>
-          <td style="padding:3px 0;">${state.tipo === 'pesado' ? 'Pesado' : 'Leve'}</td>
+          <td style="padding:3px 0;">${tipoVeiculoLabel(state.tipo)}</td>
         </tr>
         <tr>
           <td style="padding:3px 0;color:#777;">Cliente</td>

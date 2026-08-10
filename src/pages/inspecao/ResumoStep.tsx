@@ -10,6 +10,7 @@ import { salvarInspecao } from '@/hooks/useInspecao'
 import { getChecklistParaTipo } from '@/data/checklistSchema'
 import { generatePdfFromHtml } from '@/lib/pdf'
 import { sharePdf } from '@/lib/share'
+import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { formatDateTime } from '@/lib/format'
 import { buildInspecaoReportHtml } from './reportHtml'
 import { itemKey, type InspecaoWizardState } from './types'
@@ -114,7 +115,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <SummaryRow label="Veículo" value={`${state.placa} — ${marca?.nome ?? ''} ${modelo?.nome ?? ''}`} />
-          <SummaryRow label="Tipo" value={state.tipo === 'pesado' ? 'Pesado' : 'Leve'} />
+          <SummaryRow label="Tipo" value={tipoVeiculoLabel(state.tipo)} />
           <SummaryRow label="Cliente" value={cliente?.nome ?? '—'} />
           <SummaryRow label="Motorista" value={state.motorista || '—'} />
           <SummaryRow label="KM" value={state.km ? String(state.km) : '—'} />

@@ -1,4 +1,4 @@
-export type TipoVeiculo = 'pesado' | 'leve'
+export type TipoVeiculo = 'pesado' | 'leve' | 'trator' | 'carreta'
 export type StatusMovimentacao = 'no_patio' | 'saiu'
 export type StatusChecklist = 'conforme' | 'nao_conforme' | 'pendente'
 export type NivelUsuario = 'admin' | 'usuario'

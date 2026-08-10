@@ -15,6 +15,7 @@ import { Input, Label, FieldError, Textarea } from '@/components/ui/Input'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { FotoInput } from '@/components/FotoInput'
+import { TipoVeiculoRadioGroup } from '@/components/TipoVeiculoRadioGroup'
 import { useMovimentacoes, atualizarMovimentacao, excluirMovimentacao, type FotosEntrada } from '@/hooks/useMovimentacoes'
 import { usePatios, criarPatio } from '@/hooks/usePatios'
 import { useStatusManutencao, criarStatusManutencao } from '@/hooks/useStatusManutencao'
@@ -30,7 +31,7 @@ const anoAtual = new Date().getFullYear()
 const editSchema = z.object({
   clienteId: z.string().min(1, 'Selecione o cliente'),
   placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
-  tipo: z.enum(['pesado', 'leve']),
+  tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
   cor: z.string().trim().min(1, 'Informe a cor'),
   chassi: z.string().trim().optional(),
   situacao: z.enum(['operante', 'inoperante']),
@@ -498,23 +499,7 @@ function EditarMovimentacaoForm({
         )}
       />
 
-      <div>
-        <Label>Tipo de veículo</Label>
-        <div className="flex gap-3">
-          <label className="flex-1">
-            <input type="radio" value="pesado" className="peer sr-only" {...register('tipo')} />
-            <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
-              Pesado
-            </div>
-          </label>
-          <label className="flex-1">
-            <input type="radio" value="leve" className="peer sr-only" {...register('tipo')} />
-            <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
-              Leve
-            </div>
-          </label>
-        </div>
-      </div>
+      <TipoVeiculoRadioGroup register={register} name="tipo" />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>

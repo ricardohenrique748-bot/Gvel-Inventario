@@ -8,9 +8,11 @@ import { Input, Label, FieldError, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
+import { TipoVeiculoRadioGroup } from '@/components/TipoVeiculoRadioGroup'
 import { useClientes } from '@/hooks/useClientes'
 import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
 import { useVeiculosPorCliente, upsertVeiculo, atualizarVeiculo, excluirVeiculo } from '@/hooks/useVeiculos'
+import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import type { VeiculoComRelacoes } from '@/lib/types'
 
 const anoAtual = new Date().getFullYear()
@@ -18,7 +20,7 @@ const anoAtual = new Date().getFullYear()
 const schema = z.object({
   clienteId: z.string().min(1, 'Selecione o cliente').refine((val) => val !== 'todos', 'Selecione um cliente para o veículo'),
   placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
-  tipo: z.enum(['pesado', 'leve']),
+  tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
   cor: z.string().trim().min(1, 'Informe a cor'),
   chassi: z.string().trim().optional(),
   situacao: z.enum(['operante', 'inoperante']),
@@ -168,23 +170,7 @@ export function FrotaTab() {
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <Label>Tipo de veículo</Label>
-              <div className="flex gap-3">
-                <label className="flex-1">
-                  <input type="radio" value="pesado" className="peer sr-only" {...register('tipo')} />
-                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
-                    Pesado
-                  </div>
-                </label>
-                <label className="flex-1">
-                  <input type="radio" value="leve" className="peer sr-only" {...register('tipo')} />
-                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
-                    Leve
-                  </div>
-                </label>
-              </div>
-            </div>
+            <TipoVeiculoRadioGroup register={register} name="tipo" />
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -349,7 +335,7 @@ export function FrotaTab() {
                   <p className="text-sm text-secondary">{v.cor || 'Sem cor'}</p>
                   {v.chassi && <p className="text-sm text-secondary">Chassi: {v.chassi}</p>}
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <Badge tone="neutral">{v.tipo === 'pesado' ? 'Pesado' : 'Leve'}</Badge>
+                    <Badge tone="neutral">{tipoVeiculoLabel(v.tipo)}</Badge>
                     <Badge tone={v.operante ? 'success' : 'danger'}>{v.operante ? 'Operante' : 'Inoperante'}</Badge>
                   </div>
                 </div>

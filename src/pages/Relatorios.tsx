@@ -15,6 +15,7 @@ import { obterLinkPublico } from '@/hooks/useClientes'
 import { permanenciaEmMinutos, formatMinutosParaTexto, formatDate, formatDateTime } from '@/lib/format'
 import { generatePdfFromHtml, reportHeaderHtml, reportFooterHtml } from '@/lib/pdf'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
+import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 
 function FotoVeiculoMiniatura({ url, placa }: { url: string | null; placa: string | undefined }) {
   if (!url) {
@@ -235,7 +236,7 @@ export function Relatorios() {
                     </p>
                     <p className="text-sm text-secondary">{v.cor || 'Sem cor'}</p>
                     <Badge tone="neutral" className="mt-2">
-                      {v.tipo === 'pesado' ? 'Pesado' : 'Leve'}
+                      {tipoVeiculoLabel(v.tipo)}
                     </Badge>
                   </div>
                 ))}

@@ -6,10 +6,12 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
+import { TipoVeiculoRadioGroup } from '@/components/TipoVeiculoRadioGroup'
 import { useClientes, criarCliente } from '@/hooks/useClientes'
 import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
 import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
 import { formatDateTime } from '@/lib/format'
+import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import type { InspecaoWizardState } from './types'
 
 const NOVO_VEICULO = '__novo__'
@@ -18,7 +20,7 @@ const schema = z
   .object({
     clienteId: z.string().min(1, 'Selecione o cliente'),
     veiculoId: z.string().min(1, 'Selecione a placa'),
-    tipo: z.enum(['pesado', 'leve']),
+    tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
     placa: z.string().optional(),
     marcaId: z.string().optional(),
     modeloId: z.string().optional(),
@@ -152,7 +154,7 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
 
           {veiculoSelecionado && (
             <p className="text-sm text-secondary">
-              {veiculoSelecionado.tipo === 'pesado' ? 'Pesado' : 'Leve'}
+              {tipoVeiculoLabel(veiculoSelecionado.tipo)}
               {veiculoSelecionado.cor ? ` · ${veiculoSelecionado.cor}` : ''}
               {veiculoSelecionado.ano ? ` · ${veiculoSelecionado.ano}` : ''}
             </p>
@@ -160,23 +162,7 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
 
           {modoNovoVeiculo && (
             <>
-              <div>
-                <Label>Tipo de veículo</Label>
-                <div className="flex gap-3">
-                  <label className="flex-1">
-                    <input type="radio" value="pesado" className="peer sr-only" {...register('tipo')} />
-                    <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
-                      Pesado
-                    </div>
-                  </label>
-                  <label className="flex-1">
-                    <input type="radio" value="leve" className="peer sr-only" {...register('tipo')} />
-                    <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
-                      Leve
-                    </div>
-                  </label>
-                </div>
-              </div>
+              <TipoVeiculoRadioGroup register={register} name="tipo" />
 
               <div>
                 <Label htmlFor="placa">Placa</Label>

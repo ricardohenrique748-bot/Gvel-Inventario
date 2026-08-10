@@ -95,10 +95,13 @@ export const CHECKLIST_SCHEMA: ChecklistSecaoDef[] = [
 ]
 
 export function getChecklistParaTipo(tipo: TipoVeiculo): ChecklistSecaoDef[] {
-  return CHECKLIST_SCHEMA.filter((secao) => !secao.apenasPesado || tipo === 'pesado')
+  // "apenasPesado" cobre itens de veículo de carga em geral (ex.: quinta roda,
+  // engate/carreta) — além de "pesado", também se aplica a trator e carreta.
+  const ehPesado = tipo !== 'leve'
+  return CHECKLIST_SCHEMA.filter((secao) => !secao.apenasPesado || ehPesado)
     .map((secao) => ({
       ...secao,
-      itens: secao.itens.filter((item) => !item.apenasPesado || tipo === 'pesado'),
+      itens: secao.itens.filter((item) => !item.apenasPesado || ehPesado),
     }))
 }
 

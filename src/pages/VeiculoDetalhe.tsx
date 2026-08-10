@@ -14,6 +14,7 @@ import { useVeiculoDetalhe } from '@/hooks/useVeiculos'
 import { registrarSaida } from '@/hooks/useMovimentacoes'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
+import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import type { Movimentacao } from '@/lib/types'
 
 const FOTOS_MOVIMENTACAO: { campo: keyof Movimentacao; label: string }[] = [
@@ -183,7 +184,7 @@ export function VeiculoDetalhe() {
                 <StatusManutencaoBadge status={movimentacaoAtiva?.status_manutencao} />
               </div>
             </Row>
-            <Row label="Tipo">{veiculo.tipo === 'pesado' ? 'Pesado' : 'Leve'}</Row>
+            <Row label="Tipo">{tipoVeiculoLabel(veiculo.tipo)}</Row>
             <Row label="Situação">
               <Badge tone={veiculo.operante ? 'success' : 'danger'}>
                 {veiculo.operante ? 'Operante' : 'Inoperante'}

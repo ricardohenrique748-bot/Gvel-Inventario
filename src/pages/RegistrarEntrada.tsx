@@ -9,6 +9,7 @@ import { Input, Label, FieldError, Textarea } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
 import { SearchableSelect } from '@/components/SearchableSelect'
+import { TipoVeiculoRadioGroup } from '@/components/TipoVeiculoRadioGroup'
 import { useClientes, criarCliente } from '@/hooks/useClientes'
 import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
 import { usePatios, criarPatio } from '@/hooks/usePatios'
@@ -18,6 +19,7 @@ import { registrarEntrada, type FotosEntrada } from '@/hooks/useMovimentacoes'
 import { FotoInput } from '@/components/FotoInput'
 import { nowLocalInputValue } from '@/lib/format'
 import { ANGULOS_FOTO, type AnguloFoto } from '@/lib/fotos'
+import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 
 const NOVO_VEICULO = '__novo__'
 const anoAtual = new Date().getFullYear()
@@ -27,7 +29,7 @@ const schema = z
     clienteId: z.string().min(1, 'Selecione o cliente'),
     veiculoId: z.string().min(1, 'Selecione a placa'),
     placa: z.string().optional(),
-    tipo: z.enum(['pesado', 'leve']).optional(),
+    tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']).optional(),
     cor: z.string().optional(),
     chassi: z.string().optional(),
     situacao: z.enum(['operante', 'inoperante']).optional(),
@@ -210,7 +212,7 @@ export function RegistrarEntrada() {
 
             {veiculoSelecionado && (
               <p className="text-sm text-secondary">
-                {veiculoSelecionado.tipo === 'pesado' ? 'Pesado' : 'Leve'}
+                {tipoVeiculoLabel(veiculoSelecionado.tipo)}
                 {veiculoSelecionado.cor ? ` · ${veiculoSelecionado.cor}` : ''}
                 {veiculoSelecionado.ano ? ` · ${veiculoSelecionado.ano}` : ''}
               </p>
@@ -218,23 +220,7 @@ export function RegistrarEntrada() {
 
             {modoNovoVeiculo && (
               <>
-                <div>
-                  <Label>Tipo de veículo</Label>
-                  <div className="flex gap-3">
-                    <label className="flex-1">
-                      <input type="radio" value="pesado" className="peer sr-only" {...register('tipo')} />
-                      <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
-                        Pesado
-                      </div>
-                    </label>
-                    <label className="flex-1">
-                      <input type="radio" value="leve" className="peer sr-only" {...register('tipo')} />
-                      <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
-                        Leve
-                      </div>
-                    </label>
-                  </div>
-                </div>
+                <TipoVeiculoRadioGroup register={register} name="tipo" />
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
