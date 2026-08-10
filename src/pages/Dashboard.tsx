@@ -345,8 +345,8 @@ export function Dashboard() {
                           <Tooltip
                             contentStyle={tooltipStyle}
                             itemStyle={{ color: '#fff' }}
-                            formatter={(value: number, name: string) => [
-                              `${value} (${Math.round((value / total) * 100)}%)`,
+                            formatter={(value, name) => [
+                              `${value} (${Math.round((Number(value) / total) * 100)}%)`,
                               name,
                             ]}
                           />
