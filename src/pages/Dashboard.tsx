@@ -25,6 +25,7 @@ import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { permanenciaEmMinutos, formatMinutosParaTexto } from '@/lib/format'
 import { CHART_ENTRADA, CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER, CHART_CHROME } from '@/lib/chartColors'
+import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 
 const tooltipStyle = {
   backgroundColor: CHART_CHROME.tooltipBg,
@@ -217,7 +218,8 @@ export function Dashboard() {
                         >
                           {m.foto_frente_url ? (
                             <img
-                              src={m.foto_frente_url}
+                              src={urlMiniatura(m.foto_frente_url, 112)}
+                              onError={aoFalharMiniatura(m.foto_frente_url)}
                               alt={`Frente — ${m.veiculo?.placa}`}
                               loading="lazy"
                               decoding="async"

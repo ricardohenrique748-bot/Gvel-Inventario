@@ -13,6 +13,7 @@ import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useVeiculoDetalhe } from '@/hooks/useVeiculos'
 import { registrarSaida } from '@/hooks/useMovimentacoes'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
+import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 import type { Movimentacao } from '@/lib/types'
 
 const FOTOS_MOVIMENTACAO: { campo: keyof Movimentacao; label: string }[] = [
@@ -265,7 +266,8 @@ export function VeiculoDetalhe() {
                               aria-label={`Ampliar foto — ${label}`}
                             >
                               <img
-                                src={url}
+                                src={urlMiniatura(url, 128)}
+                                onError={aoFalharMiniatura(url)}
                                 alt={label}
                                 loading="lazy"
                                 decoding="async"
