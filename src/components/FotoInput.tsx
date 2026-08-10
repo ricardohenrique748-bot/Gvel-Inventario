@@ -1,5 +1,6 @@
-import { useRef, type ChangeEvent } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import { Camera, X } from 'lucide-react'
+import { comprimirImagem } from '@/lib/imagem'
 
 interface Props {
   label: string
@@ -10,12 +11,19 @@ interface Props {
 
 export function FotoInput({ label, previewUrl, onSelect, onRemove }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [comprimindo, setComprimindo] = useState(false)
 
-  function handleFile(e: ChangeEvent<HTMLInputElement>) {
+  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
-    onSelect(file, URL.createObjectURL(file))
     e.target.value = ''
+    if (!file) return
+    setComprimindo(true)
+    try {
+      const comprimida = await comprimirImagem(file)
+      onSelect(comprimida, URL.createObjectURL(comprimida))
+    } finally {
+      setComprimindo(false)
+    }
   }
 
   return (
@@ -25,10 +33,11 @@ export function FotoInput({ label, previewUrl, onSelect, onRemove }: Props) {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary hover:text-foreground"
-          aria-label={`Anexar foto — ${label}`}
+          disabled={comprimindo}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary hover:text-foreground disabled:opacity-50"
+          aria-label={comprimindo ? `Processando foto — ${label}` : `Anexar foto — ${label}`}
         >
-          <Camera className="h-4 w-4" />
+          <Camera className={comprimindo ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
         </button>
         <input
           ref={fileInputRef}
@@ -42,7 +51,13 @@ export function FotoInput({ label, previewUrl, onSelect, onRemove }: Props) {
 
       {previewUrl && (
         <div className="relative mt-2 inline-block">
-          <img src={previewUrl} alt={label} className="h-16 w-16 rounded-lg object-cover" />
+          <img
+            src={previewUrl}
+            alt={label}
+            loading="lazy"
+            decoding="async"
+            className="h-16 w-16 rounded-lg object-cover"
+          />
           <button
             type="button"
             onClick={onRemove}

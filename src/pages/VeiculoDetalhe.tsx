@@ -267,6 +267,10 @@ export function VeiculoDetalhe() {
                               <img
                                 src={url}
                                 alt={label}
+                                loading="lazy"
+                                decoding="async"
+                                width={64}
+                                height={64}
                                 className="h-16 w-16 rounded-lg object-cover border border-border/10 hover:opacity-80"
                               />
                             </button>

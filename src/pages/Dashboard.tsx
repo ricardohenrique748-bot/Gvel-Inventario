@@ -219,6 +219,10 @@ export function Dashboard() {
                             <img
                               src={m.foto_frente_url}
                               alt={`Frente — ${m.veiculo?.placa}`}
+                              loading="lazy"
+                              decoding="async"
+                              width={56}
+                              height={56}
                               className="h-14 w-14 shrink-0 rounded-lg object-cover"
                             />
                           ) : (
