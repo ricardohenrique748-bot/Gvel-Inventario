@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Input } from '@/components/ui/Input'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/format'
+import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 import type { FrotaPublicaItem } from '@/lib/types'
 
 function StatusManutencaoBadgePublico({ status }: { status: string | null }) {
@@ -14,6 +15,28 @@ function StatusManutencaoBadgePublico({ status }: { status: string | null }) {
   const nome = status.toLowerCase()
   const tone = nome.includes('corretiva') ? 'danger' : nome.includes('preventiva') ? 'warning' : 'neutral'
   return <Badge tone={tone}>{status}</Badge>
+}
+
+function FotoVeiculoMiniatura({ url, placa }: { url: string | null; placa: string }) {
+  if (!url) {
+    return (
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-status-success/15 text-status-success">
+        <Truck className="h-4 w-4" />
+      </div>
+    )
+  }
+  return (
+    <img
+      src={urlMiniatura(url, 72)}
+      onError={aoFalharMiniatura(url)}
+      alt={`Frente — ${placa}`}
+      loading="lazy"
+      decoding="async"
+      width={36}
+      height={36}
+      className="h-9 w-9 shrink-0 rounded-lg object-cover"
+    />
+  )
 }
 
 type FiltroSituacao = 'todos' | 'operante' | 'inoperante'
@@ -177,9 +200,7 @@ export function FrotaPublica() {
                               className="flex items-center justify-between gap-2 rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
                             >
                               <div className="flex items-center gap-3">
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-status-success/15 text-status-success">
-                                  <Truck className="h-4 w-4" />
-                                </div>
+                                <FotoVeiculoMiniatura url={v.foto_frente_url} placa={v.placa} />
                                 <div>
                                   <p className="text-foreground font-medium">{v.placa}</p>
                                   <p className="text-sm text-secondary">
@@ -214,21 +235,24 @@ export function FrotaPublica() {
                       <Link
                         key={v.movimentacao_id}
                         to={`/publico/frota/${token}/veiculo/${v.veiculo_id}`}
-                        className="block rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
+                        className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-foreground font-medium">{v.placa}</p>
-                          <div className="flex items-center gap-1.5">
-                            <Badge tone={isOperante(v) ? 'success' : 'danger'}>
-                              {isOperante(v) ? 'Operante' : 'Inoperante'}
-                            </Badge>
-                            <Badge tone="neutral">Saiu</Badge>
+                        <FotoVeiculoMiniatura url={v.foto_frente_url} placa={v.placa} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-foreground font-medium">{v.placa}</p>
+                            <div className="flex items-center gap-1.5">
+                              <Badge tone={isOperante(v) ? 'success' : 'danger'}>
+                                {isOperante(v) ? 'Operante' : 'Inoperante'}
+                              </Badge>
+                              <Badge tone="neutral">Saiu</Badge>
+                            </div>
                           </div>
+                          <p className="text-sm text-secondary">
+                            {v.marca} {v.modelo}
+                          </p>
+                          <p className="mt-1 text-xs text-secondary">Saída: {formatDateTime(v.data_hora_saida)}</p>
                         </div>
-                        <p className="text-sm text-secondary">
-                          {v.marca} {v.modelo}
-                        </p>
-                        <p className="mt-1 text-xs text-secondary">Saída: {formatDateTime(v.data_hora_saida)}</p>
                       </Link>
                     ))}
                   </div>

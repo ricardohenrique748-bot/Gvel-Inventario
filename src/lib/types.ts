@@ -145,6 +145,7 @@ export interface FrotaPublicaItem {
   status: StatusMovimentacao
   status_manutencao: string | null
   operante: boolean
+  foto_frente_url: string | null
   data_hora_entrada: string
   data_hora_saida: string | null
 }
