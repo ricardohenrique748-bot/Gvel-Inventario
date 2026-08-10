@@ -44,25 +44,53 @@ const schema = z
   })
   .superRefine((values, ctx) => {
     if (values.veiculoId !== NOVO_VEICULO) return
-    if (!values.placa || values.placa.trim().length < 7) {
-      ctx.addIssue({ code: 'custom', path: ['placa'], message: 'Placa inválida' })
-    }
+
+    // Tipo sempre obrigatório
     if (!values.tipo) ctx.addIssue({ code: 'custom', path: ['tipo'], message: 'Selecione o tipo' })
-    if (!values.cor) ctx.addIssue({ code: 'custom', path: ['cor'], message: 'Informe a cor' })
-    if (!values.ano || Number.isNaN(values.ano)) {
-      ctx.addIssue({ code: 'custom', path: ['ano'], message: 'Informe o ano' })
+
+    const isPesadoOuLeve = values.tipo === 'pesado' || values.tipo === 'leve'
+
+    if (isPesadoOuLeve) {
+      // Pesado e Leve: todos os campos obrigatórios
+      if (!values.placa || values.placa.trim().length < 7) {
+        ctx.addIssue({ code: 'custom', path: ['placa'], message: 'Placa inválida' })
+      }
+      if (!values.cor || values.cor.trim() === '') {
+        ctx.addIssue({ code: 'custom', path: ['cor'], message: 'Informe a cor' })
+      }
+      if (!values.ano || Number.isNaN(values.ano)) {
+        ctx.addIssue({ code: 'custom', path: ['ano'], message: 'Informe o ano' })
+      }
+      if (!values.marcaId) {
+        ctx.addIssue({ code: 'custom', path: ['marcaId'], message: 'Selecione a marca' })
+      }
+      if (!values.modeloId) {
+        ctx.addIssue({ code: 'custom', path: ['modeloId'], message: 'Selecione o modelo' })
+      }
+      if (!values.situacao) {
+        ctx.addIssue({ code: 'custom', path: ['situacao'], message: 'Selecione a situação' })
+      }
+      if (!values.motorista || values.motorista.trim() === '') {
+        ctx.addIssue({ code: 'custom', path: ['motorista'], message: 'Informe o motorista' })
+      }
+    } else {
+      // Trator e Carreta: apenas cor obrigatória (pátio e data já validados pelo schema base)
+      if (!values.cor || values.cor.trim() === '') {
+        ctx.addIssue({ code: 'custom', path: ['cor'], message: 'Informe a cor' })
+      }
     }
-    if (!values.marcaId) ctx.addIssue({ code: 'custom', path: ['marcaId'], message: 'Selecione a marca' })
-    if (!values.modeloId) ctx.addIssue({ code: 'custom', path: ['modeloId'], message: 'Selecione o modelo' })
-    if (!values.situacao) ctx.addIssue({ code: 'custom', path: ['situacao'], message: 'Selecione a situação' })
   })
 
 type FormValues = z.infer<typeof schema>
+
+// Fotos obrigatórias para pesado/leve
+const ANGULOS_OBRIGATORIOS_PESADO_LEVE: AnguloFoto[] = ['frente', 'ladoEsquerdo', 'ladoDireito', 'traseira', 'painel']
 
 export function RegistrarEntrada() {
   const navigate = useNavigate()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [fotos, setFotos] = useState<Partial<Record<AnguloFoto, { file: File; previewUrl: string }>>>({})
+  const [erroFotos, setErroFotos] = useState<string | null>(null)
 
   const { clientes, refetch: refetchClientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
@@ -88,7 +116,10 @@ export function RegistrarEntrada() {
   const clienteId = watch('clienteId')
   const veiculoId = watch('veiculoId')
   const marcaId = watch('marcaId')
+  const tipoSelecionado = watch('tipo')
   const modoNovoVeiculo = veiculoId === NOVO_VEICULO
+  const isPesadoOuLeve = tipoSelecionado === 'pesado' || tipoSelecionado === 'leve'
+  const isTratorOuCarreta = tipoSelecionado === 'trator' || tipoSelecionado === 'carreta'
 
   const { veiculos: frotaCliente, loading: loadingFrota } = useVeiculosPorCliente(clienteId)
   const { modelos, refetch: refetchModelos } = useModelos(marcaId)
@@ -99,6 +130,7 @@ export function RegistrarEntrada() {
 
   function handleSelecionarFoto(campo: AnguloFoto, file: File, previewUrl: string) {
     setFotos((prev) => ({ ...prev, [campo]: { file, previewUrl } }))
+    setErroFotos(null)
   }
 
   function handleRemoverFoto(campo: AnguloFoto) {
@@ -111,6 +143,26 @@ export function RegistrarEntrada() {
 
   async function onSubmit(values: FormValues) {
     setSubmitError(null)
+    setErroFotos(null)
+
+    // Valida fotos obrigatórias para pesado/leve
+    if (modoNovoVeiculo && isPesadoOuLeve) {
+      const faltando = ANGULOS_OBRIGATORIOS_PESADO_LEVE.filter((a) => !fotos[a])
+      if (faltando.length > 0) {
+        setErroFotos('Todas as fotos são obrigatórias para veículos pesados e leves.')
+        return
+      }
+    }
+
+    // Para trator/carreta, ao menos uma foto obrigatória
+    if (modoNovoVeiculo && isTratorOuCarreta) {
+      const temAlgumaFoto = Object.keys(fotos).length > 0
+      if (!temAlgumaFoto) {
+        setErroFotos('Adicione ao menos uma foto do veículo.')
+        return
+      }
+    }
+
     const fotosEntrada: FotosEntrada = {
       frente: fotos.frente?.file,
       ladoEsquerdo: fotos.ladoEsquerdo?.file,
@@ -118,20 +170,21 @@ export function RegistrarEntrada() {
       traseira: fotos.traseira?.file,
       painel: fotos.painel?.file,
     }
+
     try {
       const mov =
         values.veiculoId === NOVO_VEICULO
           ? await registrarEntrada(
               {
-                placa: values.placa!,
-                marcaId: values.marcaId!,
-                modeloId: values.modeloId!,
+                placa: values.placa ?? `SEM-${Date.now()}`,
+                marcaId: values.marcaId ?? '',
+                modeloId: values.modeloId ?? '',
                 clienteId: values.clienteId,
                 tipo: values.tipo!,
-                cor: values.cor!,
+                cor: values.cor ?? '',
                 chassi: values.chassi,
-                operante: values.situacao === 'operante',
-                ano: values.ano!,
+                operante: values.situacao ? values.situacao === 'operante' : true,
+                ano: values.ano && !Number.isNaN(values.ano) ? values.ano : new Date().getFullYear(),
                 patioId: values.patioId,
                 statusId: values.statusId || undefined,
                 motorista: values.motorista,
@@ -158,6 +211,11 @@ export function RegistrarEntrada() {
   }
 
   const veiculoSelecionado = frotaCliente.find((v) => v.id === veiculoId)
+
+  // Helper para label com asterisco de obrigatório
+  function Req() {
+    return <span className="ml-0.5 text-red-400">*</span>
+  }
 
   return (
     <div>
@@ -222,21 +280,37 @@ export function RegistrarEntrada() {
               <>
                 <TipoVeiculoRadioGroup register={register} name="tipo" />
 
+                {/* Aviso visual de campos obrigatórios conforme tipo */}
+                {isTratorOuCarreta && (
+                  <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-400">
+                    Para <strong>{tipoSelecionado === 'trator' ? 'trator' : 'carreta'}</strong>: pátio, cor, data/hora e fotos são obrigatórios — os demais campos são opcionais.
+                  </p>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="placa">Placa</Label>
+                    <Label htmlFor="placa">
+                      Placa{isPesadoOuLeve && <Req />}
+                      {isTratorOuCarreta && <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>}
+                    </Label>
                     <Input id="placa" placeholder="ABC1D23" className="uppercase" {...register('placa')} />
                     <FieldError message={errors.placa?.message} />
                   </div>
                   <div>
-                    <Label htmlFor="cor">Cor</Label>
+                    <Label htmlFor="cor">
+                      Cor<Req />
+                    </Label>
                     <Input id="cor" placeholder="Branco" {...register('cor')} />
                     <FieldError message={errors.cor?.message} />
                   </div>
                 </div>
 
                 <div>
-                  <Label>Situação</Label>
+                  <Label>
+                    Situação
+                    {isPesadoOuLeve && <Req />}
+                    {isTratorOuCarreta && <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>}
+                  </Label>
                   <div className="flex gap-3">
                     <label className="flex-1">
                       <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
@@ -256,7 +330,11 @@ export function RegistrarEntrada() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="ano">Ano</Label>
+                    <Label htmlFor="ano">
+                      Ano
+                      {isPesadoOuLeve && <Req />}
+                      {isTratorOuCarreta && <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>}
+                    </Label>
                     <Input
                       id="ano"
                       type="number"
@@ -266,7 +344,10 @@ export function RegistrarEntrada() {
                     <FieldError message={errors.ano?.message} />
                   </div>
                   <div>
-                    <Label htmlFor="chassi">Chassi</Label>
+                    <Label htmlFor="chassi">
+                      Chassi
+                      <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>
+                    </Label>
                     <Input id="chassi" placeholder="Opcional" {...register('chassi')} />
                     <FieldError message={errors.chassi?.message} />
                   </div>
@@ -277,7 +358,11 @@ export function RegistrarEntrada() {
                   name="marcaId"
                   render={({ field }) => (
                     <QuickCreateSelect
-                      label="Marca"
+                      label={
+                        isPesadoOuLeve
+                          ? 'Marca *'
+                          : 'Marca (opcional)'
+                      }
                       value={field.value}
                       onChange={field.onChange}
                       options={marcas}
@@ -297,7 +382,11 @@ export function RegistrarEntrada() {
                   name="modeloId"
                   render={({ field }) => (
                     <QuickCreateSelect
-                      label="Modelo"
+                      label={
+                        isPesadoOuLeve
+                          ? 'Modelo *'
+                          : 'Modelo (opcional)'
+                      }
                       value={field.value}
                       onChange={field.onChange}
                       options={modelos}
@@ -320,7 +409,7 @@ export function RegistrarEntrada() {
               name="patioId"
               render={({ field }) => (
                 <QuickCreateSelect
-                  label="Pátio"
+                  label="Pátio *"
                   value={field.value}
                   onChange={field.onChange}
                   options={patios}
@@ -340,7 +429,7 @@ export function RegistrarEntrada() {
               name="statusId"
               render={({ field }) => (
                 <QuickCreateSelect
-                  label="Status"
+                  label="Status (opcional)"
                   value={field.value}
                   onChange={field.onChange}
                   options={statusManutencao}
@@ -357,23 +446,38 @@ export function RegistrarEntrada() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="motorista">Motorista</Label>
-                <Input id="motorista" placeholder="Opcional" {...register('motorista')} />
+                <Label htmlFor="motorista">
+                  Motorista
+                  {isPesadoOuLeve && modoNovoVeiculo && <Req />}
+                  {(isTratorOuCarreta || !modoNovoVeiculo) && (
+                    <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>
+                  )}
+                </Label>
+                <Input id="motorista" placeholder={isPesadoOuLeve && modoNovoVeiculo ? '' : 'Opcional'} {...register('motorista')} />
+                <FieldError message={errors.motorista?.message} />
               </div>
               <div>
-                <Label htmlFor="dataHoraEntrada">Data/hora de entrada</Label>
+                <Label htmlFor="dataHoraEntrada">Data/hora de entrada<Req /></Label>
                 <Input id="dataHoraEntrada" type="datetime-local" {...register('dataHoraEntrada')} />
                 <FieldError message={errors.dataHoraEntrada?.message} />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="observacoes">Observações</Label>
+              <Label htmlFor="observacoes">
+                Observações
+                <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>
+              </Label>
               <Textarea id="observacoes" placeholder="Opcional" {...register('observacoes')} />
             </div>
 
             <div>
-              <Label>Fotos do veículo</Label>
+              <Label>
+                Fotos do veículo<Req />
+                {isTratorOuCarreta && modoNovoVeiculo && (
+                  <span className="ml-1 text-xs text-secondary font-normal">— ao menos uma obrigatória</span>
+                )}
+              </Label>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {ANGULOS_FOTO.map(({ campo, label }) => (
                   <FotoInput
@@ -385,6 +489,7 @@ export function RegistrarEntrada() {
                   />
                 ))}
               </div>
+              {erroFotos && <FieldError message={erroFotos} />}
             </div>
 
             <FieldError message={submitError ?? undefined} />
