@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { format, subDays } from 'date-fns'
-import { FileDown, Share2, Check, X } from 'lucide-react'
+import { FileDown, Share2, Check, X, Truck } from 'lucide-react'
 import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -14,6 +14,29 @@ import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
 import { obterLinkPublico } from '@/hooks/useClientes'
 import { permanenciaEmMinutos, formatMinutosParaTexto, formatDate, formatDateTime } from '@/lib/format'
 import { generatePdfFromHtml, reportHeaderHtml, reportFooterHtml } from '@/lib/pdf'
+import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
+
+function FotoVeiculoMiniatura({ url, placa }: { url: string | null; placa: string | undefined }) {
+  if (!url) {
+    return (
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
+        <Truck className="h-5 w-5" />
+      </div>
+    )
+  }
+  return (
+    <img
+      src={urlMiniatura(url, 96)}
+      onError={aoFalharMiniatura(url)}
+      alt={`Frente — ${placa ?? ''}`}
+      loading="lazy"
+      decoding="async"
+      width={48}
+      height={48}
+      className="h-12 w-12 shrink-0 rounded-lg object-cover"
+    />
+  )
+}
 
 export function Relatorios() {
   const [filters, setFilters] = useState<FiltersValue>({
@@ -256,11 +279,14 @@ export function Relatorios() {
                                 to={`/veiculos/${m.veiculo_id}`}
                                 className="flex items-center justify-between gap-2 rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
                               >
-                                <div>
-                                  <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
-                                  <p className="text-sm text-secondary">
-                                    {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
-                                  </p>
+                                <div className="flex items-center gap-3">
+                                  <FotoVeiculoMiniatura url={m.foto_frente_url} placa={m.veiculo?.placa} />
+                                  <div>
+                                    <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
+                                    <p className="text-sm text-secondary">
+                                      {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                                    </p>
+                                  </div>
                                 </div>
                                 <StatusManutencaoBadge status={m.status_manutencao} />
                               </Link>
@@ -282,18 +308,21 @@ export function Relatorios() {
                         <Link
                           key={m.id}
                           to={`/veiculos/${m.veiculo_id}`}
-                          className="block rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
+                          className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
-                            <Badge tone="neutral">Saiu</Badge>
+                          <FotoVeiculoMiniatura url={m.foto_frente_url} placa={m.veiculo?.placa} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
+                              <Badge tone="neutral">Saiu</Badge>
+                            </div>
+                            <p className="text-sm text-secondary">
+                              {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                            </p>
+                            <p className="text-xs text-secondary mt-1">
+                              Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}
+                            </p>
                           </div>
-                          <p className="text-sm text-secondary">
-                            {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
-                          </p>
-                          <p className="text-xs text-secondary mt-1">
-                            Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}
-                          </p>
                         </Link>
                       ))}
                     </div>
