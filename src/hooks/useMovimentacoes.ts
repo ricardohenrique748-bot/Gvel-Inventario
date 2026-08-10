@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import { MOVIMENTACAO_COM_VEICULO } from '@/lib/queries'
 import { up } from '@/lib/text'
@@ -14,10 +14,12 @@ export interface MovimentacoesFilters {
   status?: StatusMovimentacao
   dataInicio?: string
   dataFim?: string
+  /** Limite de linhas buscadas no servidor (paginação simples via "carregar mais"). */
+  limit?: number
 }
 
 export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
-  const [movimentacoes, setMovimentacoes] = useState<MovimentacaoComVeiculo[]>([])
+  const [raw, setRaw] = useState<MovimentacaoComVeiculo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,6 +34,7 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
     if (filters.patioId) query = query.eq('patio_id', filters.patioId)
     if (filters.dataInicio) query = query.gte('data_hora_entrada', filters.dataInicio)
     if (filters.dataFim) query = query.lte('data_hora_entrada', filters.dataFim)
+    if (filters.limit) query = query.limit(filters.limit)
 
     const { data, error } = await query
     if (error) {
@@ -40,16 +43,25 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
       return
     }
     setError(null)
+    setRaw((data as unknown as MovimentacaoComVeiculo[]) ?? [])
+    setLoading(false)
+  }, [filters.patioId, filters.status, filters.dataInicio, filters.dataFim, filters.limit])
 
-    let result = (data as unknown as MovimentacaoComVeiculo[]) ?? []
+  useEffect(() => {
+    refetch()
+  }, [refetch])
 
-    // Filtro de placa e por cliente/marca/modelo precisam ser feitos aqui e não com
-    // `.eq('veiculo.coluna', ...)` na query: o PostgREST trata filtro sobre relação
-    // aninhada como inner join e chega a excluir a movimentação inteira da resposta
-    // quando o veículo relacionado não bate — mesmo a movimentação sendo válida.
+  // Filtro de placa e por cliente/marca/modelo são aplicados aqui em memória, não na
+  // query — evita disparar uma nova busca no servidor a cada tecla digitada (esses
+  // valores mudam bastante enquanto o usuário digita/seleciona) e também evita o
+  // problema do PostgREST tratando `.eq('veiculo.coluna', ...)` como inner join,
+  // que chegava a excluir da resposta uma movimentação válida quando o veículo
+  // relacionado não batia com o filtro.
+  const movimentacoes = useMemo(() => {
+    let result = raw
     if (filters.search) {
       const term = filters.search.trim().toUpperCase()
-      result = result.filter((m) => m.veiculo?.placa?.toUpperCase().includes(term))
+      if (term) result = result.filter((m) => m.veiculo?.placa?.toUpperCase().includes(term))
     }
     if (filters.clienteId) {
       result = result.filter((m) => m.veiculo?.cliente_id === filters.clienteId)
@@ -60,25 +72,14 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
     if (filters.modeloId) {
       result = result.filter((m) => m.veiculo?.modelo_id === filters.modeloId)
     }
+    return result
+  }, [raw, filters.search, filters.clienteId, filters.marcaId, filters.modeloId])
 
-    setMovimentacoes(result)
-    setLoading(false)
-  }, [
-    filters.search,
-    filters.marcaId,
-    filters.modeloId,
-    filters.clienteId,
-    filters.patioId,
-    filters.status,
-    filters.dataInicio,
-    filters.dataFim,
-  ])
+  // Sinaliza que o servidor pode ter mais linhas além do limite pedido (para mostrar
+  // o botão "carregar mais"); só faz sentido quando um limite foi de fato aplicado.
+  const podeTerMais = Boolean(filters.limit) && raw.length >= (filters.limit ?? 0)
 
-  useEffect(() => {
-    refetch()
-  }, [refetch])
-
-  return { movimentacoes, loading, error, refetch }
+  return { movimentacoes, loading, error, podeTerMais, refetch }
 }
 
 interface RegistrarEntradaComum {

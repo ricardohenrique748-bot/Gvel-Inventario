@@ -52,13 +52,21 @@ const editSchema = z.object({
 
 type EditFormValues = z.infer<typeof editSchema>
 
+const LIMITE_INICIAL = 300
+
 export function Movimentacoes() {
   const navigate = useNavigate()
   const [filters, setFilters] = useState<FiltersValue>({})
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [erroLista, setErroLista] = useState<string | null>(null)
-  const { movimentacoes, loading, error: erroBusca, refetch } = useMovimentacoes({
+  const [limite, setLimite] = useState(LIMITE_INICIAL)
+
+  useEffect(() => {
+    setLimite(LIMITE_INICIAL)
+  }, [filters.patioId, filters.dataInicio, filters.dataFim])
+
+  const { movimentacoes, loading, error: erroBusca, podeTerMais, refetch } = useMovimentacoes({
     search: filters.search,
     clienteId: filters.clienteId,
     marcaId: filters.marcaId,
@@ -66,6 +74,7 @@ export function Movimentacoes() {
     patioId: filters.patioId,
     dataInicio: filters.dataInicio ? `${filters.dataInicio}T00:00:00` : undefined,
     dataFim: filters.dataFim ? `${filters.dataFim}T23:59:59` : undefined,
+    limit: limite,
   })
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -335,6 +344,14 @@ export function Movimentacoes() {
               ),
             )}
           </div>
+
+          {podeTerMais && (
+            <div className="mt-4 flex justify-center">
+              <Button type="button" variant="secondary" disabled={loading} onClick={() => setLimite((l) => l + LIMITE_INICIAL)}>
+                {loading ? 'Carregando…' : 'Carregar mais'}
+              </Button>
+            </div>
+          )}
         </>
       )}
 
