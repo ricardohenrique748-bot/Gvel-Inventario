@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Truck } from 'lucide-react'
+import { Search, Truck } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { Input } from '@/components/ui/Input'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/format'
 import type { FrotaPublicaItem } from '@/lib/types'
@@ -23,6 +24,7 @@ export function FrotaPublica() {
   const [erro, setErro] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [filtroSituacao, setFiltroSituacao] = useState<FiltroSituacao>('todos')
+  const [buscaPlaca, setBuscaPlaca] = useState('')
 
   useEffect(() => {
     if (!token) return
@@ -47,9 +49,11 @@ export function FrotaPublica() {
   const { clienteNome, porPatio, jaSaiu, totalGeral } = useMemo(() => {
     const listaCompleta = itens ?? []
     const clienteNome = listaCompleta[0]?.cliente_nome ?? ''
+    const termoPlaca = buscaPlaca.trim().toUpperCase()
     const lista = listaCompleta.filter((i) => {
-      if (filtroSituacao === 'operante') return i.operante
-      if (filtroSituacao === 'inoperante') return !i.operante
+      if (filtroSituacao === 'operante' && !i.operante) return false
+      if (filtroSituacao === 'inoperante' && i.operante) return false
+      if (termoPlaca && !i.placa?.toUpperCase().includes(termoPlaca)) return false
       return true
     })
     const noPatio = lista.filter((i) => i.status === 'no_patio')
@@ -70,7 +74,7 @@ export function FrotaPublica() {
       jaSaiu,
       totalGeral: lista.length,
     }
-  }, [itens, filtroSituacao])
+  }, [itens, filtroSituacao, buscaPlaca])
 
   return (
     <div className="min-h-svh bg-background px-4 py-8">
@@ -91,6 +95,16 @@ export function FrotaPublica() {
           <>
             <h1 className="mb-1 text-center text-xl font-semibold text-foreground">{clienteNome}</h1>
             <p className="mb-4 text-center text-sm text-secondary">Situação atual da frota</p>
+
+            <div className="relative mx-auto mb-4 max-w-xs">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+              <Input
+                value={buscaPlaca}
+                onChange={(e) => setBuscaPlaca(e.target.value)}
+                placeholder="Buscar placa…"
+                className="pl-10"
+              />
+            </div>
 
             <div className="mb-6 flex justify-center gap-2">
               {(
@@ -118,6 +132,12 @@ export function FrotaPublica() {
                 </button>
               ))}
             </div>
+
+            {totalGeral === 0 && (
+              <Card className="mb-6 p-6 text-center">
+                <p className="text-sm text-secondary">Nenhum veículo encontrado com esses filtros.</p>
+              </Card>
+            )}
 
             {porPatio.length > 0 && (
               <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
