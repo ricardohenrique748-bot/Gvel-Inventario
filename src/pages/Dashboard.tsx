@@ -36,13 +36,16 @@ const tooltipStyle = {
 }
 
 export function Dashboard() {
-  const [filters, setFilters] = useState<FiltersValue>({
+  const filtroInicial = {
     dataInicio: format(subDays(new Date(), 13), 'yyyy-MM-dd'),
     dataFim: format(new Date(), 'yyyy-MM-dd'),
-  })
+  }
+
+  const [filters, setFilters] = useState<FiltersValue>(filtroInicial)
 
   const { movimentacoes: noPatio, loading: loadingNoPatio } = useMovimentacoes({
     status: 'no_patio',
+    search: filters.search,
     clienteId: filters.clienteId,
     marcaId: filters.marcaId,
     modeloId: filters.modeloId,
@@ -52,6 +55,7 @@ export function Dashboard() {
   const { movimentacoes: periodo, loading: loadingPeriodo } = useMovimentacoes({
     dataInicio: filters.dataInicio ? `${filters.dataInicio}T00:00:00` : undefined,
     dataFim: filters.dataFim ? `${filters.dataFim}T23:59:59` : undefined,
+    search: filters.search,
     clienteId: filters.clienteId,
     marcaId: filters.marcaId,
     modeloId: filters.modeloId,
@@ -140,7 +144,12 @@ export function Dashboard() {
       <PageHeader title="Dashboard" subtitle="Visão geral do pátio" />
 
       <div className="mb-6">
-        <FiltersBar value={filters} onChange={setFilters} />
+        <FiltersBar
+          value={filters}
+          onChange={setFilters}
+          showSearch
+          onClear={() => setFilters(filtroInicial)}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-6">
