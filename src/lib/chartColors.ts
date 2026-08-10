@@ -1,6 +1,7 @@
 // Paleta de gráficos — validada com scripts/validate_palette.js (skill dataviz)
-// contra a superfície dos cards (#1c1c1c) em modo escuro. Ordem fixa: não
-// embaralhar (a ordem é o que garante a distinção sob daltonismo).
+// contra a superfície dos cards, tanto no modo claro (#ffffff) quanto no escuro
+// (#1c1c1c). Ordem fixa: não embaralhar (a ordem é o que garante a distinção
+// sob daltonismo).
 export const CHART_ENTRADA = '#3987e5'
 export const CHART_SAIDA = '#E23B2E' // = primary da marca (Gvel Diesel)
 

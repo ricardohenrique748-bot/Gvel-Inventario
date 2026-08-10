@@ -10,9 +10,6 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  PieChart,
-  Pie,
-  Cell,
   LabelList,
 } from 'recharts'
 import { format, isToday, subDays } from 'date-fns'
@@ -325,37 +322,51 @@ export function Dashboard() {
             <CardTitle>Distribuição por marca (no pátio)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-72">
-              {porMarca.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-secondary">Sem dados</div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={porMarca}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={2}
-                      label={({ name, percent }) => `${name} ${Math.round((percent ?? 0) * 100)}%`}
-                      labelLine={false}
-                    >
-                      {porMarca.map((entry, i) => (
-                        <Cell
-                          key={entry.name}
-                          fill={entry.name === 'Outras' ? CHART_OTHER : CHART_CATEGORICAL[i % CHART_CATEGORICAL.length]}
-                          stroke={CHART_CHROME.tooltipBg}
-                          strokeWidth={2}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Legend wrapperStyle={{ fontSize: 12, color: '#9A9A9A' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+            {porMarca.length === 0 ? (
+              <div className="flex h-24 items-center justify-center text-sm text-secondary">Sem dados</div>
+            ) : (
+              (() => {
+                const total = porMarca.reduce((acc, m) => acc + m.value, 0)
+                return (
+                  <div className="py-2">
+                    <div className="flex h-6 w-full gap-0.5 overflow-hidden rounded-full">
+                      {porMarca.map((entry, i) => {
+                        const percent = Math.round((entry.value / total) * 100)
+                        return (
+                          <div
+                            key={entry.name}
+                            title={`${entry.name}: ${entry.value} ${entry.value === 1 ? 'caminhão' : 'caminhões'} (${percent}%)`}
+                            style={{
+                              width: `${(entry.value / total) * 100}%`,
+                              backgroundColor:
+                                entry.name === 'Outras' ? CHART_OTHER : CHART_CATEGORICAL[i % CHART_CATEGORICAL.length],
+                            }}
+                          />
+                        )
+                      })}
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
+                      {porMarca.map((entry, i) => {
+                        const percent = Math.round((entry.value / total) * 100)
+                        return (
+                          <div key={entry.name} className="flex items-center gap-1.5 text-xs">
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  entry.name === 'Outras' ? CHART_OTHER : CHART_CATEGORICAL[i % CHART_CATEGORICAL.length],
+                              }}
+                            />
+                            <span className="text-foreground">{entry.name}</span>
+                            <span className="text-secondary">{percent}%</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()
+            )}
           </CardContent>
         </Card>
 
