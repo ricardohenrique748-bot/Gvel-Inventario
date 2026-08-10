@@ -18,6 +18,14 @@ function StatusManutencaoBadgePublico({ status }: { status: string | null }) {
 
 type FiltroSituacao = 'todos' | 'operante' | 'inoperante'
 
+// `operante` só existe no retorno da função pública depois da migration 0023 — em
+// projetos que ainda não rodaram, o campo vem `undefined`. Tratamos qualquer coisa
+// diferente de `false` como operante, pra não marcar a frota inteira como
+// inoperante por engano enquanto a migration não foi aplicada.
+function isOperante(item: FrotaPublicaItem) {
+  return item.operante !== false
+}
+
 export function FrotaPublica() {
   const { token } = useParams<{ token: string }>()
   const [itens, setItens] = useState<FrotaPublicaItem[] | null>(null)
@@ -51,8 +59,8 @@ export function FrotaPublica() {
     const clienteNome = listaCompleta[0]?.cliente_nome ?? ''
     const termoPlaca = buscaPlaca.trim().toUpperCase()
     const lista = listaCompleta.filter((i) => {
-      if (filtroSituacao === 'operante' && !i.operante) return false
-      if (filtroSituacao === 'inoperante' && i.operante) return false
+      if (filtroSituacao === 'operante' && !isOperante(i)) return false
+      if (filtroSituacao === 'inoperante' && isOperante(i)) return false
       if (termoPlaca && !i.placa?.toUpperCase().includes(termoPlaca)) return false
       return true
     })
@@ -180,8 +188,8 @@ export function FrotaPublica() {
                                 </div>
                               </div>
                               <div className="flex flex-col items-end gap-1">
-                                <Badge tone={v.operante ? 'success' : 'danger'}>
-                                  {v.operante ? 'Operante' : 'Inoperante'}
+                                <Badge tone={isOperante(v) ? 'success' : 'danger'}>
+                                  {isOperante(v) ? 'Operante' : 'Inoperante'}
                                 </Badge>
                                 <StatusManutencaoBadgePublico status={v.status_manutencao} />
                               </div>
@@ -211,8 +219,8 @@ export function FrotaPublica() {
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-foreground font-medium">{v.placa}</p>
                           <div className="flex items-center gap-1.5">
-                            <Badge tone={v.operante ? 'success' : 'danger'}>
-                              {v.operante ? 'Operante' : 'Inoperante'}
+                            <Badge tone={isOperante(v) ? 'success' : 'danger'}>
+                              {isOperante(v) ? 'Operante' : 'Inoperante'}
                             </Badge>
                             <Badge tone="neutral">Saiu</Badge>
                           </div>
