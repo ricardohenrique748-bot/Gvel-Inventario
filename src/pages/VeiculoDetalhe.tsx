@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { LogOut, Truck, X } from 'lucide-react'
+import { LogOut, X, Plus, Trash2, MapPin, Clock, LogIn } from 'lucide-react'
 import { PageHeader } from '@/components/layout/Header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -12,6 +12,11 @@ import { Input, Label, FieldError } from '@/components/ui/Input'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useVeiculoDetalhe } from '@/hooks/useVeiculos'
 import { registrarSaida } from '@/hooks/useMovimentacoes'
+import {
+  useHistoricoMovimentacao,
+  adicionarHistorico,
+  excluirHistorico,
+} from '@/hooks/useHistoricoMovimentacao'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
@@ -32,7 +37,14 @@ const saidaSchema = z.object({
   horario: z.string().min(1, 'Informe o horário'),
 })
 
+const etapaSchema = z.object({
+  descricao: z.string().min(1, 'Descreva a etapa'),
+  data: z.string().min(1, 'Informe a data'),
+  horario: z.string().min(1, 'Informe o horário'),
+})
+
 type SaidaFormValues = z.infer<typeof saidaSchema>
+type EtapaFormValues = z.infer<typeof etapaSchema>
 
 function hojeInputValue() {
   const now = new Date()
@@ -52,13 +64,20 @@ export function VeiculoDetalhe() {
   const [confirmandoSaida, setConfirmandoSaida] = useState(false)
   const [erroSaida, setErroSaida] = useState<string | null>(null)
   const [fotoAmpliada, setFotoAmpliada] = useState<{ url: string; label: string } | null>(null)
+  const [adicionandoEtapa, setAdicionandoEtapa] = useState(false)
+  const [erroEtapa, setErroEtapa] = useState<string | null>(null)
 
   const movimentacaoAtiva = historico.find((m) => m.status === 'no_patio')
 
+  const { historico: etapas, refetch: refetchEtapas } = useHistoricoMovimentacao(
+    movimentacaoAtiva?.id,
+  )
+
+  // — Formulário de saída —
   const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
+    register: regSaida,
+    handleSubmit: handleSaida,
+    formState: { errors: errSaida, isSubmitting: submittingSaida },
   } = useForm<SaidaFormValues>({
     resolver: zodResolver(saidaSchema),
     values: {
@@ -67,6 +86,17 @@ export function VeiculoDetalhe() {
       data: hojeInputValue(),
       horario: agoraInputValue(),
     },
+  })
+
+  // — Formulário de nova etapa —
+  const {
+    register: regEtapa,
+    handleSubmit: handleEtapa,
+    reset: resetEtapa,
+    formState: { errors: errEtapa, isSubmitting: submittingEtapa },
+  } = useForm<EtapaFormValues>({
+    resolver: zodResolver(etapaSchema),
+    defaultValues: { data: hojeInputValue(), horario: agoraInputValue() },
   })
 
   async function onConfirmarSaida(values: SaidaFormValues) {
@@ -82,6 +112,32 @@ export function VeiculoDetalhe() {
       await refetch()
     } catch (err) {
       setErroSaida(err instanceof Error ? err.message : 'Não foi possível registrar a saída.')
+    }
+  }
+
+  async function onAdicionarEtapa(values: EtapaFormValues) {
+    if (!movimentacaoAtiva) return
+    setErroEtapa(null)
+    try {
+      await adicionarHistorico(
+        movimentacaoAtiva.id,
+        values.descricao,
+        new Date(`${values.data}T${values.horario}`).toISOString(),
+      )
+      resetEtapa({ descricao: '', data: hojeInputValue(), horario: agoraInputValue() })
+      setAdicionandoEtapa(false)
+      await refetchEtapas()
+    } catch (err) {
+      setErroEtapa(err instanceof Error ? err.message : 'Não foi possível salvar a etapa.')
+    }
+  }
+
+  async function onExcluirEtapa(etapaId: string) {
+    try {
+      await excluirHistorico(etapaId)
+      await refetchEtapas()
+    } catch {
+      // silently fail — UI will keep the item
     }
   }
 
@@ -109,13 +165,14 @@ export function VeiculoDetalhe() {
         }
       />
 
+      {/* — Formulário de saída — */}
       {movimentacaoAtiva && confirmandoSaida && (
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Saída de veículo</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit(onConfirmarSaida)} className="space-y-4">
+            <form onSubmit={handleSaida(onConfirmarSaida)} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Placa</Label>
@@ -129,42 +186,37 @@ export function VeiculoDetalhe() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="motorista">Motorista</Label>
-                  <Input id="motorista" placeholder="Opcional" {...register('motorista')} />
+                  <Input id="motorista" placeholder="Opcional" {...regSaida('motorista')} />
                 </div>
                 <div>
                   <Label htmlFor="destino">Destino</Label>
-                  <Input id="destino" placeholder="Opcional" {...register('destino')} />
+                  <Input id="destino" placeholder="Opcional" {...regSaida('destino')} />
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="data">Data</Label>
-                  <Input id="data" type="date" {...register('data')} />
-                  <FieldError message={errors.data?.message} />
+                  <Input id="data" type="date" {...regSaida('data')} />
+                  <FieldError message={errSaida.data?.message} />
                 </div>
                 <div>
                   <Label htmlFor="horario">Horário</Label>
-                  <Input id="horario" type="time" {...register('horario')} />
-                  <FieldError message={errors.horario?.message} />
+                  <Input id="horario" type="time" {...regSaida('horario')} />
+                  <FieldError message={errSaida.horario?.message} />
                 </div>
               </div>
-
               <FieldError message={erroSaida ?? undefined} />
-
               <div className="flex justify-end gap-3 pt-2">
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => {
-                    setConfirmandoSaida(false)
-                    setErroSaida(null)
-                  }}
+                  onClick={() => { setConfirmandoSaida(false); setErroSaida(null) }}
                 >
                   <X className="h-4 w-4" />
                   Cancelar
                 </Button>
-                <Button type="submit" variant="danger" disabled={isSubmitting}>
-                  {isSubmitting ? 'Registrando…' : 'Confirmar saída'}
+                <Button type="submit" variant="danger" disabled={submittingSaida}>
+                  {submittingSaida ? 'Registrando…' : 'Confirmar saída'}
                 </Button>
               </div>
             </form>
@@ -173,6 +225,7 @@ export function VeiculoDetalhe() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-3 mb-6">
+        {/* — Dados do veículo — */}
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Dados do veículo</CardTitle>
@@ -199,29 +252,115 @@ export function VeiculoDetalhe() {
           </CardContent>
         </Card>
 
+        {/* — Timeline da movimentação ativa — */}
         {movimentacaoAtiva && (
           <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>No pátio desde</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Trajeto atual</CardTitle>
+              {!confirmandoSaida && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => { setAdicionandoEtapa(true); setErroEtapa(null) }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar etapa
+                </Button>
+              )}
             </CardHeader>
-            <CardContent className="flex items-center gap-4">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-status-success/15 text-status-success">
-                <Truck className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-lg font-semibold text-foreground">
-                  {formatDateTime(movimentacaoAtiva.data_hora_entrada)}
-                </p>
-                <p className="text-sm text-secondary">
-                  Permanência: {formatPermanencia(movimentacaoAtiva.data_hora_entrada)}
-                  {movimentacaoAtiva.motorista ? ` · Motorista: ${movimentacaoAtiva.motorista}` : ''}
-                </p>
+            <CardContent>
+              {/* Formulário de nova etapa */}
+              {adicionandoEtapa && (
+                <form
+                  onSubmit={handleEtapa(onAdicionarEtapa)}
+                  className="mb-5 rounded-xl border border-border/40 bg-background p-4 space-y-3"
+                >
+                  <p className="text-sm font-medium text-foreground">Nova etapa</p>
+                  <div>
+                    <Label htmlFor="etapa-descricao">Descrição</Label>
+                    <Input
+                      id="etapa-descricao"
+                      placeholder="Ex: Enviado para oficina, Lavagem, Retornou ao pátio…"
+                      {...regEtapa('descricao')}
+                    />
+                    <FieldError message={errEtapa.descricao?.message} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="etapa-data">Data</Label>
+                      <Input id="etapa-data" type="date" {...regEtapa('data')} />
+                      <FieldError message={errEtapa.data?.message} />
+                    </div>
+                    <div>
+                      <Label htmlFor="etapa-horario">Horário</Label>
+                      <Input id="etapa-horario" type="time" {...regEtapa('horario')} />
+                      <FieldError message={errEtapa.horario?.message} />
+                    </div>
+                  </div>
+                  <FieldError message={erroEtapa ?? undefined} />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => { setAdicionandoEtapa(false); setErroEtapa(null); resetEtapa() }}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={submittingEtapa}>
+                      {submittingEtapa ? 'Salvando…' : 'Salvar etapa'}
+                    </Button>
+                  </div>
+                </form>
+              )}
+
+              {/* Timeline */}
+              <div className="relative">
+                {/* Linha vertical */}
+                <div className="absolute left-[19px] top-6 bottom-6 w-px bg-border/40" />
+
+                <div className="space-y-0">
+                  {/* Nó: Entrada */}
+                  <TimelineNode
+                    icon={<LogIn className="h-4 w-4" />}
+                    color="success"
+                    label="Entrada no pátio"
+                    dateTime={formatDateTime(movimentacaoAtiva.data_hora_entrada)}
+                    detail={[
+                      movimentacaoAtiva.patio?.nome ? `Pátio: ${movimentacaoAtiva.patio.nome}` : null,
+                      movimentacaoAtiva.motorista ? `Motorista: ${movimentacaoAtiva.motorista}` : null,
+                      movimentacaoAtiva.usuario_entrada?.nome ? `Registrado por: ${movimentacaoAtiva.usuario_entrada.nome}` : null,
+                    ].filter(Boolean).join(' · ')}
+                  />
+
+                  {/* Nós: etapas intermediárias */}
+                  {etapas.map((etapa) => (
+                    <TimelineNode
+                      key={etapa.id}
+                      icon={<MapPin className="h-4 w-4" />}
+                      color="neutral"
+                      label={etapa.descricao}
+                      dateTime={formatDateTime(etapa.data_hora)}
+                      detail={etapa.usuario?.nome ? `Registrado por: ${etapa.usuario.nome}` : undefined}
+                      onDelete={() => onExcluirEtapa(etapa.id)}
+                    />
+                  ))}
+
+                  {/* Nó: aguardando (fim) */}
+                  <TimelineNode
+                    icon={<Clock className="h-4 w-4" />}
+                    color="muted"
+                    label="No pátio"
+                    dateTime={`Permanência: ${formatPermanencia(movimentacaoAtiva.data_hora_entrada)}`}
+                    isLast
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
         )}
       </div>
 
+      {/* — Histórico de todas as movimentações — */}
       <Card>
         <CardHeader>
           <CardTitle>Histórico de movimentações</CardTitle>
@@ -297,6 +436,7 @@ export function VeiculoDetalhe() {
         </CardContent>
       </Card>
 
+      {/* — Modal de foto ampliada — */}
       {fotoAmpliada && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
@@ -325,11 +465,61 @@ export function VeiculoDetalhe() {
   )
 }
 
+// — Componentes auxiliares —
+
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between border-b border-border/5 py-1.5 last:border-0">
       <span className="text-secondary">{label}</span>
       <span className="text-foreground font-medium">{children}</span>
+    </div>
+  )
+}
+
+interface TimelineNodeProps {
+  icon: ReactNode
+  color: 'success' | 'neutral' | 'muted'
+  label: string
+  dateTime: string
+  detail?: string
+  isLast?: boolean
+  onDelete?: () => void
+}
+
+function TimelineNode({ icon, color, label, dateTime, detail, isLast, onDelete }: TimelineNodeProps) {
+  const dotBg =
+    color === 'success'
+      ? 'bg-status-success/15 text-status-success'
+      : color === 'neutral'
+        ? 'bg-surface text-secondary border border-border/40'
+        : 'bg-surface text-secondary/40 border border-border/20'
+
+  return (
+    <div className="relative flex gap-4 pb-5 last:pb-0">
+      {/* Dot */}
+      <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${dotBg}`}>
+        {icon}
+      </div>
+
+      {/* Content */}
+      <div className="flex flex-1 items-start justify-between gap-2 pt-1.5">
+        <div className="min-w-0">
+          <p className={`text-sm font-medium ${isLast ? 'text-secondary' : 'text-foreground'}`}>{label}</p>
+          <p className="text-xs text-secondary">{dateTime}</p>
+          {detail && <p className="text-xs text-secondary/70 mt-0.5">{detail}</p>}
+        </div>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            title="Remover etapa"
+            className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-secondary/50 transition-colors hover:bg-red-500/10 hover:text-red-400"
+            aria-label="Remover etapa"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   )
 }
