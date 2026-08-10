@@ -88,7 +88,6 @@ export function RegistrarEntrada() {
   const navigate = useNavigate()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [fotos, setFotos] = useState<Partial<Record<AnguloFoto, { file: File; previewUrl: string }>>>({})
-  const [erroFotos, setErroFotos] = useState<string | null>(null)
 
   const { clientes, refetch: refetchClientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
@@ -128,7 +127,6 @@ export function RegistrarEntrada() {
 
   function handleSelecionarFoto(campo: AnguloFoto, file: File, previewUrl: string) {
     setFotos((prev) => ({ ...prev, [campo]: { file, previewUrl } }))
-    setErroFotos(null)
   }
 
   function handleRemoverFoto(campo: AnguloFoto) {
@@ -141,7 +139,6 @@ export function RegistrarEntrada() {
 
   async function onSubmit(values: FormValues) {
     setSubmitError(null)
-    setErroFotos(null)
 
     const fotosEntrada: FotosEntrada = {
       frente: fotos.frente?.file,
