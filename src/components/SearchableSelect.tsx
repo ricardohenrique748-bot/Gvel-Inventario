@@ -10,12 +10,14 @@ export interface SearchableSelectOption {
 }
 
 interface SearchableSelectProps {
-  label: string
+  label?: string
   value: string | undefined
   onChange: (id: string) => void
   options: SearchableSelectOption[]
   placeholder: string
   loading?: boolean
+  loadingLabel?: string
+  emptyMessage?: string
   disabled?: boolean
   error?: string
   extraOption?: { id: string; label: string }
@@ -28,6 +30,8 @@ export function SearchableSelect({
   options,
   placeholder,
   loading,
+  loadingLabel = 'Carregando…',
+  emptyMessage = 'Nenhum resultado encontrado.',
   disabled,
   error,
   extraOption,
@@ -55,7 +59,7 @@ export function SearchableSelect({
 
   return (
     <div ref={containerRef} className="relative">
-      <Label>{label}</Label>
+      {label && <Label>{label}</Label>}
       <div className="relative">
         <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary/60" />
         <input
@@ -70,16 +74,14 @@ export function SearchableSelect({
             setQuery('')
             setOpen(true)
           }}
-          placeholder={loading ? 'Carregando frota…' : placeholder}
+          placeholder={loading ? loadingLabel : placeholder}
           className="w-full h-12 rounded-xl bg-background border border-secondary/30 pl-11 pr-4 text-base text-foreground placeholder:text-secondary/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50"
         />
       </div>
 
       {open && !loading && (
         <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-secondary/30 bg-background shadow-lg">
-          {filtered.length === 0 && (
-            <p className="px-4 py-3 text-sm text-secondary">Nenhuma placa encontrada.</p>
-          )}
+          {filtered.length === 0 && <p className="px-4 py-3 text-sm text-secondary">{emptyMessage}</p>}
           {filtered.map((o) => (
             <button
               key={o.id}

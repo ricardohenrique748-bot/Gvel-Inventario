@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 import { Input, Select } from '@/components/ui/Input'
+import { SearchableSelect } from '@/components/SearchableSelect'
 import { useClientes } from '@/hooks/useClientes'
 import { useMarcas, useModelos } from '@/hooks/useMarcasModelos'
 import { usePatios } from '@/hooks/usePatios'
@@ -62,17 +63,13 @@ export function FiltersBar({ value, onChange, showSearch = false, showPeriod = t
         </>
       )}
 
-      <Select
+      <SearchableSelect
         value={value.clienteId ?? ''}
-        onChange={(e) => patch({ clienteId: e.target.value || undefined })}
-      >
-        <option value="">Todos os clientes</option>
-        {clientes.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.nome}
-          </option>
-        ))}
-      </Select>
+        onChange={(id) => patch({ clienteId: id || undefined })}
+        options={[{ id: '', label: 'Todos os clientes' }, ...clientes.map((c) => ({ id: c.id, label: c.nome }))]}
+        placeholder="Todos os clientes"
+        emptyMessage="Nenhum cliente encontrado."
+      />
 
       <Select
         value={value.patioId ?? ''}

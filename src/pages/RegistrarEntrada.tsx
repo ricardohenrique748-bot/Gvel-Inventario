@@ -194,6 +194,8 @@ export function RegistrarEntrada() {
                     value={field.value}
                     onChange={field.onChange}
                     loading={loadingFrota}
+                    loadingLabel="Carregando frota…"
+                    emptyMessage="Nenhuma placa encontrada."
                     options={frotaCliente.map((v) => ({
                       id: v.id,
                       label: `${v.placa} — ${v.marca?.nome ?? ''} ${v.modelo?.nome ?? ''}`.trim(),
