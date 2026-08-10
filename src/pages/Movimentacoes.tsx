@@ -355,7 +355,11 @@ export function Movimentacoes() {
         </>
       )}
 
-      <LinkButton to="/movimentacoes/nova" className="md:hidden fixed bottom-20 right-4 z-30 shadow-lg" size="lg">
+      <LinkButton
+        to="/movimentacoes/nova"
+        className="md:hidden fixed right-4 z-30 shadow-lg bottom-[calc(5rem+env(safe-area-inset-bottom))]"
+        size="lg"
+      >
         <Plus className="h-5 w-5" />
         Entrada
       </LinkButton>
