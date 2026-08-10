@@ -15,11 +15,14 @@ function StatusManutencaoBadgePublico({ status }: { status: string | null }) {
   return <Badge tone={tone}>{status}</Badge>
 }
 
+type FiltroSituacao = 'todos' | 'operante' | 'inoperante'
+
 export function FrotaPublica() {
   const { token } = useParams<{ token: string }>()
   const [itens, setItens] = useState<FrotaPublicaItem[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [filtroSituacao, setFiltroSituacao] = useState<FiltroSituacao>('todos')
 
   useEffect(() => {
     if (!token) return
@@ -42,8 +45,13 @@ export function FrotaPublica() {
   }, [token])
 
   const { clienteNome, porPatio, jaSaiu, totalGeral } = useMemo(() => {
-    const lista = itens ?? []
-    const clienteNome = lista[0]?.cliente_nome ?? ''
+    const listaCompleta = itens ?? []
+    const clienteNome = listaCompleta[0]?.cliente_nome ?? ''
+    const lista = listaCompleta.filter((i) => {
+      if (filtroSituacao === 'operante') return i.operante
+      if (filtroSituacao === 'inoperante') return !i.operante
+      return true
+    })
     const noPatio = lista.filter((i) => i.status === 'no_patio')
     const jaSaiu = lista
       .filter((i) => i.status === 'saiu')
@@ -62,7 +70,7 @@ export function FrotaPublica() {
       jaSaiu,
       totalGeral: lista.length,
     }
-  }, [itens])
+  }, [itens, filtroSituacao])
 
   return (
     <div className="min-h-svh bg-background px-4 py-8">
@@ -82,7 +90,34 @@ export function FrotaPublica() {
         ) : (
           <>
             <h1 className="mb-1 text-center text-xl font-semibold text-foreground">{clienteNome}</h1>
-            <p className="mb-6 text-center text-sm text-secondary">Situação atual da frota</p>
+            <p className="mb-4 text-center text-sm text-secondary">Situação atual da frota</p>
+
+            <div className="mb-6 flex justify-center gap-2">
+              {(
+                [
+                  { valor: 'todos', label: 'Todos' },
+                  { valor: 'operante', label: 'Operante' },
+                  { valor: 'inoperante', label: 'Inoperante' },
+                ] as const
+              ).map((opcao) => (
+                <button
+                  key={opcao.valor}
+                  type="button"
+                  onClick={() => setFiltroSituacao(opcao.valor)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    filtroSituacao === opcao.valor
+                      ? opcao.valor === 'inoperante'
+                        ? 'bg-status-danger text-white'
+                        : opcao.valor === 'operante'
+                          ? 'bg-status-success text-white'
+                          : 'bg-primary text-white'
+                      : 'bg-surface text-secondary hover:text-foreground'
+                  }`}
+                >
+                  {opcao.label}
+                </button>
+              ))}
+            </div>
 
             {porPatio.length > 0 && (
               <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -124,7 +159,12 @@ export function FrotaPublica() {
                                   </p>
                                 </div>
                               </div>
-                              <StatusManutencaoBadgePublico status={v.status_manutencao} />
+                              <div className="flex flex-col items-end gap-1">
+                                <Badge tone={v.operante ? 'success' : 'danger'}>
+                                  {v.operante ? 'Operante' : 'Inoperante'}
+                                </Badge>
+                                <StatusManutencaoBadgePublico status={v.status_manutencao} />
+                              </div>
                             </Link>
                           ))}
                         </div>
@@ -150,7 +190,12 @@ export function FrotaPublica() {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-foreground font-medium">{v.placa}</p>
-                          <Badge tone="neutral">Saiu</Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge tone={v.operante ? 'success' : 'danger'}>
+                              {v.operante ? 'Operante' : 'Inoperante'}
+                            </Badge>
+                            <Badge tone="neutral">Saiu</Badge>
+                          </div>
                         </div>
                         <p className="text-sm text-secondary">
                           {v.marca} {v.modelo}

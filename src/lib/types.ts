@@ -144,6 +144,7 @@ export interface FrotaPublicaItem {
   patio_nome: string | null
   status: StatusMovimentacao
   status_manutencao: string | null
+  operante: boolean
   data_hora_entrada: string
   data_hora_saida: string | null
 }
