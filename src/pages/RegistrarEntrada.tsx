@@ -17,16 +17,7 @@ import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
 import { registrarEntrada, type FotosEntrada } from '@/hooks/useMovimentacoes'
 import { FotoInput } from '@/components/FotoInput'
 import { nowLocalInputValue } from '@/lib/format'
-
-type AnguloFoto = keyof FotosEntrada
-
-const ANGULOS_FOTO: { campo: AnguloFoto; label: string }[] = [
-  { campo: 'frente', label: 'Frente' },
-  { campo: 'ladoEsquerdo', label: 'Lado esquerdo' },
-  { campo: 'ladoDireito', label: 'Lado direito' },
-  { campo: 'traseira', label: 'Traseira' },
-  { campo: 'painel', label: 'Painel' },
-]
+import { ANGULOS_FOTO, type AnguloFoto } from '@/lib/fotos'
 
 const NOVO_VEICULO = '__novo__'
 const anoAtual = new Date().getFullYear()

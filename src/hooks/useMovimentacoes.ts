@@ -114,7 +114,11 @@ export interface FotosEntrada {
 
 async function getUsuarioAtualId() {
   const { data } = await supabase.auth.getSession()
-  return data.session?.user?.id ?? null
+  if (data.session?.user?.id) return data.session.user.id
+  // Fallback: no WebView do app nativo a sessão local às vezes ainda não terminou
+  // de reidratar nesse ponto — getUser() revalida direto com o servidor.
+  const { data: userData } = await supabase.auth.getUser()
+  return userData.user?.id ?? null
 }
 
 async function uploadFotoEntrada(movimentacaoId: string, campo: string, file: File) {
@@ -186,22 +190,41 @@ interface AtualizarMovimentacaoInput {
   patioId: string
   statusId?: string
   motorista?: string
+  destino?: string
   observacoes?: string
   dataHoraEntrada: string
   dataHoraSaida?: string
 }
 
-export async function atualizarMovimentacao(id: string, input: AtualizarMovimentacaoInput) {
+export async function atualizarMovimentacao(id: string, input: AtualizarMovimentacaoInput, fotos?: FotosEntrada) {
+  const fotoUpdates: Record<string, string> = {}
+  if (fotos) {
+    const [frente, ladoEsquerdo, ladoDireito, traseira, painel] = await Promise.all([
+      fotos.frente ? uploadFotoEntrada(id, 'frente', fotos.frente) : null,
+      fotos.ladoEsquerdo ? uploadFotoEntrada(id, 'lado-esquerdo', fotos.ladoEsquerdo) : null,
+      fotos.ladoDireito ? uploadFotoEntrada(id, 'lado-direito', fotos.ladoDireito) : null,
+      fotos.traseira ? uploadFotoEntrada(id, 'traseira', fotos.traseira) : null,
+      fotos.painel ? uploadFotoEntrada(id, 'painel', fotos.painel) : null,
+    ])
+    if (frente) fotoUpdates.foto_frente_url = frente
+    if (ladoEsquerdo) fotoUpdates.foto_lado_esquerdo_url = ladoEsquerdo
+    if (ladoDireito) fotoUpdates.foto_lado_direito_url = ladoDireito
+    if (traseira) fotoUpdates.foto_traseira_url = traseira
+    if (painel) fotoUpdates.foto_painel_url = painel
+  }
+
   const { data, error } = await supabase
     .from('movimentacoes')
     .update({
       patio_id: input.patioId,
       status_id: input.statusId || null,
       motorista: up(input.motorista),
+      destino: up(input.destino),
       observacoes: up(input.observacoes),
       data_hora_entrada: input.dataHoraEntrada,
       data_hora_saida: input.dataHoraSaida || null,
       status: input.dataHoraSaida ? 'saiu' : 'no_patio',
+      ...fotoUpdates,
     })
     .eq('id', id)
     .select()

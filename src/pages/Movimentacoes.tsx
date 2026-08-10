@@ -11,19 +11,40 @@ import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Input, Label, Textarea } from '@/components/ui/Input'
+import { Input, Label, FieldError, Textarea } from '@/components/ui/Input'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
-import { useMovimentacoes, atualizarMovimentacao, excluirMovimentacao } from '@/hooks/useMovimentacoes'
+import { FotoInput } from '@/components/FotoInput'
+import { useMovimentacoes, atualizarMovimentacao, excluirMovimentacao, type FotosEntrada } from '@/hooks/useMovimentacoes'
 import { usePatios, criarPatio } from '@/hooks/usePatios'
 import { useStatusManutencao, criarStatusManutencao } from '@/hooks/useStatusManutencao'
+import { useClientes, criarCliente } from '@/hooks/useClientes'
+import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
+import { atualizarVeiculo } from '@/hooks/useVeiculos'
 import { formatDateTime, formatPermanencia, toLocalInputValue } from '@/lib/format'
+import { ANGULOS_FOTO, type AnguloFoto } from '@/lib/fotos'
 import type { MovimentacaoComVeiculo } from '@/lib/types'
 
+const anoAtual = new Date().getFullYear()
+
 const editSchema = z.object({
+  clienteId: z.string().min(1, 'Selecione o cliente'),
+  placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
+  tipo: z.enum(['pesado', 'leve']),
+  cor: z.string().trim().min(1, 'Informe a cor'),
+  chassi: z.string().trim().optional(),
+  situacao: z.enum(['operante', 'inoperante']),
+  ano: z
+    .number({ message: 'Informe o ano' })
+    .int('Ano inválido')
+    .min(1950, 'Ano inválido')
+    .max(anoAtual + 1, 'Ano inválido'),
+  marcaId: z.string().min(1, 'Selecione a marca'),
+  modeloId: z.string().min(1, 'Selecione o modelo'),
   patioId: z.string().min(1, 'Selecione o pátio'),
   statusId: z.string().optional(),
   motorista: z.string().optional(),
+  destino: z.string().optional(),
   observacoes: z.string().optional(),
   dataHoraEntrada: z.string().min(1, 'Informe a data/hora de entrada'),
   dataHoraSaida: z.string().optional(),
@@ -333,33 +354,96 @@ function EditarMovimentacaoForm({
 }) {
   const { patios, refetch: refetchPatios } = usePatios()
   const { statusManutencao, refetch: refetchStatusManutencao } = useStatusManutencao()
+  const { clientes, refetch: refetchClientes } = useClientes()
+  const { marcas, refetch: refetchMarcas } = useMarcas()
+  const [fotos, setFotos] = useState<Partial<Record<AnguloFoto, { file: File; previewUrl: string }>>>({})
+
   const {
     register,
     handleSubmit,
     control,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<EditFormValues>({
     resolver: zodResolver(editSchema),
     defaultValues: {
+      clienteId: movimentacao.veiculo?.cliente_id ?? '',
+      placa: movimentacao.veiculo?.placa ?? '',
+      tipo: movimentacao.veiculo?.tipo ?? 'pesado',
+      cor: movimentacao.veiculo?.cor ?? '',
+      chassi: movimentacao.veiculo?.chassi ?? '',
+      situacao: movimentacao.veiculo?.operante === false ? 'inoperante' : 'operante',
+      ano: movimentacao.veiculo?.ano ?? (undefined as unknown as number),
+      marcaId: movimentacao.veiculo?.marca_id ?? '',
+      modeloId: movimentacao.veiculo?.modelo_id ?? '',
       patioId: movimentacao.patio_id ?? '',
       statusId: movimentacao.status_id ?? '',
       motorista: movimentacao.motorista ?? '',
+      destino: movimentacao.destino ?? '',
       observacoes: movimentacao.observacoes ?? '',
       dataHoraEntrada: toLocalInputValue(movimentacao.data_hora_entrada),
       dataHoraSaida: toLocalInputValue(movimentacao.data_hora_saida),
     },
   })
 
+  const marcaId = watch('marcaId')
+  const { modelos, refetch: refetchModelos } = useModelos(marcaId)
+
+  function handleSelecionarFoto(campo: AnguloFoto, file: File, previewUrl: string) {
+    setFotos((prev) => ({ ...prev, [campo]: { file, previewUrl } }))
+  }
+
+  function handleRemoverFoto(campo: AnguloFoto) {
+    setFotos((prev) => {
+      const next = { ...prev }
+      delete next[campo]
+      return next
+    })
+  }
+
+  const fotoUrlAtual: Record<AnguloFoto, string | null> = {
+    frente: movimentacao.foto_frente_url,
+    ladoEsquerdo: movimentacao.foto_lado_esquerdo_url,
+    ladoDireito: movimentacao.foto_lado_direito_url,
+    traseira: movimentacao.foto_traseira_url,
+    painel: movimentacao.foto_painel_url,
+  }
+
   async function onSubmit(values: EditFormValues) {
     try {
-      await atualizarMovimentacao(movimentacao.id, {
-        patioId: values.patioId,
-        statusId: values.statusId || undefined,
-        motorista: values.motorista,
-        observacoes: values.observacoes,
-        dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
-        dataHoraSaida: values.dataHoraSaida ? new Date(values.dataHoraSaida).toISOString() : undefined,
+      await atualizarVeiculo(movimentacao.veiculo_id, {
+        placa: values.placa,
+        marcaId: values.marcaId,
+        modeloId: values.modeloId,
+        clienteId: values.clienteId,
+        tipo: values.tipo,
+        cor: values.cor,
+        ano: values.ano,
+        chassi: values.chassi,
+        operante: values.situacao === 'operante',
       })
+
+      const fotosEntrada: FotosEntrada = {
+        frente: fotos.frente?.file,
+        ladoEsquerdo: fotos.ladoEsquerdo?.file,
+        ladoDireito: fotos.ladoDireito?.file,
+        traseira: fotos.traseira?.file,
+        painel: fotos.painel?.file,
+      }
+
+      await atualizarMovimentacao(
+        movimentacao.id,
+        {
+          patioId: values.patioId,
+          statusId: values.statusId || undefined,
+          motorista: values.motorista,
+          destino: values.destino,
+          observacoes: values.observacoes,
+          dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
+          dataHoraSaida: values.dataHoraSaida ? new Date(values.dataHoraSaida).toISOString() : undefined,
+        },
+        fotosEntrada,
+      )
       await onSalvo()
     } catch (err) {
       onErro(err instanceof Error ? err.message : 'Não foi possível salvar as alterações.')
@@ -368,6 +452,135 @@ function EditarMovimentacaoForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
+      <Controller
+        control={control}
+        name="clienteId"
+        render={({ field }) => (
+          <QuickCreateSelect
+            label="Cliente"
+            value={field.value}
+            onChange={field.onChange}
+            options={clientes}
+            onCreate={async (nome) => {
+              const created = await criarCliente(nome)
+              await refetchClientes()
+              return created
+            }}
+            placeholder="Selecione o cliente"
+            error={errors.clienteId?.message}
+          />
+        )}
+      />
+
+      <div>
+        <Label>Tipo de veículo</Label>
+        <div className="flex gap-3">
+          <label className="flex-1">
+            <input type="radio" value="pesado" className="peer sr-only" {...register('tipo')} />
+            <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
+              Pesado
+            </div>
+          </label>
+          <label className="flex-1">
+            <input type="radio" value="leve" className="peer sr-only" {...register('tipo')} />
+            <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-foreground cursor-pointer">
+              Leve
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`placa-${movimentacao.id}`}>Placa</Label>
+          <Input id={`placa-${movimentacao.id}`} placeholder="ABC1D23" className="uppercase" {...register('placa')} />
+          <FieldError message={errors.placa?.message} />
+        </div>
+        <div>
+          <Label htmlFor={`cor-${movimentacao.id}`}>Cor</Label>
+          <Input id={`cor-${movimentacao.id}`} placeholder="Branco" {...register('cor')} />
+          <FieldError message={errors.cor?.message} />
+        </div>
+      </div>
+
+      <div>
+        <Label>Situação</Label>
+        <div className="flex gap-3">
+          <label className="flex-1">
+            <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
+            <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-foreground cursor-pointer">
+              Operante
+            </div>
+          </label>
+          <label className="flex-1">
+            <input type="radio" value="inoperante" className="peer sr-only" {...register('situacao')} />
+            <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-danger peer-checked:bg-status-danger/10 peer-checked:text-foreground cursor-pointer">
+              Inoperante
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`ano-${movimentacao.id}`}>Ano</Label>
+          <Input
+            id={`ano-${movimentacao.id}`}
+            type="number"
+            placeholder={String(anoAtual)}
+            {...register('ano', { valueAsNumber: true })}
+          />
+          <FieldError message={errors.ano?.message} />
+        </div>
+        <div>
+          <Label htmlFor={`chassi-${movimentacao.id}`}>Chassi</Label>
+          <Input id={`chassi-${movimentacao.id}`} placeholder="Opcional" {...register('chassi')} />
+          <FieldError message={errors.chassi?.message} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Controller
+          control={control}
+          name="marcaId"
+          render={({ field }) => (
+            <QuickCreateSelect
+              label="Marca"
+              value={field.value}
+              onChange={field.onChange}
+              options={marcas}
+              onCreate={async (nome) => {
+                const created = await criarMarca(nome)
+                await refetchMarcas()
+                return created
+              }}
+              placeholder="Selecione a marca"
+              error={errors.marcaId?.message}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="modeloId"
+          render={({ field }) => (
+            <QuickCreateSelect
+              label="Modelo"
+              value={field.value}
+              onChange={field.onChange}
+              options={modelos}
+              disabled={!marcaId}
+              onCreate={async (nome) => {
+                const created = await criarModelo(marcaId, nome)
+                await refetchModelos()
+                return created
+              }}
+              placeholder={marcaId ? 'Selecione o modelo' : 'Selecione a marca primeiro'}
+              error={errors.modeloId?.message}
+            />
+          )}
+        />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Controller
           control={control}
@@ -425,8 +638,28 @@ function EditarMovimentacaoForm({
       </div>
 
       <div>
+        <Label htmlFor={`destino-${movimentacao.id}`}>Destino</Label>
+        <Input id={`destino-${movimentacao.id}`} placeholder="Opcional" {...register('destino')} />
+      </div>
+
+      <div>
         <Label htmlFor={`obs-${movimentacao.id}`}>Observações</Label>
         <Textarea id={`obs-${movimentacao.id}`} placeholder="Opcional" {...register('observacoes')} />
+      </div>
+
+      <div>
+        <Label>Fotos do veículo</Label>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {ANGULOS_FOTO.map(({ campo, label }) => (
+            <FotoInput
+              key={campo}
+              label={label}
+              previewUrl={fotos[campo]?.previewUrl ?? fotoUrlAtual[campo] ?? undefined}
+              onSelect={(file, previewUrl) => handleSelecionarFoto(campo, file, previewUrl)}
+              onRemove={() => handleRemoverFoto(campo)}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="flex justify-end gap-2">
