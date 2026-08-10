@@ -20,7 +20,7 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
         {back && (
           <button
             onClick={() => navigate(-1)}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-secondary hover:text-foreground md:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-secondary hover:text-foreground"
             aria-label="Voltar"
           >
             <ArrowLeft className="h-5 w-5" />

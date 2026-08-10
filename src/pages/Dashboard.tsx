@@ -213,13 +213,26 @@ export function Dashboard() {
                         <Link
                           key={m.id}
                           to={`/veiculos/${m.veiculo_id}`}
-                          className="block rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
+                          className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
                         >
-                          <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
-                          <p className="text-sm text-secondary">
-                            {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
-                          </p>
-                          <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
+                          {m.foto_frente_url ? (
+                            <img
+                              src={m.foto_frente_url}
+                              alt={`Frente — ${m.veiculo?.placa}`}
+                              className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
+                              <Truck className="h-6 w-6" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
+                            <p className="text-sm text-secondary">
+                              {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                            </p>
+                            <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
+                          </div>
                         </Link>
                       ))}
                     </div>
