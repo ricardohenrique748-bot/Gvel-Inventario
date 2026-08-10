@@ -58,7 +58,7 @@ export function Movimentacoes() {
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [erroLista, setErroLista] = useState<string | null>(null)
-  const { movimentacoes, loading, refetch } = useMovimentacoes({
+  const { movimentacoes, loading, error: erroBusca, refetch } = useMovimentacoes({
     search: filters.search,
     clienteId: filters.clienteId,
     marcaId: filters.marcaId,
@@ -145,6 +145,11 @@ export function Movimentacoes() {
       </div>
 
       {erroLista && <p className="mb-4 text-sm text-status-danger">{erroLista}</p>}
+      {erroBusca && (
+        <p className="mb-4 text-sm text-status-danger">
+          Não foi possível carregar as movimentações: {erroBusca}
+        </p>
+      )}
 
       {loading ? (
         <p className="text-sm text-secondary">Carregando…</p>

@@ -29,9 +29,6 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
       .order('data_hora_entrada', { ascending: false })
 
     if (filters.status) query = query.eq('status', filters.status)
-    if (filters.clienteId) query = query.eq('veiculo.cliente_id', filters.clienteId)
-    if (filters.marcaId) query = query.eq('veiculo.marca_id', filters.marcaId)
-    if (filters.modeloId) query = query.eq('veiculo.modelo_id', filters.modeloId)
     if (filters.patioId) query = query.eq('patio_id', filters.patioId)
     if (filters.dataInicio) query = query.gte('data_hora_entrada', filters.dataInicio)
     if (filters.dataFim) query = query.lte('data_hora_entrada', filters.dataFim)
@@ -42,12 +39,14 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
       setLoading(false)
       return
     }
+    setError(null)
 
     let result = (data as unknown as MovimentacaoComVeiculo[]) ?? []
 
-    // Filtro de placa e por cliente/marca/modelo via join precisam de checagem
-    // client-side extra pois o PostgREST não filtra por FK aninhada de forma confiável
-    // em todas as versões — mantemos como camada de segurança.
+    // Filtro de placa e por cliente/marca/modelo precisam ser feitos aqui e não com
+    // `.eq('veiculo.coluna', ...)` na query: o PostgREST trata filtro sobre relação
+    // aninhada como inner join e chega a excluir a movimentação inteira da resposta
+    // quando o veículo relacionado não bate — mesmo a movimentação sendo válida.
     if (filters.search) {
       const term = filters.search.trim().toUpperCase()
       result = result.filter((m) => m.veiculo?.placa?.toUpperCase().includes(term))
