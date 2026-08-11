@@ -70,9 +70,7 @@ const schema = z
       if (!values.situacao) {
         ctx.addIssue({ code: 'custom', path: ['situacao'], message: 'Selecione a situação' })
       }
-      if (!values.motorista || values.motorista.trim() === '') {
-        ctx.addIssue({ code: 'custom', path: ['motorista'], message: 'Informe o motorista' })
-      }
+
     } else {
       // Trator e Carreta: apenas cor obrigatória (pátio e data já validados pelo schema base)
       if (!values.cor || values.cor.trim() === '') {
