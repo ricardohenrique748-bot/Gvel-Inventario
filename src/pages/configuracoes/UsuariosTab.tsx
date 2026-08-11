@@ -53,7 +53,13 @@ export function UsuariosTab() {
       reset()
       setMostrarForm(false)
     } catch (err) {
-      setError('email', { message: err instanceof Error ? err.message : 'Não foi possível criar o usuário.' })
+      const msg = err instanceof Error ? err.message : 'Não foi possível criar o usuário.'
+      const isPermissaoAdmin = msg.includes('administradores') || msg.includes('403')
+      setError('email', {
+        message: isPermissaoAdmin
+          ? 'Seu usuário não tem nível "admin" no banco. Acesse o SQL Editor do Supabase e execute: UPDATE public.usuarios SET nivel = \'admin\' WHERE email = \'seu@email.com\';'
+          : msg,
+      })
     }
   }
 

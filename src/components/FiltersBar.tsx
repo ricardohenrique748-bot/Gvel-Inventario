@@ -1,5 +1,6 @@
 import { Search, X } from 'lucide-react'
 import { Input, Select } from '@/components/ui/Input'
+import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { SearchableSelect } from '@/components/SearchableSelect'
 import { useClientes } from '@/hooks/useClientes'
 import { useMarcas, useModelos } from '@/hooks/useMarcasModelos'
@@ -41,7 +42,7 @@ export function FiltersBar({ value, onChange, showSearch = false, showPeriod = t
     <div className="flex flex-col gap-3">
       {/* Linha 1: busca + período + limpar */}
       {(showSearch || showPeriod || onClear) && (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {showSearch && (
             <div className="relative min-w-[160px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
@@ -55,22 +56,12 @@ export function FiltersBar({ value, onChange, showSearch = false, showPeriod = t
           )}
 
           {showPeriod && (
-            <>
-              <Input
-                type="date"
-                aria-label="Data início"
-                className="w-auto"
-                value={value.dataInicio ?? ''}
-                onChange={(e) => patch({ dataInicio: e.target.value })}
-              />
-              <Input
-                type="date"
-                aria-label="Data fim"
-                className="w-auto"
-                value={value.dataFim ?? ''}
-                onChange={(e) => patch({ dataFim: e.target.value })}
-              />
-            </>
+            <DateRangePicker
+              startDate={value.dataInicio}
+              endDate={value.dataFim}
+              onChange={(start, end) => patch({ dataInicio: start, dataFim: end })}
+              placeholder="Selecionar período"
+            />
           )}
 
           {onClear && hasFilters && (

@@ -15,7 +15,8 @@ import {
   Cell,
   LabelList,
 } from 'recharts'
-import { format, isToday, subDays } from 'date-fns'
+import { format, isSameDay, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { StatCard } from '@/components/ui/StatCard'
@@ -37,7 +38,7 @@ const tooltipStyle = {
 
 export function Dashboard() {
   const filtroInicial = {
-    dataInicio: format(subDays(new Date(), 13), 'yyyy-MM-dd'),
+    dataInicio: format(new Date(), 'yyyy-MM-dd'),
     dataFim: format(new Date(), 'yyyy-MM-dd'),
   }
 
@@ -62,9 +63,30 @@ export function Dashboard() {
     patioId: filters.patioId,
   })
 
+  // Determina se o filtro representa um único dia ou um intervalo
+  const umDiaSelecionado =
+    filters.dataInicio && filters.dataFim && filters.dataInicio === filters.dataFim
+      ? parseISO(filters.dataInicio)
+      : null
+
+  // Label dinâmico dos cards de entrada/saída
+  const labelEntradas = umDiaSelecionado
+    ? `Entradas em ${format(umDiaSelecionado, "dd/MM", { locale: ptBR })}`
+    : 'Entradas no período'
+  const labelSaidas = umDiaSelecionado
+    ? `Saídas em ${format(umDiaSelecionado, "dd/MM", { locale: ptBR })}`
+    : 'Saídas no período'
+
   const stats = useMemo(() => {
-    const entradasHoje = periodo.filter((m) => isToday(new Date(m.data_hora_entrada))).length
-    const saidasHoje = periodo.filter((m) => m.data_hora_saida && isToday(new Date(m.data_hora_saida))).length
+    const entradasFiltradas = umDiaSelecionado
+      ? periodo.filter((m) => isSameDay(new Date(m.data_hora_entrada), umDiaSelecionado))
+      : periodo
+    const saidasFiltradas = umDiaSelecionado
+      ? periodo.filter((m) => m.data_hora_saida && isSameDay(new Date(m.data_hora_saida), umDiaSelecionado))
+      : periodo.filter((m) => m.data_hora_saida)
+
+    const entradasHoje = entradasFiltradas.length
+    const saidasHoje = saidasFiltradas.length
     const finalizadas = periodo.filter((m) => m.data_hora_saida)
     const tempoMedio =
       finalizadas.length > 0
@@ -74,8 +96,8 @@ export function Dashboard() {
           )
         : 0
 
-    return { entradasHoje, saidasHoje, tempoMedio }
-  }, [periodo])
+    return { entradasHoje, saidasHoje, tempoMedio, entradasFiltradas }
+  }, [periodo, umDiaSelecionado])
 
   const porDia = useMemo(() => {
     if (!filters.dataInicio || !filters.dataFim) return []
@@ -125,15 +147,15 @@ export function Dashboard() {
   }, [periodo])
 
   const entradasHojeAgrupadas = useMemo(() => {
-    const hoje = periodo.filter((m) => isToday(new Date(m.data_hora_entrada)))
-    const porCliente = new Map<string, typeof hoje>()
-    for (const m of hoje) {
+    const lista = stats.entradasFiltradas
+    const porCliente = new Map<string, typeof lista>()
+    for (const m of lista) {
       const nome = m.veiculo?.cliente?.nome ?? 'Sem cliente'
       if (!porCliente.has(nome)) porCliente.set(nome, [])
       porCliente.get(nome)!.push(m)
     }
     return [...porCliente.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [periodo])
+  }, [stats.entradasFiltradas])
 
   const [painelAberto, setPainelAberto] = useState<'no_patio' | 'entradas_hoje' | null>(null)
 
@@ -162,12 +184,12 @@ export function Dashboard() {
         />
         <StatCard
           icon={LogIn}
-          label="Entradas hoje"
+          label={labelEntradas}
           value={String(stats.entradasHoje)}
           active={painelAberto === 'entradas_hoje'}
           onClick={() => setPainelAberto((p) => (p === 'entradas_hoje' ? null : 'entradas_hoje'))}
         />
-        <StatCard icon={LogOut} label="Saídas hoje" value={String(stats.saidasHoje)} />
+        <StatCard icon={LogOut} label={labelSaidas} value={String(stats.saidasHoje)} />
         <StatCard
           icon={Clock}
           label="Tempo médio de permanência"
@@ -208,11 +230,11 @@ export function Dashboard() {
       {painelAberto === 'entradas_hoje' && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>{loadingPeriodo ? 'Carregando…' : `${stats.entradasHoje} entrada(s) hoje`}</CardTitle>
+            <CardTitle>{loadingPeriodo ? 'Carregando…' : `${stats.entradasHoje} entrada(s) — ${labelEntradas.toLowerCase()}`}</CardTitle>
           </CardHeader>
           <CardContent>
             {!loadingPeriodo && entradasHojeAgrupadas.length === 0 ? (
-              <p className="text-sm text-secondary">Nenhuma entrada registrada hoje.</p>
+              <p className="text-sm text-secondary">Nenhuma entrada registrada no período selecionado.</p>
             ) : (
               <div className="space-y-4">
                 {entradasHojeAgrupadas.map(([cliente, movs]) => (
