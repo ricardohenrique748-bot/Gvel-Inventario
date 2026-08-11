@@ -80,6 +80,8 @@ export function Movimentacoes() {
     limit: limite,
   })
 
+  const editandoMovimentacao = movimentacoes.find((m) => m.id === editandoId)
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const dragState = useRef({ isDown: false, startX: 0, startScrollLeft: 0, moved: false })
   const [isDragging, setIsDragging] = useState(false)
@@ -199,22 +201,7 @@ export function Movimentacoes() {
                   </tr>
                 </thead>
                 <tbody>
-                  {movimentacoes.map((m) =>
-                    editandoId === m.id ? (
-                      <tr key={m.id} className="border-b border-border/5 last:border-0">
-                        <td colSpan={11} className="p-4">
-                          <EditarMovimentacaoForm
-                            movimentacao={m}
-                            onCancel={() => setEditandoId(null)}
-                            onSalvo={async () => {
-                              setEditandoId(null)
-                              await refetch()
-                            }}
-                            onErro={setErroLista}
-                          />
-                        </td>
-                      </tr>
-                    ) : (
+                  {movimentacoes.map((m) => (
                       <tr
                         key={m.id}
                         className="group border-b border-border/5 last:border-0 hover:bg-background/60 cursor-pointer"
@@ -277,8 +264,7 @@ export function Movimentacoes() {
                           </div>
                         </td>
                       </tr>
-                    ),
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -286,20 +272,7 @@ export function Movimentacoes() {
 
           {/* Mobile: cards */}
           <div className="md:hidden space-y-3">
-            {movimentacoes.map((m) =>
-              editandoId === m.id ? (
-                <Card key={m.id} className="p-4">
-                  <EditarMovimentacaoForm
-                    movimentacao={m}
-                    onCancel={() => setEditandoId(null)}
-                    onSalvo={async () => {
-                      setEditandoId(null)
-                      await refetch()
-                    }}
-                    onErro={setErroLista}
-                  />
-                </Card>
-              ) : (
+            {movimentacoes.map((m) => (
                 <Card key={m.id} className="p-4">
                   <Link to={`/veiculos/${m.veiculo_id}`}>
                     <div className="flex items-start justify-between">
@@ -344,8 +317,7 @@ export function Movimentacoes() {
                     </Button>
                   </div>
                 </Card>
-              ),
-            )}
+            ))}
           </div>
 
           {podeTerMais && (
@@ -366,6 +338,41 @@ export function Movimentacoes() {
         <Plus className="h-5 w-5" />
         Entrada
       </LinkButton>
+
+      {editandoMovimentacao && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setEditandoId(null)}
+        >
+          <Card
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-foreground">
+                Editar movimentação — {editandoMovimentacao.veiculo?.placa}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditandoId(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:text-foreground"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <EditarMovimentacaoForm
+              movimentacao={editandoMovimentacao}
+              onCancel={() => setEditandoId(null)}
+              onSalvo={async () => {
+                setEditandoId(null)
+                await refetch()
+              }}
+              onErro={setErroLista}
+            />
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
