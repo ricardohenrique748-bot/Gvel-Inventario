@@ -75,6 +75,8 @@ export interface Movimentacao {
   destino: string | null
   data_hora_entrada: string
   data_hora_saida: string | null
+  km_entrada: number | null
+  km_saida: number | null
   observacoes: string | null
   status: StatusMovimentacao
   foto_frente_url: string | null

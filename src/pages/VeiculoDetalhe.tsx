@@ -35,6 +35,7 @@ const saidaSchema = z.object({
   destino: z.string().optional(),
   data: z.string().min(1, 'Informe a data'),
   horario: z.string().min(1, 'Informe o horário'),
+  km: z.number({ message: 'Informe o KM' }).int('KM inválido').min(0, 'KM inválido'),
 })
 
 const etapaSchema = z.object({
@@ -85,6 +86,7 @@ export function VeiculoDetalhe() {
       destino: movimentacaoAtiva?.destino ?? '',
       data: hojeInputValue(),
       horario: agoraInputValue(),
+      km: undefined as unknown as number,
     },
   })
 
@@ -107,6 +109,7 @@ export function VeiculoDetalhe() {
         motorista: values.motorista,
         destino: values.destino,
         dataHoraSaida: new Date(`${values.data}T${values.horario}`).toISOString(),
+        kmSaida: values.km,
       })
       setConfirmandoSaida(false)
       await refetch()
@@ -204,6 +207,17 @@ export function VeiculoDetalhe() {
                   <Input id="horario" type="time" {...regSaida('horario')} />
                   <FieldError message={errSaida.horario?.message} />
                 </div>
+              </div>
+              <div>
+                <Label htmlFor="km">KM</Label>
+                <Input
+                  id="km"
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="Ex: 123456"
+                  {...regSaida('km', { valueAsNumber: true })}
+                />
+                <FieldError message={errSaida.km?.message} />
               </div>
               <FieldError message={erroSaida ?? undefined} />
               <div className="flex justify-end gap-3 pt-2">
@@ -328,6 +342,7 @@ export function VeiculoDetalhe() {
                     detail={[
                       movimentacaoAtiva.patio?.nome ? `Pátio: ${movimentacaoAtiva.patio.nome}` : null,
                       movimentacaoAtiva.motorista ? `Motorista: ${movimentacaoAtiva.motorista}` : null,
+                      movimentacaoAtiva.km_entrada != null ? `KM: ${movimentacaoAtiva.km_entrada}` : null,
                       movimentacaoAtiva.usuario_entrada?.nome ? `Registrado por: ${movimentacaoAtiva.usuario_entrada.nome}` : null,
                     ].filter(Boolean).join(' · ')}
                   />
@@ -380,11 +395,13 @@ export function VeiculoDetalhe() {
                       Entrada: {formatDateTime(m.data_hora_entrada)}
                       {m.patio?.nome ? ` · Pátio: ${m.patio.nome}` : ''}
                       {m.motorista ? ` · ${m.motorista}` : ''}
+                      {m.km_entrada != null ? ` · KM entrada: ${m.km_entrada}` : ''}
                     </p>
                     <p className="text-secondary">
                       Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'} · Permanência:{' '}
                       {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}
                       {m.destino ? ` · Destino: ${m.destino}` : ''}
+                      {m.km_saida != null ? ` · KM saída: ${m.km_saida}` : ''}
                     </p>
                     <p className="text-xs text-secondary mt-1">
                       Registrado por: {m.usuario_entrada?.nome ?? '—'}

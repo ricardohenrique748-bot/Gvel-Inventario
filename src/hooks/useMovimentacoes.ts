@@ -87,6 +87,7 @@ interface RegistrarEntradaComum {
   statusId?: string
   motorista?: string
   dataHoraEntrada: string
+  kmEntrada: number
   observacoes?: string
 }
 
@@ -170,6 +171,7 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
       status_id: input.statusId || null,
       motorista: up(input.motorista),
       data_hora_entrada: input.dataHoraEntrada,
+      km_entrada: input.kmEntrada,
       observacoes: up(input.observacoes),
       status: 'no_patio',
       foto_frente_url: fotoFrenteUrl,
@@ -194,6 +196,8 @@ interface AtualizarMovimentacaoInput {
   observacoes?: string
   dataHoraEntrada: string
   dataHoraSaida?: string
+  kmEntrada: number
+  kmSaida?: number
 }
 
 export async function atualizarMovimentacao(id: string, input: AtualizarMovimentacaoInput, fotos?: FotosEntrada) {
@@ -223,6 +227,8 @@ export async function atualizarMovimentacao(id: string, input: AtualizarMoviment
       observacoes: up(input.observacoes),
       data_hora_entrada: input.dataHoraEntrada,
       data_hora_saida: input.dataHoraSaida || null,
+      km_entrada: input.kmEntrada,
+      km_saida: input.dataHoraSaida ? (input.kmSaida ?? null) : null,
       status: input.dataHoraSaida ? 'saiu' : 'no_patio',
       ...fotoUpdates,
     })
@@ -242,6 +248,7 @@ interface RegistrarSaidaInput {
   motorista?: string
   destino?: string
   dataHoraSaida: string
+  kmSaida: number
 }
 
 export async function registrarSaida(movimentacaoId: string, input?: RegistrarSaidaInput) {
@@ -252,6 +259,7 @@ export async function registrarSaida(movimentacaoId: string, input?: RegistrarSa
       data_hora_saida: input?.dataHoraSaida ?? new Date().toISOString(),
       motorista: input?.motorista !== undefined ? up(input.motorista) : undefined,
       destino: input?.destino !== undefined ? up(input.destino) : undefined,
+      km_saida: input?.kmSaida,
       status: 'saiu',
       usuario_saida_id: usuarioId,
     })

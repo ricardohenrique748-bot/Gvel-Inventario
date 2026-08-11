@@ -49,6 +49,8 @@ const editSchema = z.object({
   observacoes: z.string().optional(),
   dataHoraEntrada: z.string().min(1, 'Informe a data/hora de entrada'),
   dataHoraSaida: z.string().optional(),
+  kmEntrada: z.number({ message: 'Informe o KM' }).int('KM inválido').min(0, 'KM inválido'),
+  kmSaida: z.number().int('KM inválido').min(0, 'KM inválido').optional(),
 })
 
 type EditFormValues = z.infer<typeof editSchema>
@@ -410,6 +412,8 @@ function EditarMovimentacaoForm({
       observacoes: movimentacao.observacoes ?? '',
       dataHoraEntrada: toLocalInputValue(movimentacao.data_hora_entrada),
       dataHoraSaida: toLocalInputValue(movimentacao.data_hora_saida),
+      kmEntrada: movimentacao.km_entrada ?? (undefined as unknown as number),
+      kmSaida: movimentacao.km_saida ?? undefined,
     },
   })
 
@@ -468,6 +472,8 @@ function EditarMovimentacaoForm({
           observacoes: values.observacoes,
           dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
           dataHoraSaida: values.dataHoraSaida ? new Date(values.dataHoraSaida).toISOString() : undefined,
+          kmEntrada: values.kmEntrada,
+          kmSaida: values.kmSaida,
         },
         fotosEntrada,
       )
@@ -645,6 +651,30 @@ function EditarMovimentacaoForm({
         <div>
           <Label htmlFor={`saida-${movimentacao.id}`}>Data/hora de saída</Label>
           <Input id={`saida-${movimentacao.id}`} type="datetime-local" {...register('dataHoraSaida')} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`km-entrada-${movimentacao.id}`}>KM entrada</Label>
+          <Input
+            id={`km-entrada-${movimentacao.id}`}
+            type="number"
+            inputMode="numeric"
+            {...register('kmEntrada', { valueAsNumber: true })}
+          />
+          <FieldError message={errors.kmEntrada?.message} />
+        </div>
+        <div>
+          <Label htmlFor={`km-saida-${movimentacao.id}`}>KM saída</Label>
+          <Input
+            id={`km-saida-${movimentacao.id}`}
+            type="number"
+            inputMode="numeric"
+            placeholder="Opcional"
+            {...register('kmSaida', { valueAsNumber: true })}
+          />
+          <FieldError message={errors.kmSaida?.message} />
         </div>
       </div>
 

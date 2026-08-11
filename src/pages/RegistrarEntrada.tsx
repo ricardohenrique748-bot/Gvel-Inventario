@@ -40,6 +40,7 @@ const schema = z
     statusId: z.string().optional(),
     motorista: z.string().optional(),
     dataHoraEntrada: z.string().min(1, 'Informe a data/hora de entrada'),
+    kmEntrada: z.number({ message: 'Informe o KM' }).int('KM inválido').min(0, 'KM inválido'),
     observacoes: z.string().optional(),
   })
   .superRefine((values, ctx) => {
@@ -164,6 +165,7 @@ export function RegistrarEntrada() {
                 statusId: values.statusId || undefined,
                 motorista: values.motorista,
                 dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
+                kmEntrada: values.kmEntrada,
                 observacoes: values.observacoes,
               },
               fotosEntrada,
@@ -175,6 +177,7 @@ export function RegistrarEntrada() {
                 statusId: values.statusId || undefined,
                 motorista: values.motorista,
                 dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
+                kmEntrada: values.kmEntrada,
                 observacoes: values.observacoes,
               },
               fotosEntrada,
@@ -434,10 +437,22 @@ export function RegistrarEntrada() {
                 <FieldError message={errors.motorista?.message} />
               </div>
               <div>
-                <Label htmlFor="dataHoraEntrada">Data/hora de entrada<Req /></Label>
-                <Input id="dataHoraEntrada" type="datetime-local" {...register('dataHoraEntrada')} />
-                <FieldError message={errors.dataHoraEntrada?.message} />
+                <Label htmlFor="kmEntrada">KM<Req /></Label>
+                <Input
+                  id="kmEntrada"
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="Ex: 123456"
+                  {...register('kmEntrada', { valueAsNumber: true })}
+                />
+                <FieldError message={errors.kmEntrada?.message} />
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="dataHoraEntrada">Data/hora de entrada<Req /></Label>
+              <Input id="dataHoraEntrada" type="datetime-local" {...register('dataHoraEntrada')} />
+              <FieldError message={errors.dataHoraEntrada?.message} />
             </div>
 
             <div>
