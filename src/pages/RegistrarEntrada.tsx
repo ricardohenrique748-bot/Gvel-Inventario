@@ -41,7 +41,7 @@ const schema = z
     motorista: z.string().optional(),
     dataHoraEntrada: z.string().min(1, 'Informe a data/hora de entrada'),
     kmEntrada: z.number({ message: 'Informe o KM' }).int('KM inválido').min(0, 'KM inválido'),
-    observacoes: z.string().optional(),
+    observacoes: z.string().trim().min(1, 'Informe as observações'),
   })
   .superRefine((values, ctx) => {
     if (values.veiculoId !== NOVO_VEICULO) return
@@ -457,10 +457,10 @@ export function RegistrarEntrada() {
 
             <div>
               <Label htmlFor="observacoes">
-                Observações
-                <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>
+                Observações<Req />
               </Label>
-              <Textarea id="observacoes" placeholder="Opcional" {...register('observacoes')} />
+              <Textarea id="observacoes" {...register('observacoes')} />
+              <FieldError message={errors.observacoes?.message} />
             </div>
 
             <div>

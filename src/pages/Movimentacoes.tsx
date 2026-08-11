@@ -46,7 +46,7 @@ const editSchema = z.object({
   statusId: z.string().optional(),
   motorista: z.string().optional(),
   destino: z.string().optional(),
-  observacoes: z.string().optional(),
+  observacoes: z.string().trim().min(1, 'Informe as observações'),
   dataHoraEntrada: z.string().min(1, 'Informe a data/hora de entrada'),
   dataHoraSaida: z.string().optional(),
   kmEntrada: z.number({ message: 'Informe o KM' }).int('KM inválido').min(0, 'KM inválido'),
@@ -685,7 +685,8 @@ function EditarMovimentacaoForm({
 
       <div>
         <Label htmlFor={`obs-${movimentacao.id}`}>Observações</Label>
-        <Textarea id={`obs-${movimentacao.id}`} placeholder="Opcional" {...register('observacoes')} />
+        <Textarea id={`obs-${movimentacao.id}`} {...register('observacoes')} />
+        <FieldError message={errors.observacoes?.message} />
       </div>
 
       <div>
