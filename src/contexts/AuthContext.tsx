@@ -1,7 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { withTimeout } from '@/lib/withTimeout'
 import type { Usuario } from '@/lib/types'
+
+const NETWORK_TIMEOUT_MS = 15000
 
 interface AuthContextValue {
   session: Session | null
@@ -38,10 +41,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      setLoading(false)
-    })
+    withTimeout(supabase.auth.getSession(), NETWORK_TIMEOUT_MS)
+      .then(({ data }) => {
+        setSession(data.session)
+      })
+      .catch(() => {
+        setSession(null)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession)
@@ -58,9 +67,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
     setPerfilLoading(true)
-    const { data } = await supabase.from('usuarios').select('*').eq('id', userId).single()
-    setPerfil(data ?? null)
-    setPerfilLoading(false)
+    try {
+      const { data } = await withTimeout(
+        supabase.from('usuarios').select('*').eq('id', userId).single(),
+        NETWORK_TIMEOUT_MS,
+      )
+      setPerfil(data ?? null)
+    } catch {
+      setPerfil(null)
+    } finally {
+      setPerfilLoading(false)
+    }
   }, [session?.user?.id])
 
   useEffect(() => {
@@ -76,8 +93,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return { error: 'E-mail ou senha inválidos.' }
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error: error?.message ?? null }
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        NETWORK_TIMEOUT_MS,
+      )
+      return { error: error?.message ?? null }
+    } catch {
+      return { error: 'Falha de conexão. Verifique sua internet e tente novamente.' }
+    }
   }
 
   async function signOut() {

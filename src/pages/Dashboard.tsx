@@ -96,7 +96,7 @@ export function Dashboard() {
           )
         : 0
 
-    return { entradasHoje, saidasHoje, tempoMedio, entradasFiltradas }
+    return { entradasHoje, saidasHoje, tempoMedio, entradasFiltradas, saidasFiltradas }
   }, [periodo, umDiaSelecionado])
 
   const porDia = useMemo(() => {
@@ -157,7 +157,18 @@ export function Dashboard() {
     return [...porCliente.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [stats.entradasFiltradas])
 
-  const [painelAberto, setPainelAberto] = useState<'no_patio' | 'entradas_hoje' | null>(null)
+  const saidasHojeAgrupadas = useMemo(() => {
+    const lista = stats.saidasFiltradas
+    const porCliente = new Map<string, typeof lista>()
+    for (const m of lista) {
+      const nome = m.veiculo?.cliente?.nome ?? 'Sem cliente'
+      if (!porCliente.has(nome)) porCliente.set(nome, [])
+      porCliente.get(nome)!.push(m)
+    }
+    return [...porCliente.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [stats.saidasFiltradas])
+
+  const [painelAberto, setPainelAberto] = useState<'no_patio' | 'entradas_hoje' | 'saidas_hoje' | null>(null)
 
   const loading = loadingNoPatio || loadingPeriodo
 
@@ -189,7 +200,13 @@ export function Dashboard() {
           active={painelAberto === 'entradas_hoje'}
           onClick={() => setPainelAberto((p) => (p === 'entradas_hoje' ? null : 'entradas_hoje'))}
         />
-        <StatCard icon={LogOut} label={labelSaidas} value={String(stats.saidasHoje)} />
+        <StatCard
+          icon={LogOut}
+          label={labelSaidas}
+          value={String(stats.saidasHoje)}
+          active={painelAberto === 'saidas_hoje'}
+          onClick={() => setPainelAberto((p) => (p === 'saidas_hoje' ? null : 'saidas_hoje'))}
+        />
         <StatCard
           icon={Clock}
           label="Tempo médio de permanência"
@@ -238,6 +255,60 @@ export function Dashboard() {
             ) : (
               <div className="space-y-4">
                 {entradasHojeAgrupadas.map(([cliente, movs]) => (
+                  <div key={cliente}>
+                    <p className="mb-2 text-sm font-medium text-secondary">{cliente}</p>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {movs.map((m) => (
+                        <Link
+                          key={m.id}
+                          to={`/veiculos/${m.veiculo_id}`}
+                          className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
+                        >
+                          {m.foto_frente_url ? (
+                            <img
+                              src={urlMiniatura(m.foto_frente_url, 112)}
+                              onError={aoFalharMiniatura(m.foto_frente_url)}
+                              alt={`Frente — ${m.veiculo?.placa}`}
+                              loading="lazy"
+                              decoding="async"
+                              width={56}
+                              height={56}
+                              className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
+                              <Truck className="h-6 w-6" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
+                            <p className="text-sm text-secondary">
+                              {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                            </p>
+                            <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {painelAberto === 'saidas_hoje' && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>{loadingPeriodo ? 'Carregando…' : `${stats.saidasHoje} saída(s) — ${labelSaidas.toLowerCase()}`}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!loadingPeriodo && saidasHojeAgrupadas.length === 0 ? (
+              <p className="text-sm text-secondary">Nenhuma saída registrada no período selecionado.</p>
+            ) : (
+              <div className="space-y-4">
+                {saidasHojeAgrupadas.map(([cliente, movs]) => (
                   <div key={cliente}>
                     <p className="mb-2 text-sm font-medium text-secondary">{cliente}</p>
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
