@@ -42,6 +42,7 @@ const etapaSchema = z.object({
   descricao: z.string().min(1, 'Descreva a etapa'),
   data: z.string().min(1, 'Informe a data'),
   horario: z.string().min(1, 'Informe o horário'),
+  osCriada: z.boolean().optional(),
 })
 
 type SaidaFormValues = z.infer<typeof saidaSchema>
@@ -126,8 +127,9 @@ export function VeiculoDetalhe() {
         movimentacaoAtiva.id,
         values.descricao,
         new Date(`${values.data}T${values.horario}`).toISOString(),
+        values.osCriada,
       )
-      resetEtapa({ descricao: '', data: hojeInputValue(), horario: agoraInputValue() })
+      resetEtapa({ descricao: '', data: hojeInputValue(), horario: agoraInputValue(), osCriada: false })
       setAdicionandoEtapa(false)
       await refetchEtapas()
     } catch (err) {
@@ -311,6 +313,14 @@ export function VeiculoDetalhe() {
                       <FieldError message={errEtapa.horario?.message} />
                     </div>
                   </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-border/40 accent-primary"
+                      {...regEtapa('osCriada')}
+                    />
+                    <span className="text-sm text-foreground">OS (ordem de serviço) criada</span>
+                  </label>
                   <FieldError message={erroEtapa ?? undefined} />
                   <div className="flex justify-end gap-2">
                     <Button
@@ -356,6 +366,7 @@ export function VeiculoDetalhe() {
                       label={etapa.descricao}
                       dateTime={formatDateTime(etapa.data_hora)}
                       detail={etapa.usuario?.nome ? `Registrado por: ${etapa.usuario.nome}` : undefined}
+                      osCriada={etapa.os_criada}
                       onDelete={() => onExcluirEtapa(etapa.id)}
                     />
                   ))}
@@ -500,10 +511,11 @@ interface TimelineNodeProps {
   dateTime: string
   detail?: string
   isLast?: boolean
+  osCriada?: boolean
   onDelete?: () => void
 }
 
-function TimelineNode({ icon, color, label, dateTime, detail, isLast, onDelete }: TimelineNodeProps) {
+function TimelineNode({ icon, color, label, dateTime, detail, isLast, osCriada, onDelete }: TimelineNodeProps) {
   const dotBg =
     color === 'success'
       ? 'bg-status-success/15 text-status-success'
@@ -521,7 +533,10 @@ function TimelineNode({ icon, color, label, dateTime, detail, isLast, onDelete }
       {/* Content */}
       <div className="flex flex-1 items-start justify-between gap-2 pt-1.5">
         <div className="min-w-0">
-          <p className={`text-sm font-medium ${isLast ? 'text-secondary' : 'text-foreground'}`}>{label}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className={`text-sm font-medium ${isLast ? 'text-secondary' : 'text-foreground'}`}>{label}</p>
+            {osCriada && <Badge tone="warning">OS criada</Badge>}
+          </div>
           <p className="text-xs text-secondary">{dateTime}</p>
           {detail && <p className="text-xs text-secondary/70 mt-0.5">{detail}</p>}
         </div>

@@ -6,6 +6,7 @@ export interface HistoricoItem {
   movimentacao_id: string
   descricao: string
   data_hora: string
+  os_criada: boolean
   usuario_id: string | null
   usuario?: { nome: string } | null
   created_at: string
@@ -48,6 +49,7 @@ export async function adicionarHistorico(
   movimentacaoId: string,
   descricao: string,
   dataHora: string,
+  osCriada = false,
 ): Promise<HistoricoItem> {
   const { data: sessionData } = await supabase.auth.getSession()
   const usuarioId = sessionData.session?.user?.id ?? null
@@ -58,6 +60,7 @@ export async function adicionarHistorico(
       movimentacao_id: movimentacaoId,
       descricao: descricao.trim(),
       data_hora: dataHora,
+      os_criada: osCriada,
       usuario_id: usuarioId,
     })
     .select('*, usuario:usuarios!usuario_id(nome)')
