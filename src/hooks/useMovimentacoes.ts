@@ -32,8 +32,18 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
 
     if (filters.status) query = query.eq('status', filters.status)
     if (filters.patioId) query = query.eq('patio_id', filters.patioId)
-    if (filters.dataInicio) query = query.gte('data_hora_entrada', filters.dataInicio)
-    if (filters.dataFim) query = query.lte('data_hora_entrada', filters.dataFim)
+    // Uma movimentação "pertence" ao período se a entrada OU a saída caiu dentro dele —
+    // senão um veículo que entrou antes do período e só saiu durante ele desaparecia
+    // da consulta (a saída nunca era considerada, só a entrada).
+    if (filters.dataInicio && filters.dataFim) {
+      query = query.or(
+        `and(data_hora_entrada.gte.${filters.dataInicio},data_hora_entrada.lte.${filters.dataFim}),and(data_hora_saida.gte.${filters.dataInicio},data_hora_saida.lte.${filters.dataFim})`,
+      )
+    } else if (filters.dataInicio) {
+      query = query.or(`data_hora_entrada.gte.${filters.dataInicio},data_hora_saida.gte.${filters.dataInicio}`)
+    } else if (filters.dataFim) {
+      query = query.or(`data_hora_entrada.lte.${filters.dataFim},data_hora_saida.lte.${filters.dataFim}`)
+    }
     if (filters.limit) query = query.limit(filters.limit)
 
     const { data, error } = await query
@@ -114,11 +124,16 @@ export interface FotosEntrada {
 }
 
 async function getUsuarioAtualId() {
-  const { data } = await supabase.auth.getSession()
+  const { data, error } = await supabase.auth.getSession()
   if (data.session?.user?.id) return data.session.user.id
+  if (error) console.error('getSession falhou ao resolver usuário atual:', error)
   // Fallback: no WebView do app nativo a sessão local às vezes ainda não terminou
   // de reidratar nesse ponto — getUser() revalida direto com o servidor.
-  const { data: userData } = await supabase.auth.getUser()
+  const { data: userData, error: userError } = await supabase.auth.getUser()
+  if (userError) console.error('getUser falhou ao resolver usuário atual:', userError)
+  // Se isso também falhar (ex: token perdeu o refresh por o app nativo ter sido
+  // minimizado durante o fluxo de fotos), o banco preenche via trigger usando
+  // auth.uid() da própria requisição — ver migration 0032.
   return userData.user?.id ?? null
 }
 
@@ -152,15 +167,21 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
         ).id
 
   const movimentacaoId = crypto.randomUUID()
-  const usuarioId = await getUsuarioAtualId()
 
-  const [fotoFrenteUrl, fotoLadoEsquerdoUrl, fotoLadoDireitoUrl, fotoTraseiraUrl, fotoPainelUrl] = await Promise.all([
-    fotos?.frente ? uploadFotoEntrada(movimentacaoId, 'frente', fotos.frente) : null,
-    fotos?.ladoEsquerdo ? uploadFotoEntrada(movimentacaoId, 'lado-esquerdo', fotos.ladoEsquerdo) : null,
-    fotos?.ladoDireito ? uploadFotoEntrada(movimentacaoId, 'lado-direito', fotos.ladoDireito) : null,
-    fotos?.traseira ? uploadFotoEntrada(movimentacaoId, 'traseira', fotos.traseira) : null,
-    fotos?.painel ? uploadFotoEntrada(movimentacaoId, 'painel', fotos.painel) : null,
-  ])
+  // usuarioId é resolvido em paralelo com os uploads de foto (não antes deles) para
+  // minimizar a janela entre "checar quem está logado" e o insert em si — no app
+  // nativo os uploads podem levar um tempo (usuário tira as fotos com a câmera), e
+  // se a sessão falhar em resolver mesmo assim, o trigger no banco preenche o campo
+  // via auth.uid() da própria requisição (ver migration 0032).
+  const [usuarioId, fotoFrenteUrl, fotoLadoEsquerdoUrl, fotoLadoDireitoUrl, fotoTraseiraUrl, fotoPainelUrl] =
+    await Promise.all([
+      getUsuarioAtualId(),
+      fotos?.frente ? uploadFotoEntrada(movimentacaoId, 'frente', fotos.frente) : null,
+      fotos?.ladoEsquerdo ? uploadFotoEntrada(movimentacaoId, 'lado-esquerdo', fotos.ladoEsquerdo) : null,
+      fotos?.ladoDireito ? uploadFotoEntrada(movimentacaoId, 'lado-direito', fotos.ladoDireito) : null,
+      fotos?.traseira ? uploadFotoEntrada(movimentacaoId, 'traseira', fotos.traseira) : null,
+      fotos?.painel ? uploadFotoEntrada(movimentacaoId, 'painel', fotos.painel) : null,
+    ])
 
   const { data, error } = await supabase
     .from('movimentacoes')
