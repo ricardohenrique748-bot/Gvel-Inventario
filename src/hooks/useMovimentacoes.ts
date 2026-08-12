@@ -97,7 +97,7 @@ interface RegistrarEntradaComum {
   statusId?: string
   motorista?: string
   dataHoraEntrada: string
-  kmEntrada: number
+  kmEntrada?: number
   observacoes?: string
 }
 
@@ -217,7 +217,7 @@ interface AtualizarMovimentacaoInput {
   observacoes?: string
   dataHoraEntrada: string
   dataHoraSaida?: string
-  kmEntrada: number
+  kmEntrada?: number
   kmSaida?: number
 }
 
@@ -269,7 +269,7 @@ interface RegistrarSaidaInput {
   motorista?: string
   destino?: string
   dataHoraSaida: string
-  kmSaida: number
+  kmSaida?: number
 }
 
 export async function registrarSaida(movimentacaoId: string, input?: RegistrarSaidaInput) {

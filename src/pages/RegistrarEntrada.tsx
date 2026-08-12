@@ -40,7 +40,7 @@ const schema = z
     statusId: z.string().optional(),
     motorista: z.string().optional(),
     dataHoraEntrada: z.string().min(1, 'Informe a data/hora de entrada'),
-    kmEntrada: z.number({ message: 'Informe o KM' }).int('KM inválido').min(0, 'KM inválido'),
+    kmEntrada: z.number().int('KM inválido').min(0, 'KM inválido').optional(),
     observacoes: z.string().trim().min(1, 'Informe as observações'),
   })
   .superRefine((values, ctx) => {
@@ -437,12 +437,12 @@ export function RegistrarEntrada() {
                 <FieldError message={errors.motorista?.message} />
               </div>
               <div>
-                <Label htmlFor="kmEntrada">KM<Req /></Label>
+                <Label htmlFor="kmEntrada">KM</Label>
                 <Input
                   id="kmEntrada"
                   type="number"
                   inputMode="numeric"
-                  placeholder="Ex: 123456"
+                  placeholder="Opcional"
                   {...register('kmEntrada', { valueAsNumber: true })}
                 />
                 <FieldError message={errors.kmEntrada?.message} />

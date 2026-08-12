@@ -83,8 +83,8 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
 
   if (existente) {
     const updatePayload: Record<string, unknown> = {
-      marca_id: input.marcaId,
-      modelo_id: input.modeloId,
+      marca_id: input.marcaId || null,
+      modelo_id: input.modeloId || null,
       cliente_id: input.clienteId,
       tipo: input.tipo,
     }
@@ -109,8 +109,8 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
     .from('veiculos')
     .insert({
       placa,
-      marca_id: input.marcaId,
-      modelo_id: input.modeloId,
+      marca_id: input.marcaId || null,
+      modelo_id: input.modeloId || null,
       cliente_id: input.clienteId,
       tipo: input.tipo,
       cor: up(input.cor) || null,
@@ -129,8 +129,8 @@ export async function atualizarVeiculo(id: string, input: UpsertVeiculoInput) {
     .from('veiculos')
     .update({
       placa: input.placa.trim().toUpperCase(),
-      marca_id: input.marcaId,
-      modelo_id: input.modeloId,
+      marca_id: input.marcaId || null,
+      modelo_id: input.modeloId || null,
       cliente_id: input.clienteId,
       tipo: input.tipo,
       cor: up(input.cor) || null,

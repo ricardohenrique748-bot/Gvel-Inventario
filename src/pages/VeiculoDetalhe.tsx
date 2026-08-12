@@ -35,7 +35,7 @@ const saidaSchema = z.object({
   destino: z.string().optional(),
   data: z.string().min(1, 'Informe a data'),
   horario: z.string().min(1, 'Informe o horário'),
-  km: z.number({ message: 'Informe o KM' }).int('KM inválido').min(0, 'KM inválido'),
+  km: z.number().int('KM inválido').min(0, 'KM inválido').optional(),
 })
 
 const etapaSchema = z.object({
@@ -216,7 +216,7 @@ export function VeiculoDetalhe() {
                   id="km"
                   type="number"
                   inputMode="numeric"
-                  placeholder="Ex: 123456"
+                  placeholder="Opcional"
                   {...regSaida('km', { valueAsNumber: true })}
                 />
                 <FieldError message={errSaida.km?.message} />

@@ -49,7 +49,7 @@ const editSchema = z.object({
   observacoes: z.string().trim().min(1, 'Informe as observações'),
   dataHoraEntrada: z.string().min(1, 'Informe a data/hora de entrada'),
   dataHoraSaida: z.string().optional(),
-  kmEntrada: z.number({ message: 'Informe o KM' }).int('KM inválido').min(0, 'KM inválido'),
+  kmEntrada: z.number().int('KM inválido').min(0, 'KM inválido').optional(),
   kmSaida: z.number().int('KM inválido').min(0, 'KM inválido').optional(),
 })
 
@@ -419,7 +419,7 @@ function EditarMovimentacaoForm({
       observacoes: movimentacao.observacoes ?? '',
       dataHoraEntrada: toLocalInputValue(movimentacao.data_hora_entrada),
       dataHoraSaida: toLocalInputValue(movimentacao.data_hora_saida),
-      kmEntrada: movimentacao.km_entrada ?? (undefined as unknown as number),
+      kmEntrada: movimentacao.km_entrada ?? undefined,
       kmSaida: movimentacao.km_saida ?? undefined,
     },
   })
@@ -668,6 +668,7 @@ function EditarMovimentacaoForm({
             id={`km-entrada-${movimentacao.id}`}
             type="number"
             inputMode="numeric"
+            placeholder="Opcional"
             {...register('kmEntrada', { valueAsNumber: true })}
           />
           <FieldError message={errors.kmEntrada?.message} />

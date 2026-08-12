@@ -49,8 +49,8 @@ export interface Modelo {
 export interface Veiculo {
   id: string
   placa: string
-  marca_id: string
-  modelo_id: string
+  marca_id: string | null
+  modelo_id: string | null
   cliente_id: string
   tipo: TipoVeiculo
   cor: string | null

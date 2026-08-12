@@ -116,8 +116,8 @@ export function FrotaTab() {
     setValue('chassi', v.chassi ?? '')
     setValue('situacao', v.operante ? 'operante' : 'inoperante')
     setValue('ano', v.ano ?? (undefined as unknown as number))
-    setValue('marcaId', v.marca_id)
-    setValue('modeloId', v.modelo_id)
+    setValue('marcaId', v.marca_id ?? '')
+    setValue('modeloId', v.modelo_id ?? '')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 

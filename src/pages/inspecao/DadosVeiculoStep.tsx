@@ -97,8 +97,8 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
         : {
             tipo: veiculoSelecionado!.tipo,
             placa: veiculoSelecionado!.placa,
-            marcaId: veiculoSelecionado!.marca_id,
-            modeloId: veiculoSelecionado!.modelo_id,
+            marcaId: veiculoSelecionado!.marca_id ?? '',
+            modeloId: veiculoSelecionado!.modelo_id ?? '',
           }
 
     onPatch({
