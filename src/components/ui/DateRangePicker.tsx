@@ -45,6 +45,10 @@ export function DateRangePicker({ startDate, endDate, onChange, placeholder = 'S
   // Durante seleção: primeiro clique = picking, segundo clique = fecha
   const [picking, setPicking] = useState<Date | null>(null)
   const [hovered, setHovered] = useState<Date | null>(null)
+  // Lado em que o dropdown abre — recalculado toda vez que abre, pois o botão pode
+  // estar perto da borda direita da tela (ex: filtros do Dashboard) e o calendário
+  // (w-72) estouraria o viewport se sempre abrisse alinhado à esquerda.
+  const [align, setAlign] = useState<'left' | 'right'>('left')
 
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -58,6 +62,14 @@ export function DateRangePicker({ startDate, endDate, onChange, placeholder = 'S
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!open || !containerRef.current) return
+    const DROPDOWN_WIDTH = 288 // w-72
+    const rect = containerRef.current.getBoundingClientRect()
+    const overflowsRight = rect.left + DROPDOWN_WIDTH > window.innerWidth - 16
+    setAlign(overflowsRight ? 'right' : 'left')
+  }, [open])
 
   const start = startDate ? parseISO(startDate) : null
   const end = endDate ? parseISO(endDate) : null
@@ -137,7 +149,12 @@ export function DateRangePicker({ startDate, endDate, onChange, placeholder = 'S
 
       {/* Dropdown calendário */}
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-2xl border border-border bg-surface shadow-[0_16px_48px_-8px_rgba(0,0,0,0.5)] animate-fade-in-up">
+        <div
+          className={cn(
+            'absolute top-full z-50 mt-2 w-72 rounded-2xl border border-border bg-surface shadow-[0_16px_48px_-8px_rgba(0,0,0,0.5)] animate-fade-in-up',
+            align === 'right' ? 'right-0' : 'left-0',
+          )}
+        >
           {/* Cabeçalho do mês */}
           <div className="flex items-center justify-between px-4 pt-4 pb-2">
             <button
