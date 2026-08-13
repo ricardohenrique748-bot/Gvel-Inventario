@@ -193,6 +193,7 @@ export function Movimentacoes() {
                     <th className="px-3 py-3 font-medium">Pátio</th>
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Entrada</th>
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Saída</th>
+                    <th className="px-3 py-3 font-medium">Destino</th>
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Permanência</th>
                     <th className="px-3 py-3 font-medium">Status</th>
                     <th className="px-3 py-3 font-medium">Manutenção</th>
@@ -220,6 +221,9 @@ export function Movimentacoes() {
                         <td className="px-3 py-3 text-secondary whitespace-nowrap">{formatDateTime(m.data_hora_entrada)}</td>
                         <td className="px-3 py-3 text-secondary whitespace-nowrap">
                           {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}
+                        </td>
+                        <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={m.destino ?? undefined}>
+                          {m.destino || '—'}
                         </td>
                         <td className="px-3 py-3 text-secondary whitespace-nowrap">
                           {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}
@@ -297,6 +301,7 @@ export function Movimentacoes() {
                       <p>Permanência: {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}</p>
                       <p>Entrada: {formatDateTime(m.data_hora_entrada)}</p>
                       <p>Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}</p>
+                      {m.data_hora_saida && <p>Destino: {m.destino || '—'}</p>}
                       <p>Registrado por: {m.usuario_entrada?.nome ?? '—'}</p>
                       {m.data_hora_saida && <p>Saída por: {m.usuario_saida?.nome ?? '—'}</p>}
                     </div>
