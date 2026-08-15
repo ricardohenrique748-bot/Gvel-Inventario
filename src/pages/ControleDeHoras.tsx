@@ -258,7 +258,7 @@ export function ControleDeHoras() {
                         position="top"
                         fill={CHART_CHROME.axis}
                         fontSize={12}
-                        formatter={(minutos: number) => formatMinutosParaTexto(minutos)}
+                        formatter={(val: any) => (typeof val === 'number' ? formatMinutosParaTexto(val) : String(val ?? ''))}
                       />
                     </Bar>
                   </BarChart>
@@ -381,7 +381,7 @@ export function ControleDeHoras() {
                         position="right"
                         fill="#fff"
                         fontSize={12}
-                        formatter={(minutos: number) => formatMinutosParaTexto(minutos)}
+                        formatter={(val: any) => (typeof val === 'number' ? formatMinutosParaTexto(val) : String(val ?? ''))}
                       />
                     </Bar>
                   </BarChart>
