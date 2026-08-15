@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LogOut, Search, Home, ArrowLeftRight, Settings } from 'lucide-react'
+import { LogOut, Search, Home, ArrowLeftRight, Settings, Clock } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
-import { navItems } from './nav'
+import { navItems, ADMIN_ONLY_ROUTES } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/cn'
 import { isNativeApp } from '@/lib/isNativeApp'
 
 const nativeNavItems = [
   { to: '/', label: 'Home', icon: Home, end: true },
+  { to: '/controle-horas', label: 'Controle de Horas', icon: Clock },
   { to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ] as const
@@ -23,7 +24,9 @@ export function Sidebar() {
 
   const currentNavItems = useMemo(() => {
     const base = native ? nativeNavItems : navItems
-    return isAdmin ? base : base.filter((item) => item.to !== '/configuracoes')
+    return isAdmin
+      ? base
+      : base.filter((item) => !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number]))
   }, [native, isAdmin])
 
   const filteredNavItems = useMemo(() => {
@@ -72,7 +75,7 @@ export function Sidebar() {
               }
             >
               <item.icon className="h-5 w-5 shrink-0" />
-              {item.label}
+              <span className="uppercase">{item.label}</span>
             </NavLink>
           ))}
           {filteredNavItems.length === 0 && (

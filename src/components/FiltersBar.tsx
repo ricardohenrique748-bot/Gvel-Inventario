@@ -69,7 +69,7 @@ export function FiltersBar({ value, onChange, showSearch = false, showPeriod = t
               type="button"
               onClick={onClear}
               title="Limpar filtros"
-              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-secondary transition-colors hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-400"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm uppercase text-secondary transition-colors hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-400"
             >
               <X className="h-4 w-4" />
               Limpar

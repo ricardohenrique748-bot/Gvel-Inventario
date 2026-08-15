@@ -132,7 +132,7 @@ export function DateRangePicker({ startDate, endDate, onChange, placeholder = 'S
         )}
       >
         <CalendarDays className="h-4 w-4 shrink-0 text-secondary" />
-        <span className="whitespace-nowrap">{label ?? placeholder}</span>
+        <span className="whitespace-nowrap uppercase">{label ?? placeholder}</span>
         {label && (
           <span
             role="button"

@@ -265,6 +265,14 @@ export async function excluirMovimentacao(id: string) {
   if (error) throw new Error(error.message)
 }
 
+export async function atualizarStatusMovimentacao(id: string, statusId: string | null) {
+  const { error } = await supabase
+    .from('movimentacoes')
+    .update({ status_id: statusId || null })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 interface RegistrarSaidaInput {
   motorista?: string
   destino?: string

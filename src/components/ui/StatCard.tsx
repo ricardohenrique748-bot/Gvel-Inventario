@@ -16,10 +16,10 @@ export function StatCard({ icon: Icon, label, value, hint, onClick, active }: St
     <>
       <div className="flex items-center gap-2 text-secondary">
         <Icon className="h-4 w-4" />
-        <p className="text-sm font-medium">{label}</p>
+        <p className="text-sm font-medium uppercase">{label}</p>
       </div>
-      <p className="mt-2 text-3xl font-semibold text-foreground tabular-nums">{value}</p>
-      {hint && <p className="mt-1 text-xs text-secondary">{hint}</p>}
+      <p className="mt-2 text-3xl font-semibold text-foreground tabular-nums uppercase">{value}</p>
+      {hint && <p className="mt-1 text-xs text-secondary uppercase">{hint}</p>}
     </>
   )
 

@@ -42,6 +42,10 @@
   button {
     font-family: inherit;
   }
+
+  th {
+    @apply uppercase;
+  }
 }
 
 @layer utilities {

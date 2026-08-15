@@ -67,7 +67,7 @@ export function SearchableSelect({
           disabled={disabled || loading}
           value={open ? query : (selected?.label ?? '')}
           onChange={(e) => {
-            setQuery(e.target.value)
+            setQuery(e.target.value.toUpperCase())
             setOpen(true)
           }}
           onFocus={() => {
@@ -75,13 +75,14 @@ export function SearchableSelect({
             setOpen(true)
           }}
           placeholder={loading ? loadingLabel : placeholder}
-          className="w-full h-12 rounded-xl bg-background border border-secondary/30 pl-11 pr-4 text-base text-foreground placeholder:text-secondary/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50"
+          style={{ textTransform: 'uppercase' }}
+          className="w-full h-12 rounded-xl bg-background border border-secondary/30 pl-11 pr-4 text-base text-foreground placeholder:text-secondary/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 uppercase placeholder:uppercase"
         />
       </div>
 
       {open && !loading && (
         <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-secondary/30 bg-background shadow-lg">
-          {filtered.length === 0 && <p className="px-4 py-3 text-sm text-secondary">{emptyMessage}</p>}
+          {filtered.length === 0 && <p className="px-4 py-3 text-sm text-secondary uppercase">{emptyMessage}</p>}
           {filtered.map((o) => (
             <button
               key={o.id}
@@ -92,12 +93,12 @@ export function SearchableSelect({
                 setOpen(false)
               }}
               className={cn(
-                'block w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-surface',
+                'block w-full px-4 py-2.5 text-left text-sm uppercase text-foreground hover:bg-surface',
                 o.id === value && 'bg-primary/10 text-primary',
               )}
             >
               {o.label}
-              {o.sublabel && <span className="block text-xs text-secondary">{o.sublabel}</span>}
+              {o.sublabel && <span className="block text-xs text-secondary uppercase">{o.sublabel}</span>}
             </button>
           ))}
           {extraOption && (
@@ -108,7 +109,7 @@ export function SearchableSelect({
                 setQuery('')
                 setOpen(false)
               }}
-              className="block w-full border-t border-secondary/20 px-4 py-2.5 text-left text-sm text-primary hover:bg-surface"
+              className="block w-full border-t border-secondary/20 px-4 py-2.5 text-left text-sm uppercase text-primary hover:bg-surface"
             >
               {extraOption.label}
             </button>

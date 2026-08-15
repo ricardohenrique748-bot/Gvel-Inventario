@@ -82,8 +82,8 @@ export function reportHeaderHtml(subtitle: string, numero?: string) {
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="width:40px;height:40px;border-radius:8px;background:#2B2B2B;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px;">GV</div>
         <div>
-          <div style="font-weight:bold;font-size:16px;color:#2B2B2B;letter-spacing:0.5px;">GVEL DIESEL</div>
-          <div style="font-size:10px;color:#777;text-transform:uppercase;letter-spacing:1px;">Center Truck</div>
+          <div style="font-weight:bold;font-size:16px;color:#2B2B2B;letter-spacing:0.5px;">CENTER TRUCK</div>
+          <div style="font-size:10px;color:#777;text-transform:uppercase;letter-spacing:1px;">Gvel Diesel</div>
         </div>
       </div>
       <div style="text-align:right;">
@@ -97,7 +97,7 @@ export function reportHeaderHtml(subtitle: string, numero?: string) {
 export function reportFooterHtml(geradoEm: string) {
   return `
     <div style="margin-top:24px;padding-top:10px;border-top:1px solid #ddd;font-size:10px;color:#999;text-align:center;">
-      Relatório gerado por Gvel Diesel — Center Truck em ${geradoEm}
+      Relatório gerado por Center Truck — Gvel Diesel em ${geradoEm}
     </div>
   `
 }

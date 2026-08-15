@@ -27,8 +27,8 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
           </button>
         )}
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-foreground truncate">{title}</h1>
-          {subtitle && <p className="text-sm text-secondary truncate">{subtitle}</p>}
+          <h1 className="text-xl font-semibold text-foreground truncate uppercase">{title}</h1>
+          {subtitle && <p className="text-sm text-secondary truncate uppercase">{subtitle}</p>}
         </div>
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}

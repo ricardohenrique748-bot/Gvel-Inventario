@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { LogOut, Home, ArrowLeftRight, Settings } from 'lucide-react'
-import { navItems } from './nav'
+import { LogOut, Home, ArrowLeftRight, Settings, Clock } from 'lucide-react'
+import { navItems, ADMIN_ONLY_ROUTES } from './nav'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
@@ -26,6 +26,21 @@ export function BottomNav() {
           <Home className="h-5 w-5" />
           <span className="truncate px-1">Home</span>
         </NavLink>
+
+        {isAdmin && (
+          <NavLink
+            to="/controle-horas"
+            className={({ isActive }) =>
+              cn(
+                'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
+                isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-foreground',
+              )
+            }
+          >
+            <Clock className="h-5 w-5" />
+            <span className="truncate px-1">Controle de Horas</span>
+          </NavLink>
+        )}
 
         <NavLink
           to="/movimentacoes"
@@ -69,7 +84,9 @@ export function BottomNav() {
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-border/5 bg-surface pb-[env(safe-area-inset-bottom)]">
-      {navItems.filter((item) => isAdmin || item.to !== '/configuracoes').map((item) => (
+      {navItems
+        .filter((item) => isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number]))
+        .map((item) => (
         <NavLink
           key={item.to}
           to={item.to}

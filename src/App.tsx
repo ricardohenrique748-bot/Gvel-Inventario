@@ -11,6 +11,9 @@ import { isNativeApp } from '@/lib/isNativeApp'
 
 const TrocarSenha = lazy(() => import('@/pages/TrocarSenha').then((m) => ({ default: m.TrocarSenha })))
 const Dashboard = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })))
+const ControleDeHoras = lazy(() =>
+  import('@/pages/ControleDeHoras').then((m) => ({ default: m.ControleDeHoras })),
+)
 const Movimentacoes = lazy(() => import('@/pages/Movimentacoes').then((m) => ({ default: m.Movimentacoes })))
 const RegistrarEntrada = lazy(() =>
   import('@/pages/RegistrarEntrada').then((m) => ({ default: m.RegistrarEntrada })),
@@ -75,6 +78,7 @@ export default function App() {
                 }
               >
                 <Route path="/" element={<Dashboard />} />
+                <Route path="/controle-horas" element={<ControleDeHoras />} />
                 <Route path="/movimentacoes" element={<Movimentacoes />} />
                 <Route path="/movimentacoes/nova" element={<RegistrarEntrada />} />
                 <Route path="/veiculos/:id" element={<VeiculoDetalhe />} />
