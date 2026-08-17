@@ -19,7 +19,7 @@ import {
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PageHeader } from '@/components/layout/Header'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/contexts/AuthContext'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
@@ -55,7 +55,7 @@ export function DashboardGerencial() {
   // Métricas rápidas
   const metricas = useMemo(() => {
     const noPatio = movimentacoes.filter((m) => m.status === 'no_patio').length
-    const finalizadas = movimentacoes.filter((m) => m.status === 'finalizado').length
+    const finalizadas = movimentacoes.filter((m) => m.status === 'saiu').length
     const totalClientes = clientes.length
     const totalUsuarios = usuarios.length
 
