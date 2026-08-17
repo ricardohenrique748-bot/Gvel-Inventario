@@ -17,9 +17,38 @@ export function FieldError({ message }: FieldErrorProps) {
 const baseInputClasses =
   'w-full h-12 rounded-xl bg-background border border-secondary/30 px-4 text-base text-foreground placeholder:text-secondary/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50'
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, onChange, style, type, ...props }, ref) => {
-    const shouldUppercase = type !== 'email' && type !== 'password' && type !== 'number'
+export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  noUppercase?: boolean
+}
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(
+  ({ className, onChange, style, type, noUppercase, id, name, autoCapitalize, autoComplete, ...props }, ref) => {
+    const isPasswordField =
+      type === 'password' ||
+      id?.toLowerCase().includes('pass') ||
+      id?.toLowerCase().includes('senha') ||
+      name?.toLowerCase().includes('pass') ||
+      name?.toLowerCase().includes('senha') ||
+      autoComplete?.toLowerCase().includes('password')
+
+    const isEmailField =
+      type === 'email' ||
+      id?.toLowerCase().includes('email') ||
+      name?.toLowerCase().includes('email') ||
+      autoComplete?.toLowerCase().includes('email')
+
+    const shouldUppercase =
+      !noUppercase &&
+      !isPasswordField &&
+      !isEmailField &&
+      type !== 'password' &&
+      type !== 'email' &&
+      type !== 'number' &&
+      type !== 'time' &&
+      type !== 'date' &&
+      type !== 'datetime-local' &&
+      type !== 'file'
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (shouldUppercase) {
         const upper = e.target.value.toUpperCase()
@@ -32,10 +61,15 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
       }
       onChange?.(e)
     }
+
     return (
       <input
         ref={ref}
         type={type}
+        id={id}
+        name={name}
+        autoCapitalize={autoCapitalize || (isPasswordField || isEmailField || !shouldUppercase ? 'none' : undefined)}
+        autoComplete={autoComplete}
         className={cn(baseInputClasses, className)}
         onChange={handleChange}
         style={{ textTransform: shouldUppercase ? 'uppercase' : undefined, ...style }}

@@ -138,6 +138,10 @@ export function Login() {
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    noUppercase
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
