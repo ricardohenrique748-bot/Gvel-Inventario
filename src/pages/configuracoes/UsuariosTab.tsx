@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Trash2, X, KeyRound, Copy, Check } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { useUsuarios, criarUsuario, excluirUsuario, atualizarUsuario } from '@/hooks/useUsuarios'
+import { useUsuarios, criarUsuario, excluirUsuario, atualizarUsuario, resetarSenha } from '@/hooks/useUsuarios'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatDate } from '@/lib/format'
 import type { Usuario } from '@/lib/types'
@@ -38,6 +38,9 @@ export function UsuariosTab() {
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [erroLista, setErroLista] = useState<string | null>(null)
+  const [resetandoId, setResetandoId] = useState<string | null>(null)
+  const [senhaTemporariaModal, setSenhaTemporariaModal] = useState<{ nome: string; senha: string } | null>(null)
+  const [copiado, setCopiado] = useState(false)
   const {
     register,
     handleSubmit,
@@ -77,7 +80,29 @@ export function UsuariosTab() {
     }
   }
 
+  async function handleResetar(id: string, nome: string) {
+    if (!confirm(`Resetar a senha de "${nome}"? Uma senha temporária será gerada.`)) return
+    setErroLista(null)
+    setResetandoId(id)
+    try {
+      const senha = await resetarSenha(id)
+      setSenhaTemporariaModal({ nome, senha })
+      setCopiado(false)
+    } catch (err) {
+      setErroLista(err instanceof Error ? err.message : 'Não foi possível resetar a senha.')
+    } finally {
+      setResetandoId(null)
+    }
+  }
+
+  async function copiarSenha(senha: string) {
+    await navigator.clipboard.writeText(senha)
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 2000)
+  }
+
   return (
+    <>
     <div className="space-y-6">
       {!mostrarForm ? (
         <Button type="button" onClick={() => setMostrarForm(true)}>
@@ -177,6 +202,17 @@ export function UsuariosTab() {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          onClick={() => handleResetar(u.id, u.nome)}
+                          disabled={resetandoId === u.id}
+                          aria-label={`Resetar senha de ${u.nome}`}
+                          title="Resetar senha"
+                        >
+                          <KeyRound className="h-4 w-4" />
+                        </Button>
                         {u.id !== perfil?.id && (
                           <Button
                             type="button"
@@ -199,6 +235,46 @@ export function UsuariosTab() {
         </CardContent>
       </Card>
     </div>
+
+      {/* Modal senha temporária */}
+      {senhaTemporariaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border/10 bg-surface p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-foreground">Senha resetada</h2>
+              <button
+                onClick={() => setSenhaTemporariaModal(null)}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-secondary hover:bg-overlay/10 hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-secondary">
+              A senha de <span className="font-medium text-foreground">{senhaTemporariaModal.nome}</span> foi
+              resetada. Compartilhe a senha abaixo com o usuário — ele será obrigado a trocar no próximo login.
+            </p>
+            <div className="flex items-center gap-2 rounded-xl border border-border/10 bg-background px-4 py-3">
+              <code className="flex-1 text-sm font-mono tracking-widest text-primary select-all">
+                {senhaTemporariaModal.senha}
+              </code>
+              <button
+                onClick={() => copiarSenha(senhaTemporariaModal.senha)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors"
+                aria-label="Copiar senha"
+              >
+                {copiado ? <Check className="h-4 w-4 text-status-success" /> : <Copy className="h-4 w-4" />}
+              </button>
+            </div>
+            <button
+              onClick={() => setSenhaTemporariaModal(null)}
+              className="mt-4 w-full rounded-xl border border-border/10 py-2.5 text-sm font-medium text-secondary hover:bg-overlay/5 hover:text-foreground transition-colors"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

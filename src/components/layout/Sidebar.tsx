@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { NavLink } from 'react-router-dom'
-import { LogOut, Search, Home, ArrowLeftRight, Settings, Clock } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { LogOut, Search, Home, ArrowLeftRight, Settings, Clock, ChevronDown } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { navItems, ADMIN_ONLY_ROUTES } from './nav'
@@ -21,6 +21,22 @@ export function Sidebar() {
   const [search, setSearch] = useState('')
   const native = isNativeApp()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
+  const location = useLocation()
+
+  // Track which parent groups are open
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+
+  const toggleGroup = (to: string) => {
+    setOpenGroups((prev) => ({ ...prev, [to]: !prev[to] }))
+  }
+
+  // Check if a group should be open based on whether any child route is active
+  const isGroupActive = (children: readonly { to: string; end?: boolean }[]) =>
+    children.some((c) =>
+      'end' in c && c.end
+        ? location.pathname === c.to
+        : location.pathname === c.to || location.pathname.startsWith(c.to + '/'),
+    )
 
   const currentNavItems = useMemo(() => {
     const base = native ? nativeNavItems : navItems
@@ -29,13 +45,28 @@ export function Sidebar() {
       : base.filter((item) => !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number]))
   }, [native, isAdmin])
 
+  // For search: flatten all items (including children) to find matches
   const filteredNavItems = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return currentNavItems
-    return currentNavItems.filter((item) => item.label.toLowerCase().includes(q))
+    return currentNavItems.filter((item) => {
+      if (item.label.toLowerCase().includes(q)) return true
+      if ('children' in item && item.children) {
+        return item.children.some((c) => c.label.toLowerCase().includes(q))
+      }
+      return false
+    })
   }, [search, currentNavItems])
 
   const initials = (user?.email ?? '?').slice(0, 2).toUpperCase()
+
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    cn(
+      'flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-3 pr-3 text-sm font-medium transition-colors',
+      isActive
+        ? 'border-primary text-foreground font-semibold'
+        : 'border-transparent text-secondary hover:bg-overlay/5 hover:text-foreground',
+    )
 
   return (
     <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-60 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl md:border md:border-border/[0.06] bg-surface shadow-2xl shadow-black/50">
@@ -60,24 +91,74 @@ export function Sidebar() {
           Menu
         </p>
         <div className="space-y-1.5">
-          {filteredNavItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={'end' in item ? item.end : false}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-3 pr-3 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'border-primary text-foreground font-semibold'
-                    : 'border-transparent text-secondary hover:bg-overlay/5 hover:text-foreground',
-                )
-              }
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              <span className="uppercase">{item.label}</span>
-            </NavLink>
-          ))}
+          {filteredNavItems.map((item) => {
+            const hasChildren = 'children' in item && item.children && item.children.length > 0
+            const children = hasChildren ? (item as any).children as { to: string; label: string; icon: React.ElementType }[] : []
+            const childActive = isGroupActive(children)
+            const isOpen = openGroups[item.to] ?? childActive
+
+            if (hasChildren) {
+              return (
+                <div key={item.to}>
+                  {/* Parent row – links to /configuracoes and also toggles children */}
+                  <div className="flex items-center gap-1">
+                    <NavLink
+                      to={item.to}
+                      end={'end' in item ? (item as any).end : false}
+                      className={navLinkClass}
+                      style={{ flex: 1 }}
+                    >
+                      <item.icon className="h-5 w-5 shrink-0" />
+                      <span className="uppercase flex-1">{item.label}</span>
+                    </NavLink>
+                    <button
+                      onClick={() => toggleGroup(item.to)}
+                      aria-label="Expandir"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-secondary transition-colors hover:bg-overlay/5 hover:text-foreground"
+                    >
+                      <ChevronDown
+                        className={cn('h-4 w-4 transition-transform duration-200', isOpen && 'rotate-180')}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Children */}
+                  {isOpen && (
+                    <div className="mt-1 ml-4 space-y-1 border-l border-border/10 pl-3">
+                      {children
+                        .filter((c) =>
+                          search.trim()
+                            ? c.label.toLowerCase().includes(search.trim().toLowerCase())
+                            : true,
+                        )
+                        .map((child) => (
+                          <NavLink
+                            key={child.to}
+                            to={child.to}
+                            className={navLinkClass}
+                          >
+                            <child.icon className="h-4 w-4 shrink-0" />
+                            <span className="uppercase">{child.label}</span>
+                          </NavLink>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={'end' in item ? (item as any).end : false}
+                className={navLinkClass}
+              >
+                <item.icon className="h-5 w-5 shrink-0" />
+                <span className="uppercase">{item.label}</span>
+              </NavLink>
+            )
+          })}
           {filteredNavItems.length === 0 && (
             <p className="px-2 py-1.5 text-xs text-secondary/60">Nenhum resultado.</p>
           )}

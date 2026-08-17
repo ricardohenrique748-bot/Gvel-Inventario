@@ -41,8 +41,11 @@ async function mensagemErroFuncao(error: unknown, fallback: string): Promise<str
 }
 
 export async function criarUsuario(input: CriarUsuarioInput) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
   const { data, error } = await supabase.functions.invoke('create-usuario', {
     body: { ...input, nome: up(input.nome) },
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
   if (error) {
     throw new Error(await mensagemErroFuncao(error, 'Não foi possível criar o usuário.'))
@@ -51,7 +54,12 @@ export async function criarUsuario(input: CriarUsuarioInput) {
 }
 
 export async function excluirUsuario(id: string) {
-  const { error } = await supabase.functions.invoke('delete-usuario', { body: { id } })
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  const { error } = await supabase.functions.invoke('delete-usuario', {
+    body: { id },
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
   if (error) {
     throw new Error(await mensagemErroFuncao(error, 'Não foi possível excluir o usuário.'))
   }
@@ -73,3 +81,19 @@ export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput)
   if (error) throw new Error(error.message)
   return data as Usuario
 }
+
+export async function resetarSenha(id: string): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  const { data, error } = await supabase.functions.invoke('reset-senha', {
+    body: { id },
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
+  if (error) {
+    throw new Error(await mensagemErroFuncao(error, 'Não foi possível resetar a senha.'))
+  }
+  const body = data as { senhaTemporaria?: string }
+  if (!body?.senhaTemporaria) throw new Error('Senha temporária não retornada.')
+  return body.senhaTemporaria
+}
+

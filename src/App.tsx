@@ -24,6 +24,10 @@ const ClienteDetalhe = lazy(() => import('@/pages/ClienteDetalhe').then((m) => (
 const Relatorios = lazy(() => import('@/pages/Relatorios').then((m) => ({ default: m.Relatorios })))
 const NovaInspecao = lazy(() => import('@/pages/inspecao/NovaInspecao').then((m) => ({ default: m.NovaInspecao })))
 const Configuracoes = lazy(() => import('@/pages/Configuracoes').then((m) => ({ default: m.Configuracoes })))
+const Manutencao = lazy(() => import('@/pages/Manutencao').then((m) => ({ default: m.Manutencao })))
+const InventarioCaminhoes = lazy(() => import('@/pages/InventarioCaminhoes').then((m) => ({ default: m.InventarioCaminhoes })))
+const InventarioFerramentas = lazy(() => import('@/pages/InventarioFerramentas').then((m) => ({ default: m.InventarioFerramentas })))
+const DashboardGerencial = lazy(() => import('@/pages/DashboardGerencial').then((m) => ({ default: m.DashboardGerencial })))
 const FrotaPublica = lazy(() =>
   import('@/pages/publico/FrotaPublica').then((m) => ({ default: m.FrotaPublica })),
 )
@@ -85,6 +89,10 @@ export default function App() {
                 <Route path="/clientes" element={<Clientes />} />
                 <Route path="/clientes/:id" element={<ClienteDetalhe />} />
                 <Route path="/relatorios" element={<Relatorios />} />
+                <Route path="/manutencao" element={<Manutencao />} />
+                <Route path="/inventario-caminhoes" element={<InventarioCaminhoes />} />
+                <Route path="/inventario-ferramentas" element={<InventarioFerramentas />} />
+                <Route path="/dashboard-gerencial" element={<DashboardGerencial />} />
                 <Route path="/inspecoes/nova" element={<NovaInspecao />} />
                 <Route path="/configuracoes" element={<Configuracoes />} />
               </Route>
