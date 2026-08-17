@@ -11,6 +11,7 @@ import {
   BarChart3,
   DollarSign,
   UserCheck,
+  ShoppingCart,
 } from 'lucide-react'
 
 export const navItems = [
@@ -35,6 +36,7 @@ export const navItems = [
   { to: '/inventario-ferramentas', label: 'Inventário de Ferramentas', icon: Hammer },
   { to: '/financeiro', label: 'Financeiro', icon: DollarSign },
   { to: '/rh', label: 'RH', icon: UserCheck },
+  { to: '/compras', label: 'Compras', icon: ShoppingCart },
   {
     to: '/configuracoes',
     label: 'Configurações',
@@ -54,4 +56,5 @@ export const ADMIN_ONLY_ROUTES = [
   '/dashboard-gerencial',
   '/financeiro',
   '/rh',
+  '/compras',
 ] as const
