@@ -85,12 +85,13 @@ export function BottomNav() {
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-border/5 bg-surface pb-[env(safe-area-inset-bottom)]">
       {navItems
+        .filter((item) => !('children' in item))
         .filter((item) => isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number]))
         .map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
-          end={'end' in item ? item.end : false}
+          end={('end' in item ? item.end : false) as boolean}
           className={({ isActive }) =>
             cn(
               'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium',
