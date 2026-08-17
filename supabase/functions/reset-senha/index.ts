@@ -8,6 +8,7 @@ const corsHeaders = {
 
 interface ResetSenhaBody {
   id: string
+  senha?: string
 }
 
 function jsonResponse(body: unknown, status: number) {
@@ -15,15 +16,6 @@ function jsonResponse(body: unknown, status: number) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
-}
-
-function gerarSenhaTemporaria(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-  let senha = ''
-  for (let i = 0; i < 10; i++) {
-    senha += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return senha
 }
 
 Deno.serve(async (req: Request) => {
@@ -73,11 +65,11 @@ Deno.serve(async (req: Request) => {
   if (!id) {
     return jsonResponse({ error: 'ID do usuário é obrigatório.' }, 400)
   }
-  if (id === callerData.user.id) {
-    return jsonResponse({ error: 'Use a página de perfil para alterar sua própria senha.' }, 400)
-  }
 
-  const senhaTemporaria = gerarSenhaTemporaria()
+  // Senha definida ou padrão 123456
+  const senhaTemporaria = (body.senha && body.senha.trim().length >= 6)
+    ? body.senha.trim()
+    : '123456'
 
   // Atualiza a senha no Auth
   const { error: updateAuthError } = await adminClient.auth.admin.updateUserById(id, {

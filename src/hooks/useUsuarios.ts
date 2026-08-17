@@ -82,11 +82,11 @@ export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput)
   return data as Usuario
 }
 
-export async function resetarSenha(id: string): Promise<string> {
+export async function resetarSenha(id: string, senha?: string): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
   const { data, error } = await supabase.functions.invoke('reset-senha', {
-    body: { id },
+    body: { id, senha: senha || '123456' },
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
   if (error) {

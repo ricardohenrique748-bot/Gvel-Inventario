@@ -81,11 +81,11 @@ export function UsuariosTab() {
   }
 
   async function handleResetar(id: string, nome: string) {
-    if (!confirm(`Resetar a senha de "${nome}"? Uma senha temporária será gerada.`)) return
+    if (!confirm(`Resetar a senha de "${nome}" para a senha padrão "123456"?`)) return
     setErroLista(null)
     setResetandoId(id)
     try {
-      const senha = await resetarSenha(id)
+      const senha = await resetarSenha(id, '123456')
       setSenhaTemporariaModal({ nome, senha })
       setCopiado(false)
     } catch (err) {
@@ -251,7 +251,7 @@ export function UsuariosTab() {
             </div>
             <p className="mb-4 text-sm text-secondary">
               A senha de <span className="font-medium text-foreground">{senhaTemporariaModal.nome}</span> foi
-              resetada. Compartilhe a senha abaixo com o usuário — ele será obrigado a trocar no próximo login.
+              resetada para a senha padrão <strong className="text-foreground">123456</strong>. Ao fazer login com ela, o usuário será direcionado para definir sua nova senha pessoal.
             </p>
             <div className="flex items-center gap-2 rounded-xl border border-border/10 bg-background px-4 py-3">
               <code className="flex-1 text-sm font-mono tracking-widest text-primary select-all">
