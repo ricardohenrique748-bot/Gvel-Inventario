@@ -113,6 +113,7 @@ export interface ItemChecklistData {
   checked: boolean
   horaInicio?: string // Formato HH:mm
   horaFim?: string // Formato HH:mm
+  mecanico?: string // Mecânico específico desta atividade
   historicoId?: string // ID associado na tabela movimentacao_historico
 }
 
@@ -172,7 +173,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     return SECOES_PADRAO
   })
 
-  // Estado dos dados de cada item (checked, horaInicio, horaFim, historicoId)
+  // Estado dos dados de cada item (checked, horaInicio, horaFim, mecanico, historicoId)
   const [itemsData, setItemsData] = useState<Record<string, ItemChecklistData>>(() => {
     try {
       const saved = localStorage.getItem(itemsStorageKey)
@@ -196,7 +197,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
   const [adicionandoEmSecao, setAdicionandoEmSecao] = useState<string | null>(null)
   const [novoItemNome, setNovoItemNome] = useState('')
 
-  // Itens expandidos para edição de horários
+  // Itens expandidos para edição de horários e mecânico
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
 
   // Campos gerais de serviço
@@ -211,7 +212,16 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
 
   // Localiza registro do histórico geral associado
   const etapaOS = useMemo(() => {
-    return historico.find((h) => h.descricao.includes('GERAL') || h.descricao.includes('Geral') || h.os_criada || h.data_hora_abertura || h.mecanico_executor) || historico[0]
+    return (
+      historico.find(
+        (h) =>
+          h.descricao.includes('GERAL') ||
+          h.descricao.includes('Geral') ||
+          h.os_criada ||
+          h.data_hora_abertura ||
+          h.mecanico_executor,
+      ) || historico[0]
+    )
   }, [historico])
 
   // Recarrega os dados quando muda a movimentação
@@ -294,6 +304,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     const nextItem: ItemChecklistData = {
       ...current,
       checked: nextChecked,
+      mecanico: current.mecanico || mecanico,
       horaInicio: nextChecked && !current.horaInicio ? current.horaInicio || nowTimeString() : current.horaInicio,
       horaFim: nextChecked && current.horaInicio && !current.horaFim ? nowTimeString() : current.horaFim,
     }
@@ -304,8 +315,8 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     })
   }
 
-  // Atualiza horários de um item específico
-  function updateItemTime(itemId: string, field: 'horaInicio' | 'horaFim', value: string) {
+  // Atualiza qualquer campo de um item específico (horaInicio, horaFim, mecanico)
+  function updateItemField(itemId: string, field: keyof ItemChecklistData, value: string) {
     const current = itemsData[itemId] || { checked: false }
     const nextItem = {
       ...current,
@@ -396,6 +407,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
       for (const item of secao.itens) {
         next[item.id] = {
           checked: true,
+          mecanico: itemsData[item.id]?.mecanico || mecanico,
           horaInicio: itemsData[item.id]?.horaInicio || '',
           horaFim: itemsData[item.id]?.horaFim || '',
         }
@@ -408,7 +420,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     persistItemsData({})
   }
 
-  // Sincroniza e Salva os dados do mecânico e horários no banco de dados (movimentacao_historico)
+  // Sincroniza e Salva os dados dos mecânicos e horários no banco de dados (movimentacao_historico)
   async function salvarDadosServico() {
     setSalvandoDados(true)
     setSucessoSalvar(false)
@@ -448,21 +460,23 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         })
       }
 
-      // Sincroniza cada atividade do checklist com horários preenchidos no histórico
+      // Sincroniza cada atividade do checklist com horários e mecânico responsável no histórico
       const nextItemsData = { ...itemsData }
       for (const sec of secoes) {
         for (const it of sec.itens) {
           const itData = nextItemsData[it.id]
-          if (itData && (itData.horaInicio || itData.horaFim)) {
+          if (itData && (itData.horaInicio || itData.horaFim || itData.mecanico)) {
             const isoInicio = toIsoFromTime(itData.horaInicio, dataRef) || dataIsoAberturaGeral
             const isoFim = toIsoFromTime(itData.horaFim, dataRef)
+            // Usa o mecânico da atividade específica; se não preenchido, herda o geral
+            const mecanicoDaAtividade = (itData.mecanico || mecanico || '').toUpperCase()
 
             if (itData.historicoId) {
               try {
                 await atualizarHistorico(itData.historicoId, {
                   descricao: it.label.toUpperCase(),
                   dataHora: isoInicio,
-                  mecanicoExecutor: mecanico.toUpperCase(),
+                  mecanicoExecutor: mecanicoDaAtividade,
                   funcao: funcao.toUpperCase() || 'MECÂNICO',
                   setor: sec.titulo.toUpperCase(),
                   dataHoraAbertura: isoInicio,
@@ -471,7 +485,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                 })
               } catch {
                 const created = await adicionarHistorico(movimentacao.id, it.label.toUpperCase(), isoInicio, {
-                  mecanicoExecutor: mecanico.toUpperCase(),
+                  mecanicoExecutor: mecanicoDaAtividade,
                   funcao: funcao.toUpperCase() || 'MECÂNICO',
                   setor: sec.titulo.toUpperCase(),
                   dataHoraAbertura: isoInicio,
@@ -481,7 +495,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                   await atualizarHistorico(created.id, {
                     descricao: it.label.toUpperCase(),
                     dataHora: isoInicio,
-                    mecanicoExecutor: mecanico.toUpperCase(),
+                    mecanicoExecutor: mecanicoDaAtividade,
                     funcao: funcao.toUpperCase() || 'MECÂNICO',
                     setor: sec.titulo.toUpperCase(),
                     dataHoraAbertura: isoInicio,
@@ -493,7 +507,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               }
             } else {
               const created = await adicionarHistorico(movimentacao.id, it.label.toUpperCase(), isoInicio, {
-                mecanicoExecutor: mecanico.toUpperCase(),
+                mecanicoExecutor: mecanicoDaAtividade,
                 funcao: funcao.toUpperCase() || 'MECÂNICO',
                 setor: sec.titulo.toUpperCase(),
                 dataHoraAbertura: isoInicio,
@@ -503,7 +517,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                 await atualizarHistorico(created.id, {
                   descricao: it.label.toUpperCase(),
                   dataHora: isoInicio,
-                  mecanicoExecutor: mecanico.toUpperCase(),
+                  mecanicoExecutor: mecanicoDaAtividade,
                   funcao: funcao.toUpperCase() || 'MECÂNICO',
                   setor: sec.titulo.toUpperCase(),
                   dataHoraAbertura: isoInicio,
@@ -662,13 +676,13 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         </div>
       </div>
 
-      {/* BLOCO: Dados do Mecânico, Abertura, Fechamento e Horas Trabalhadas */}
+      {/* BLOCO: Dados do Mecânico Geral, Abertura, Fechamento e Horas Trabalhadas */}
       <div className="rounded-xl border border-border/40 bg-background/70 p-4 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/20 pb-3">
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-primary" />
             <span className="text-sm font-semibold text-foreground uppercase">
-              RESPONSÁVEL & APONTAMENTO PARA O CONTROLE DE HORAS
+              RESPONSÁVEL PRINCIPAL & APONTAMENTO PARA O CONTROLE DE HORAS
             </span>
           </div>
 
@@ -699,10 +713,10 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Nome do Mecânico */}
+          {/* Nome do Mecânico Geral */}
           <div>
             <Label htmlFor="mecanico-nome" className="!text-xs !mb-1 font-medium text-secondary uppercase">
-              MECÂNICO EXECUTOR
+              MECÂNICO PRINCIPAL / RESPONSÁVEL
             </Label>
             <Input
               id="mecanico-nome"
@@ -909,13 +923,14 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                   </div>
                 )}
 
-                {/* Lista de Itens com Horários Iniciais/Finais e Checkbox */}
+                {/* Lista de Itens com Horários Iniciais/Finais, Mecânico e Checkbox */}
                 <div className="space-y-2">
                   {secao.itens.map((item) => {
                     const data = itemsData[item.id] || { checked: false }
                     const isChecked = Boolean(data.checked)
                     const isExpanded = Boolean(expandedItems[item.id])
                     const duracao = calcularDuracaoHorasMin(data.horaInicio, data.horaFim)
+                    const mecanicoDoItem = data.mecanico || ''
 
                     return (
                       <div
@@ -954,6 +969,14 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             {item.label}
                           </span>
 
+                          {/* Badge de Mecânico Específico Atribuído */}
+                          {mecanicoDoItem && (
+                            <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/25 text-blue-400 shrink-0 uppercase">
+                              <User className="h-3 w-3" />
+                              {mecanicoDoItem}
+                            </span>
+                          )}
+
                           {/* Badge de Horas Calculadas na Atividade */}
                           {duracao && (
                             <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-primary/10 border border-primary/25 text-primary shrink-0 uppercase">
@@ -962,13 +985,13 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             </span>
                           )}
 
-                          {/* Botão para Expandir/Ocultar Horários */}
+                          {/* Botão para Expandir/Ocultar Horários e Mecânico */}
                           <button
                             type="button"
                             onClick={() => toggleExpandItem(item.id)}
-                            title={isExpanded ? 'OCULTAR HORÁRIOS' : 'APONTAR HORÁRIO INICIAL E FINAL'}
+                            title={isExpanded ? 'OCULTAR DETALHES' : 'DEFINIR MECÂNICO E HORÁRIOS'}
                             className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors shrink-0 uppercase font-semibold ${
-                              data.horaInicio || data.horaFim || isExpanded
+                              data.horaInicio || data.horaFim || data.mecanico || isExpanded
                                 ? 'border-border bg-surface text-foreground'
                                 : 'border-transparent text-secondary hover:text-foreground hover:bg-surface/50'
                             }`}
@@ -979,7 +1002,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                 ? `${data.horaInicio} - ${data.horaFim}`
                                 : data.horaInicio
                                   ? `${data.horaInicio} - …`
-                                  : 'HORÁRIO'}
+                                  : 'DETALHES'}
                             </span>
                             {isExpanded ? (
                               <ChevronUp className="h-3 w-3 text-secondary" />
@@ -1001,55 +1024,73 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                           )}
                         </div>
 
-                        {/* Bloco Expandido: Inputs de Hora Inicial e Hora Final */}
+                        {/* Bloco Expandido: Mecânico Responsável da Atividade + Inputs de Hora Inicial e Final */}
                         {isExpanded && (
-                          <div className="px-3 pb-3 pt-1 border-t border-border/20 flex flex-wrap items-center gap-3 bg-surface/20 rounded-b-lg uppercase">
-                            {/* Hora Inicial */}
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-secondary font-bold whitespace-nowrap">
-                                INÍCIO:
+                          <div className="px-3 pb-3 pt-2 border-t border-border/20 space-y-2.5 bg-surface/20 rounded-b-lg uppercase">
+                            {/* Mecânico da Atividade */}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-secondary font-bold whitespace-nowrap flex items-center gap-1">
+                                <User className="h-3.5 w-3.5 text-primary" />
+                                MECÂNICO:
                               </span>
                               <input
-                                type="time"
-                                value={data.horaInicio || ''}
-                                onChange={(e) => updateItemTime(item.id, 'horaInicio', e.target.value)}
-                                className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                type="text"
+                                placeholder={mecanico ? `PADRÃO: ${mecanico.toUpperCase()}` : 'EX: ROBERTO, CARLOS…'}
+                                value={data.mecanico || ''}
+                                onChange={(e) => updateItemField(item.id, 'mecanico', e.target.value.toUpperCase())}
+                                className="h-7 px-2.5 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary flex-1 uppercase"
                               />
-                              <button
-                                type="button"
-                                onClick={() => updateItemTime(item.id, 'horaInicio', nowTimeString())}
-                                className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
-                              >
-                                AGORA
-                              </button>
                             </div>
 
-                            {/* Hora Final */}
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-secondary font-bold whitespace-nowrap">
-                                FIM:
-                              </span>
-                              <input
-                                type="time"
-                                value={data.horaFim || ''}
-                                onChange={(e) => updateItemTime(item.id, 'horaFim', e.target.value)}
-                                className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => updateItemTime(item.id, 'horaFim', nowTimeString())}
-                                className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
-                              >
-                                AGORA
-                              </button>
-                            </div>
-
-                            {/* Duração Calculada */}
-                            {duracao && (
-                              <div className="text-xs font-bold text-primary flex items-center gap-1 ml-auto uppercase">
-                                <span>TEMPO GASTO: {duracao.texto}</span>
+                            {/* Horários Início e Fim */}
+                            <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-border/10">
+                              {/* Hora Inicial */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-secondary font-bold whitespace-nowrap">
+                                  INÍCIO:
+                                </span>
+                                <input
+                                  type="time"
+                                  value={data.horaInicio || ''}
+                                  onChange={(e) => updateItemField(item.id, 'horaInicio', e.target.value)}
+                                  className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => updateItemField(item.id, 'horaInicio', nowTimeString())}
+                                  className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
+                                >
+                                  AGORA
+                                </button>
                               </div>
-                            )}
+
+                              {/* Hora Final */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-secondary font-bold whitespace-nowrap">
+                                  FIM:
+                                </span>
+                                <input
+                                  type="time"
+                                  value={data.horaFim || ''}
+                                  onChange={(e) => updateItemField(item.id, 'horaFim', e.target.value)}
+                                  className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => updateItemField(item.id, 'horaFim', nowTimeString())}
+                                  className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
+                                >
+                                  AGORA
+                                </button>
+                              </div>
+
+                              {/* Duração Calculada */}
+                              {duracao && (
+                                <div className="text-xs font-bold text-primary flex items-center gap-1 ml-auto uppercase">
+                                  <span>TEMPO GASTO: {duracao.texto}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>

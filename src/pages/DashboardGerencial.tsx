@@ -35,21 +35,21 @@ export function DashboardGerencial() {
   // Saudação de acordo com o horário
   const saudacao = useMemo(() => {
     const hora = new Date().getHours()
-    if (hora >= 5 && hora < 12) return 'Bom dia'
-    if (hora >= 12 && hora < 18) return 'Boa tarde'
-    return 'Boa noite'
+    if (hora >= 5 && hora < 12) return 'BOM DIA'
+    if (hora >= 12 && hora < 18) return 'BOA TARDE'
+    return 'BOA NOITE'
   }, [])
 
   // Nome do usuário
   const primeiroNome = useMemo(() => {
-    if (perfil?.nome) return perfil.nome.split(' ')[0]
-    if (user?.email) return user.email.split('@')[0]
-    return 'Gestor'
+    if (perfil?.nome) return perfil.nome.split(' ')[0].toUpperCase()
+    if (user?.email) return user.email.split('@')[0].toUpperCase()
+    return 'GESTOR'
   }, [perfil?.nome, user?.email])
 
   // Data formatada por extenso
   const dataHoje = useMemo(() => {
-    return format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })
+    return format(new Date(), "EEEE, d 'DE' MMMM 'DE' yyyy", { locale: ptBR }).toUpperCase()
   }, [])
 
   // Métricas rápidas
@@ -70,7 +70,7 @@ export function DashboardGerencial() {
 
   if (perfilLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
+      <div className="flex min-h-[40vh] items-center justify-center uppercase">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
       </div>
     )
@@ -78,13 +78,13 @@ export function DashboardGerencial() {
 
   if (perfil?.nivel !== 'admin') {
     return (
-      <div>
-        <PageHeader title="Dashboard Gerencial" subtitle="Visão consolidada da operação" />
-        <Card className="p-8 text-center">
+      <div className="uppercase">
+        <PageHeader title="DASHBOARD GERENCIAL" subtitle="VISÃO CONSOLIDADA DA OPERAÇÃO" />
+        <Card className="p-8 text-center uppercase">
           <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-secondary" />
-          <p className="text-base font-semibold text-foreground">Acesso restrito</p>
+          <p className="text-base font-bold text-foreground">ACESSO RESTRITO</p>
           <p className="mt-1 text-sm text-secondary">
-            Apenas administradores podem acessar esta visão gerencial.
+            APENAS ADMINISTRADORES PODEM ACESSAR ESTA VISÃO GERENCIAL.
           </p>
         </Card>
       </div>
@@ -94,64 +94,64 @@ export function DashboardGerencial() {
   const atalhos = [
     {
       to: '/controle-horas',
-      title: 'Controle de Horas',
-      desc: 'Apontamentos e tempo de trabalho da equipe',
+      title: 'CONTROLE DE HORAS',
+      desc: 'APONTAMENTOS E TEMPO DE TRABALHO DA EQUIPE',
       icon: Clock,
       tone: 'from-amber-500/20 to-amber-500/5 text-amber-500 border-amber-500/20',
-      badge: 'Operacional',
+      badge: 'OPERACIONAL',
     },
     {
       to: '/inventario-caminhoes',
-      title: 'Inventário de Caminhões',
-      desc: 'Status, fluxo do pátio e frota ativa',
+      title: 'INVENTÁRIO DE CAMINHÕES',
+      desc: 'STATUS, FLUXO DO PÁTIO E FROTA ATIVA',
       icon: Truck,
       tone: 'from-blue-500/20 to-blue-500/5 text-blue-500 border-blue-500/20',
-      badge: `${metricas.noPatio} no pátio`,
+      badge: `${metricas.noPatio} NO PÁTIO`,
     },
     {
       to: '/movimentacoes',
-      title: 'Movimentações',
-      desc: 'Entradas, saídas e inspeções de veículos',
+      title: 'MOVIMENTAÇÕES',
+      desc: 'ENTRADAS, SAÍDAS E INSPEÇÕES DE VEÍCULOS',
       icon: ArrowLeftRight,
       tone: 'from-emerald-500/20 to-emerald-500/5 text-emerald-500 border-emerald-500/20',
-      badge: `${metricas.totalMovimentacoes} registros`,
+      badge: `${metricas.totalMovimentacoes} REGISTROS`,
     },
     {
       to: '/inventario-ferramentas',
-      title: 'Inventário de Ferramentas',
-      desc: 'Controle de patrimônio e equipamentos',
+      title: 'INVENTÁRIO DE FERRAMENTAS',
+      desc: 'CONTROLE DE PATRIMÔNIO E EQUIPAMENTOS',
       icon: Hammer,
       tone: 'from-purple-500/20 to-purple-500/5 text-purple-500 border-purple-500/20',
-      badge: 'Estoque',
+      badge: 'ESTOQUE',
     },
     {
       to: '/manutencao',
-      title: 'Manutenção',
-      desc: 'Ordens de serviço e revisões preventivas',
+      title: 'MANUTENÇÃO',
+      desc: 'ORDENS DE SERVIÇO E REVISÕES PREVENTIVAS',
       icon: Wrench,
       tone: 'from-red-500/20 to-red-500/5 text-red-500 border-red-500/20',
-      badge: 'Serviços',
+      badge: 'SERVIÇOS',
     },
     {
       to: '/relatorios',
-      title: 'Relatórios & Exportações',
-      desc: 'Métricas analíticas, PDFs e planilhas',
+      title: 'RELATÓRIOS & EXPORTAÇÕES',
+      desc: 'MÉTRICAS ANALÍTICAS, PDFS E PLANILHAS',
       icon: FileBarChart,
       tone: 'from-cyan-500/20 to-cyan-500/5 text-cyan-500 border-cyan-500/20',
-      badge: 'Gerencial',
+      badge: 'GERENCIAL',
     },
     {
       to: '/configuracoes',
-      title: 'Configurações do Sistema',
-      desc: 'Gestão de usuários, clientes e parâmetros',
+      title: 'CONFIGURAÇÕES DO SISTEMA',
+      desc: 'GESTÃO DE USUÁRIOS, CLIENTES E PARÂMETROS',
       icon: Settings,
       tone: 'from-zinc-500/20 to-zinc-500/5 text-zinc-400 border-zinc-500/20',
-      badge: `${metricas.totalUsuarios} usuários`,
+      badge: `${metricas.totalUsuarios} USUÁRIOS`,
     },
   ]
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in uppercase">
       {/* Banner de Boas-Vindas */}
       <div className="relative overflow-hidden rounded-3xl border border-border/10 bg-gradient-to-br from-surface via-surface to-overlay/5 p-6 sm:p-8 shadow-2xl shadow-black/40">
         {/* Glow decorativo de fundo */}
@@ -160,20 +160,20 @@ export function DashboardGerencial() {
 
         <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary uppercase">
               <Sparkles className="h-3.5 w-3.5" />
-              <span>Painel de Gestão e Controle</span>
+              <span>PAINEL DE GESTÃO E CONTROLE</span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground uppercase">
               {saudacao}, <span className="text-primary">{primeiroNome}</span>! 👋
             </h1>
 
-            <p className="text-sm text-secondary max-w-xl">
-              Bem-vindo ao seu painel gerencial. Acompanhe abaixo o resumo das operações, indicadores principais e acesse rapidamente todos os módulos do sistema.
+            <p className="text-sm text-secondary max-w-xl uppercase font-medium">
+              BEM-VINDO AO SEU PAINEL GERENCIAL. ACOMPANHE ABAIXO O RESUMO DAS OPERAÇÕES, INDICADORES PRINCIPAIS E ACESSE RAPIDAMENTE TODOS OS MÓDULOS DO SISTEMA.
             </p>
 
-            <div className="flex items-center gap-2 pt-1 text-xs text-secondary capitalize">
+            <div className="flex items-center gap-2 pt-1 text-xs text-secondary uppercase font-bold">
               <Calendar className="h-3.5 w-3.5 text-primary" />
               <span>{dataHoje}</span>
             </div>
@@ -185,11 +185,11 @@ export function DashboardGerencial() {
               {primeiroNome.slice(0, 2).toUpperCase()}
             </div>
             <div>
-              <p className="text-xs font-semibold text-foreground">{perfil?.nome || user?.email}</p>
+              <p className="text-xs font-bold text-foreground uppercase">{perfil?.nome || user?.email}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-status-success animate-pulse" />
-                <span className="text-[11px] font-medium text-primary uppercase tracking-wider">
-                  Administrador
+                <span className="text-[11px] font-bold text-primary uppercase tracking-wider">
+                  ADMINISTRADOR
                 </span>
               </div>
             </div>
@@ -198,10 +198,10 @@ export function DashboardGerencial() {
       </div>
 
       {/* Cards de Métricas Principais */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 uppercase">
         <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-secondary">No Pátio</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-secondary">NO PÁTIO</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
               <Truck className="h-4 w-4" />
             </div>
@@ -209,12 +209,12 @@ export function DashboardGerencial() {
           <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
             {loadingMovs ? '—' : metricas.noPatio}
           </p>
-          <p className="mt-1 text-xs text-secondary">Veículos em atendimento</p>
+          <p className="mt-1 text-xs text-secondary uppercase font-medium">VEÍCULOS EM ATENDIMENTO</p>
         </Card>
 
         <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-secondary">Movimentações</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-secondary">MOVIMENTAÇÕES</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
               <Activity className="h-4 w-4" />
             </div>
@@ -222,12 +222,12 @@ export function DashboardGerencial() {
           <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
             {loadingMovs ? '—' : metricas.totalMovimentacoes}
           </p>
-          <p className="mt-1 text-xs text-secondary">Registros no histórico</p>
+          <p className="mt-1 text-xs text-secondary uppercase font-medium">REGISTROS NO HISTÓRICO</p>
         </Card>
 
         <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-secondary">Clientes</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-secondary">CLIENTES</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500">
               <Users className="h-4 w-4" />
             </div>
@@ -235,12 +235,12 @@ export function DashboardGerencial() {
           <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
             {loadingClientes ? '—' : metricas.totalClientes}
           </p>
-          <p className="mt-1 text-xs text-secondary">Cadastrados no sistema</p>
+          <p className="mt-1 text-xs text-secondary uppercase font-medium">CADASTRADOS NO SISTEMA</p>
         </Card>
 
         <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-secondary">Usuários</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-secondary">USUÁRIOS</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
               <ShieldCheck className="h-4 w-4" />
             </div>
@@ -248,26 +248,26 @@ export function DashboardGerencial() {
           <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
             {loadingUsuarios ? '—' : metricas.totalUsuarios}
           </p>
-          <p className="mt-1 text-xs text-secondary">Acessos gerenciados</p>
+          <p className="mt-1 text-xs text-secondary uppercase font-medium">ACESSOS GERENCIADOS</p>
         </Card>
       </div>
 
       {/* Atalhos Rápidos para os Módulos */}
-      <div>
+      <div className="uppercase">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
-            <h2 className="text-base font-semibold text-foreground">Módulos & Acesso Rápido</h2>
+            <h2 className="text-base font-bold text-foreground uppercase">MÓDULOS & ACESSO RÁPIDO</h2>
           </div>
-          <span className="text-xs text-secondary">Acesse diretamente qualquer área</span>
+          <span className="text-xs text-secondary font-medium uppercase">ACESSE DIRETAMENTE QUALQUER ÁREA</span>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 uppercase">
           {atalhos.map((item) => (
             <Link
               key={item.to}
               to={item.to}
-              className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/10 bg-surface p-5 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-black/50"
+              className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/10 bg-surface p-5 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-black/50 uppercase"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-gradient-to-br ${item.tone}`}>
@@ -275,7 +275,7 @@ export function DashboardGerencial() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   {item.badge && (
-                    <Badge tone="neutral" className="text-[11px] font-normal">
+                    <Badge tone="neutral" className="text-[11px] font-bold uppercase">
                       {item.badge}
                     </Badge>
                   )}
@@ -286,10 +286,10 @@ export function DashboardGerencial() {
               </div>
 
               <div className="mt-4">
-                <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors uppercase">
                   {item.title}
                 </h3>
-                <p className="mt-1 text-xs text-secondary line-clamp-2">
+                <p className="mt-1 text-xs text-secondary line-clamp-2 uppercase font-medium">
                   {item.desc}
                 </p>
               </div>
