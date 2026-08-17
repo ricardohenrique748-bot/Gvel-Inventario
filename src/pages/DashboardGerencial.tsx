@@ -94,7 +94,7 @@ export function DashboardGerencial() {
   const atalhos = [
     {
       to: '/controle-horas',
-      title: 'CONTROLE DE HORAS',
+      title: 'INDICADOR DE PERFORMANCE',
       desc: 'APONTAMENTOS E TEMPO DE TRABALHO DA EQUIPE',
       icon: Clock,
       tone: 'from-amber-500/20 to-amber-500/5 text-amber-500 border-amber-500/20',

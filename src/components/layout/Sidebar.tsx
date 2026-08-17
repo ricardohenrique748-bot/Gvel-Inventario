@@ -10,7 +10,7 @@ import { isNativeApp } from '@/lib/isNativeApp'
 
 const nativeNavItems = [
   { to: '/', label: 'Home', icon: Home, end: true },
-  { to: '/controle-horas', label: 'Controle de Horas', icon: Clock },
+  { to: '/controle-horas', label: 'Indicador de Performance', icon: Clock },
   { to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ] as const

@@ -153,8 +153,8 @@ export function ControleDeHoras() {
   const hasFiltros = Boolean(filtros.nome || filtros.funcao || filtros.setor || filtros.dataInicio || filtros.dataFim)
 
   return (
-    <div>
-      <PageHeader title="Controle de Horas" subtitle="Horas de abertura e fechamento das etapas" />
+    <div className="uppercase">
+      <PageHeader title="INDICADOR DE PERFORMANCE" subtitle="HORAS DE ABERTURA E FECHAMENTO DAS ETAPAS E PRODUTIVIDADE" />
 
       {error && (
         <p className="mb-4 text-sm text-status-danger">Não foi possível carregar os dados: {error}</p>

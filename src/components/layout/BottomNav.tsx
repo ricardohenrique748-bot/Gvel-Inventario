@@ -38,7 +38,7 @@ export function BottomNav() {
             }
           >
             <Clock className="h-5 w-5" />
-            <span className="truncate px-1">Controle de Horas</span>
+            <span className="truncate px-1">Performance</span>
           </NavLink>
         )}
 

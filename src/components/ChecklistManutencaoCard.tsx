@@ -627,7 +627,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
           </div>
           <p className="text-xs text-secondary">
             INSPEÇÃO E APONTAMENTO DE HORAS PARA{' '}
-            <strong className="text-foreground font-mono">{movimentacao.veiculo?.placa}</strong> — ALIMENTANDO O <strong>CONTROLE DE HORAS</strong>
+            <strong className="text-foreground font-mono">{movimentacao.veiculo?.placa}</strong> — ALIMENTANDO O <strong>INDICADOR DE PERFORMANCE</strong>
           </p>
         </div>
 
@@ -682,7 +682,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-primary" />
             <span className="text-sm font-semibold text-foreground uppercase">
-              RESPONSÁVEL PRINCIPAL & APONTAMENTO PARA O CONTROLE DE HORAS
+              RESPONSÁVEL PRINCIPAL & APONTAMENTO PARA O INDICADOR DE PERFORMANCE
             </span>
           </div>
 
@@ -778,7 +778,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
           <span className="text-xs text-secondary">
             {sucessoSalvar && (
               <span className="text-emerald-400 font-bold flex items-center gap-1 uppercase">
-                <Check className="h-3.5 w-3.5" /> SALVO E SINCRONIZADO COM O CONTROLE DE HORAS!
+                <Check className="h-3.5 w-3.5" /> SALVO E SINCRONIZADO COM O INDICADOR DE PERFORMANCE!
               </span>
             )}
           </span>
@@ -792,7 +792,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             className="!h-8 !text-xs !px-3 uppercase font-bold"
           >
             <Save className="h-3.5 w-3.5 mr-1" />
-            {salvandoDados ? 'SALVANDO…' : 'SALVAR NO CONTROLE DE HORAS'}
+            {salvandoDados ? 'SALVANDO…' : 'SALVAR NO INDICADOR DE PERFORMANCE'}
           </Button>
         </div>
       </div>

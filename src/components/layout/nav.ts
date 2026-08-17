@@ -6,7 +6,7 @@ export const navItems = [
     label: 'Dashboard Gerencial',
     icon: BarChart3,
     children: [
-      { to: '/controle-horas', label: 'Controle de Horas', icon: Clock },
+      { to: '/controle-horas', label: 'Indicador de Performance', icon: Clock },
     ],
   },
   { to: '/manutencao', label: 'Manutenção', icon: Wrench },
