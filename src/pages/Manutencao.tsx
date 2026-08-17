@@ -4,25 +4,20 @@ import {
   Wrench,
   Truck,
   LogIn,
-  Building2,
-  Clock,
   ExternalLink,
-  CheckCircle2,
-  AlertCircle,
 } from 'lucide-react'
 import { format, isSameDay, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import { Card } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { Select } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
-import { TrajetoAtualCard } from '@/components/TrajetoAtualCard'
+import { ChecklistManutencaoCard } from '@/components/ChecklistManutencaoCard'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useStatusManutencao } from '@/hooks/useStatusManutencao'
-import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 
 export function Manutencao() {
@@ -111,19 +106,19 @@ export function Manutencao() {
         <StatCard
           icon={LogIn}
           label={labelEntradas.toUpperCase()}
-          value={totalEntradas}
+          value={String(totalEntradas)}
         />
 
         <StatCard
           icon={Wrench}
           label="EM MANUTENÇÃO"
-          value={emManutencaoCount}
+          value={String(emManutencaoCount)}
         />
 
         <StatCard
           icon={Truck}
           label="AINDA NO PÁTIO"
-          value={noPatioCount}
+          value={String(noPatioCount)}
         />
       </div>
 
@@ -162,7 +157,7 @@ export function Manutencao() {
         </div>
       </Card>
 
-      {/* Conteúdo Principal: Lista de Entradas + Trajeto Atual */}
+      {/* Conteúdo Principal: Lista de Entradas + Checklist */}
       {loading ? (
         <Card className="p-12 text-center">
           <div className="flex flex-col items-center justify-center gap-3 text-secondary">
@@ -258,7 +253,7 @@ export function Manutencao() {
             </div>
           </div>
 
-          {/* Coluna Direita: Detalhes do Veículo e Trajeto Atual */}
+          {/* Coluna Direita: Detalhes do Veículo e Checklist */}
           <div className="lg:col-span-7 xl:col-span-8 space-y-4">
             {selecionado ? (
               <>
@@ -314,18 +309,18 @@ export function Manutencao() {
                   </div>
                 </Card>
 
-                {/* Trajeto Atual do Veículo */}
-                <TrajetoAtualCard
+                {/* Checklist de Inspeção do Veículo */}
+                <ChecklistManutencaoCard
                   key={selecionado.id}
                   movimentacao={selecionado}
-                  onAtualizar={async () => {
+                  onStatusChange={async () => {
                     await refetch()
                   }}
                 />
               </>
             ) : (
               <Card className="p-12 text-center">
-                <p className="text-sm text-secondary">Selecione uma entrada para gerenciar o trajeto.</p>
+                <p className="text-sm text-secondary">Selecione uma entrada para visualizar e preencher o checklist.</p>
               </Card>
             )}
           </div>
