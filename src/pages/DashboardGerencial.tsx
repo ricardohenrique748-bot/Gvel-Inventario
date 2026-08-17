@@ -14,6 +14,8 @@ import {
   Activity,
   Calendar,
   Sparkles,
+  DollarSign,
+  UserCheck,
   ArrowUpRight,
 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -123,6 +125,22 @@ export function DashboardGerencial() {
       icon: Hammer,
       tone: 'from-purple-500/20 to-purple-500/5 text-purple-500 border-purple-500/20',
       badge: 'ESTOQUE',
+    },
+    {
+      to: '/financeiro',
+      title: 'FINANCEIRO',
+      desc: 'RECEITAS, DESPESAS E FLUXO DE CAIXA',
+      icon: DollarSign,
+      tone: 'from-emerald-500/20 to-emerald-500/5 text-emerald-500 border-emerald-500/20',
+      badge: 'EM BREVE',
+    },
+    {
+      to: '/rh',
+      title: 'RECURSOS HUMANOS (RH)',
+      desc: 'QUADRO DE EQUIPE, MECÂNICOS E ESCALAS',
+      icon: UserCheck,
+      tone: 'from-blue-500/20 to-blue-500/5 text-blue-500 border-blue-500/20',
+      badge: 'EM BREVE',
     },
     {
       to: '/manutencao',

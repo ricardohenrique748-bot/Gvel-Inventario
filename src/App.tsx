@@ -28,6 +28,8 @@ const Manutencao = lazy(() => import('@/pages/Manutencao').then((m) => ({ defaul
 const InventarioCaminhoes = lazy(() => import('@/pages/InventarioCaminhoes').then((m) => ({ default: m.InventarioCaminhoes })))
 const InventarioFerramentas = lazy(() => import('@/pages/InventarioFerramentas').then((m) => ({ default: m.InventarioFerramentas })))
 const DashboardGerencial = lazy(() => import('@/pages/DashboardGerencial').then((m) => ({ default: m.DashboardGerencial })))
+const Financeiro = lazy(() => import('@/pages/Financeiro').then((m) => ({ default: m.Financeiro })))
+const RH = lazy(() => import('@/pages/RH').then((m) => ({ default: m.RH })))
 const FrotaPublica = lazy(() =>
   import('@/pages/publico/FrotaPublica').then((m) => ({ default: m.FrotaPublica })),
 )
@@ -93,6 +95,8 @@ export default function App() {
                 <Route path="/inventario-caminhoes" element={<InventarioCaminhoes />} />
                 <Route path="/inventario-ferramentas" element={<InventarioFerramentas />} />
                 <Route path="/dashboard-gerencial" element={<DashboardGerencial />} />
+                <Route path="/financeiro" element={<Financeiro />} />
+                <Route path="/rh" element={<RH />} />
                 <Route path="/inspecoes/nova" element={<NovaInspecao />} />
                 <Route path="/configuracoes" element={<Configuracoes />} />
               </Route>

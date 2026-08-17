@@ -1,4 +1,17 @@
-import { LayoutDashboard, ArrowLeftRight, Users, FileBarChart, Settings, Clock, Wrench, Truck, Hammer, BarChart3 } from 'lucide-react'
+import {
+  LayoutDashboard,
+  ArrowLeftRight,
+  Users,
+  FileBarChart,
+  Settings,
+  Clock,
+  Wrench,
+  Truck,
+  Hammer,
+  BarChart3,
+  DollarSign,
+  UserCheck,
+} from 'lucide-react'
 
 export const navItems = [
   {
@@ -20,6 +33,8 @@ export const navItems = [
     ],
   },
   { to: '/inventario-ferramentas', label: 'Inventário de Ferramentas', icon: Hammer },
+  { to: '/financeiro', label: 'Financeiro', icon: DollarSign },
+  { to: '/rh', label: 'RH', icon: UserCheck },
   {
     to: '/configuracoes',
     label: 'Configurações',
@@ -33,4 +48,10 @@ export const navItems = [
 
 export type NavItem = (typeof navItems)[number]
 
-export const ADMIN_ONLY_ROUTES = ['/configuracoes', '/controle-horas', '/dashboard-gerencial'] as const
+export const ADMIN_ONLY_ROUTES = [
+  '/configuracoes',
+  '/controle-horas',
+  '/dashboard-gerencial',
+  '/financeiro',
+  '/rh',
+] as const
