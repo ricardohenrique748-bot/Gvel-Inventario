@@ -6,7 +6,6 @@ import { Plus, Pencil, Trash2, X, LogIn, MapPin, Clock } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input, Label, Select, FieldError } from '@/components/ui/Input'
-import { Badge } from '@/components/ui/Badge'
 import {
   useHistoricoMovimentacao,
   adicionarHistorico,
@@ -32,24 +31,24 @@ export function SetorInput({ id, value, onChange }: { id: string; value: string;
       <div className="flex gap-2">
         <Input
           id={id}
-          autoFocus
-          placeholder="Nome do setor"
-          className="!h-9 !text-sm !px-3"
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          placeholder="Nome do novo setor"
+          autoFocus
+          className="!h-9 !text-sm !px-3 flex-1"
         />
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="md"
           onClick={() => {
             setCriandoNovo(false)
             onChange('')
           }}
-          title="Cancelar"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-secondary/30 text-secondary transition-colors hover:text-foreground"
-          aria-label="Cancelar novo setor"
+          className="!h-9 !px-2 text-xs"
         >
           <X className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
     )
   }
@@ -57,7 +56,6 @@ export function SetorInput({ id, value, onChange }: { id: string; value: string;
   return (
     <Select
       id={id}
-      className="!h-9 !text-sm !px-3"
       value={SETORES.includes(value as (typeof SETORES)[number]) ? value : ''}
       onChange={(e) => {
         if (e.target.value === SETOR_CRIAR) {
@@ -67,14 +65,15 @@ export function SetorInput({ id, value, onChange }: { id: string; value: string;
           onChange(e.target.value)
         }
       }}
+      className="!h-9 !text-sm !px-3"
     >
-      <option value="">Selecione</option>
-      {SETORES.map((setor) => (
-        <option key={setor} value={setor}>
-          {setor}
+      <option value="">Selecione ou crie um setor</option>
+      {SETORES.map((s) => (
+        <option key={s} value={s}>
+          {s}
         </option>
       ))}
-      <option value={SETOR_CRIAR}>+ Adicionar outro…</option>
+      <option value={SETOR_CRIAR}>+ Criar novo setor…</option>
     </Select>
   )
 }
@@ -98,7 +97,6 @@ const editEtapaSchema = z.object({
   horario: z.string().min(1, 'Informe o horário'),
   dataFechamento: z.string().optional(),
   horarioFechamento: z.string().optional(),
-  osCriada: z.boolean().optional(),
 })
 
 type EtapaFormValues = z.infer<typeof etapaSchema>
@@ -142,39 +140,41 @@ interface TimelineNodeProps {
   onDelete?: () => void
 }
 
-function TimelineNode({ icon, color, label, dateTime, detail, isLast, osCriada, onEdit, onDelete }: TimelineNodeProps) {
+function TimelineNode({ icon, color, label, dateTime, detail, isLast, onEdit, onDelete }: TimelineNodeProps) {
   const dotBg =
     color === 'success'
       ? 'bg-status-success/15 text-status-success'
       : color === 'neutral'
         ? 'bg-surface text-secondary border border-border/40'
-        : 'bg-surface text-secondary/40 border border-border/20'
+        : 'bg-overlay/5 text-secondary'
 
   return (
-    <div className="relative flex gap-4 pb-5 last:pb-0">
-      {/* Dot */}
+    <div className="relative flex items-start gap-4 pb-6 last:pb-0">
+      {/* Marcador do nó */}
       <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${dotBg}`}>
         {icon}
       </div>
 
-      {/* Content */}
-      <div className="flex flex-1 items-start justify-between gap-2 pt-1.5">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className={`text-sm font-medium ${isLast ? 'text-secondary' : 'text-foreground'}`}>{label}</p>
-            {osCriada && <Badge tone="warning">OS criada</Badge>}
+      {/* Conteúdo */}
+      <div className="flex-1 min-w-0 pt-1">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-foreground uppercase">{label}</span>
           </div>
-          <p className="text-xs text-secondary">{dateTime}</p>
-          {detail && <p className="text-xs text-secondary/70 mt-0.5">{detail}</p>}
+          <span className="text-xs text-secondary">{dateTime}</span>
         </div>
-        {(onEdit || onDelete) && (
-          <div className="flex shrink-0 items-center gap-1">
+
+        {detail && <p className="mt-1 text-xs text-secondary break-words uppercase">{detail}</p>}
+
+        {/* Botões de Ação */}
+        {(onEdit || onDelete) && !isLast && (
+          <div className="mt-2 flex items-center gap-1">
             {onEdit && (
               <button
                 type="button"
                 onClick={onEdit}
                 title="Editar etapa"
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-secondary/50 transition-colors hover:bg-overlay/10 hover:text-foreground"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-secondary transition-colors hover:bg-overlay/5 hover:text-foreground"
                 aria-label="Editar etapa"
               >
                 <Pencil className="h-3.5 w-3.5" />
@@ -224,7 +224,6 @@ function EditarEtapaForm({
       horario: horarioInputValue(etapa.data_hora),
       dataFechamento: dataInputValue(etapa.data_hora_fechamento),
       horarioFechamento: horarioInputValue(etapa.data_hora_fechamento),
-      osCriada: etapa.os_criada,
     },
   })
 
@@ -238,12 +237,12 @@ function EditarEtapaForm({
         mecanicoExecutor: values.mecanicoExecutor,
         funcao: values.funcao,
         setor: values.setor,
-        dataHoraAbertura: values.osCriada ? (etapa.data_hora_abertura ?? dataHoraEtapa) : undefined,
+        dataHoraAbertura: dataHoraEtapa,
         dataHoraFechamento:
           values.dataFechamento && values.horarioFechamento
             ? new Date(`${values.dataFechamento}T${values.horarioFechamento}`).toISOString()
             : undefined,
-        osCriada: values.osCriada,
+        osCriada: false,
       })
       await onSalvo()
     } catch (err) {
@@ -254,39 +253,35 @@ function EditarEtapaForm({
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="mb-5 rounded-xl border border-border/40 bg-background p-4 space-y-2.5"
+      className="mb-5 rounded-xl border border-border/40 bg-background p-4 space-y-2.5 uppercase"
     >
-      <p className="text-sm font-medium text-foreground">Editar etapa</p>
-      <label className="flex items-center gap-2 cursor-pointer select-none">
-        <input type="checkbox" className="h-4 w-4 rounded border-border/40 accent-primary" {...register('osCriada')} />
-        <span className="text-sm text-foreground">OS (ordem de serviço) criada</span>
-      </label>
+      <p className="text-sm font-bold text-foreground uppercase">Editar etapa do trajeto</p>
       <div>
-        <Label htmlFor={`editar-descricao-${etapa.id}`} className="!text-xs !mb-1">Descrição</Label>
-        <Input id={`editar-descricao-${etapa.id}`} className="!h-9 !text-sm !px-3" {...register('descricao')} />
+        <Label htmlFor={`editar-descricao-${etapa.id}`} className="!text-xs !mb-1 uppercase">Descrição</Label>
+        <Input id={`editar-descricao-${etapa.id}`} className="!h-9 !text-sm !px-3 uppercase" {...register('descricao')} />
         <FieldError message={errors.descricao?.message} />
       </div>
       <div>
-        <Label htmlFor={`editar-mecanico-${etapa.id}`} className="!text-xs !mb-1">Mecânico executor</Label>
+        <Label htmlFor={`editar-mecanico-${etapa.id}`} className="!text-xs !mb-1 uppercase">Responsável / Operador</Label>
         <Input
           id={`editar-mecanico-${etapa.id}`}
           placeholder="Opcional"
-          className="!h-9 !text-sm !px-3"
+          className="!h-9 !text-sm !px-3 uppercase"
           {...register('mecanicoExecutor')}
         />
       </div>
       <div className="grid grid-cols-2 gap-2.5">
         <div>
-          <Label htmlFor={`editar-funcao-${etapa.id}`} className="!text-xs !mb-1">Função</Label>
+          <Label htmlFor={`editar-funcao-${etapa.id}`} className="!text-xs !mb-1 uppercase">Função</Label>
           <Input
             id={`editar-funcao-${etapa.id}`}
             placeholder="Opcional"
-            className="!h-9 !text-sm !px-3"
+            className="!h-9 !text-sm !px-3 uppercase"
             {...register('funcao')}
           />
         </div>
         <div>
-          <Label htmlFor={`editar-setor-${etapa.id}`} className="!text-xs !mb-1">Setor</Label>
+          <Label htmlFor={`editar-setor-${etapa.id}`} className="!text-xs !mb-1 uppercase">Setor / Pátio</Label>
           <Controller
             control={control}
             name="setor"
@@ -298,12 +293,12 @@ function EditarEtapaForm({
       </div>
       <div className="grid grid-cols-2 gap-2.5">
         <div>
-          <Label htmlFor={`editar-data-${etapa.id}`} className="!text-xs !mb-1">Data</Label>
+          <Label htmlFor={`editar-data-${etapa.id}`} className="!text-xs !mb-1 uppercase">Data</Label>
           <Input id={`editar-data-${etapa.id}`} type="date" className="!h-9 !text-sm !px-3" {...register('data')} />
           <FieldError message={errors.data?.message} />
         </div>
         <div>
-          <Label htmlFor={`editar-horario-${etapa.id}`} className="!text-xs !mb-1">Horário</Label>
+          <Label htmlFor={`editar-horario-${etapa.id}`} className="!text-xs !mb-1 uppercase">Horário</Label>
           <Input
             id={`editar-horario-${etapa.id}`}
             type="time"
@@ -313,38 +308,12 @@ function EditarEtapaForm({
           <FieldError message={errors.horario?.message} />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2.5">
-        <div>
-          <Label htmlFor={`editar-data-fechamento-${etapa.id}`} className="!text-xs !mb-1">
-            Data de fechamento
-          </Label>
-          <Input
-            id={`editar-data-fechamento-${etapa.id}`}
-            type="date"
-            placeholder="Opcional"
-            className="!h-9 !text-sm !px-3"
-            {...register('dataFechamento')}
-          />
-        </div>
-        <div>
-          <Label htmlFor={`editar-horario-fechamento-${etapa.id}`} className="!text-xs !mb-1">
-            Hora de fechamento
-          </Label>
-          <Input
-            id={`editar-horario-fechamento-${etapa.id}`}
-            type="time"
-            placeholder="Opcional"
-            className="!h-9 !text-sm !px-3"
-            {...register('horarioFechamento')}
-          />
-        </div>
-      </div>
       <FieldError message={erro ?? undefined} />
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="secondary" size="md" onClick={onCancel}>
+        <Button type="button" variant="secondary" size="md" onClick={onCancel} className="uppercase">
           Cancelar
         </Button>
-        <Button type="submit" size="md" disabled={isSubmitting}>
+        <Button type="submit" size="md" disabled={isSubmitting} className="uppercase font-bold">
           {isSubmitting ? 'Salvando…' : 'Salvar'}
         </Button>
       </div>
@@ -366,11 +335,9 @@ export function TrajetoAtualCard({
   disableHeaderActions = false,
 }: TrajetoAtualCardProps) {
   const [adicionandoEtapa, setAdicionandoEtapa] = useState(false)
-  const [novaEtapaOsCriada, setNovaEtapaOsCriada] = useState(false)
   const [erroEtapa, setErroEtapa] = useState<string | null>(null)
   const [editandoEtapaId, setEditandoEtapaId] = useState<string | null>(null)
-
-  const { historico: etapas, refetch: refetchEtapas } = useHistoricoMovimentacao(movimentacao.id)
+  const { historico, refetch: refetchEtapas } = useHistoricoMovimentacao(movimentacao.id)
   const { statusManutencao } = useStatusManutencao()
 
   const {
@@ -400,8 +367,8 @@ export function TrajetoAtualCard({
         mecanicoExecutor: values.mecanicoExecutor,
         funcao: values.funcao,
         setor: values.setor,
-        dataHoraAbertura: novaEtapaOsCriada ? dataHoraEtapa : undefined,
-        osCriada: novaEtapaOsCriada,
+        dataHoraAbertura: dataHoraEtapa,
+        osCriada: false,
       })
       if ((values.statusId || '') !== (movimentacao.status_id ?? '')) {
         await atualizarStatusMovimentacao(movimentacao.id, values.statusId || null)
@@ -415,7 +382,6 @@ export function TrajetoAtualCard({
         horario: agoraInputValue(),
         statusId: values.statusId ?? movimentacao.status_id ?? '',
       })
-      setNovaEtapaOsCriada(false)
       setAdicionandoEtapa(false)
       await refetchEtapas()
       if (onAtualizar) await onAtualizar()
@@ -440,37 +406,26 @@ export function TrajetoAtualCard({
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle>Trajeto atual</CardTitle>
         {!disableHeaderActions && (
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-border/40 accent-primary"
-                checked={novaEtapaOsCriada}
-                onChange={(e) => setNovaEtapaOsCriada(e.target.checked)}
-              />
-              <span className="text-sm text-foreground whitespace-nowrap">OS (ordem de serviço) criada</span>
-            </label>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setAdicionandoEtapa(true)
-                setErroEtapa(null)
-                resetEtapa({
-                  descricao: '',
-                  mecanicoExecutor: '',
-                  funcao: '',
-                  setor: '',
-                  data: hojeInputValue(),
-                  horario: agoraInputValue(),
-                  statusId: movimentacao.status_id ?? '',
-                })
-              }}
-            >
-              <Plus className="h-4 w-4" />
-              Adicionar etapa
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setAdicionandoEtapa(true)
+              setErroEtapa(null)
+              resetEtapa({
+                descricao: '',
+                mecanicoExecutor: '',
+                funcao: '',
+                setor: '',
+                data: hojeInputValue(),
+                horario: agoraInputValue(),
+                statusId: movimentacao.status_id ?? '',
+              })
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Adicionar etapa
+          </Button>
         )}
       </CardHeader>
       <CardContent>
@@ -478,47 +433,47 @@ export function TrajetoAtualCard({
         {adicionandoEtapa && (
           <form
             onSubmit={handleEtapa(onAdicionarEtapa)}
-            className="mb-5 rounded-xl border border-border/40 bg-background p-4 space-y-2.5"
+            className="mb-5 rounded-xl border border-border/40 bg-background p-4 space-y-2.5 uppercase"
           >
-            <p className="text-sm font-medium text-foreground">Nova etapa</p>
+            <p className="text-sm font-bold text-foreground uppercase">Nova etapa do trajeto</p>
             <div>
-              <Label htmlFor="etapa-descricao" className="!text-xs !mb-1">
+              <Label htmlFor="etapa-descricao" className="!text-xs !mb-1 uppercase">
                 Descrição
               </Label>
               <Input
                 id="etapa-descricao"
                 placeholder="Ex: Enviado para oficina, Lavagem, Retornou ao pátio…"
-                className="!h-9 !text-sm !px-3"
+                className="!h-9 !text-sm !px-3 uppercase"
                 {...regEtapa('descricao')}
               />
               <FieldError message={errEtapa.descricao?.message} />
             </div>
             <div>
-              <Label htmlFor="etapa-mecanico" className="!text-xs !mb-1">
-                Mecânico executor
+              <Label htmlFor="etapa-mecanico" className="!text-xs !mb-1 uppercase">
+                Responsável / Operador
               </Label>
               <Input
                 id="etapa-mecanico"
                 placeholder="Opcional"
-                className="!h-9 !text-sm !px-3"
+                className="!h-9 !text-sm !px-3 uppercase"
                 {...regEtapa('mecanicoExecutor')}
               />
             </div>
             <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <Label htmlFor="etapa-funcao" className="!text-xs !mb-1">
+                <Label htmlFor="etapa-funcao" className="!text-xs !mb-1 uppercase">
                   Função
                 </Label>
                 <Input
                   id="etapa-funcao"
                   placeholder="Opcional"
-                  className="!h-9 !text-sm !px-3"
+                  className="!h-9 !text-sm !px-3 uppercase"
                   {...regEtapa('funcao')}
                 />
               </div>
               <div>
-                <Label htmlFor="etapa-setor" className="!text-xs !mb-1">
-                  Setor
+                <Label htmlFor="etapa-setor" className="!text-xs !mb-1 uppercase">
+                  Setor / Pátio
                 </Label>
                 <Controller
                   control={controlEtapa}
@@ -531,14 +486,14 @@ export function TrajetoAtualCard({
             </div>
             <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <Label htmlFor="etapa-data" className="!text-xs !mb-1">
+                <Label htmlFor="etapa-data" className="!text-xs !mb-1 uppercase">
                   Data
                 </Label>
                 <Input id="etapa-data" type="date" className="!h-9 !text-sm !px-3" {...regEtapa('data')} />
                 <FieldError message={errEtapa.data?.message} />
               </div>
               <div>
-                <Label htmlFor="etapa-horario" className="!text-xs !mb-1">
+                <Label htmlFor="etapa-horario" className="!text-xs !mb-1 uppercase">
                   Horário
                 </Label>
                 <Input id="etapa-horario" type="time" className="!h-9 !text-sm !px-3" {...regEtapa('horario')} />
@@ -546,10 +501,10 @@ export function TrajetoAtualCard({
               </div>
             </div>
             <div>
-              <Label htmlFor="etapa-status" className="!text-xs !mb-1">
+              <Label htmlFor="etapa-status" className="!text-xs !mb-1 uppercase">
                 Status
               </Label>
-              <Select id="etapa-status" className="!h-9 !text-sm !px-3" {...regEtapa('statusId')}>
+              <Select id="etapa-status" className="!h-9 !text-sm !px-3 uppercase" {...regEtapa('statusId')}>
                 <option value="">Sem manutenção</option>
                 {statusManutencao.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -566,14 +521,14 @@ export function TrajetoAtualCard({
                 size="md"
                 onClick={() => {
                   setAdicionandoEtapa(false)
-                  setNovaEtapaOsCriada(false)
                   setErroEtapa(null)
                   resetEtapa()
                 }}
+                className="uppercase"
               >
                 Cancelar
               </Button>
-              <Button type="submit" size="md" disabled={submittingEtapa}>
+              <Button type="submit" size="md" disabled={submittingEtapa} className="uppercase font-bold">
                 {submittingEtapa ? 'Salvando…' : 'Salvar etapa'}
               </Button>
             </div>
@@ -599,62 +554,81 @@ export function TrajetoAtualCard({
                 movimentacao.usuario_entrada?.nome ? `Registrado por: ${movimentacao.usuario_entrada.nome}` : null,
               ]
                 .filter(Boolean)
-                .join(' · ')}
+                .join(' • ')}
             />
 
-            {/* Nós: etapas intermediárias */}
-            {etapas.map((etapa) =>
-              editandoEtapaId === etapa.id ? (
-                <EditarEtapaForm
-                  key={etapa.id}
-                  etapa={etapa}
-                  onCancel={() => setEditandoEtapaId(null)}
-                  onSalvo={async () => {
-                    setEditandoEtapaId(null)
-                    await refetchEtapas()
-                    if (onAtualizar) await onAtualizar()
-                  }}
-                />
-              ) : (
+            {/* Nós: Etapas intermediárias */}
+            {historico.map((etapa) => {
+              if (editandoEtapaId === etapa.id) {
+                return (
+                  <div key={etapa.id} className="relative z-10 pl-14 pb-6">
+                    <EditarEtapaForm
+                      etapa={etapa}
+                      onCancel={() => setEditandoEtapaId(null)}
+                      onSalvo={async () => {
+                        setEditandoEtapaId(null)
+                        await refetchEtapas()
+                        if (onAtualizar) await onAtualizar()
+                      }}
+                    />
+                  </div>
+                )
+              }
+
+              const detalhes = [
+                etapa.setor ? `Setor: ${etapa.setor}` : null,
+                etapa.mecanico_executor ? `Executor: ${etapa.mecanico_executor}` : null,
+                etapa.funcao ? `Função: ${etapa.funcao}` : null,
+                etapa.data_hora_fechamento
+                  ? `Fechamento: ${formatDateTime(etapa.data_hora_fechamento)}`
+                  : null,
+                etapa.data_hora_abertura && etapa.data_hora_fechamento
+                  ? `Duração: ${formatPermanencia(etapa.data_hora_abertura, etapa.data_hora_fechamento)}`
+                  : null,
+                etapa.usuario?.nome ? `Por: ${etapa.usuario.nome}` : null,
+              ]
+                .filter(Boolean)
+                .join(' • ')
+
+              return (
                 <TimelineNode
                   key={etapa.id}
                   icon={<MapPin className="h-4 w-4" />}
                   color="neutral"
                   label={etapa.descricao}
                   dateTime={formatDateTime(etapa.data_hora)}
-                  detail={
-                    [
-                      etapa.mecanico_executor ? `Mecânico: ${etapa.mecanico_executor}` : null,
-                      etapa.funcao ? `Função: ${etapa.funcao}` : null,
-                      etapa.setor ? `Setor: ${etapa.setor}` : null,
-                      etapa.data_hora_abertura ? `Abertura: ${formatDateTime(etapa.data_hora_abertura)}` : null,
-                      etapa.data_hora_fechamento
-                        ? `Fechamento: ${formatDateTime(etapa.data_hora_fechamento)}`
-                        : null,
-                      etapa.usuario?.nome ? `Registrado por: ${etapa.usuario.nome}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ') || undefined
-                  }
-                  osCriada={etapa.os_criada}
+                  detail={detalhes || undefined}
                   onEdit={() => setEditandoEtapaId(etapa.id)}
                   onDelete={() => onExcluirEtapa(etapa.id)}
                 />
-              ),
-            )}
+              )
+            })}
 
-            {/* Nó: aguardando (fim) */}
-            <TimelineNode
-              icon={<Clock className="h-4 w-4" />}
-              color="muted"
-              label={movimentacao.status === 'no_patio' ? 'No pátio' : 'Saída realizada'}
-              dateTime={
-                movimentacao.status === 'no_patio'
-                  ? `Permanência: ${formatPermanencia(movimentacao.data_hora_entrada)}`
-                  : `Saída: ${formatDateTime(movimentacao.data_hora_saida)}`
-              }
-              isLast
-            />
+            {/* Nó: Permanência ou Saída */}
+            {movimentacao.status === 'no_patio' ? (
+              <TimelineNode
+                icon={<Clock className="h-4 w-4" />}
+                color="muted"
+                label="No pátio"
+                dateTime={formatPermanencia(movimentacao.data_hora_entrada)}
+                detail="Tempo de permanência até o momento"
+                isLast
+              />
+            ) : (
+              <TimelineNode
+                icon={<LogIn className="h-4 w-4 rotate-180" />}
+                color="success"
+                label="Saída do pátio"
+                dateTime={formatDateTime(movimentacao.data_hora_saida)}
+                detail={[
+                  `Permanência total: ${formatPermanencia(movimentacao.data_hora_entrada, movimentacao.data_hora_saida)}`,
+                  movimentacao.km_saida != null ? `KM saída: ${movimentacao.km_saida}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' • ')}
+                isLast
+              />
+            )}
           </div>
         </div>
       </CardContent>
