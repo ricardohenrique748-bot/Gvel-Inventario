@@ -5,6 +5,8 @@ import {
   Truck,
   LogIn,
   ExternalLink,
+  FileCheck,
+  ArrowLeft,
 } from 'lucide-react'
 import { format, isSameDay, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -12,6 +14,7 @@ import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { Card } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
+import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
@@ -29,6 +32,7 @@ export function Manutencao() {
   const [filters, setFilters] = useState<FiltersValue>(filtroInicial)
   const [statusFiltro, setStatusFiltro] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [abaMobile, setAbaMobile] = useState<'lista' | 'checklist'>('lista')
   const { statusManutencao } = useStatusManutencao()
 
   // Determina se o filtro representa um único dia ou um intervalo
@@ -94,6 +98,11 @@ export function Manutencao() {
   const emManutencaoCount = entradas.filter((m) => m.status_id).length
   const noPatioCount = entradas.filter((m) => m.status === 'no_patio').length
 
+  function handleSelecionarEntrada(id: string) {
+    setSelectedId(id)
+    setAbaMobile('checklist')
+  }
+
   return (
     <div className="space-y-6 uppercase">
       <PageHeader
@@ -157,6 +166,37 @@ export function Manutencao() {
         </div>
       </Card>
 
+      {/* Seletor de visualização Mobile (Lista / Checklist) */}
+      {!loading && entradas.length > 0 && (
+        <div className="flex lg:hidden rounded-2xl bg-surface p-1.5 border border-border/20 shadow-md">
+          <button
+            type="button"
+            onClick={() => setAbaMobile('lista')}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all uppercase flex items-center justify-center gap-2 ${
+              abaMobile === 'lista'
+                ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                : 'text-secondary hover:text-foreground'
+            }`}
+          >
+            <Truck className="h-4 w-4" />
+            <span>LISTA DE ENTRADAS ({entradas.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAbaMobile('checklist')}
+            disabled={!selecionado}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all uppercase flex items-center justify-center gap-2 ${
+              abaMobile === 'checklist'
+                ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                : 'text-secondary hover:text-foreground disabled:opacity-40'
+            }`}
+          >
+            <FileCheck className="h-4 w-4" />
+            <span>CHECKLIST {selecionado ? `(${selecionado.veiculo?.placa})` : ''}</span>
+          </button>
+        </div>
+      )}
+
       {/* Conteúdo Principal: Lista de Entradas + Checklist */}
       {loading ? (
         <Card className="p-12 text-center">
@@ -180,10 +220,14 @@ export function Manutencao() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Coluna Esquerda: Lista de Veículos que deram Entrada */}
-          <div className="lg:col-span-5 xl:col-span-4 space-y-3">
+          <div
+            className={`lg:col-span-5 xl:col-span-4 space-y-3 ${
+              abaMobile === 'checklist' ? 'hidden lg:block' : 'block'
+            }`}
+          >
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
-                ENTRADAS ({entradas.length})
+                ENTRADAS ({entradas.length}) — TOQUE PARA ABRIR O CHECKLIST
               </span>
             </div>
 
@@ -193,11 +237,11 @@ export function Manutencao() {
                 return (
                   <div
                     key={m.id}
-                    onClick={() => setSelectedId(m.id)}
-                    className={`cursor-pointer rounded-xl border p-3 transition-all text-left flex items-start gap-3 ${
+                    onClick={() => handleSelecionarEntrada(m.id)}
+                    className={`cursor-pointer rounded-xl border p-3.5 transition-all text-left flex items-start gap-3.5 ${
                       isSelected
-                        ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/30'
-                        : 'border-border/40 bg-card hover:border-border hover:bg-overlay/5'
+                        ? 'border-primary bg-primary/10 shadow-md ring-2 ring-primary/40'
+                        : 'border-border/40 bg-card hover:border-border hover:bg-overlay/5 active:scale-[0.99]'
                     }`}
                   >
                     {/* Foto da Frente ou Ícone */}
@@ -221,7 +265,7 @@ export function Manutencao() {
                     {/* Informações da Entrada */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1.5 mb-0.5">
-                        <span className="font-bold text-foreground tracking-wide font-mono text-base">
+                        <span className="font-black text-foreground tracking-wide font-mono text-base">
                           {m.veiculo?.placa}
                         </span>
                         <StatusManutencaoBadge status={m.status_manutencao} />
@@ -232,18 +276,14 @@ export function Manutencao() {
                           'VEÍCULO'}
                       </p>
 
-                      <p className="text-xs text-secondary truncate mt-0.5 uppercase">
+                      <p className="text-xs text-secondary truncate mt-0.5 uppercase font-medium">
                         PÁTIO: {m.patio?.nome || '—'}
                       </p>
 
-                      <div className="mt-2 flex items-center justify-between text-[11px] text-secondary/80 border-t border-border/20 pt-1.5 uppercase font-medium">
+                      <div className="mt-2 flex items-center justify-between text-[11px] text-secondary/80 border-t border-border/20 pt-1.5 uppercase font-bold">
                         <span>ENTRADA: {format(new Date(m.data_hora_entrada), 'HH:mm')}</span>
-                        <span>
-                          {m.status === 'no_patio' ? (
-                            <Badge tone="success" className="!text-[10px] !py-0 !px-1.5 uppercase font-bold">NO PÁTIO</Badge>
-                          ) : (
-                            <Badge tone="neutral" className="!text-[10px] !py-0 !px-1.5 uppercase font-bold">SAIU</Badge>
-                          )}
+                        <span className="text-primary font-bold">
+                          {isSelected ? '✓ ABERTO' : 'PREENCHER →'}
                         </span>
                       </div>
                     </div>
@@ -254,11 +294,32 @@ export function Manutencao() {
           </div>
 
           {/* Coluna Direita: Detalhes do Veículo e Checklist */}
-          <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+          <div
+            className={`lg:col-span-7 xl:col-span-8 space-y-4 ${
+              abaMobile === 'lista' ? 'hidden lg:block' : 'block'
+            }`}
+          >
             {selecionado ? (
               <>
+                {/* Botão de Retorno para a Lista no Mobile */}
+                <div className="flex lg:hidden items-center justify-between pb-1">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    onClick={() => setAbaMobile('lista')}
+                    className="!h-8 !px-3 gap-1.5 text-xs uppercase font-bold"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    VER OUTRAS ENTRADAS
+                  </Button>
+                  <span className="text-xs font-black text-primary uppercase font-mono px-2 py-1 rounded-lg bg-primary/10 border border-primary/30">
+                    {selecionado.veiculo?.placa}
+                  </span>
+                </div>
+
                 {/* Resumo do Veículo Selecionado */}
-                <Card className="p-4 bg-background border-border/60 uppercase">
+                <Card className="p-4 bg-background border-border/60 uppercase shadow-lg">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex items-center gap-3.5">
                       {selecionado.foto_frente_url ? (
