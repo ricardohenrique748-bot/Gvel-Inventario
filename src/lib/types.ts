@@ -161,3 +161,35 @@ export interface InspecaoItem {
   observacao: string | null
   foto_url: string | null
 }
+
+export type StatusRetiradaFerramenta = 'em_uso' | 'devolvido' | 'avaria_perda'
+
+export interface Ferramenta {
+  id: string
+  codigo: string | null
+  nome: string
+  categoria: string
+  quantidade_total: number
+  quantidade_disponivel: number
+  localizacao: string | null
+  observacoes: string | null
+  created_at: string
+}
+
+export interface FerramentaRetirada {
+  id: string
+  ferramenta_id: string
+  veiculo_id: string | null
+  placa: string
+  responsavel: string
+  quantidade: number
+  data_hora_retirada: string
+  data_hora_devolucao: string | null
+  status: StatusRetiradaFerramenta
+  observacoes_retirada: string | null
+  observacoes_devolucao: string | null
+  created_at: string
+  ferramenta?: Ferramenta
+  veiculo?: VeiculoComRelacoes
+}
+
