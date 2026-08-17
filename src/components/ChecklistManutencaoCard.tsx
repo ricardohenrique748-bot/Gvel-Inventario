@@ -54,57 +54,57 @@ export interface SecaoChecklist {
 export const SECOES_PADRAO: SecaoChecklist[] = [
   {
     id: 'mecanica',
-    titulo: 'Mecânica',
+    titulo: 'MECÂNICA',
     icone: Wrench,
     cor: 'text-blue-500 bg-blue-500/10 border-blue-500/20',
     itens: [
-      { id: 'mec_motor_transmissao', label: 'Motor e transmissão' },
-      { id: 'mec_freios_suspensao', label: 'Freios e suspensão' },
-      { id: 'mec_vazamentos_fluidos', label: 'Vazamentos e níveis de fluidos' },
+      { id: 'mec_motor_transmissao', label: 'MOTOR E TRANSMISSÃO' },
+      { id: 'mec_freios_suspensao', label: 'FREIOS E SUSPENSÃO' },
+      { id: 'mec_vazamentos_fluidos', label: 'VAZAMENTOS E NÍVEIS DE FLUIDOS' },
     ],
   },
   {
     id: 'eletrica',
-    titulo: 'Elétrica',
+    titulo: 'ELÉTRICA',
     icone: Zap,
     cor: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
     itens: [
-      { id: 'ele_bateria_carga', label: 'Bateria e sistema de carga' },
-      { id: 'ele_iluminacao_sinalizacao', label: 'Iluminação e sinalização' },
-      { id: 'ele_painel_eletricos', label: 'Painel e componentes elétricos' },
+      { id: 'ele_bateria_carga', label: 'BATERIA E SISTEMA DE CARGA' },
+      { id: 'ele_iluminacao_sinalizacao', label: 'ILUMINAÇÃO E SINALIZAÇÃO' },
+      { id: 'ele_painel_eletricos', label: 'PAINEL E COMPONENTES ELÉTRICOS' },
     ],
   },
   {
     id: 'funilaria',
-    titulo: 'Funilaria',
+    titulo: 'FUNILARIA',
     icone: Hammer,
     cor: 'text-orange-500 bg-orange-500/10 border-orange-500/20',
     itens: [
-      { id: 'fun_lataria_amassados', label: 'Lataria e amassados' },
-      { id: 'fun_portas_capo_tampas', label: 'Portas, capô e tampas' },
-      { id: 'fun_parachoques_acabamentos', label: 'Para-choques e acabamentos' },
+      { id: 'fun_lataria_amassados', label: 'LATARIA E AMASSADOS' },
+      { id: 'fun_portas_capo_tampas', label: 'PORTAS, CAPÔ E TAMPAS' },
+      { id: 'fun_parachoques_acabamentos', label: 'PARA-CHOQUES E ACABAMENTOS' },
     ],
   },
   {
     id: 'pintura',
-    titulo: 'Pintura',
+    titulo: 'PINTURA',
     icone: Palette,
     cor: 'text-purple-500 bg-purple-500/10 border-purple-500/20',
     itens: [
-      { id: 'pin_riscos_arranhoes', label: 'Riscos e arranhões' },
-      { id: 'pin_descascados_manchas', label: 'Descascados e manchas' },
-      { id: 'pin_diferenca_tonalidade', label: 'Diferença de tonalidade' },
+      { id: 'pin_riscos_arranhoes', label: 'RISCOS E ARRANHÕES' },
+      { id: 'pin_descascados_manchas', label: 'DESCASCADOS E MANCHAS' },
+      { id: 'pin_diferenca_tonalidade', label: 'DIFERENÇA DE TONALIDADE' },
     ],
   },
   {
     id: 'estetica',
-    titulo: 'Estética',
+    titulo: 'ESTÉTICA',
     icone: Sparkles,
     cor: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
     itens: [
-      { id: 'est_limpeza_interna', label: 'Limpeza interna' },
-      { id: 'est_limpeza_externa', label: 'Limpeza externa' },
-      { id: 'est_bancos_painel_revestimentos', label: 'Bancos, painel e revestimentos' },
+      { id: 'est_limpeza_interna', label: 'LIMPEZA INTERNA' },
+      { id: 'est_limpeza_externa', label: 'LIMPEZA EXTERNA' },
+      { id: 'est_bancos_painel_revestimentos', label: 'BANCOS, PAINEL E REVESTIMENTOS' },
     ],
   },
 ]
@@ -139,7 +139,7 @@ function calcularDuracaoHorasMin(inicio?: string, fim?: string): { minutos: numb
   if (min < 0) min += 24 * 60 // caso passe da meia-noite
   return {
     minutos: min,
-    texto: formatMinutosParaTexto(min),
+    texto: formatMinutosParaTexto(min).toUpperCase(),
   }
 }
 
@@ -211,7 +211,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
 
   // Localiza registro do histórico geral associado
   const etapaOS = useMemo(() => {
-    return historico.find((h) => h.descricao.includes('Geral') || h.os_criada || h.data_hora_abertura || h.mecanico_executor) || historico[0]
+    return historico.find((h) => h.descricao.includes('GERAL') || h.descricao.includes('Geral') || h.os_criada || h.data_hora_abertura || h.mecanico_executor) || historico[0]
   }, [historico])
 
   // Recarrega os dados quando muda a movimentação
@@ -323,7 +323,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     const customId = `custom_${secaoId}_${Date.now()}`
     const novoItem: ItemChecklist = {
       id: customId,
-      label: novoItemNome.trim(),
+      label: novoItemNome.trim().toUpperCase(),
       isCustom: true,
     }
 
@@ -413,11 +413,10 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     setSalvandoDados(true)
     setSucessoSalvar(false)
     try {
-      // 1. Salva no localStorage para persistência imediata
       const infoToSave = {
-        mecanico,
-        funcao,
-        setor,
+        mecanico: mecanico.toUpperCase(),
+        funcao: funcao.toUpperCase(),
+        setor: setor.toUpperCase(),
         dataHoraAbertura,
         dataHoraFechamento,
       }
@@ -427,29 +426,29 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
       const dataIsoAberturaGeral = dataHoraAbertura ? new Date(dataHoraAbertura).toISOString() : new Date().toISOString()
       const dataIsoFechamentoGeral = dataHoraFechamento ? new Date(dataHoraFechamento).toISOString() : undefined
 
-      // 2. Salva/atualiza o registro geral de manutenção no histórico para o Controle de Horas
+      // Salva/atualiza o registro geral de manutenção no histórico para o Controle de Horas
       if (etapaOS) {
         await atualizarHistorico(etapaOS.id, {
-          descricao: etapaOS.descricao || 'Manutenção Geral - Checklist',
+          descricao: etapaOS.descricao || 'MANUTENÇÃO GERAL - CHECKLIST',
           dataHora: dataIsoAberturaGeral,
-          mecanicoExecutor: mecanico,
-          funcao: funcao || 'Mecânico',
-          setor: setor || 'Manutenção',
+          mecanicoExecutor: mecanico.toUpperCase(),
+          funcao: funcao.toUpperCase() || 'MECÂNICO',
+          setor: setor.toUpperCase() || 'MANUTENÇÃO',
           dataHoraAbertura: dataIsoAberturaGeral,
           dataHoraFechamento: dataIsoFechamentoGeral,
           osCriada: true,
         })
       } else {
-        await adicionarHistorico(movimentacao.id, 'Manutenção Geral - Checklist', dataIsoAberturaGeral, {
-          mecanicoExecutor: mecanico,
-          funcao: funcao || 'Mecânico',
-          setor: setor || 'Manutenção',
+        await adicionarHistorico(movimentacao.id, 'MANUTENÇÃO GERAL - CHECKLIST', dataIsoAberturaGeral, {
+          mecanicoExecutor: mecanico.toUpperCase(),
+          funcao: funcao.toUpperCase() || 'MECÂNICO',
+          setor: setor.toUpperCase() || 'MANUTENÇÃO',
           dataHoraAbertura: dataIsoAberturaGeral,
           osCriada: true,
         })
       }
 
-      // 3. Sincroniza cada atividade do checklist com horários preenchidos no histórico
+      // Sincroniza cada atividade do checklist com horários preenchidos no histórico
       const nextItemsData = { ...itemsData }
       for (const sec of secoes) {
         for (const it of sec.itens) {
@@ -461,31 +460,30 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             if (itData.historicoId) {
               try {
                 await atualizarHistorico(itData.historicoId, {
-                  descricao: it.label,
+                  descricao: it.label.toUpperCase(),
                   dataHora: isoInicio,
-                  mecanicoExecutor: mecanico,
-                  funcao: funcao || 'Mecânico',
-                  setor: sec.titulo,
+                  mecanicoExecutor: mecanico.toUpperCase(),
+                  funcao: funcao.toUpperCase() || 'MECÂNICO',
+                  setor: sec.titulo.toUpperCase(),
                   dataHoraAbertura: isoInicio,
                   dataHoraFechamento: isoFim,
                   osCriada: true,
                 })
               } catch {
-                // se o id não existir mais no banco, insere um novo
-                const created = await adicionarHistorico(movimentacao.id, it.label, isoInicio, {
-                  mecanicoExecutor: mecanico,
-                  funcao: funcao || 'Mecânico',
-                  setor: sec.titulo,
+                const created = await adicionarHistorico(movimentacao.id, it.label.toUpperCase(), isoInicio, {
+                  mecanicoExecutor: mecanico.toUpperCase(),
+                  funcao: funcao.toUpperCase() || 'MECÂNICO',
+                  setor: sec.titulo.toUpperCase(),
                   dataHoraAbertura: isoInicio,
                   osCriada: true,
                 })
                 if (isoFim) {
                   await atualizarHistorico(created.id, {
-                    descricao: it.label,
+                    descricao: it.label.toUpperCase(),
                     dataHora: isoInicio,
-                    mecanicoExecutor: mecanico,
-                    funcao: funcao || 'Mecânico',
-                    setor: sec.titulo,
+                    mecanicoExecutor: mecanico.toUpperCase(),
+                    funcao: funcao.toUpperCase() || 'MECÂNICO',
+                    setor: sec.titulo.toUpperCase(),
                     dataHoraAbertura: isoInicio,
                     dataHoraFechamento: isoFim,
                     osCriada: true,
@@ -494,20 +492,20 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                 itData.historicoId = created.id
               }
             } else {
-              const created = await adicionarHistorico(movimentacao.id, it.label, isoInicio, {
-                mecanicoExecutor: mecanico,
-                funcao: funcao || 'Mecânico',
-                setor: sec.titulo,
+              const created = await adicionarHistorico(movimentacao.id, it.label.toUpperCase(), isoInicio, {
+                mecanicoExecutor: mecanico.toUpperCase(),
+                funcao: funcao.toUpperCase() || 'MECÂNICO',
+                setor: sec.titulo.toUpperCase(),
                 dataHoraAbertura: isoInicio,
                 osCriada: true,
               })
               if (isoFim) {
                 await atualizarHistorico(created.id, {
-                  descricao: it.label,
+                  descricao: it.label.toUpperCase(),
                   dataHora: isoInicio,
-                  mecanicoExecutor: mecanico,
-                  funcao: funcao || 'Mecânico',
-                  setor: sec.titulo,
+                  mecanicoExecutor: mecanico.toUpperCase(),
+                  funcao: funcao.toUpperCase() || 'MECÂNICO',
+                  setor: sec.titulo.toUpperCase(),
                   dataHoraAbertura: isoInicio,
                   dataHoraFechamento: isoFim,
                   osCriada: true,
@@ -538,7 +536,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
       await atualizarStatusMovimentacao(movimentacao.id, novoStatusId || null)
       if (onStatusChange) await onStatusChange()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erro ao atualizar status.')
+      alert(err instanceof Error ? err.message : 'ERRO AO ATUALIZAR STATUS.')
     } finally {
       setSalvandoStatus(false)
     }
@@ -571,7 +569,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
   const calculoHorasGeral = useMemo(() => {
     if (!dataHoraAbertura) {
       return {
-        texto: 'Aguardando abertura',
+        texto: 'AGUARDANDO ABERTURA',
         minutos: 0,
         status: 'pendente' as const,
       }
@@ -584,13 +582,13 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
       const minutos = differenceInMinutes(dFim, dInicio)
       if (minutos < 0) {
         return {
-          texto: 'Data de fechamento anterior à abertura',
+          texto: 'DATA DE FECHAMENTO ANTERIOR À ABERTURA',
           minutos: 0,
           status: 'erro' as const,
         }
       }
       return {
-        texto: formatMinutosParaTexto(minutos),
+        texto: formatMinutosParaTexto(minutos).toUpperCase(),
         minutos,
         status: 'fechado' as const,
       }
@@ -598,41 +596,41 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
 
     const minutos = permanenciaEmMinutos(dInicio.toISOString())
     return {
-      texto: `${formatMinutosParaTexto(minutos)} (em andamento)`,
+      texto: `${formatMinutosParaTexto(minutos).toUpperCase()} (EM ANDAMENTO)`,
       minutos,
       status: 'em_andamento' as const,
     }
   }, [dataHoraAbertura, dataHoraFechamento])
 
   return (
-    <Card className="border-border/60 space-y-5 p-5">
+    <Card className="border-border/60 space-y-5 p-5 uppercase">
       {/* Header do Card */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/20 pb-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <FileCheck className="h-5 w-5 text-primary" />
-            <h3 className="text-lg font-bold text-foreground">Checklist de Inspeção de Veículo</h3>
+            <h3 className="text-lg font-bold text-foreground">CHECKLIST DE INSPEÇÃO DE VEÍCULO</h3>
           </div>
           <p className="text-xs text-secondary">
-            Inspeção e apontamento de horas para{' '}
-            <strong className="text-foreground font-mono">{movimentacao.veiculo?.placa}</strong> — Alimentando o <strong>Controle de Horas</strong>
+            INSPEÇÃO E APONTAMENTO DE HORAS PARA{' '}
+            <strong className="text-foreground font-mono">{movimentacao.veiculo?.placa}</strong> — ALIMENTANDO O <strong>CONTROLE DE HORAS</strong>
           </p>
         </div>
 
         {/* Status de Manutenção e Ações Rápidas */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-secondary">Status:</span>
+            <span className="text-xs font-medium text-secondary">STATUS:</span>
             <Select
               value={movimentacao.status_id ?? ''}
               onChange={(e) => handleAlterarStatus(e.target.value)}
               disabled={salvandoStatus}
               className="!h-8 !text-xs !px-2.5 !w-auto"
             >
-              <option value="">Sem manutenção</option>
+              <option value="">SEM MANUTENÇÃO</option>
               {statusManutencao.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.nome}
+                  {s.nome.toUpperCase()}
                 </option>
               ))}
             </Select>
@@ -643,10 +641,10 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             variant="secondary"
             size="md"
             onClick={marcarTodos}
-            className="!h-8 !text-xs !px-3"
+            className="!h-8 !text-xs !px-3 uppercase font-semibold"
           >
             <Check className="h-3.5 w-3.5 mr-1" />
-            Marcar todos
+            MARCAR TODOS
           </Button>
 
           {itensConcluidos > 0 && (
@@ -655,10 +653,10 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               variant="secondary"
               size="md"
               onClick={desmarcarTodos}
-              className="!h-8 !text-xs !px-3 text-secondary hover:text-red-400"
+              className="!h-8 !text-xs !px-3 text-secondary hover:text-red-400 uppercase font-semibold"
             >
               <RotateCcw className="h-3 w-3 mr-1" />
-              Limpar
+              LIMPAR
             </Button>
           )}
         </div>
@@ -669,22 +667,22 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/20 pb-3">
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground">
-              Responsável & Apontamento para o Controle de Horas
+            <span className="text-sm font-semibold text-foreground uppercase">
+              RESPONSÁVEL & APONTAMENTO PARA O CONTROLE DE HORAS
             </span>
           </div>
 
           {/* Destaque do Cálculo de Horas Geral e Soma das Atividades */}
           <div className="flex flex-wrap items-center gap-2">
             {totalMinutosAtividades > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs font-bold">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs font-bold uppercase">
                 <Clock className="h-3.5 w-3.5" />
-                <span>Soma Atividades: {formatMinutosParaTexto(totalMinutosAtividades)}</span>
+                <span>SOMA ATIVIDADES: {formatMinutosParaTexto(totalMinutosAtividades).toUpperCase()}</span>
               </div>
             )}
 
             <div
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-bold ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-bold uppercase ${
                 calculoHorasGeral.status === 'fechado'
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                   : calculoHorasGeral.status === 'em_andamento'
@@ -695,7 +693,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               }`}
             >
               <Timer className="h-3.5 w-3.5" />
-              <span>Duração Total: {calculoHorasGeral.texto}</span>
+              <span>DURAÇÃO TOTAL: {calculoHorasGeral.texto}</span>
             </div>
           </div>
         </div>
@@ -703,30 +701,30 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {/* Nome do Mecânico */}
           <div>
-            <Label htmlFor="mecanico-nome" className="!text-xs !mb-1 font-medium text-secondary">
-              Mecânico Executor
+            <Label htmlFor="mecanico-nome" className="!text-xs !mb-1 font-medium text-secondary uppercase">
+              MECÂNICO EXECUTOR
             </Label>
             <Input
               id="mecanico-nome"
-              placeholder="Ex: Carlos Silva, Roberto…"
+              placeholder="EX: CARLOS SILVA, ROBERTO…"
               value={mecanico}
               onChange={(e) => setMecanico(e.target.value)}
-              className="!h-9 !text-sm !px-3"
+              className="!h-9 !text-sm !px-3 uppercase"
             />
           </div>
 
           {/* Data e Hora de Abertura */}
           <div>
             <div className="flex items-center justify-between !mb-1">
-              <Label htmlFor="data-hora-abertura" className="!text-xs font-medium text-secondary">
-                Data/Hora da Abertura
+              <Label htmlFor="data-hora-abertura" className="!text-xs font-medium text-secondary uppercase">
+                DATA/HORA DA ABERTURA
               </Label>
               <button
                 type="button"
                 onClick={() => setDataHoraAbertura(nowLocalInputValue())}
-                className="text-[11px] text-primary hover:underline font-medium"
+                className="text-[11px] text-primary hover:underline font-bold uppercase"
               >
-                Agora
+                AGORA
               </button>
             </div>
             <Input
@@ -741,15 +739,15 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
           {/* Data e Hora de Fechamento */}
           <div>
             <div className="flex items-center justify-between !mb-1">
-              <Label htmlFor="data-hora-fechamento" className="!text-xs font-medium text-secondary">
-                Data/Hora do Fechamento
+              <Label htmlFor="data-hora-fechamento" className="!text-xs font-medium text-secondary uppercase">
+                DATA/HORA DO FECHAMENTO
               </Label>
               <button
                 type="button"
                 onClick={() => setDataHoraFechamento(nowLocalInputValue())}
-                className="text-[11px] text-primary hover:underline font-medium"
+                className="text-[11px] text-primary hover:underline font-bold uppercase"
               >
-                Agora
+                AGORA
               </button>
             </div>
             <Input
@@ -765,8 +763,8 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         <div className="flex items-center justify-between pt-1">
           <span className="text-xs text-secondary">
             {sucessoSalvar && (
-              <span className="text-emerald-400 font-medium flex items-center gap-1">
-                <Check className="h-3.5 w-3.5" /> Salvo e sincronizado com o Controle de Horas!
+              <span className="text-emerald-400 font-bold flex items-center gap-1 uppercase">
+                <Check className="h-3.5 w-3.5" /> SALVO E SINCRONIZADO COM O CONTROLE DE HORAS!
               </span>
             )}
           </span>
@@ -777,23 +775,23 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             size="md"
             onClick={salvarDadosServico}
             disabled={salvandoDados}
-            className="!h-8 !text-xs !px-3"
+            className="!h-8 !text-xs !px-3 uppercase font-bold"
           >
             <Save className="h-3.5 w-3.5 mr-1" />
-            {salvandoDados ? 'Salvando…' : 'Salvar no Controle de Horas'}
+            {salvandoDados ? 'SALVANDO…' : 'SALVAR NO CONTROLE DE HORAS'}
           </Button>
         </div>
       </div>
 
       {/* Barra de Progresso do Checklist */}
       <div className="rounded-xl border border-border/30 bg-background/50 p-3.5 space-y-2">
-        <div className="flex items-center justify-between text-xs">
+        <div className="flex items-center justify-between text-xs uppercase">
           <span className="font-semibold text-foreground flex items-center gap-1.5">
             <CheckCircle2 className="h-4 w-4 text-primary" />
-            Progresso da Inspeção
+            PROGRESSO DA INSPEÇÃO
           </span>
           <span className="font-medium text-secondary">
-            <strong className="text-foreground">{itensConcluidos}</strong> de {totalItens} itens verificados ({porcentagem}%)
+            <strong className="text-foreground">{itensConcluidos}</strong> DE {totalItens} ITENS VERIFICADOS ({porcentagem}%)
           </span>
         </div>
 
@@ -834,7 +832,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                     <div className={`flex h-7 w-7 items-center justify-center rounded-lg border ${secao.cor}`}>
                       <Icone className="h-4 w-4" />
                     </div>
-                    <span className="text-sm font-bold text-foreground tracking-wide">
+                    <span className="text-sm font-bold text-foreground tracking-wide uppercase">
                       {secao.titulo}
                     </span>
                   </div>
@@ -857,9 +855,9 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                         setAdicionandoEmSecao(adicionandoEmSecao === secao.id ? null : secao.id)
                         setNovoItemNome('')
                       }}
-                      title="Adicionar novo item a esta seção"
+                      title="ADICIONAR NOVO ITEM A ESTA SEÇÃO"
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-border/40 bg-surface/50 text-secondary transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
-                      aria-label="Adicionar item"
+                      aria-label="ADICIONAR ITEM"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
@@ -869,13 +867,13 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                 {/* Formulário Inline de Adicionar Novo Item */}
                 {adicionandoEmSecao === secao.id && (
                   <div className="mb-3 rounded-lg border border-primary/30 bg-primary/5 p-2.5 space-y-2">
-                    <Label className="!text-xs font-medium text-foreground">
-                      Novo item para {secao.titulo}
+                    <Label className="!text-xs font-medium text-foreground uppercase">
+                      NOVO ITEM PARA {secao.titulo}
                     </Label>
                     <div className="flex gap-2">
                       <Input
                         autoFocus
-                        placeholder="Ex: Troca de óleo, Revisão de bicos…"
+                        placeholder="EX: TROCA DE ÓLEO, REVISÃO DE BICOS…"
                         value={novoItemNome}
                         onChange={(e) => setNovoItemNome(e.target.value)}
                         onKeyDown={(e) => {
@@ -884,16 +882,16 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             adicionarNovoItem(secao.id)
                           }
                         }}
-                        className="!h-8 !text-xs !px-2.5"
+                        className="!h-8 !text-xs !px-2.5 uppercase"
                       />
                       <Button
                         type="button"
                         variant="primary"
                         size="md"
                         onClick={() => adicionarNovoItem(secao.id)}
-                        className="!h-8 !text-xs !px-3 shrink-0"
+                        className="!h-8 !text-xs !px-3 shrink-0 uppercase font-bold"
                       >
-                        Adicionar
+                        ADICIONAR
                       </Button>
                       <Button
                         type="button"
@@ -903,9 +901,9 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                           setAdicionandoEmSecao(null)
                           setNovoItemNome('')
                         }}
-                        className="!h-8 !text-xs !px-2.5 shrink-0"
+                        className="!h-8 !text-xs !px-2.5 shrink-0 uppercase"
                       >
-                        Cancelar
+                        CANCELAR
                       </Button>
                     </div>
                   </div>
@@ -939,7 +937,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                 ? 'border-primary bg-primary text-white shadow-sm'
                                 : 'border-secondary/40 bg-surface/50 hover:border-primary/60'
                             }`}
-                            aria-label={isChecked ? 'Desmarcar' : 'Marcar'}
+                            aria-label={isChecked ? 'DESMARCAR' : 'MARCAR'}
                           >
                             {isChecked && <Check className="h-3.5 w-3.5 stroke-[2.5]" />}
                           </button>
@@ -947,10 +945,10 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                           {/* Texto do Item */}
                           <span
                             onClick={() => toggleItem(item.id)}
-                            className={`text-sm leading-snug flex-1 cursor-pointer select-none ${
+                            className={`text-sm leading-snug flex-1 cursor-pointer select-none uppercase ${
                               isChecked
-                                ? 'font-medium text-foreground'
-                                : 'text-foreground/80'
+                                ? 'font-semibold text-foreground'
+                                : 'text-foreground/90 font-medium'
                             }`}
                           >
                             {item.label}
@@ -958,7 +956,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
 
                           {/* Badge de Horas Calculadas na Atividade */}
                           {duracao && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-primary/10 border border-primary/25 text-primary shrink-0">
+                            <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-primary/10 border border-primary/25 text-primary shrink-0 uppercase">
                               <Clock className="h-3 w-3" />
                               {duracao.texto}
                             </span>
@@ -968,8 +966,8 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                           <button
                             type="button"
                             onClick={() => toggleExpandItem(item.id)}
-                            title={isExpanded ? 'Ocultar horários' : 'Apontar horário inicial e final'}
-                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors shrink-0 ${
+                            title={isExpanded ? 'OCULTAR HORÁRIOS' : 'APONTAR HORÁRIO INICIAL E FINAL'}
+                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors shrink-0 uppercase font-semibold ${
                               data.horaInicio || data.horaFim || isExpanded
                                 ? 'border-border bg-surface text-foreground'
                                 : 'border-transparent text-secondary hover:text-foreground hover:bg-surface/50'
@@ -981,7 +979,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                 ? `${data.horaInicio} - ${data.horaFim}`
                                 : data.horaInicio
                                   ? `${data.horaInicio} - …`
-                                  : 'Horário'}
+                                  : 'HORÁRIO'}
                             </span>
                             {isExpanded ? (
                               <ChevronUp className="h-3 w-3 text-secondary" />
@@ -995,7 +993,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             <button
                               type="button"
                               onClick={() => removerItemCustom(secao.id, item.id)}
-                              title="Remover item customizado"
+                              title="REMOVER ITEM CUSTOMIZADO"
                               className="text-secondary/50 hover:text-red-400 p-1 transition-colors"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -1005,11 +1003,11 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
 
                         {/* Bloco Expandido: Inputs de Hora Inicial e Hora Final */}
                         {isExpanded && (
-                          <div className="px-3 pb-3 pt-1 border-t border-border/20 flex flex-wrap items-center gap-3 bg-surface/20 rounded-b-lg">
+                          <div className="px-3 pb-3 pt-1 border-t border-border/20 flex flex-wrap items-center gap-3 bg-surface/20 rounded-b-lg uppercase">
                             {/* Hora Inicial */}
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-secondary font-medium whitespace-nowrap">
-                                Início:
+                              <span className="text-xs text-secondary font-bold whitespace-nowrap">
+                                INÍCIO:
                               </span>
                               <input
                                 type="time"
@@ -1020,16 +1018,16 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                               <button
                                 type="button"
                                 onClick={() => updateItemTime(item.id, 'horaInicio', nowTimeString())}
-                                className="text-[10px] text-primary hover:underline font-medium px-1"
+                                className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
                               >
-                                Agora
+                                AGORA
                               </button>
                             </div>
 
                             {/* Hora Final */}
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-secondary font-medium whitespace-nowrap">
-                                Fim:
+                              <span className="text-xs text-secondary font-bold whitespace-nowrap">
+                                FIM:
                               </span>
                               <input
                                 type="time"
@@ -1040,16 +1038,16 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                               <button
                                 type="button"
                                 onClick={() => updateItemTime(item.id, 'horaFim', nowTimeString())}
-                                className="text-[10px] text-primary hover:underline font-medium px-1"
+                                className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
                               >
-                                Agora
+                                AGORA
                               </button>
                             </div>
 
                             {/* Duração Calculada */}
                             {duracao && (
-                              <div className="text-xs font-bold text-primary flex items-center gap-1 ml-auto">
-                                <span>Tempo gasto: {duracao.texto}</span>
+                              <div className="text-xs font-bold text-primary flex items-center gap-1 ml-auto uppercase">
+                                <span>TEMPO GASTO: {duracao.texto}</span>
                               </div>
                             )}
                           </div>
@@ -1067,10 +1065,10 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                   setAdicionandoEmSecao(secao.id)
                   setNovoItemNome('')
                 }}
-                className="mt-3 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg border border-dashed border-border/40 text-xs text-secondary hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all"
+                className="mt-3 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg border border-dashed border-border/40 text-xs text-secondary hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all uppercase font-semibold"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>Adicionar outro item em {secao.titulo}</span>
+                <span>ADICIONAR OUTRO ITEM EM {secao.titulo}</span>
               </button>
             </div>
           )

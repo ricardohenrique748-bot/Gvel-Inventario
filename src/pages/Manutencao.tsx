@@ -38,8 +38,8 @@ export function Manutencao() {
       : null
 
   const labelEntradas = umDiaSelecionado
-    ? `Entradas em ${format(umDiaSelecionado, 'dd/MM', { locale: ptBR })}`
-    : 'Entradas no período'
+    ? `ENTRADAS EM ${format(umDiaSelecionado, 'dd/MM', { locale: ptBR })}`
+    : 'ENTRADAS NO PERÍODO'
 
   // Busca movimentações com base nos filtros
   const {
@@ -95,10 +95,10 @@ export function Manutencao() {
   const noPatioCount = entradas.filter((m) => m.status === 'no_patio').length
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 uppercase">
       <PageHeader
-        title="Manutenção"
-        subtitle="Gerenciamento de serviços, etapas e trajeto das entradas de veículos"
+        title="MANUTENÇÃO"
+        subtitle="GERENCIAMENTO DE SERVIÇOS, ETAPAS E TRAJETO DAS ENTRADAS DE VEÍCULOS"
       />
 
       {/* Cards de Métricas */}
@@ -137,19 +137,19 @@ export function Manutencao() {
 
         <div className="pt-2 border-t border-border/20 flex flex-wrap items-center gap-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
-            Status de Manutenção:
+            STATUS DE MANUTENÇÃO:
           </span>
           <div className="w-full sm:w-64">
             <Select
               value={statusFiltro}
               onChange={(e) => setStatusFiltro(e.target.value)}
-              className="!h-9 !text-sm"
+              className="!h-9 !text-sm uppercase"
             >
-              <option value="">Todos os status</option>
-              <option value="__sem_status__">Sem status definido</option>
+              <option value="">TODOS OS STATUS</option>
+              <option value="__sem_status__">SEM STATUS DEFINIDO</option>
               {statusManutencao.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.nome}
+                  {s.nome.toUpperCase()}
                 </option>
               ))}
             </Select>
@@ -162,7 +162,7 @@ export function Manutencao() {
         <Card className="p-12 text-center">
           <div className="flex flex-col items-center justify-center gap-3 text-secondary">
             <div className="h-7 w-7 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
-            <p className="text-sm">Carregando entradas do período…</p>
+            <p className="text-sm font-semibold uppercase">CARREGANDO ENTRADAS DO PERÍODO…</p>
           </div>
         </Card>
       ) : entradas.length === 0 ? (
@@ -171,9 +171,9 @@ export function Manutencao() {
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
               <Truck className="h-7 w-7" />
             </div>
-            <p className="text-base font-semibold text-foreground">Nenhuma entrada encontrada</p>
-            <p className="text-sm text-secondary max-w-md">
-              Não foram registradas entradas para o período e filtros selecionados.
+            <p className="text-base font-bold text-foreground uppercase">NENHUMA ENTRADA ENCONTRADA</p>
+            <p className="text-sm text-secondary max-w-md uppercase">
+              NÃO FORAM REGISTRADAS ENTRADAS PARA O PERÍODO E FILTROS SELECIONADOS.
             </p>
           </div>
         </Card>
@@ -183,7 +183,7 @@ export function Manutencao() {
           <div className="lg:col-span-5 xl:col-span-4 space-y-3">
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
-                Entradas ({entradas.length})
+                ENTRADAS ({entradas.length})
               </span>
             </div>
 
@@ -227,22 +227,22 @@ export function Manutencao() {
                         <StatusManutencaoBadge status={m.status_manutencao} />
                       </div>
 
-                      <p className="text-xs font-medium text-foreground truncate">
+                      <p className="text-xs font-bold text-foreground truncate uppercase">
                         {[m.veiculo?.marca?.nome, m.veiculo?.modelo?.nome].filter(Boolean).join(' ') ||
-                          'Veículo'}
+                          'VEÍCULO'}
                       </p>
 
-                      <p className="text-xs text-secondary truncate mt-0.5">
-                        Pátio: {m.patio?.nome || '—'}
+                      <p className="text-xs text-secondary truncate mt-0.5 uppercase">
+                        PÁTIO: {m.patio?.nome || '—'}
                       </p>
 
-                      <div className="mt-2 flex items-center justify-between text-[11px] text-secondary/80 border-t border-border/20 pt-1.5">
-                        <span>Entrada: {format(new Date(m.data_hora_entrada), 'HH:mm')}</span>
+                      <div className="mt-2 flex items-center justify-between text-[11px] text-secondary/80 border-t border-border/20 pt-1.5 uppercase font-medium">
+                        <span>ENTRADA: {format(new Date(m.data_hora_entrada), 'HH:mm')}</span>
                         <span>
                           {m.status === 'no_patio' ? (
-                            <Badge tone="success" className="!text-[10px] !py-0 !px-1.5">No pátio</Badge>
+                            <Badge tone="success" className="!text-[10px] !py-0 !px-1.5 uppercase font-bold">NO PÁTIO</Badge>
                           ) : (
-                            <Badge tone="neutral" className="!text-[10px] !py-0 !px-1.5">Saiu</Badge>
+                            <Badge tone="neutral" className="!text-[10px] !py-0 !px-1.5 uppercase font-bold">SAIU</Badge>
                           )}
                         </span>
                       </div>
@@ -258,7 +258,7 @@ export function Manutencao() {
             {selecionado ? (
               <>
                 {/* Resumo do Veículo Selecionado */}
-                <Card className="p-4 bg-background border-border/60">
+                <Card className="p-4 bg-background border-border/60 uppercase">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex items-center gap-3.5">
                       {selecionado.foto_frente_url ? (
@@ -281,12 +281,12 @@ export function Manutencao() {
                           <h2 className="text-2xl font-black tracking-wider text-foreground font-mono">
                             {selecionado.veiculo?.placa}
                           </h2>
-                          <Badge tone={selecionado.veiculo?.operante ? 'success' : 'danger'}>
-                            {selecionado.veiculo?.operante ? 'Operante' : 'Inoperante'}
+                          <Badge tone={selecionado.veiculo?.operante ? 'success' : 'danger'} className="uppercase font-bold">
+                            {selecionado.veiculo?.operante ? 'OPERANTE' : 'INOPERANTE'}
                           </Badge>
                           <StatusManutencaoBadge status={selecionado.status_manutencao} />
                         </div>
-                        <p className="text-sm text-secondary">
+                        <p className="text-sm text-secondary uppercase font-medium">
                           {[
                             selecionado.veiculo?.marca?.nome,
                             selecionado.veiculo?.modelo?.nome,
@@ -294,16 +294,16 @@ export function Manutencao() {
                           ]
                             .filter(Boolean)
                             .join(' · ')}{' '}
-                          — {selecionado.veiculo?.cliente?.nome || 'Cliente não informado'}
+                          — {selecionado.veiculo?.cliente?.nome || 'CLIENTE NÃO INFORMADO'}
                         </p>
                       </div>
                     </div>
 
                     <Link
                       to={`/veiculos/${selecionado.veiculo_id}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline self-start sm:self-center"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline self-start sm:self-center uppercase"
                     >
-                      Ver cadastro completo
+                      VER CADASTRO COMPLETO
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
                   </div>
@@ -319,8 +319,8 @@ export function Manutencao() {
                 />
               </>
             ) : (
-              <Card className="p-12 text-center">
-                <p className="text-sm text-secondary">Selecione uma entrada para visualizar e preencher o checklist.</p>
+              <Card className="p-12 text-center uppercase">
+                <p className="text-sm text-secondary font-medium">SELECIONE UMA ENTRADA PARA VISUALIZAR E PREENCHER O CHECKLIST.</p>
               </Card>
             )}
           </div>
