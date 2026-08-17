@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LogOut, Home, ArrowLeftRight, Settings, Clock } from 'lucide-react'
+import { LogOut, Home, ArrowLeftRight, Settings, Wrench } from 'lucide-react'
 import { navItems, ADMIN_ONLY_ROUTES } from './nav'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
@@ -12,47 +12,45 @@ export function BottomNav() {
 
   if (native) {
     return (
-      <nav className="fixed bottom-0 inset-x-0 z-30 flex border-t border-border/5 bg-surface pb-[env(safe-area-inset-bottom)] shadow-lg">
+      <nav className="fixed bottom-0 inset-x-0 z-30 flex border-t border-border/10 bg-surface/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] shadow-xl uppercase">
         <NavLink
           to="/"
           end
           className={({ isActive }) =>
             cn(
-              'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
-              isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-foreground',
+              'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-bold transition-colors uppercase',
+              isActive ? 'text-primary font-bold' : 'text-secondary hover:text-foreground',
             )
           }
         >
           <Home className="h-5 w-5" />
-          <span className="truncate px-1">Home</span>
+          <span className="truncate px-1">HOME</span>
         </NavLink>
 
-        {isAdmin && (
-          <NavLink
-            to="/controle-horas"
-            className={({ isActive }) =>
-              cn(
-                'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
-                isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-foreground',
-              )
-            }
-          >
-            <Clock className="h-5 w-5" />
-            <span className="truncate px-1">Performance</span>
-          </NavLink>
-        )}
+        <NavLink
+          to="/manutencao"
+          className={({ isActive }) =>
+            cn(
+              'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-bold transition-colors uppercase',
+              isActive ? 'text-primary font-bold' : 'text-secondary hover:text-foreground',
+            )
+          }
+        >
+          <Wrench className="h-5 w-5" />
+          <span className="truncate px-1">MANUTENÇÃO</span>
+        </NavLink>
 
         <NavLink
           to="/movimentacoes"
           className={({ isActive }) =>
             cn(
-              'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
-              isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-foreground',
+              'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-bold transition-colors uppercase',
+              isActive ? 'text-primary font-bold' : 'text-secondary hover:text-foreground',
             )
           }
         >
           <ArrowLeftRight className="h-5 w-5" />
-          <span className="truncate px-1">Movimentação</span>
+          <span className="truncate px-1">MOVIMENTAÇÃO</span>
         </NavLink>
 
         {isAdmin && (
@@ -60,30 +58,30 @@ export function BottomNav() {
             to="/configuracoes"
             className={({ isActive }) =>
               cn(
-                'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
-                isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-foreground',
+                'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-bold transition-colors uppercase',
+                isActive ? 'text-primary font-bold' : 'text-secondary hover:text-foreground',
               )
             }
           >
             <Settings className="h-5 w-5" />
-            <span className="truncate px-1">Configuração</span>
+            <span className="truncate px-1">AJUSTES</span>
           </NavLink>
         )}
 
         <button
           type="button"
           onClick={() => signOut()}
-          className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium text-secondary hover:text-foreground transition-colors"
+          className="flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-bold text-secondary hover:text-foreground transition-colors uppercase"
         >
           <LogOut className="h-5 w-5" />
-          <span className="truncate px-1">Sair</span>
+          <span className="truncate px-1">SAIR</span>
         </button>
       </nav>
     )
   }
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-border/5 bg-surface pb-[env(safe-area-inset-bottom)]">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-border/10 bg-surface/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] uppercase">
       {navItems
         .filter((item) => !('children' in item))
         .filter((item) => isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number]))
@@ -94,16 +92,15 @@ export function BottomNav() {
           end={('end' in item ? item.end : false) as boolean}
           className={({ isActive }) =>
             cn(
-              'flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium',
+              'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-bold uppercase',
               isActive ? 'text-primary' : 'text-secondary',
             )
           }
         >
           <item.icon className="h-5 w-5" />
-          <span className="truncate px-1">{item.label}</span>
+          <span className="truncate px-1 uppercase">{item.label}</span>
         </NavLink>
       ))}
     </nav>
   )
 }
-

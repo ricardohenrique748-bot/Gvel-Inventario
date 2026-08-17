@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LogOut, Search, Home, ArrowLeftRight, Settings, Clock, ChevronDown } from 'lucide-react'
+import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { navItems, ADMIN_ONLY_ROUTES } from './nav'
@@ -10,7 +10,7 @@ import { isNativeApp } from '@/lib/isNativeApp'
 
 const nativeNavItems = [
   { to: '/', label: 'Home', icon: Home, end: true },
-  { to: '/controle-horas', label: 'Indicador de Performance', icon: Clock },
+  { to: '/manutencao', label: 'Manutenção', icon: Wrench },
   { to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ] as const
