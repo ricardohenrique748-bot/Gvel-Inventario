@@ -123,7 +123,6 @@ export function useChecklistOS(movimentacaoId: string) {
       } catch {}
     }
 
-    // Salva itens
     if (itemsRaw) {
       try {
         const legacyItems = JSON.parse(itemsRaw) as Record<string, ItemChecklistData>
@@ -161,6 +160,12 @@ export function useChecklistOS(movimentacaoId: string) {
         }
       } catch {}
     }
+
+    // Limpa o localStorage para que dados antigos nunca sobrescrevam o banco
+    try {
+      localStorage.removeItem(infoKey)
+      localStorage.removeItem(itemsKey)
+    } catch {}
   }, [movimentacaoId])
 
   // ── Carregamento inicial ───────────────────────────────────────────────────
@@ -260,21 +265,31 @@ export function useChecklistOS(movimentacaoId: string) {
   }, [movimentacaoId, osData])
 
   const salvarItem = useCallback(async (row: ItemRow) => {
-    setItems((prev) => ({ ...prev, [row.item_id]: row }))   // optimistic
+    const sanitizedRow: ItemRow = {
+      ...row,
+      hora_inicio: row.hora_inicio ?? '',
+      hora_fim: row.hora_fim ?? '',
+      data_inicio: row.data_inicio ?? '',
+      data_fim: row.data_fim ?? '',
+      data: row.data ?? '',
+    }
+
+    setItems((prev) => ({ ...prev, [sanitizedRow.item_id]: sanitizedRow }))   // optimistic update
+
     try {
       const payload: Record<string, unknown> = {
         movimentacao_id: movimentacaoId,
-        item_id: row.item_id,
-        secao_id: row.secao_id,
-        label: row.label,
-        is_custom: row.is_custom,
-        checked: row.checked,
-        data: row.data || row.data_inicio || null,
-        data_inicio: row.data_inicio || row.data || null,
-        data_fim: row.data_fim || null,
-        hora_inicio: row.hora_inicio || null,
-        hora_fim: row.hora_fim || null,
-        mecanico: row.mecanico || null,
+        item_id: sanitizedRow.item_id,
+        secao_id: sanitizedRow.secao_id,
+        label: sanitizedRow.label,
+        is_custom: sanitizedRow.is_custom,
+        checked: sanitizedRow.checked,
+        data: sanitizedRow.data || sanitizedRow.data_inicio || null,
+        data_inicio: sanitizedRow.data_inicio || sanitizedRow.data || null,
+        data_fim: sanitizedRow.data_fim || null,
+        hora_inicio: sanitizedRow.hora_inicio || null,
+        hora_fim: sanitizedRow.hora_fim || null,
+        mecanico: sanitizedRow.mecanico || null,
       }
 
       const { error } = await supabase.from('checklist_itens').upsert(payload, { onConflict: 'movimentacao_id,item_id' })
@@ -287,17 +302,17 @@ export function useChecklistOS(movimentacaoId: string) {
         }
       }
 
-      // Sincroniza localStorage
+      // Sincroniza localStorage de forma limpa
       try {
         const itemsKey = `checklist_items_data_${movimentacaoId}`
         const current = JSON.parse(localStorage.getItem(itemsKey) || '{}')
-        current[row.item_id] = {
-          checked: row.checked,
-          horaInicio: row.hora_inicio || undefined,
-          horaFim: row.hora_fim || undefined,
-          mecanico: row.mecanico || undefined,
-          dataInicio: row.data_inicio || undefined,
-          dataFim: row.data_fim || undefined,
+        current[sanitizedRow.item_id] = {
+          checked: sanitizedRow.checked,
+          horaInicio: sanitizedRow.hora_inicio || undefined,
+          horaFim: sanitizedRow.hora_fim || undefined,
+          mecanico: sanitizedRow.mecanico || undefined,
+          dataInicio: sanitizedRow.data_inicio || undefined,
+          dataFim: sanitizedRow.data_fim || undefined,
         }
         localStorage.setItem(itemsKey, JSON.stringify(current))
       } catch {}
