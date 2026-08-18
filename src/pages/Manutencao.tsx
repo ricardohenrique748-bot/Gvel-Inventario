@@ -21,30 +21,8 @@ import { ChecklistManutencaoCard } from '@/components/ChecklistManutencaoCard'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useStatusManutencao } from '@/hooks/useStatusManutencao'
 import { usePatios } from '@/hooks/usePatios'
+import { useOSStatusBatch } from '@/hooks/useOSStatusBatch'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
-
-function getOSStatus(movId: string) {
-  const info = localStorage.getItem(`checklist_info_${movId}`)
-  if (info) {
-    try {
-      const parsed = JSON.parse(info)
-      const mec = (parsed.mecanico || '').trim().toUpperCase()
-      const fech = Boolean(parsed.dataHoraFechamento)
-      const dtAb = (parsed.dataHoraAbertura || '').trim()
-
-      // A O.S SÓ É CONSIDERADA INICIADA QUANDO O NOME DO RESPONSÁVEL ESTIVER PREENCHIDO
-      if (mec && mec !== '—' && mec !== '-' && mec !== 'SEM NOME' && mec !== 'OPCIONAL' && mec.length > 0) {
-        return {
-          iniciada: true,
-          mecanico: mec,
-          dataHoraAbertura: dtAb || null,
-          fechada: fech,
-        }
-      }
-    } catch {}
-  }
-  return { iniciada: false, mecanico: null, dataHoraAbertura: null, fechada: false }
-}
 
 export function Manutencao() {
   const filtroInicial: FiltersValue = {
@@ -57,19 +35,8 @@ export function Manutencao() {
   const [osFiltro, setOsFiltro] = useState<'todos' | 'em_andamento' | 'finalizada' | 'aguardando'>('todos')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [abaMobile, setAbaMobile] = useState<'lista' | 'checklist'>('lista')
-  const [osUpdateTrigger, setOsUpdateTrigger] = useState(0)
   const { statusManutencao } = useStatusManutencao()
   const { patios } = usePatios()
-
-  useEffect(() => {
-    const handleUpdate = () => setOsUpdateTrigger((c) => c + 1)
-    window.addEventListener('checklist_updated', handleUpdate)
-    window.addEventListener('storage', handleUpdate)
-    return () => {
-      window.removeEventListener('checklist_updated', handleUpdate)
-      window.removeEventListener('storage', handleUpdate)
-    }
-  }, [])
 
   // Determina se o filtro representa um único dia ou um intervalo
   const umDiaSelecionado =
@@ -98,23 +65,27 @@ export function Manutencao() {
     return periodo.filter((m) => m.status === 'no_patio')
   }, [periodo])
 
+  // IDs para buscar status das O.S no Supabase (com Realtime)
+  const veiculoIds = useMemo(() => veiculosNoPatio.map((m) => m.id), [veiculosNoPatio])
+  const { getStatus } = useOSStatusBatch(veiculoIds)
+
   const osEmAndamentoCount = useMemo(() => {
     return veiculosNoPatio.filter((m) => {
-      const st = getOSStatus(m.id)
+      const st = getStatus(m.id)
       return st.iniciada && !st.fechada
     }).length
-  }, [veiculosNoPatio, osUpdateTrigger])
+  }, [veiculosNoPatio, getStatus])
 
   const osFinalizadasCount = useMemo(() => {
     return veiculosNoPatio.filter((m) => {
-      const st = getOSStatus(m.id)
+      const st = getStatus(m.id)
       return st.iniciada && st.fechada
     }).length
-  }, [veiculosNoPatio, osUpdateTrigger])
+  }, [veiculosNoPatio, getStatus])
 
   const osAguardandoCount = useMemo(() => {
-    return veiculosNoPatio.filter((m) => !getOSStatus(m.id).iniciada).length
-  }, [veiculosNoPatio, osUpdateTrigger])
+    return veiculosNoPatio.filter((m) => !getStatus(m.id).iniciada).length
+  }, [veiculosNoPatio, getStatus])
 
   const osIniciadasCount = osEmAndamentoCount + osFinalizadasCount
 
@@ -126,7 +97,7 @@ export function Manutencao() {
 
       // Filtro de OS
       if (osFiltro !== 'todos') {
-        const st = getOSStatus(m.id)
+        const st = getStatus(m.id)
         if (osFiltro === 'em_andamento' && (!st.iniciada || st.fechada)) return false
         if (osFiltro === 'finalizada' && (!st.iniciada || !st.fechada)) return false
         if (osFiltro === 'aguardando' && st.iniciada) return false
@@ -145,7 +116,7 @@ export function Manutencao() {
 
       return true
     })
-  }, [periodo, umDiaSelecionado, statusFiltro, osFiltro])
+  }, [periodo, umDiaSelecionado, statusFiltro, osFiltro, getStatus])
 
   // Seleciona a primeira entrada automaticamente se nenhuma estiver selecionada
   useEffect(() => {
@@ -391,7 +362,7 @@ export function Manutencao() {
             <div className="space-y-2.5 max-h-[750px] overflow-y-auto pr-1">
               {entradas.map((m) => {
                 const isSelected = m.id === selectedId
-                const osStatus = getOSStatus(m.id)
+                const osStatus = getStatus(m.id)
 
                 return (
                   <div

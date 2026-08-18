@@ -23,15 +23,17 @@ import { Button } from '@/components/ui/Button'
 import { Input, Label, Select } from '@/components/ui/Input'
 import { useStatusManutencao } from '@/hooks/useStatusManutencao'
 import { atualizarStatusMovimentacao } from '@/hooks/useMovimentacoes'
-import { useHistoricoMovimentacao } from '@/hooks/useHistoricoMovimentacao'
+import { useChecklistOS } from '@/hooks/useChecklistOS'
+import type { ItemRow } from '@/hooks/useChecklistOS'
 import {
   formatMinutosParaTexto,
   permanenciaEmMinutos,
-  toLocalInputValue,
   nowLocalInputValue,
 } from '@/lib/format'
 import { differenceInMinutes } from 'date-fns'
 import type { MovimentacaoComVeiculo } from '@/lib/types'
+
+// ─── Tipos exportados (usados pelo hook de migração) ─────────────────────────
 
 export interface ItemChecklist {
   id: string
@@ -45,6 +47,15 @@ export interface SecaoChecklist {
   icone: typeof Wrench
   cor: string
   itens: ItemChecklist[]
+}
+
+/** @deprecated Mantido apenas para compatibilidade com a migração do localStorage */
+export interface ItemChecklistData {
+  checked: boolean
+  horaInicio?: string
+  horaFim?: string
+  mecanico?: string
+  historicoId?: string
 }
 
 export const SECOES_PADRAO: SecaoChecklist[] = [
@@ -105,17 +116,11 @@ export const SECOES_PADRAO: SecaoChecklist[] = [
   },
 ]
 
-export interface ItemChecklistData {
-  checked: boolean
-  horaInicio?: string // Formato HH:mm
-  horaFim?: string // Formato HH:mm
-  mecanico?: string // Mecânico específico desta atividade
-  historicoId?: string // ID associado na tabela movimentacao_historico
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function nowTimeString() {
   const now = new Date()
-  return now.toTimeString().slice(0, 5) // "14:40"
+  return now.toTimeString().slice(0, 5)
 }
 
 function calcularDuracaoHorasMin(inicio?: string, fim?: string): { minutos: number; texto: string } | null {
@@ -124,154 +129,113 @@ function calcularDuracaoHorasMin(inicio?: string, fim?: string): { minutos: numb
   const [h2, m2] = fim.split(':').map(Number)
   if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) return null
   let min = h2 * 60 + m2 - (h1 * 60 + m1)
-  if (min < 0) min += 24 * 60 // caso passe da meia-noite
-  return {
-    minutos: min,
-    texto: formatMinutosParaTexto(min).toUpperCase(),
-  }
+  if (min < 0) min += 24 * 60
+  return { minutos: min, texto: formatMinutosParaTexto(min).toUpperCase() }
 }
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface ChecklistManutencaoCardProps {
   movimentacao: MovimentacaoComVeiculo
   onStatusChange?: () => void | Promise<void>
 }
 
+// ─── Componente principal ─────────────────────────────────────────────────────
+
 export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: ChecklistManutencaoCardProps) {
   const { statusManutencao } = useStatusManutencao()
-  const { historico } = useHistoricoMovimentacao(movimentacao.id)
 
-  const itemsStorageKey = `checklist_items_data_${movimentacao.id}`
-  const customSecoesStorageKey = `checklist_custom_secoes_${movimentacao.id}`
+  // ── Dados do Supabase (O.S + itens) ────────────────────────────────────────
+  const {
+    osData,
+    items: itemsDB,
+    loading,
+    salvarOS,
+    salvarItem,
+    removerItem,
+    limparTodos,
+  } = useChecklistOS(movimentacao.id)
 
-  // Estado das seções com suporte a itens extras customizados
-  const [secoes, setSecoes] = useState<SecaoChecklist[]>(() => {
-    try {
-      const saved = localStorage.getItem(customSecoesStorageKey)
-      if (saved) {
-        const parsed = JSON.parse(saved) as Record<string, ItemChecklist[]>
-        return SECOES_PADRAO.map((sec) => ({
-          ...sec,
-          itens: [...sec.itens, ...(parsed[sec.id] || [])],
-        }))
-      }
-    } catch {
-      // fallback
-    }
-    return SECOES_PADRAO
-  })
-
-  // Estado dos dados de cada item (checked, horaInicio, horaFim, mecanico, historicoId)
-  const [itemsData, setItemsData] = useState<Record<string, ItemChecklistData>>(() => {
-    try {
-      const saved = localStorage.getItem(itemsStorageKey)
-      if (saved) return JSON.parse(saved)
-      const legacy = localStorage.getItem(`checklist_manutencao_${movimentacao.id}`)
-      if (legacy) {
-        const parsedLegacy = JSON.parse(legacy) as Record<string, boolean>
-        const converted: Record<string, ItemChecklistData> = {}
-        for (const [k, v] of Object.entries(parsedLegacy)) {
-          converted[k] = { checked: Boolean(v) }
-        }
-        return converted
-      }
-    } catch {
-      // fallback
-    }
-    return {}
-  })
-
-  // Controle de adição de novo item por seção
-  const [adicionandoEmSecao, setAdicionandoEmSecao] = useState<string | null>(null)
-  const [novoItemNome, setNovoItemNome] = useState('')
-
-  // Itens expandidos para edição de horários e mecânico
-  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
-
-  // Campos gerais de serviço
+  // ── Estado local de UI ──────────────────────────────────────────────────────
+  // Campos gerais do formulário (espelham osData com edição local antes de salvar)
   const [mecanico, setMecanico] = useState('')
   const [funcao, setFuncao] = useState('')
   const [setor, setSetor] = useState('')
   const [dataHoraAbertura, setDataHoraAbertura] = useState('')
   const [dataHoraFechamento, setDataHoraFechamento] = useState('')
+
+  // Sincroniza os campos locais quando o banco carrega/atualiza (Realtime)
+  useEffect(() => {
+    setMecanico(osData.mecanico)
+    setFuncao(osData.funcao)
+    setSetor(osData.setor)
+    setDataHoraAbertura(osData.dataHoraAbertura)
+    setDataHoraFechamento(osData.dataHoraFechamento)
+  }, [osData])
+
+  // Seções (padrão + customizadas vindas do banco)
+  const [secoes, setSecoes] = useState<SecaoChecklist[]>(SECOES_PADRAO)
+
+  // Reconstrói as seções quando os itens do banco mudam (inclui itens customizados)
+  useEffect(() => {
+    const customPorSecao: Record<string, ItemChecklist[]> = {}
+    for (const row of Object.values(itemsDB)) {
+      if (row.is_custom) {
+        if (!customPorSecao[row.secao_id]) customPorSecao[row.secao_id] = []
+        customPorSecao[row.secao_id].push({ id: row.item_id, label: row.label, isCustom: true })
+      }
+    }
+    setSecoes(
+      SECOES_PADRAO.map((sec) => ({
+        ...sec,
+        itens: [...sec.itens, ...(customPorSecao[sec.id] ?? [])],
+      })),
+    )
+  }, [itemsDB])
+
+  const [adicionandoEmSecao, setAdicionandoEmSecao] = useState<string | null>(null)
+  const [novoItemNome, setNovoItemNome] = useState('')
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [salvandoDados, setSalvandoDados] = useState(false)
   const [salvandoStatus, setSalvandoStatus] = useState(false)
   const [sucessoSalvar, setSucessoSalvar] = useState(false)
 
-  // Localiza registro do histórico geral associado
-  const etapaOS = useMemo(() => {
-    return (
-      historico.find(
-        (h) =>
-          h.descricao.includes('GERAL') ||
-          h.descricao.includes('Geral') ||
-          h.os_criada ||
-          h.data_hora_abertura ||
-          h.mecanico_executor,
-      ) || historico[0]
-    )
-  }, [historico])
+  // ── Cálculos ────────────────────────────────────────────────────────────────
 
-  // Recarrega os dados quando muda a movimentação
-  useEffect(() => {
-    try {
-      // Carrega seções e itens customizados
-      const savedSecoes = localStorage.getItem(`checklist_custom_secoes_${movimentacao.id}`)
-      if (savedSecoes) {
-        const parsed = JSON.parse(savedSecoes) as Record<string, ItemChecklist[]>
-        setSecoes(
-          SECOES_PADRAO.map((sec) => ({
-            ...sec,
-            itens: [...sec.itens, ...(parsed[sec.id] || [])],
-          })),
-        )
-      } else {
-        setSecoes(SECOES_PADRAO)
-      }
+  const totalItens = useMemo(() => secoes.reduce((acc, sec) => acc + sec.itens.length, 0), [secoes])
 
-      // Carrega itemsData
-      const saved = localStorage.getItem(`checklist_items_data_${movimentacao.id}`)
-      if (saved) {
-        setItemsData(JSON.parse(saved))
-      } else {
-        const legacy = localStorage.getItem(`checklist_manutencao_${movimentacao.id}`)
-        if (legacy) {
-          const parsedLegacy = JSON.parse(legacy) as Record<string, boolean>
-          const converted: Record<string, ItemChecklistData> = {}
-          for (const [k, v] of Object.entries(parsedLegacy)) {
-            converted[k] = { checked: Boolean(v) }
-          }
-          setItemsData(converted)
-        } else {
-          setItemsData({})
-        }
-      }
+  const itensConcluidos = useMemo(
+    () => Object.values(itemsDB).filter((d) => d.checked).length,
+    [itemsDB],
+  )
 
-      // Carrega informações gerais do serviço
-      const savedInfo = localStorage.getItem(`checklist_info_${movimentacao.id}`)
-      if (savedInfo) {
-        const parsed = JSON.parse(savedInfo)
-        setMecanico(parsed.mecanico || '')
-        setFuncao(parsed.funcao || '')
-        setSetor(parsed.setor || '')
-        setDataHoraAbertura(parsed.dataHoraAbertura || '')
-        setDataHoraFechamento(parsed.dataHoraFechamento || '')
-      } else if (etapaOS && etapaOS.mecanico_executor) {
-        setMecanico(etapaOS.mecanico_executor || '')
-        setFuncao(etapaOS.funcao || '')
-        setSetor(etapaOS.setor || '')
-        setDataHoraAbertura(toLocalInputValue(etapaOS.data_hora_abertura || etapaOS.data_hora))
-        setDataHoraFechamento(toLocalInputValue(etapaOS.data_hora_fechamento))
-      } else {
-        setMecanico('')
-        setFuncao('')
-        setSetor('')
-        setDataHoraAbertura('')
-        setDataHoraFechamento('')
+  const porcentagem = totalItens > 0 ? Math.round((itensConcluidos / totalItens) * 100) : 0
+
+  const totalMinutosAtividades = useMemo(() => {
+    let soma = 0
+    for (const data of Object.values(itemsDB)) {
+      if (data.hora_inicio && data.hora_fim) {
+        const dur = calcularDuracaoHorasMin(data.hora_inicio, data.hora_fim)
+        if (dur) soma += dur.minutos
       }
-    } catch {
-      setItemsData({})
     }
-  }, [movimentacao.id, etapaOS])
+    return soma
+  }, [itemsDB])
+
+  const calculoHorasGeral = useMemo(() => {
+    if (!dataHoraAbertura) return { texto: 'AGUARDANDO ABERTURA', minutos: 0, status: 'pendente' as const }
+    const dInicio = new Date(dataHoraAbertura)
+    if (dataHoraFechamento) {
+      const dFim = new Date(dataHoraFechamento)
+      const minutos = differenceInMinutes(dFim, dInicio)
+      if (minutos < 0) return { texto: 'DATA DE FECHAMENTO ANTERIOR À ABERTURA', minutos: 0, status: 'erro' as const }
+      return { texto: formatMinutosParaTexto(minutos).toUpperCase(), minutos, status: 'fechado' as const }
+    }
+    const minutos = permanenciaEmMinutos(dInicio.toISOString())
+    return { texto: `${formatMinutosParaTexto(minutos).toUpperCase()} (EM ANDAMENTO)`, minutos, status: 'em_andamento' as const }
+  }, [dataHoraAbertura, dataHoraFechamento])
+
+  // ── Handlers de O.S ─────────────────────────────────────────────────────────
 
   function handleMecanicoChange(val: string) {
     const valUpper = val.toUpperCase()
@@ -281,62 +245,17 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
       dtAbertura = nowLocalInputValue()
       setDataHoraAbertura(dtAbertura)
     }
-    try {
-      const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
-      const parsed = existing ? JSON.parse(existing) : {}
-      localStorage.setItem(
-        `checklist_info_${movimentacao.id}`,
-        JSON.stringify({
-          ...parsed,
-          mecanico: valUpper.trim(),
-          funcao: (funcao || '').toUpperCase(),
-          setor: (setor || '').toUpperCase(),
-          dataHoraAbertura: dtAbertura,
-          dataHoraFechamento,
-        }),
-      )
-      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
-    } catch {}
+    salvarOS({ mecanico: valUpper.trim(), dataHoraAbertura: dtAbertura })
   }
 
   function handleDataHoraAberturaChange(val: string) {
     setDataHoraAbertura(val)
-    try {
-      const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
-      const parsed = existing ? JSON.parse(existing) : {}
-      localStorage.setItem(
-        `checklist_info_${movimentacao.id}`,
-        JSON.stringify({
-          ...parsed,
-          mecanico: (mecanico || '').toUpperCase().trim(),
-          funcao: (funcao || '').toUpperCase(),
-          setor: (setor || '').toUpperCase(),
-          dataHoraAbertura: val,
-          dataHoraFechamento,
-        }),
-      )
-      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
-    } catch {}
+    salvarOS({ dataHoraAbertura: val })
   }
 
   function handleDataHoraFechamentoChange(val: string) {
     setDataHoraFechamento(val)
-    try {
-      const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
-      const parsed = existing ? JSON.parse(existing) : {}
-      localStorage.setItem(
-        `checklist_info_${movimentacao.id}`,
-        JSON.stringify({
-          ...parsed,
-          mecanico: (mecanico || '').toUpperCase().trim(),
-          funcao: (funcao || '').toUpperCase(),
-          setor: (setor || '').toUpperCase(),
-          dataHoraAbertura,
-          dataHoraFechamento: val,
-        }),
-      )
-      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
-    } catch {}
+    salvarOS({ dataHoraFechamento: val })
   }
 
   function handleFinalizarOS() {
@@ -346,209 +265,25 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     }
     const dtAgora = nowLocalInputValue()
     setDataHoraFechamento(dtAgora)
-    try {
-      const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
-      const parsed = existing ? JSON.parse(existing) : {}
-      localStorage.setItem(
-        `checklist_info_${movimentacao.id}`,
-        JSON.stringify({
-          ...parsed,
-          mecanico: (mecanico || '').toUpperCase().trim(),
-          funcao: (funcao || '').toUpperCase(),
-          setor: (setor || '').toUpperCase(),
-          dataHoraAbertura: dataHoraAbertura || dtAgora,
-          dataHoraFechamento: dtAgora,
-        }),
-      )
-      persistItemsData(itemsData)
-      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
-      setSucessoSalvar(true)
-      setTimeout(() => setSucessoSalvar(false), 3000)
-    } catch {}
+    salvarOS({ dataHoraFechamento: dtAgora, dataHoraAbertura: dataHoraAbertura || dtAgora })
+    setSucessoSalvar(true)
+    setTimeout(() => setSucessoSalvar(false), 3000)
   }
 
   function handleReabrirOS() {
     setDataHoraFechamento('')
-    try {
-      const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
-      const parsed = existing ? JSON.parse(existing) : {}
-      localStorage.setItem(
-        `checklist_info_${movimentacao.id}`,
-        JSON.stringify({
-          ...parsed,
-          mecanico: (mecanico || '').toUpperCase().trim(),
-          funcao: (funcao || '').toUpperCase(),
-          setor: (setor || '').toUpperCase(),
-          dataHoraAbertura,
-          dataHoraFechamento: '',
-        }),
-      )
-      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
-      setSucessoSalvar(true)
-      setTimeout(() => setSucessoSalvar(false), 3000)
-    } catch {}
+    salvarOS({ dataHoraFechamento: '' })
+    setSucessoSalvar(true)
+    setTimeout(() => setSucessoSalvar(false), 3000)
   }
 
-  // Salva itemsData no localStorage
-  function persistItemsData(nextData: Record<string, ItemChecklistData>) {
-    setItemsData(nextData)
-    try {
-      localStorage.setItem(`checklist_items_data_${movimentacao.id}`, JSON.stringify(nextData))
-      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
-    } catch (err) {
-      console.error('Erro ao salvar dados dos itens:', err)
-    }
-  }
-
-  // Alterna o checkbox do item
-  function toggleItem(itemId: string) {
-    const current = itemsData[itemId] || { checked: false }
-    const nextChecked = !current.checked
-
-    const nextItem: ItemChecklistData = {
-      ...current,
-      checked: nextChecked,
-      mecanico: current.mecanico || mecanico,
-      horaInicio: nextChecked && !current.horaInicio ? current.horaInicio || nowTimeString() : current.horaInicio,
-      horaFim: nextChecked && current.horaInicio && !current.horaFim ? nowTimeString() : current.horaFim,
-    }
-
-    persistItemsData({
-      ...itemsData,
-      [itemId]: nextItem,
-    })
-  }
-
-  // Atualiza qualquer campo de um item específico (horaInicio, horaFim, mecanico)
-  function updateItemField(itemId: string, field: keyof ItemChecklistData, value: string) {
-    const current = itemsData[itemId] || { checked: false }
-    const nextItem = {
-      ...current,
-      [field]: value,
-    }
-    persistItemsData({
-      ...itemsData,
-      [itemId]: nextItem,
-    })
-  }
-
-  // Adiciona novo item customizado na seção
-  function adicionarNovoItem(secaoId: string) {
-    if (!novoItemNome.trim()) return
-    const customId = `custom_${secaoId}_${Date.now()}`
-    const novoItem: ItemChecklist = {
-      id: customId,
-      label: novoItemNome.trim().toUpperCase(),
-      isCustom: true,
-    }
-
-    const nextSecoes = secoes.map((sec) => {
-      if (sec.id === secaoId) {
-        return {
-          ...sec,
-          itens: [...sec.itens, novoItem],
-        }
-      }
-      return sec
-    })
-
-    setSecoes(nextSecoes)
-    setNovoItemNome('')
-    setAdicionandoEmSecao(null)
-
-    try {
-      const customMap: Record<string, ItemChecklist[]> = {}
-      for (const sec of nextSecoes) {
-        const customs = sec.itens.filter((i) => i.isCustom)
-        if (customs.length > 0) {
-          customMap[sec.id] = customs
-        }
-      }
-      localStorage.setItem(`checklist_custom_secoes_${movimentacao.id}`, JSON.stringify(customMap))
-    } catch (err) {
-      console.error('Erro ao salvar item customizado:', err)
-    }
-  }
-
-  // Remove item customizado
-  function removerItemCustom(secaoId: string, itemId: string) {
-    const nextSecoes = secoes.map((sec) => {
-      if (sec.id === secaoId) {
-        return {
-          ...sec,
-          itens: sec.itens.filter((i) => i.id !== itemId),
-        }
-      }
-      return sec
-    })
-    setSecoes(nextSecoes)
-
-    const nextData = { ...itemsData }
-    delete nextData[itemId]
-    persistItemsData(nextData)
-
-    try {
-      const customMap: Record<string, ItemChecklist[]> = {}
-      for (const sec of nextSecoes) {
-        const customs = sec.itens.filter((i) => i.isCustom)
-        if (customs.length > 0) {
-          customMap[sec.id] = customs
-        }
-      }
-      localStorage.setItem(`checklist_custom_secoes_${movimentacao.id}`, JSON.stringify(customMap))
-    } catch (err) {
-      console.error('Erro ao remover item:', err)
-    }
-  }
-
-  function toggleExpandItem(itemId: string) {
-    setExpandedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }))
-  }
-
-  function marcarTodos() {
-    const next: Record<string, ItemChecklistData> = {}
-    for (const secao of secoes) {
-      for (const item of secao.itens) {
-        next[item.id] = {
-          checked: true,
-          mecanico: itemsData[item.id]?.mecanico || mecanico,
-          horaInicio: itemsData[item.id]?.horaInicio || '',
-          horaFim: itemsData[item.id]?.horaFim || '',
-        }
-      }
-    }
-    persistItemsData(next)
-  }
-
-  function desmarcarTodos() {
-    persistItemsData({})
-  }
-
-  // Salva os dados dos mecânicos e horários do checklist
   async function salvarDadosServico() {
     setSalvandoDados(true)
     setSucessoSalvar(false)
-    try {
-      const infoToSave = {
-        mecanico: mecanico.toUpperCase(),
-        funcao: funcao.toUpperCase(),
-        setor: setor.toUpperCase(),
-        dataHoraAbertura,
-        dataHoraFechamento,
-      }
-      localStorage.setItem(`checklist_info_${movimentacao.id}`, JSON.stringify(infoToSave))
-      persistItemsData(itemsData)
-      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
-
-      setSucessoSalvar(true)
-      setTimeout(() => setSucessoSalvar(false), 3000)
-    } catch (err) {
-      console.error('Erro ao salvar informações de serviço:', err)
-      setSucessoSalvar(true)
-      setTimeout(() => setSucessoSalvar(false), 3000)
-    } finally {
-      setSalvandoDados(false)
-    }
+    await salvarOS({ mecanico, funcao, setor, dataHoraAbertura, dataHoraFechamento })
+    setSucessoSalvar(true)
+    setTimeout(() => setSucessoSalvar(false), 3000)
+    setSalvandoDados(false)
   }
 
   async function handleAlterarStatus(novoStatusId: string) {
@@ -563,65 +298,95 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     }
   }
 
-  // Total de itens dinâmico considerando customizados
-  const totalItens = useMemo(() => {
-    return secoes.reduce((acc, sec) => acc + sec.itens.length, 0)
-  }, [secoes])
+  // ── Handlers de itens ────────────────────────────────────────────────────────
 
-  const itensConcluidos = useMemo(() => {
-    return Object.values(itemsData).filter((d) => d.checked).length
-  }, [itemsData])
-
-  const porcentagem = totalItens > 0 ? Math.round((itensConcluidos / totalItens) * 100) : 0
-
-  // Soma de minutos totais de todas as atividades do checklist
-  const totalMinutosAtividades = useMemo(() => {
-    let soma = 0
-    for (const data of Object.values(itemsData)) {
-      if (data.horaInicio && data.horaFim) {
-        const dur = calcularDuracaoHorasMin(data.horaInicio, data.horaFim)
-        if (dur) soma += dur.minutos
-      }
-    }
-    return soma
-  }, [itemsData])
-
-  // Cálculo das horas gerais trabalhadas
-  const calculoHorasGeral = useMemo(() => {
-    if (!dataHoraAbertura) {
-      return {
-        texto: 'AGUARDANDO ABERTURA',
-        minutos: 0,
-        status: 'pendente' as const,
-      }
-    }
-
-    const dInicio = new Date(dataHoraAbertura)
-
-    if (dataHoraFechamento) {
-      const dFim = new Date(dataHoraFechamento)
-      const minutos = differenceInMinutes(dFim, dInicio)
-      if (minutos < 0) {
-        return {
-          texto: 'DATA DE FECHAMENTO ANTERIOR À ABERTURA',
-          minutos: 0,
-          status: 'erro' as const,
-        }
-      }
-      return {
-        texto: formatMinutosParaTexto(minutos).toUpperCase(),
-        minutos,
-        status: 'fechado' as const,
-      }
-    }
-
-    const minutos = permanenciaEmMinutos(dInicio.toISOString())
+  function buildRow(secaoId: string, item: ItemChecklist, patch: Partial<ItemRow>): ItemRow {
+    const existing = itemsDB[item.id]
     return {
-      texto: `${formatMinutosParaTexto(minutos).toUpperCase()} (EM ANDAMENTO)`,
-      minutos,
-      status: 'em_andamento' as const,
+      item_id: item.id,
+      secao_id: secaoId,
+      label: item.label,
+      is_custom: Boolean(item.isCustom),
+      checked: existing?.checked ?? false,
+      hora_inicio: existing?.hora_inicio ?? '',
+      hora_fim: existing?.hora_fim ?? '',
+      mecanico: existing?.mecanico ?? '',
+      ...patch,
     }
-  }, [dataHoraAbertura, dataHoraFechamento])
+  }
+
+  function toggleItem(secaoId: string, item: ItemChecklist) {
+    const existing = itemsDB[item.id]
+    const nextChecked = !(existing?.checked ?? false)
+    const horaInicio =
+      nextChecked && !(existing?.hora_inicio)
+        ? nowTimeString()
+        : existing?.hora_inicio ?? ''
+    const horaFim =
+      nextChecked && existing?.hora_inicio && !existing?.hora_fim
+        ? nowTimeString()
+        : existing?.hora_fim ?? ''
+
+    salvarItem(buildRow(secaoId, item, {
+      checked: nextChecked,
+      mecanico: existing?.mecanico || mecanico,
+      hora_inicio: horaInicio,
+      hora_fim: horaFim,
+    }))
+  }
+
+  function updateItemField(secaoId: string, item: ItemChecklist, field: keyof ItemRow, value: string | boolean) {
+    salvarItem(buildRow(secaoId, item, { [field]: value }))
+  }
+
+  async function adicionarNovoItem(secaoId: string) {
+    if (!novoItemNome.trim()) return
+    const customId = `custom_${secaoId}_${Date.now()}`
+    const label = novoItemNome.trim().toUpperCase()
+
+    await salvarItem({
+      item_id: customId,
+      secao_id: secaoId,
+      label,
+      is_custom: true,
+      checked: false,
+      hora_inicio: '',
+      hora_fim: '',
+      mecanico: '',
+    })
+
+    setNovoItemNome('')
+    setAdicionandoEmSecao(null)
+  }
+
+  async function marcarTodos() {
+    const todos = secoes.flatMap((sec) =>
+      sec.itens.map((item) =>
+        buildRow(sec.id, item, {
+          checked: true,
+          mecanico: itemsDB[item.id]?.mecanico || mecanico,
+        }),
+      ),
+    )
+    for (const row of todos) await salvarItem(row)
+  }
+
+  function toggleExpandItem(itemId: string) {
+    setExpandedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }))
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <Card className="border-border/60 p-10 text-center uppercase">
+        <div className="flex flex-col items-center gap-3 text-secondary">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
+          <p className="text-xs font-semibold">CARREGANDO CHECKLIST…</p>
+        </div>
+      </Card>
+    )
+  }
 
   return (
     <Card className="border-border/60 space-y-5 p-5 uppercase">
@@ -634,11 +399,12 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
           </div>
           <p className="text-xs text-secondary">
             INSPEÇÃO E APONTAMENTO DE HORAS PARA{' '}
-            <strong className="text-foreground font-mono">{movimentacao.veiculo?.placa}</strong> — ALIMENTANDO O <strong>INDICADOR DE PERFORMANCE</strong>
+            <strong className="text-foreground font-mono">{movimentacao.veiculo?.placa}</strong> — ALIMENTANDO O{' '}
+            <strong>INDICADOR DE PERFORMANCE</strong>
           </p>
         </div>
 
-        {/* Status de Manutenção e Ações Rápidas */}
+        {/* Status e Ações Rápidas */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-secondary">STATUS:</span>
@@ -673,7 +439,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               type="button"
               variant="secondary"
               size="md"
-              onClick={desmarcarTodos}
+              onClick={limparTodos}
               className="!h-8 !text-xs !px-3 text-secondary hover:text-red-400 uppercase font-semibold"
             >
               <RotateCcw className="h-3 w-3 mr-1" />
@@ -683,17 +449,16 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         </div>
       </div>
 
-      {/* BLOCO: Dados do Mecânico Geral, Abertura, Fechamento e Horas Trabalhadas */}
+      {/* BLOCO: Dados do Mecânico / Abertura / Fechamento */}
       <div className="rounded-xl border border-border/40 bg-background/70 p-4 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/20 pb-3">
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-primary" />
             <span className="text-sm font-semibold text-foreground uppercase">
-              RESPONSÁVEL PRINCIPAL & APONTAMENTO PARA O INDICADOR DE PERFORMANCE
+              RESPONSÁVEL PRINCIPAL &amp; APONTAMENTO PARA O INDICADOR DE PERFORMANCE
             </span>
           </div>
 
-          {/* Destaque do Cálculo de Horas Geral e Soma das Atividades */}
           <div className="flex flex-wrap items-center gap-2">
             {totalMinutosAtividades > 0 && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs font-bold uppercase">
@@ -701,7 +466,6 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                 <span>SOMA ATIVIDADES: {formatMinutosParaTexto(totalMinutosAtividades).toUpperCase()}</span>
               </div>
             )}
-
             <div
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-bold uppercase ${
                 calculoHorasGeral.status === 'fechado'
@@ -720,7 +484,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Nome do Mecânico Geral */}
+          {/* Mecânico */}
           <div>
             <Label htmlFor="mecanico-nome" className="!text-xs !mb-1 font-medium text-secondary uppercase">
               MECÂNICO PRINCIPAL / RESPONSÁVEL
@@ -734,7 +498,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             />
           </div>
 
-          {/* Data e Hora de Abertura */}
+          {/* Abertura */}
           <div>
             <div className="flex items-center justify-between !mb-1">
               <Label htmlFor="data-hora-abertura" className="!text-xs font-medium text-secondary uppercase">
@@ -757,7 +521,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             />
           </div>
 
-          {/* Data e Hora de Fechamento */}
+          {/* Fechamento */}
           <div>
             <div className="flex items-center justify-between !mb-1">
               <Label htmlFor="data-hora-fechamento" className="!text-xs font-medium text-secondary uppercase">
@@ -833,7 +597,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         </div>
       </div>
 
-      {/* Barra de Progresso do Checklist */}
+      {/* Barra de Progresso */}
       <div className="rounded-xl border border-border/30 bg-background/50 p-3.5 space-y-2">
         <div className="flex items-center justify-between text-xs uppercase">
           <span className="font-semibold text-foreground flex items-center gap-1.5">
@@ -844,35 +608,28 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             <strong className="text-foreground">{itensConcluidos}</strong> DE {totalItens} ITENS VERIFICADOS ({porcentagem}%)
           </span>
         </div>
-
         <div className="h-2 w-full overflow-hidden rounded-full bg-secondary/15">
           <div
             className={`h-full transition-all duration-300 rounded-full ${
-              porcentagem === 100
-                ? 'bg-emerald-500'
-                : porcentagem > 50
-                  ? 'bg-primary'
-                  : 'bg-amber-500'
+              porcentagem === 100 ? 'bg-emerald-500' : porcentagem > 50 ? 'bg-primary' : 'bg-amber-500'
             }`}
             style={{ width: `${porcentagem}%` }}
           />
         </div>
       </div>
 
-      {/* Grid das Seções do Checklist */}
+      {/* Grid das Seções */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {secoes.map((secao) => {
           const Icone = secao.icone
-          const concluidosNaSecao = secao.itens.filter((i) => itemsData[i.id]?.checked).length
+          const concluidosNaSecao = secao.itens.filter((i) => itemsDB[i.id]?.checked).length
           const secaoCompleta = secao.itens.length > 0 && concluidosNaSecao === secao.itens.length
 
           return (
             <div
               key={secao.id}
               className={`rounded-xl border p-4 transition-all bg-card/60 flex flex-col justify-between ${
-                secaoCompleta
-                  ? 'border-emerald-500/30 bg-emerald-500/[0.02]'
-                  : 'border-border/40 hover:border-border/80'
+                secaoCompleta ? 'border-emerald-500/30 bg-emerald-500/[0.02]' : 'border-border/40 hover:border-border/80'
               }`}
             >
               <div>
@@ -882,9 +639,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                     <div className={`flex h-7 w-7 items-center justify-center rounded-lg border ${secao.cor}`}>
                       <Icone className="h-4 w-4" />
                     </div>
-                    <span className="text-sm font-bold text-foreground tracking-wide uppercase">
-                      {secao.titulo}
-                    </span>
+                    <span className="text-sm font-bold text-foreground tracking-wide uppercase">{secao.titulo}</span>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -897,8 +652,6 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                     >
                       {concluidosNaSecao}/{secao.itens.length}
                     </span>
-
-                    {/* Botão + para adicionar item */}
                     <button
                       type="button"
                       onClick={() => {
@@ -907,14 +660,13 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                       }}
                       title="ADICIONAR NOVO ITEM A ESTA SEÇÃO"
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-border/40 bg-surface/50 text-secondary transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
-                      aria-label="ADICIONAR ITEM"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
 
-                {/* Formulário Inline de Adicionar Novo Item */}
+                {/* Formulário Novo Item */}
                 {adicionandoEmSecao === secao.id && (
                   <div className="mb-3 rounded-lg border border-primary/30 bg-primary/5 p-2.5 space-y-2">
                     <Label className="!text-xs font-medium text-foreground uppercase">
@@ -927,46 +679,28 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                         value={novoItemNome}
                         onChange={(e) => setNovoItemNome(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()
-                            adicionarNovoItem(secao.id)
-                          }
+                          if (e.key === 'Enter') { e.preventDefault(); adicionarNovoItem(secao.id) }
                         }}
                         className="!h-8 !text-xs !px-2.5 uppercase"
                       />
-                      <Button
-                        type="button"
-                        variant="primary"
-                        size="md"
-                        onClick={() => adicionarNovoItem(secao.id)}
-                        className="!h-8 !text-xs !px-3 shrink-0 uppercase font-bold"
-                      >
+                      <Button type="button" variant="primary" size="md" onClick={() => adicionarNovoItem(secao.id)} className="!h-8 !text-xs !px-3 shrink-0 uppercase font-bold">
                         ADICIONAR
                       </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="md"
-                        onClick={() => {
-                          setAdicionandoEmSecao(null)
-                          setNovoItemNome('')
-                        }}
-                        className="!h-8 !text-xs !px-2.5 shrink-0 uppercase"
-                      >
+                      <Button type="button" variant="secondary" size="md" onClick={() => { setAdicionandoEmSecao(null); setNovoItemNome('') }} className="!h-8 !text-xs !px-2.5 shrink-0 uppercase">
                         CANCELAR
                       </Button>
                     </div>
                   </div>
                 )}
 
-                {/* Lista de Itens com Horários Iniciais/Finais, Mecânico e Checkbox */}
+                {/* Lista de Itens */}
                 <div className="space-y-2">
                   {secao.itens.map((item) => {
-                    const data = itemsData[item.id] || { checked: false }
-                    const isChecked = Boolean(data.checked)
+                    const data = itemsDB[item.id]
+                    const isChecked = Boolean(data?.checked)
                     const isExpanded = Boolean(expandedItems[item.id])
-                    const duracao = calcularDuracaoHorasMin(data.horaInicio, data.horaFim)
-                    const mecanicoDoItem = data.mecanico || ''
+                    const duracao = calcularDuracaoHorasMin(data?.hora_inicio, data?.hora_fim)
+                    const mecanicoDoItem = data?.mecanico || ''
 
                     return (
                       <div
@@ -977,12 +711,11 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             : 'border-border/30 bg-background/60 hover:border-border hover:bg-overlay/5'
                         }`}
                       >
-                        {/* Linha Principal do Item */}
+                        {/* Linha Principal */}
                         <div className="flex items-center gap-3 p-2.5 min-w-0 overflow-hidden">
-                          {/* Quadrado do Checkbox */}
                           <button
                             type="button"
-                            onClick={() => toggleItem(item.id)}
+                            onClick={() => toggleItem(secao.id, item)}
                             className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-all ${
                               isChecked
                                 ? 'border-primary bg-primary text-white shadow-sm'
@@ -993,19 +726,15 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             {isChecked && <Check className="h-3.5 w-3.5 stroke-[2.5]" />}
                           </button>
 
-                          {/* Texto do Item */}
                           <span
-                            onClick={() => toggleItem(item.id)}
+                            onClick={() => toggleItem(secao.id, item)}
                             className={`text-sm leading-snug flex-1 cursor-pointer select-none uppercase truncate min-w-0 ${
-                              isChecked
-                                ? 'font-semibold text-foreground'
-                                : 'text-foreground/90 font-medium'
+                              isChecked ? 'font-semibold text-foreground' : 'text-foreground/90 font-medium'
                             }`}
                           >
                             {item.label}
                           </span>
 
-                          {/* Badge de Mecânico Específico Atribuído */}
                           {mecanicoDoItem && (
                             <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/25 text-blue-400 shrink-0 uppercase">
                               <User className="h-3 w-3" />
@@ -1013,7 +742,6 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             </span>
                           )}
 
-                          {/* Badge de Horas Calculadas na Atividade */}
                           {duracao && (
                             <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-primary/10 border border-primary/25 text-primary shrink-0 uppercase">
                               <Clock className="h-3 w-3" />
@@ -1021,23 +749,22 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             </span>
                           )}
 
-                          {/* Botão para Expandir/Ocultar Horários e Mecânico */}
                           <button
                             type="button"
                             onClick={() => toggleExpandItem(item.id)}
                             title={isExpanded ? 'OCULTAR DETALHES' : 'DEFINIR MECÂNICO E HORÁRIOS'}
                             className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors shrink-0 uppercase font-semibold ${
-                              data.horaInicio || data.horaFim || data.mecanico || isExpanded
+                              data?.hora_inicio || data?.hora_fim || data?.mecanico || isExpanded
                                 ? 'border-border bg-surface text-foreground'
                                 : 'border-transparent text-secondary hover:text-foreground hover:bg-surface/50'
                             }`}
                           >
                             <Timer className="h-3 w-3 text-secondary" />
                             <span className="text-[11px]">
-                              {data.horaInicio && data.horaFim
-                                ? `${data.horaInicio} - ${data.horaFim}`
-                                : data.horaInicio
-                                  ? `${data.horaInicio} - …`
+                              {data?.hora_inicio && data?.hora_fim
+                                ? `${data.hora_inicio} - ${data.hora_fim}`
+                                : data?.hora_inicio
+                                  ? `${data.hora_inicio} - …`
                                   : 'DETALHES'}
                             </span>
                             {isExpanded ? (
@@ -1047,11 +774,10 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             )}
                           </button>
 
-                          {/* Botão de Excluir se for Item Customizado */}
                           {item.isCustom && (
                             <button
                               type="button"
-                              onClick={() => removerItemCustom(secao.id, item.id)}
+                              onClick={() => removerItem(item.id)}
                               title="REMOVER ITEM CUSTOMIZADO"
                               className="text-secondary/50 hover:text-red-400 p-1 transition-colors"
                             >
@@ -1060,10 +786,9 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                           )}
                         </div>
 
-                        {/* Bloco Expandido: Mecânico Responsável da Atividade + Inputs de Hora Inicial e Final */}
+                        {/* Bloco Expandido */}
                         {isExpanded && (
                           <div className="px-3 pb-3 pt-2 border-t border-border/20 space-y-2.5 bg-surface/20 rounded-b-lg uppercase">
-                            {/* Mecânico da Atividade */}
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-secondary font-bold whitespace-nowrap flex items-center gap-1">
                                 <User className="h-3.5 w-3.5 text-primary" />
@@ -1072,55 +797,49 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                               <input
                                 type="text"
                                 placeholder={mecanico ? `PADRÃO: ${mecanico.toUpperCase()}` : 'EX: ROBERTO, CARLOS…'}
-                                value={data.mecanico || ''}
-                                onChange={(e) => updateItemField(item.id, 'mecanico', e.target.value.toUpperCase())}
+                                value={data?.mecanico || ''}
+                                onChange={(e) => updateItemField(secao.id, item, 'mecanico', e.target.value.toUpperCase())}
                                 className="h-7 px-2.5 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary flex-1 uppercase"
                               />
                             </div>
 
-                            {/* Horários Início e Fim */}
                             <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-border/10">
-                              {/* Hora Inicial */}
+                              {/* Hora Início */}
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-secondary font-bold whitespace-nowrap">
-                                  INÍCIO:
-                                </span>
+                                <span className="text-xs text-secondary font-bold whitespace-nowrap">INÍCIO:</span>
                                 <input
                                   type="time"
-                                  value={data.horaInicio || ''}
-                                  onChange={(e) => updateItemField(item.id, 'horaInicio', e.target.value)}
+                                  value={data?.hora_inicio || ''}
+                                  onChange={(e) => updateItemField(secao.id, item, 'hora_inicio', e.target.value)}
                                   className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => updateItemField(item.id, 'horaInicio', nowTimeString())}
+                                  onClick={() => updateItemField(secao.id, item, 'hora_inicio', nowTimeString())}
                                   className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
                                 >
                                   AGORA
                                 </button>
                               </div>
 
-                              {/* Hora Final */}
+                              {/* Hora Fim */}
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-secondary font-bold whitespace-nowrap">
-                                  FIM:
-                                </span>
+                                <span className="text-xs text-secondary font-bold whitespace-nowrap">FIM:</span>
                                 <input
                                   type="time"
-                                  value={data.horaFim || ''}
-                                  onChange={(e) => updateItemField(item.id, 'horaFim', e.target.value)}
+                                  value={data?.hora_fim || ''}
+                                  onChange={(e) => updateItemField(secao.id, item, 'hora_fim', e.target.value)}
                                   className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => updateItemField(item.id, 'horaFim', nowTimeString())}
+                                  onClick={() => updateItemField(secao.id, item, 'hora_fim', nowTimeString())}
                                   className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
                                 >
                                   AGORA
                                 </button>
                               </div>
 
-                              {/* Duração Calculada */}
                               {duracao && (
                                 <div className="text-xs font-bold text-primary flex items-center gap-1 ml-auto uppercase">
                                   <span>TEMPO GASTO: {duracao.texto}</span>
@@ -1135,13 +854,10 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                 </div>
               </div>
 
-              {/* Botão rápido para adicionar item no rodapé da seção */}
+              {/* Botão + rodapé da seção */}
               <button
                 type="button"
-                onClick={() => {
-                  setAdicionandoEmSecao(secao.id)
-                  setNovoItemNome('')
-                }}
+                onClick={() => { setAdicionandoEmSecao(secao.id); setNovoItemNome('') }}
                 className="mt-3 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg border border-dashed border-border/40 text-xs text-secondary hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all uppercase font-semibold"
               >
                 <Plus className="h-3.5 w-3.5" />
