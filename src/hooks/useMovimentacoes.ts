@@ -65,8 +65,10 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
   // dispara um refetch automático para manter a UI sempre sincronizada
   // com o que foi lançado pelo APK ou por outra sessão web.
   useEffect(() => {
+    // Nome único por instância para evitar conflito entre múltiplos hooks ativos
+    const channelName = `movimentacoes_realtime_${Math.random().toString(36).slice(2, 8)}`
     const channel = supabase
-      .channel('movimentacoes_realtime')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'movimentacoes' },
