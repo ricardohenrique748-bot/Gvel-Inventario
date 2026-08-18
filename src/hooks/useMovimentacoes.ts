@@ -61,6 +61,26 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
     refetch()
   }, [refetch])
 
+  // Realtime: escuta INSERT / UPDATE / DELETE na tabela movimentacoes e
+  // dispara um refetch automático para manter a UI sempre sincronizada
+  // com o que foi lançado pelo APK ou por outra sessão web.
+  useEffect(() => {
+    const channel = supabase
+      .channel('movimentacoes_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'movimentacoes' },
+        () => {
+          refetch()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [refetch])
+
   // Filtro de placa e por cliente/marca/modelo são aplicados aqui em memória, não na
   // query — evita disparar uma nova busca no servidor a cada tecla digitada (esses
   // valores mudam bastante enquanto o usuário digita/seleciona) e também evita o
