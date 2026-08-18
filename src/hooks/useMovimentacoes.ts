@@ -273,6 +273,14 @@ export async function atualizarStatusMovimentacao(id: string, statusId: string |
   if (error) throw new Error(error.message)
 }
 
+export async function atualizarPatioMovimentacao(id: string, patioId: string) {
+  const { error } = await supabase
+    .from('movimentacoes')
+    .update({ patio_id: patioId })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 interface RegistrarSaidaInput {
   motorista?: string
   destino?: string

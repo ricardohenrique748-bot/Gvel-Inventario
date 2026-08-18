@@ -23,11 +23,7 @@ import { Button } from '@/components/ui/Button'
 import { Input, Label, Select } from '@/components/ui/Input'
 import { useStatusManutencao } from '@/hooks/useStatusManutencao'
 import { atualizarStatusMovimentacao } from '@/hooks/useMovimentacoes'
-import {
-  useHistoricoMovimentacao,
-  adicionarHistorico,
-  atualizarHistorico,
-} from '@/hooks/useHistoricoMovimentacao'
+import { useHistoricoMovimentacao } from '@/hooks/useHistoricoMovimentacao'
 import {
   formatMinutosParaTexto,
   permanenciaEmMinutos,
@@ -122,15 +118,6 @@ function nowTimeString() {
   return now.toTimeString().slice(0, 5) // "14:40"
 }
 
-function toIsoFromTime(timeStr?: string, baseDateStr?: string) {
-  if (!timeStr) return undefined
-  const baseDate = baseDateStr ? new Date(baseDateStr) : new Date()
-  const y = baseDate.getFullYear()
-  const m = String(baseDate.getMonth() + 1).padStart(2, '0')
-  const d = String(baseDate.getDate()).padStart(2, '0')
-  return new Date(`${y}-${m}-${d}T${timeStr}:00`).toISOString()
-}
-
 function calcularDuracaoHorasMin(inicio?: string, fim?: string): { minutos: number; texto: string } | null {
   if (!inicio || !fim) return null
   const [h1, m1] = inicio.split(':').map(Number)
@@ -151,7 +138,7 @@ interface ChecklistManutencaoCardProps {
 
 export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: ChecklistManutencaoCardProps) {
   const { statusManutencao } = useStatusManutencao()
-  const { historico, refetch: refetchHistorico } = useHistoricoMovimentacao(movimentacao.id)
+  const { historico } = useHistoricoMovimentacao(movimentacao.id)
 
   const itemsStorageKey = `checklist_items_data_${movimentacao.id}`
   const customSecoesStorageKey = `checklist_custom_secoes_${movimentacao.id}`
@@ -286,11 +273,34 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     }
   }, [movimentacao.id, etapaOS, movimentacao.data_hora_entrada])
 
+  // Sincroniza em tempo real informações do responsável e abertura
+  useEffect(() => {
+    if (mecanico || dataHoraAbertura || dataHoraFechamento) {
+      try {
+        const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
+        const parsed = existing ? JSON.parse(existing) : {}
+        localStorage.setItem(
+          `checklist_info_${movimentacao.id}`,
+          JSON.stringify({
+            ...parsed,
+            mecanico: (mecanico || '').toUpperCase(),
+            funcao: (funcao || '').toUpperCase(),
+            setor: (setor || '').toUpperCase(),
+            dataHoraAbertura,
+            dataHoraFechamento,
+          }),
+        )
+        window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
+      } catch {}
+    }
+  }, [mecanico, funcao, setor, dataHoraAbertura, dataHoraFechamento, movimentacao.id])
+
   // Salva itemsData no localStorage
   function persistItemsData(nextData: Record<string, ItemChecklistData>) {
     setItemsData(nextData)
     try {
       localStorage.setItem(`checklist_items_data_${movimentacao.id}`, JSON.stringify(nextData))
+      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
     } catch (err) {
       console.error('Erro ao salvar dados dos itens:', err)
     }
@@ -420,7 +430,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     persistItemsData({})
   }
 
-  // Sincroniza e Salva os dados dos mecânicos e horários no banco de dados (movimentacao_historico)
+  // Salva os dados dos mecânicos e horários do checklist
   async function salvarDadosServico() {
     setSalvandoDados(true)
     setSucessoSalvar(false)
@@ -433,106 +443,9 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         dataHoraFechamento,
       }
       localStorage.setItem(`checklist_info_${movimentacao.id}`, JSON.stringify(infoToSave))
+      persistItemsData(itemsData)
+      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
 
-      const dataRef = movimentacao.data_hora_entrada || new Date().toISOString()
-      const dataIsoAberturaGeral = dataHoraAbertura ? new Date(dataHoraAbertura).toISOString() : new Date().toISOString()
-      const dataIsoFechamentoGeral = dataHoraFechamento ? new Date(dataHoraFechamento).toISOString() : undefined
-
-      // Salva/atualiza o registro geral de manutenção no histórico para o Controle de Horas
-      if (etapaOS) {
-        await atualizarHistorico(etapaOS.id, {
-          descricao: etapaOS.descricao || 'MANUTENÇÃO GERAL - CHECKLIST',
-          dataHora: dataIsoAberturaGeral,
-          mecanicoExecutor: mecanico.toUpperCase(),
-          funcao: funcao.toUpperCase() || 'MECÂNICO',
-          setor: setor.toUpperCase() || 'MANUTENÇÃO',
-          dataHoraAbertura: dataIsoAberturaGeral,
-          dataHoraFechamento: dataIsoFechamentoGeral,
-          osCriada: true,
-        })
-      } else {
-        await adicionarHistorico(movimentacao.id, 'MANUTENÇÃO GERAL - CHECKLIST', dataIsoAberturaGeral, {
-          mecanicoExecutor: mecanico.toUpperCase(),
-          funcao: funcao.toUpperCase() || 'MECÂNICO',
-          setor: setor.toUpperCase() || 'MANUTENÇÃO',
-          dataHoraAbertura: dataIsoAberturaGeral,
-          osCriada: true,
-        })
-      }
-
-      // Sincroniza cada atividade do checklist com horários e mecânico responsável no histórico
-      const nextItemsData = { ...itemsData }
-      for (const sec of secoes) {
-        for (const it of sec.itens) {
-          const itData = nextItemsData[it.id]
-          if (itData && (itData.horaInicio || itData.horaFim || itData.mecanico)) {
-            const isoInicio = toIsoFromTime(itData.horaInicio, dataRef) || dataIsoAberturaGeral
-            const isoFim = toIsoFromTime(itData.horaFim, dataRef)
-            // Usa o mecânico da atividade específica; se não preenchido, herda o geral
-            const mecanicoDaAtividade = (itData.mecanico || mecanico || '').toUpperCase()
-
-            if (itData.historicoId) {
-              try {
-                await atualizarHistorico(itData.historicoId, {
-                  descricao: it.label.toUpperCase(),
-                  dataHora: isoInicio,
-                  mecanicoExecutor: mecanicoDaAtividade,
-                  funcao: funcao.toUpperCase() || 'MECÂNICO',
-                  setor: sec.titulo.toUpperCase(),
-                  dataHoraAbertura: isoInicio,
-                  dataHoraFechamento: isoFim,
-                  osCriada: true,
-                })
-              } catch {
-                const created = await adicionarHistorico(movimentacao.id, it.label.toUpperCase(), isoInicio, {
-                  mecanicoExecutor: mecanicoDaAtividade,
-                  funcao: funcao.toUpperCase() || 'MECÂNICO',
-                  setor: sec.titulo.toUpperCase(),
-                  dataHoraAbertura: isoInicio,
-                  osCriada: true,
-                })
-                if (isoFim) {
-                  await atualizarHistorico(created.id, {
-                    descricao: it.label.toUpperCase(),
-                    dataHora: isoInicio,
-                    mecanicoExecutor: mecanicoDaAtividade,
-                    funcao: funcao.toUpperCase() || 'MECÂNICO',
-                    setor: sec.titulo.toUpperCase(),
-                    dataHoraAbertura: isoInicio,
-                    dataHoraFechamento: isoFim,
-                    osCriada: true,
-                  })
-                }
-                itData.historicoId = created.id
-              }
-            } else {
-              const created = await adicionarHistorico(movimentacao.id, it.label.toUpperCase(), isoInicio, {
-                mecanicoExecutor: mecanicoDaAtividade,
-                funcao: funcao.toUpperCase() || 'MECÂNICO',
-                setor: sec.titulo.toUpperCase(),
-                dataHoraAbertura: isoInicio,
-                osCriada: true,
-              })
-              if (isoFim) {
-                await atualizarHistorico(created.id, {
-                  descricao: it.label.toUpperCase(),
-                  dataHora: isoInicio,
-                  mecanicoExecutor: mecanicoDaAtividade,
-                  funcao: funcao.toUpperCase() || 'MECÂNICO',
-                  setor: sec.titulo.toUpperCase(),
-                  dataHoraAbertura: isoInicio,
-                  dataHoraFechamento: isoFim,
-                  osCriada: true,
-                })
-              }
-              itData.historicoId = created.id
-            }
-          }
-        }
-      }
-
-      persistItemsData(nextItemsData)
-      await refetchHistorico()
       setSucessoSalvar(true)
       setTimeout(() => setSucessoSalvar(false), 3000)
     } catch (err) {

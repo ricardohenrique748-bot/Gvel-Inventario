@@ -23,17 +23,37 @@ import { useStatusManutencao } from '@/hooks/useStatusManutencao'
 import { usePatios } from '@/hooks/usePatios'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 
-function getOSStatus(movId: string, statusId?: string | null) {
+function getOSStatus(movId: string) {
   const info = localStorage.getItem(`checklist_info_${movId}`)
   if (info) {
     try {
       const parsed = JSON.parse(info)
-      if (parsed.dataHoraAbertura || parsed.mecanico) {
+      const mec = (parsed.mecanico || '').trim().toUpperCase()
+      const fech = Boolean(parsed.dataHoraFechamento)
+      const dtAb = (parsed.dataHoraAbertura || '').trim()
+
+      if (mec && mec !== '—' && mec !== '-' && mec !== 'SEM NOME' && mec !== 'OPCIONAL') {
         return {
           iniciada: true,
-          mecanico: parsed.mecanico || null,
-          dataHoraAbertura: parsed.dataHoraAbertura || null,
-          fechada: Boolean(parsed.dataHoraFechamento),
+          mecanico: mec,
+          dataHoraAbertura: dtAb || null,
+          fechada: fech,
+        }
+      }
+      if (dtAb && dtAb !== '') {
+        return {
+          iniciada: true,
+          mecanico: mec || null,
+          dataHoraAbertura: dtAb,
+          fechada: fech,
+        }
+      }
+      if (fech) {
+        return {
+          iniciada: true,
+          mecanico: null,
+          dataHoraAbertura: null,
+          fechada: true,
         }
       }
     } catch {}
@@ -42,14 +62,13 @@ function getOSStatus(movId: string, statusId?: string | null) {
   if (items) {
     try {
       const parsed = JSON.parse(items)
-      const hasChecked = Object.values(parsed).some((v: any) => v.checked || v.horaInicio || v.mecanico)
+      const hasChecked = Object.values(parsed).some(
+        (v: any) => v.checked || (v.mecanico && v.mecanico.trim() !== '') || v.horaInicio || v.horaFim,
+      )
       if (hasChecked) {
         return { iniciada: true, mecanico: null, dataHoraAbertura: null, fechada: false }
       }
     } catch {}
-  }
-  if (statusId) {
-    return { iniciada: true, mecanico: null, dataHoraAbertura: null, fechada: false }
   }
   return { iniciada: false, mecanico: null, dataHoraAbertura: null, fechada: false }
 }
@@ -65,8 +84,19 @@ export function Manutencao() {
   const [osFiltro, setOsFiltro] = useState<'todos' | 'iniciada' | 'aguardando'>('todos')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [abaMobile, setAbaMobile] = useState<'lista' | 'checklist'>('lista')
+  const [osUpdateTrigger, setOsUpdateTrigger] = useState(0)
   const { statusManutencao } = useStatusManutencao()
   const { patios } = usePatios()
+
+  useEffect(() => {
+    const handleUpdate = () => setOsUpdateTrigger((c) => c + 1)
+    window.addEventListener('checklist_updated', handleUpdate)
+    window.addEventListener('storage', handleUpdate)
+    return () => {
+      window.removeEventListener('checklist_updated', handleUpdate)
+      window.removeEventListener('storage', handleUpdate)
+    }
+  }, [])
 
   // Determina se o filtro representa um único dia ou um intervalo
   const umDiaSelecionado =
@@ -96,12 +126,12 @@ export function Manutencao() {
   }, [periodo])
 
   const osIniciadasCount = useMemo(() => {
-    return veiculosNoPatio.filter((m) => getOSStatus(m.id, m.status_id).iniciada).length
-  }, [veiculosNoPatio])
+    return veiculosNoPatio.filter((m) => getOSStatus(m.id).iniciada).length
+  }, [veiculosNoPatio, osUpdateTrigger])
 
   const osAguardandoCount = useMemo(() => {
-    return veiculosNoPatio.filter((m) => !getOSStatus(m.id, m.status_id).iniciada).length
-  }, [veiculosNoPatio])
+    return veiculosNoPatio.filter((m) => !getOSStatus(m.id).iniciada).length
+  }, [veiculosNoPatio, osUpdateTrigger])
 
   // Filtra as movimentações com base em todos os critérios
   const entradas = useMemo(() => {
@@ -111,7 +141,7 @@ export function Manutencao() {
 
       // Filtro de OS
       if (osFiltro !== 'todos') {
-        const st = getOSStatus(m.id, m.status_id)
+        const st = getOSStatus(m.id)
         if (osFiltro === 'iniciada' && !st.iniciada) return false
         if (osFiltro === 'aguardando' && st.iniciada) return false
       }
@@ -364,7 +394,7 @@ export function Manutencao() {
             <div className="space-y-2.5 max-h-[750px] overflow-y-auto pr-1">
               {entradas.map((m) => {
                 const isSelected = m.id === selectedId
-                const osStatus = getOSStatus(m.id, m.status_id)
+                const osStatus = getOSStatus(m.id)
 
                 return (
                   <div
