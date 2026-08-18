@@ -5,11 +5,13 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ClientesTab } from '@/pages/configuracoes/ClientesTab'
 import { FrotaTab } from '@/pages/configuracoes/FrotaTab'
 import { UsuariosTab } from '@/pages/configuracoes/UsuariosTab'
+import { NotificacoesTab } from '@/pages/configuracoes/NotificacoesTab'
 
 const TABS = [
   { id: 'clientes', label: 'Clientes' },
   { id: 'frota', label: 'Frota' },
   { id: 'usuarios', label: 'Usuários' },
+  { id: 'notificacoes', label: '🔔 Notificações' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -57,6 +59,7 @@ export function Configuracoes() {
       {tab === 'clientes' && <ClientesTab />}
       {tab === 'frota' && <FrotaTab />}
       {tab === 'usuarios' && <UsuariosTab />}
+      {tab === 'notificacoes' && <NotificacoesTab />}
     </div>
   )
 }
