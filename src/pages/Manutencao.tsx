@@ -1,12 +1,12 @@
 import { useMemo, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Wrench,
   Truck,
-  LogIn,
   ExternalLink,
   FileCheck,
   ArrowLeft,
+  ClipboardCheck,
+  Clock,
 } from 'lucide-react'
 import { format, isSameDay, parseISO } from 'date-fns'
 import { PageHeader } from '@/components/layout/Header'
@@ -23,6 +23,37 @@ import { useStatusManutencao } from '@/hooks/useStatusManutencao'
 import { usePatios } from '@/hooks/usePatios'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 
+function getOSStatus(movId: string, statusId?: string | null) {
+  const info = localStorage.getItem(`checklist_info_${movId}`)
+  if (info) {
+    try {
+      const parsed = JSON.parse(info)
+      if (parsed.dataHoraAbertura || parsed.mecanico) {
+        return {
+          iniciada: true,
+          mecanico: parsed.mecanico || null,
+          dataHoraAbertura: parsed.dataHoraAbertura || null,
+          fechada: Boolean(parsed.dataHoraFechamento),
+        }
+      }
+    } catch {}
+  }
+  const items = localStorage.getItem(`checklist_items_data_${movId}`)
+  if (items) {
+    try {
+      const parsed = JSON.parse(items)
+      const hasChecked = Object.values(parsed).some((v: any) => v.checked || v.horaInicio || v.mecanico)
+      if (hasChecked) {
+        return { iniciada: true, mecanico: null, dataHoraAbertura: null, fechada: false }
+      }
+    } catch {}
+  }
+  if (statusId) {
+    return { iniciada: true, mecanico: null, dataHoraAbertura: null, fechada: false }
+  }
+  return { iniciada: false, mecanico: null, dataHoraAbertura: null, fechada: false }
+}
+
 export function Manutencao() {
   const filtroInicial: FiltersValue = {
     dataInicio: '',
@@ -31,6 +62,7 @@ export function Manutencao() {
 
   const [filters, setFilters] = useState<FiltersValue>(filtroInicial)
   const [statusFiltro, setStatusFiltro] = useState('')
+  const [osFiltro, setOsFiltro] = useState<'todos' | 'iniciada' | 'aguardando'>('todos')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [abaMobile, setAbaMobile] = useState<'lista' | 'checklist'>('lista')
   const { statusManutencao } = useStatusManutencao()
@@ -58,11 +90,31 @@ export function Manutencao() {
     patioId: filters.patioId,
   })
 
-  // Filtra as movimentações que continuam no pátio
+  // Veículos ativos no pátio para contagens
+  const veiculosNoPatio = useMemo(() => {
+    return periodo.filter((m) => m.status === 'no_patio')
+  }, [periodo])
+
+  const osIniciadasCount = useMemo(() => {
+    return veiculosNoPatio.filter((m) => getOSStatus(m.id, m.status_id).iniciada).length
+  }, [veiculosNoPatio])
+
+  const osAguardandoCount = useMemo(() => {
+    return veiculosNoPatio.filter((m) => !getOSStatus(m.id, m.status_id).iniciada).length
+  }, [veiculosNoPatio])
+
+  // Filtra as movimentações com base em todos os critérios
   const entradas = useMemo(() => {
     return periodo.filter((m) => {
       // Garante que só exibe veículos presentes no pátio
       if (m.status === 'saiu') return false
+
+      // Filtro de OS
+      if (osFiltro !== 'todos') {
+        const st = getOSStatus(m.id, m.status_id)
+        if (osFiltro === 'iniciada' && !st.iniciada) return false
+        if (osFiltro === 'aguardando' && st.iniciada) return false
+      }
 
       // Verifica se a data de entrada bate com o dia/período se informado
       if (umDiaSelecionado) {
@@ -77,7 +129,7 @@ export function Manutencao() {
 
       return true
     })
-  }, [periodo, umDiaSelecionado, statusFiltro])
+  }, [periodo, umDiaSelecionado, statusFiltro, osFiltro])
 
   // Seleciona a primeira entrada automaticamente se nenhuma estiver selecionada
   useEffect(() => {
@@ -93,11 +145,6 @@ export function Manutencao() {
   const selecionado = useMemo(() => {
     return entradas.find((m) => m.id === selectedId) || null
   }, [entradas, selectedId])
-
-  // Métricas
-  const totalEntradasNoPatio = entradas.length
-  const emManutencaoCount = entradas.filter((m) => m.status_id).length
-  const aguardandoServicoCount = entradas.filter((m) => !m.status_id).length
 
   function handleSelecionarEntrada(id: string) {
     setSelectedId(id)
@@ -116,19 +163,19 @@ export function Manutencao() {
         <StatCard
           icon={Truck}
           label="VEÍCULOS NO PÁTIO"
-          value={String(totalEntradasNoPatio)}
+          value={String(veiculosNoPatio.length)}
         />
 
         <StatCard
-          icon={Wrench}
-          label="EM MANUTENÇÃO"
-          value={String(emManutencaoCount)}
+          icon={ClipboardCheck}
+          label="O.S INICIADAS / PREENCHIDAS"
+          value={String(osIniciadasCount)}
         />
 
         <StatCard
-          icon={LogIn}
-          label="AGUARDANDO SERVIÇO"
-          value={String(aguardandoServicoCount)}
+          icon={Clock}
+          label="AGUARDANDO O.S"
+          value={String(osAguardandoCount)}
         />
       </div>
 
@@ -142,8 +189,51 @@ export function Manutencao() {
           onClear={() => {
             setFilters(filtroInicial)
             setStatusFiltro('')
+            setOsFiltro('todos')
           }}
         />
+
+        {/* Filtro por Status da O.S (Iniciada / Aguardando) */}
+        <div className="pt-2 border-t border-border/20 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
+            STATUS DA O.S:
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setOsFiltro('todos')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
+                osFiltro === 'todos'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'bg-surface text-secondary hover:text-foreground border border-border/30'
+              }`}
+            >
+              TODOS ({veiculosNoPatio.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setOsFiltro('iniciada')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
+                osFiltro === 'iniciada'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-surface text-emerald-400 hover:text-emerald-300 border border-emerald-500/30'
+              }`}
+            >
+              <span>🟢 O.S INICIADA ({osIniciadasCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setOsFiltro('aguardando')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
+                osFiltro === 'aguardando'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-surface text-amber-400 hover:text-amber-300 border border-amber-500/30'
+              }`}
+            >
+              <span>⏳ AGUARDANDO O.S ({osAguardandoCount})</span>
+            </button>
+          </div>
+        </div>
 
         {/* Filtro Rápido de Pátio / Oficina */}
         {patios.length > 0 && (
@@ -161,10 +251,10 @@ export function Manutencao() {
                     : 'bg-surface text-secondary hover:text-foreground border border-border/30'
                 }`}
               >
-                TODOS ({periodo.filter((m) => m.status === 'no_patio').length})
+                TODOS ({veiculosNoPatio.length})
               </button>
               {patios.map((p) => {
-                const count = periodo.filter((m) => m.status === 'no_patio' && m.patio_id === p.id).length
+                const count = veiculosNoPatio.filter((m) => m.patio_id === p.id).length
                 return (
                   <button
                     key={p.id}
@@ -219,7 +309,7 @@ export function Manutencao() {
             }`}
           >
             <Truck className="h-4 w-4" />
-            <span>LISTA DE ENTRADAS ({entradas.length})</span>
+            <span>LISTA ({entradas.length})</span>
           </button>
           <button
             type="button"
@@ -242,7 +332,7 @@ export function Manutencao() {
         <Card className="p-12 text-center">
           <div className="flex flex-col items-center justify-center gap-3 text-secondary">
             <div className="h-7 w-7 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
-            <p className="text-sm font-semibold uppercase">CARREGANDO ENTRADAS DO PÁTIO…</p>
+            <p className="text-sm font-semibold uppercase">CARREGANDO VEÍCULOS DO PÁTIO…</p>
           </div>
         </Card>
       ) : entradas.length === 0 ? (
@@ -251,9 +341,9 @@ export function Manutencao() {
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
               <Truck className="h-7 w-7" />
             </div>
-            <p className="text-base font-bold text-foreground uppercase">NENHUM VEÍCULO ENCONTRADO NO PÁTIO</p>
+            <p className="text-base font-bold text-foreground uppercase">NENHUM VEÍCULO ENCONTRADO</p>
             <p className="text-sm text-secondary max-w-md uppercase">
-              NÃO HÁ VEÍCULOS NO PÁTIO COM OS FILTROS SELECIONADOS.
+              NENHUM VEÍCULO CORRESPONDE AOS FILTROS SELECIONADOS.
             </p>
           </div>
         </Card>
@@ -267,13 +357,15 @@ export function Manutencao() {
           >
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
-                VEÍCULOS NO PÁTIO ({entradas.length}) — TOQUE PARA ABRIR
+                VEÍCULOS ({entradas.length}) — TOQUE PARA ABRIR
               </span>
             </div>
 
             <div className="space-y-2.5 max-h-[750px] overflow-y-auto pr-1">
               {entradas.map((m) => {
                 const isSelected = m.id === selectedId
+                const osStatus = getOSStatus(m.id, m.status_id)
+
                 return (
                   <div
                     key={m.id}
@@ -304,11 +396,25 @@ export function Manutencao() {
 
                     {/* Informações da Entrada */}
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                      <div className="flex items-center justify-between gap-1.5 mb-1">
                         <span className="font-black text-foreground tracking-wide font-mono text-base">
                           {m.veiculo?.placa}
                         </span>
                         <StatusManutencaoBadge status={m.status_manutencao} />
+                      </div>
+
+                      {/* Badge de Status da OS / Preenchimento */}
+                      <div className="mb-1.5 flex items-center gap-1.5 flex-wrap">
+                        {osStatus.iniciada ? (
+                          <Badge tone="success" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide">
+                            {osStatus.fechada ? '✓ O.S CONCLUÍDA' : '🟢 O.S INICIADA'}
+                            {osStatus.mecanico ? ` · ${osStatus.mecanico}` : ''}
+                          </Badge>
+                        ) : (
+                          <Badge tone="neutral" className="!text-[10px] !py-0.5 !px-2 uppercase font-bold tracking-wide text-secondary border border-border/40">
+                            ⏳ AGUARDANDO O.S
+                          </Badge>
+                        )}
                       </div>
 
                       <p className="text-xs font-bold text-foreground truncate uppercase">
