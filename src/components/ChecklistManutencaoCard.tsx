@@ -134,15 +134,20 @@ function calcularDuracaoHorasMin(
   fim?: string,
   dataInicio?: string,
   dataFim?: string,
-): { minutos: number; texto: string } | null {
-  if (!inicio || !fim) return null
+): { minutos: number; texto: string; emAndamento?: boolean } | null {
+  if (!inicio) return null
+
+  // Se tem início apontado mas não tem fim, a atividade está em andamento!
+  if (!fim) {
+    return { minutos: 0, texto: 'EM ANDAMENTO', emAndamento: true }
+  }
 
   if (dataInicio && dataFim) {
     const d1 = new Date(`${dataInicio}T${inicio}:00`)
     const d2 = new Date(`${dataFim}T${fim}:00`)
     if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
       const diff = Math.round((d2.getTime() - d1.getTime()) / 60000)
-      if (diff >= 0) return { minutos: diff, texto: formatMinutosParaTexto(diff).toUpperCase() }
+      if (diff >= 0) return { minutos: diff, texto: formatMinutosParaTexto(diff).toUpperCase(), emAndamento: false }
     }
   }
 
@@ -151,7 +156,7 @@ function calcularDuracaoHorasMin(
   if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) return null
   let min = h2 * 60 + m2 - (h1 * 60 + m1)
   if (min < 0) min += 24 * 60
-  return { minutos: min, texto: formatMinutosParaTexto(min).toUpperCase() }
+  return { minutos: min, texto: formatMinutosParaTexto(min).toUpperCase(), emAndamento: false }
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -351,24 +356,19 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     const existing = itemsDB[item.id]
     const nextChecked = !(existing?.checked ?? false)
     const dataInicio = existing?.data_inicio || existing?.data || (nextChecked ? nowDateString() : '')
-    const dataFim = existing?.data_fim || (nextChecked && existing?.hora_inicio ? nowDateString() : '')
     const horaInicio =
       nextChecked && !(existing?.hora_inicio)
         ? nowTimeString()
         : existing?.hora_inicio ?? ''
-    const horaFim =
-      nextChecked && existing?.hora_inicio && !existing?.hora_fim
-        ? nowTimeString()
-        : existing?.hora_fim ?? ''
 
     salvarItem(buildRow(secaoId, item, {
       checked: nextChecked,
       mecanico: existing?.mecanico || mecanico,
       data: dataInicio,
       data_inicio: dataInicio,
-      data_fim: dataFim,
+      data_fim: existing?.data_fim ?? '',
       hora_inicio: horaInicio,
-      hora_fim: horaFim,
+      hora_fim: existing?.hora_fim ?? '',
     }))
   }
 
@@ -814,7 +814,13 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                           )}
 
                           {duracao && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-primary/10 border border-primary/25 text-primary shrink-0 uppercase">
+                            <span
+                              className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md border shrink-0 uppercase ${
+                                duracao.emAndamento
+                                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 animate-pulse'
+                                  : 'bg-primary/10 border-primary/25 text-primary'
+                              }`}
+                            >
                               <Clock className="h-3 w-3" />
                               {duracao.texto}
                             </span>
@@ -972,6 +978,23 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                     AGORA
                                   </button>
                                 </div>
+
+                                {/* Botão para voltar a atividade para Em Andamento (limpar fim) */}
+                                {(data?.hora_fim || data?.data_fim) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateItemPatch(secao.id, item, {
+                                        hora_fim: '',
+                                        data_fim: '',
+                                      })
+                                    }}
+                                    className="text-[10px] text-amber-400 hover:text-amber-300 font-bold px-2 py-1 rounded border border-amber-500/30 bg-amber-500/10 uppercase transition-colors"
+                                    title="Limpa o término para deixar a atividade em andamento"
+                                  >
+                                    ⏳ DEIXAR EM ANDAMENTO
+                                  </button>
+                                )}
                               </div>
 
                               {/* Rodapé do Bloco Expandido */}
