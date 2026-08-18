@@ -255,7 +255,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         setSetor(parsed.setor || '')
         setDataHoraAbertura(parsed.dataHoraAbertura || '')
         setDataHoraFechamento(parsed.dataHoraFechamento || '')
-      } else if (etapaOS) {
+      } else if (etapaOS && etapaOS.mecanico_executor) {
         setMecanico(etapaOS.mecanico_executor || '')
         setFuncao(etapaOS.funcao || '')
         setSetor(etapaOS.setor || '')
@@ -265,35 +265,129 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
         setMecanico('')
         setFuncao('')
         setSetor('')
-        setDataHoraAbertura(toLocalInputValue(movimentacao.data_hora_entrada))
+        setDataHoraAbertura('')
         setDataHoraFechamento('')
       }
     } catch {
       setItemsData({})
     }
-  }, [movimentacao.id, etapaOS, movimentacao.data_hora_entrada])
+  }, [movimentacao.id, etapaOS])
 
-  // Sincroniza em tempo real informações do responsável e abertura
-  useEffect(() => {
-    if (mecanico || dataHoraAbertura || dataHoraFechamento) {
-      try {
-        const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
-        const parsed = existing ? JSON.parse(existing) : {}
-        localStorage.setItem(
-          `checklist_info_${movimentacao.id}`,
-          JSON.stringify({
-            ...parsed,
-            mecanico: (mecanico || '').toUpperCase(),
-            funcao: (funcao || '').toUpperCase(),
-            setor: (setor || '').toUpperCase(),
-            dataHoraAbertura,
-            dataHoraFechamento,
-          }),
-        )
-        window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
-      } catch {}
+  function handleMecanicoChange(val: string) {
+    const valUpper = val.toUpperCase()
+    setMecanico(valUpper)
+    let dtAbertura = dataHoraAbertura
+    if (valUpper.trim().length > 0 && !dtAbertura) {
+      dtAbertura = nowLocalInputValue()
+      setDataHoraAbertura(dtAbertura)
     }
-  }, [mecanico, funcao, setor, dataHoraAbertura, dataHoraFechamento, movimentacao.id])
+    try {
+      const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
+      const parsed = existing ? JSON.parse(existing) : {}
+      localStorage.setItem(
+        `checklist_info_${movimentacao.id}`,
+        JSON.stringify({
+          ...parsed,
+          mecanico: valUpper.trim(),
+          funcao: (funcao || '').toUpperCase(),
+          setor: (setor || '').toUpperCase(),
+          dataHoraAbertura: dtAbertura,
+          dataHoraFechamento,
+        }),
+      )
+      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
+    } catch {}
+  }
+
+  function handleDataHoraAberturaChange(val: string) {
+    setDataHoraAbertura(val)
+    try {
+      const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
+      const parsed = existing ? JSON.parse(existing) : {}
+      localStorage.setItem(
+        `checklist_info_${movimentacao.id}`,
+        JSON.stringify({
+          ...parsed,
+          mecanico: (mecanico || '').toUpperCase().trim(),
+          funcao: (funcao || '').toUpperCase(),
+          setor: (setor || '').toUpperCase(),
+          dataHoraAbertura: val,
+          dataHoraFechamento,
+        }),
+      )
+      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
+    } catch {}
+  }
+
+  function handleDataHoraFechamentoChange(val: string) {
+    setDataHoraFechamento(val)
+    try {
+      const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
+      const parsed = existing ? JSON.parse(existing) : {}
+      localStorage.setItem(
+        `checklist_info_${movimentacao.id}`,
+        JSON.stringify({
+          ...parsed,
+          mecanico: (mecanico || '').toUpperCase().trim(),
+          funcao: (funcao || '').toUpperCase(),
+          setor: (setor || '').toUpperCase(),
+          dataHoraAbertura,
+          dataHoraFechamento: val,
+        }),
+      )
+      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
+    } catch {}
+  }
+
+  function handleFinalizarOS() {
+    if (!mecanico.trim()) {
+      alert('POR FAVOR, INFORME O NOME DO RESPONSÁVEL / MECÂNICO ANTES DE FINALIZAR A O.S.')
+      return
+    }
+    const dtAgora = nowLocalInputValue()
+    setDataHoraFechamento(dtAgora)
+    try {
+      const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
+      const parsed = existing ? JSON.parse(existing) : {}
+      localStorage.setItem(
+        `checklist_info_${movimentacao.id}`,
+        JSON.stringify({
+          ...parsed,
+          mecanico: (mecanico || '').toUpperCase().trim(),
+          funcao: (funcao || '').toUpperCase(),
+          setor: (setor || '').toUpperCase(),
+          dataHoraAbertura: dataHoraAbertura || dtAgora,
+          dataHoraFechamento: dtAgora,
+        }),
+      )
+      persistItemsData(itemsData)
+      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
+      setSucessoSalvar(true)
+      setTimeout(() => setSucessoSalvar(false), 3000)
+    } catch {}
+  }
+
+  function handleReabrirOS() {
+    setDataHoraFechamento('')
+    try {
+      const existing = localStorage.getItem(`checklist_info_${movimentacao.id}`)
+      const parsed = existing ? JSON.parse(existing) : {}
+      localStorage.setItem(
+        `checklist_info_${movimentacao.id}`,
+        JSON.stringify({
+          ...parsed,
+          mecanico: (mecanico || '').toUpperCase().trim(),
+          funcao: (funcao || '').toUpperCase(),
+          setor: (setor || '').toUpperCase(),
+          dataHoraAbertura,
+          dataHoraFechamento: '',
+        }),
+      )
+      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacao.id } }))
+      setSucessoSalvar(true)
+      setTimeout(() => setSucessoSalvar(false), 3000)
+    } catch {}
+  }
 
   // Salva itemsData no localStorage
   function persistItemsData(nextData: Record<string, ItemChecklistData>) {
@@ -635,7 +729,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               id="mecanico-nome"
               placeholder="EX: CARLOS SILVA, ROBERTO…"
               value={mecanico}
-              onChange={(e) => setMecanico(e.target.value)}
+              onChange={(e) => handleMecanicoChange(e.target.value)}
               className="!h-9 !text-sm !px-3 uppercase"
             />
           </div>
@@ -648,7 +742,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               </Label>
               <button
                 type="button"
-                onClick={() => setDataHoraAbertura(nowLocalInputValue())}
+                onClick={() => handleDataHoraAberturaChange(nowLocalInputValue())}
                 className="text-[11px] text-primary hover:underline font-bold uppercase"
               >
                 AGORA
@@ -658,7 +752,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               id="data-hora-abertura"
               type="datetime-local"
               value={dataHoraAbertura}
-              onChange={(e) => setDataHoraAbertura(e.target.value)}
+              onChange={(e) => handleDataHoraAberturaChange(e.target.value)}
               className="!h-9 !text-sm !px-3"
             />
           </div>
@@ -671,7 +765,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               </Label>
               <button
                 type="button"
-                onClick={() => setDataHoraFechamento(nowLocalInputValue())}
+                onClick={() => handleDataHoraFechamentoChange(nowLocalInputValue())}
                 className="text-[11px] text-primary hover:underline font-bold uppercase"
               >
                 AGORA
@@ -681,32 +775,61 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               id="data-hora-fechamento"
               type="datetime-local"
               value={dataHoraFechamento}
-              onChange={(e) => setDataHoraFechamento(e.target.value)}
+              onChange={(e) => handleDataHoraFechamentoChange(e.target.value)}
               className="!h-9 !text-sm !px-3"
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-1">
-          <span className="text-xs text-secondary">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/20">
+          <div className="flex items-center gap-2 flex-wrap">
             {sucessoSalvar && (
-              <span className="text-emerald-400 font-bold flex items-center gap-1 uppercase">
-                <Check className="h-3.5 w-3.5" /> SALVO E SINCRONIZADO COM O INDICADOR DE PERFORMANCE!
+              <span className="text-emerald-400 text-xs font-bold flex items-center gap-1 uppercase">
+                <Check className="h-3.5 w-3.5" /> SALVO COM SUCESSO!
               </span>
             )}
-          </span>
+            {dataHoraFechamento && (
+              <span className="px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-black uppercase flex items-center gap-1.5">
+                🏁 O.S FINALIZADA
+              </span>
+            )}
+          </div>
 
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={salvarDadosServico}
-            disabled={salvandoDados}
-            className="!h-8 !text-xs !px-3 uppercase font-bold"
-          >
-            <Save className="h-3.5 w-3.5 mr-1" />
-            {salvandoDados ? 'SALVANDO…' : 'SALVAR NO INDICADOR DE PERFORMANCE'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {dataHoraFechamento ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={handleReabrirOS}
+                className="!h-9 !text-xs !px-3.5 uppercase font-bold text-secondary hover:text-foreground border border-border/40"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                REABRIR O.S
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="md"
+                onClick={handleFinalizarOS}
+                className="!h-9 !text-xs !px-4 uppercase font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all active:scale-95"
+              >
+                🏁 FINALIZAR O.S
+              </Button>
+            )}
+
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={salvarDadosServico}
+              disabled={salvandoDados}
+              className="!h-9 !text-xs !px-3.5 uppercase font-bold"
+            >
+              <Save className="h-3.5 w-3.5 mr-1" />
+              {salvandoDados ? 'SALVANDO…' : 'SALVAR'}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -855,7 +978,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                         }`}
                       >
                         {/* Linha Principal do Item */}
-                        <div className="flex items-center gap-3 p-2.5">
+                        <div className="flex items-center gap-3 p-2.5 min-w-0 overflow-hidden">
                           {/* Quadrado do Checkbox */}
                           <button
                             type="button"
@@ -873,7 +996,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                           {/* Texto do Item */}
                           <span
                             onClick={() => toggleItem(item.id)}
-                            className={`text-sm leading-snug flex-1 cursor-pointer select-none uppercase ${
+                            className={`text-sm leading-snug flex-1 cursor-pointer select-none uppercase truncate min-w-0 ${
                               isChecked
                                 ? 'font-semibold text-foreground'
                                 : 'text-foreground/90 font-medium'

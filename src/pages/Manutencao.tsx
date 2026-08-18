@@ -32,41 +32,14 @@ function getOSStatus(movId: string) {
       const fech = Boolean(parsed.dataHoraFechamento)
       const dtAb = (parsed.dataHoraAbertura || '').trim()
 
-      if (mec && mec !== '—' && mec !== '-' && mec !== 'SEM NOME' && mec !== 'OPCIONAL') {
+      // A O.S SÓ É CONSIDERADA INICIADA QUANDO O NOME DO RESPONSÁVEL ESTIVER PREENCHIDO
+      if (mec && mec !== '—' && mec !== '-' && mec !== 'SEM NOME' && mec !== 'OPCIONAL' && mec.length > 0) {
         return {
           iniciada: true,
           mecanico: mec,
           dataHoraAbertura: dtAb || null,
           fechada: fech,
         }
-      }
-      if (dtAb && dtAb !== '') {
-        return {
-          iniciada: true,
-          mecanico: mec || null,
-          dataHoraAbertura: dtAb,
-          fechada: fech,
-        }
-      }
-      if (fech) {
-        return {
-          iniciada: true,
-          mecanico: null,
-          dataHoraAbertura: null,
-          fechada: true,
-        }
-      }
-    } catch {}
-  }
-  const items = localStorage.getItem(`checklist_items_data_${movId}`)
-  if (items) {
-    try {
-      const parsed = JSON.parse(items)
-      const hasChecked = Object.values(parsed).some(
-        (v: any) => v.checked || (v.mecanico && v.mecanico.trim() !== '') || v.horaInicio || v.horaFim,
-      )
-      if (hasChecked) {
-        return { iniciada: true, mecanico: null, dataHoraAbertura: null, fechada: false }
       }
     } catch {}
   }
@@ -81,7 +54,7 @@ export function Manutencao() {
 
   const [filters, setFilters] = useState<FiltersValue>(filtroInicial)
   const [statusFiltro, setStatusFiltro] = useState('')
-  const [osFiltro, setOsFiltro] = useState<'todos' | 'iniciada' | 'aguardando'>('todos')
+  const [osFiltro, setOsFiltro] = useState<'todos' | 'em_andamento' | 'finalizada' | 'aguardando'>('todos')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [abaMobile, setAbaMobile] = useState<'lista' | 'checklist'>('lista')
   const [osUpdateTrigger, setOsUpdateTrigger] = useState(0)
@@ -125,13 +98,25 @@ export function Manutencao() {
     return periodo.filter((m) => m.status === 'no_patio')
   }, [periodo])
 
-  const osIniciadasCount = useMemo(() => {
-    return veiculosNoPatio.filter((m) => getOSStatus(m.id).iniciada).length
+  const osEmAndamentoCount = useMemo(() => {
+    return veiculosNoPatio.filter((m) => {
+      const st = getOSStatus(m.id)
+      return st.iniciada && !st.fechada
+    }).length
+  }, [veiculosNoPatio, osUpdateTrigger])
+
+  const osFinalizadasCount = useMemo(() => {
+    return veiculosNoPatio.filter((m) => {
+      const st = getOSStatus(m.id)
+      return st.iniciada && st.fechada
+    }).length
   }, [veiculosNoPatio, osUpdateTrigger])
 
   const osAguardandoCount = useMemo(() => {
     return veiculosNoPatio.filter((m) => !getOSStatus(m.id).iniciada).length
   }, [veiculosNoPatio, osUpdateTrigger])
+
+  const osIniciadasCount = osEmAndamentoCount + osFinalizadasCount
 
   // Filtra as movimentações com base em todos os critérios
   const entradas = useMemo(() => {
@@ -142,7 +127,8 @@ export function Manutencao() {
       // Filtro de OS
       if (osFiltro !== 'todos') {
         const st = getOSStatus(m.id)
-        if (osFiltro === 'iniciada' && !st.iniciada) return false
+        if (osFiltro === 'em_andamento' && (!st.iniciada || st.fechada)) return false
+        if (osFiltro === 'finalizada' && (!st.iniciada || !st.fechada)) return false
         if (osFiltro === 'aguardando' && st.iniciada) return false
       }
 
@@ -223,7 +209,7 @@ export function Manutencao() {
           }}
         />
 
-        {/* Filtro por Status da O.S (Iniciada / Aguardando) */}
+        {/* Filtro Rápido de Status da OS */}
         <div className="pt-2 border-t border-border/20 flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
             STATUS DA O.S:
@@ -242,14 +228,25 @@ export function Manutencao() {
             </button>
             <button
               type="button"
-              onClick={() => setOsFiltro('iniciada')}
+              onClick={() => setOsFiltro('em_andamento')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
-                osFiltro === 'iniciada'
+                osFiltro === 'em_andamento'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'bg-surface text-emerald-400 hover:text-emerald-300 border border-emerald-500/30'
               }`}
             >
-              <span>🟢 O.S INICIADA ({osIniciadasCount})</span>
+              <span>🟢 EM ANDAMENTO ({osEmAndamentoCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setOsFiltro('finalizada')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
+                osFiltro === 'finalizada'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-surface text-blue-400 hover:text-blue-300 border border-blue-500/30'
+              }`}
+            >
+              <span>🏁 FINALIZADAS ({osFinalizadasCount})</span>
             </button>
             <button
               type="button"
@@ -260,7 +257,7 @@ export function Manutencao() {
                   : 'bg-surface text-amber-400 hover:text-amber-300 border border-amber-500/30'
               }`}
             >
-              <span>⏳ AGUARDANDO O.S ({osAguardandoCount})</span>
+              <span>⏳ AGUARDANDO ({osAguardandoCount})</span>
             </button>
           </div>
         </div>
@@ -436,10 +433,15 @@ export function Manutencao() {
                       {/* Badge de Status da OS / Preenchimento */}
                       <div className="mb-1.5 flex items-center gap-1.5 flex-wrap">
                         {osStatus.iniciada ? (
-                          <Badge tone="success" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide">
-                            {osStatus.fechada ? '✓ O.S CONCLUÍDA' : '🟢 O.S INICIADA'}
-                            {osStatus.mecanico ? ` · ${osStatus.mecanico}` : ''}
-                          </Badge>
+                          osStatus.fechada ? (
+                            <Badge tone="neutral" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                              🏁 O.S FINALIZADA {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
+                            </Badge>
+                          ) : (
+                            <Badge tone="success" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide">
+                              🟢 EM ANDAMENTO {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
+                            </Badge>
+                          )
                         ) : (
                           <Badge tone="neutral" className="!text-[10px] !py-0.5 !px-2 uppercase font-bold tracking-wide text-secondary border border-border/40">
                             ⏳ AGUARDANDO O.S
