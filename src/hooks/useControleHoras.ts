@@ -16,15 +16,21 @@ export interface ControleHorasItem {
   } | null
 }
 
-const SETORES_MANUTENCAO = [
-  'MECÂNICA',
-  'ELÉTRICA',
-  'FUNILARIA',
-  'PINTURA',
-  'ESTÉTICA',
-  'MANUTENÇÃO',
+const ETAPAS_IGNORADAS = [
+  'ABERTURA DE O.S',
+  'ABERTURA DE OS',
+  'ABERTURA O.S',
+  'ABERTURA OS',
+  'OFICINA PESADOS',
   'OFICINA PESADA',
   'OFICINA LEVES',
+  'OFICINA LEVE',
+  'ENTRADA',
+  'SAÍDA',
+  'NO PÁTIO',
+  'PÁTIO',
+  'TRAJETO',
+  'LAVAGEM',
 ]
 
 export function useControleHoras() {
@@ -45,22 +51,26 @@ export function useControleHoras() {
     if (error) {
       setError(error.message)
     } else {
-      // Conectado estritamente e exclusivamente ao módulo de Manutenção e Checklist
+      // Conectado estritamente e exclusivamente às atividades reais do módulo de Manutenção e Checklist
       const registros = (data as unknown as ControleHorasItem[]) ?? []
-      const apenasManutencao = registros.filter((item) => {
-        const descUpper = (item.descricao || '').toUpperCase()
-        const setorUpper = (item.setor || '').toUpperCase()
+      const apenasManutencaoReal = registros.filter((item) => {
+        const descUpper = (item.descricao || '').trim().toUpperCase()
+        const mecUpper = (item.mecanico_executor || '').trim().toUpperCase()
 
-        return (
-          descUpper.includes('CHECKLIST') ||
-          descUpper.includes('MANUTENÇÃO') ||
-          descUpper.includes('INSPEÇÃO') ||
-          SETORES_MANUTENCAO.includes(setorUpper) ||
-          Boolean(item.movimentacao?.status_manutencao)
-        )
+        // 1. Deve possuir um mecânico executor preenchido
+        if (!mecUpper || mecUpper === '—' || mecUpper === '-' || mecUpper === 'SEM NOME') {
+          return false
+        }
+
+        // 2. Não pode ser etapa genérica de movimentação, pátio ou abertura simples de OS
+        if (ETAPAS_IGNORADAS.includes(descUpper)) {
+          return false
+        }
+
+        return true
       })
 
-      setItens(apenasManutencao)
+      setItens(apenasManutencaoReal)
       setError(null)
     }
     setLoading(false)
