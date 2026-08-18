@@ -222,6 +222,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
   const [salvandoDados, setSalvandoDados] = useState(false)
   const [salvandoStatus, setSalvandoStatus] = useState(false)
   const [sucessoSalvar, setSucessoSalvar] = useState(false)
+  const [salvoItemId, setSalvoItemId] = useState<string | null>(null)
 
   // ── Cálculos ────────────────────────────────────────────────────────────────
 
@@ -371,8 +372,8 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     }))
   }
 
-  function updateItemField(secaoId: string, item: ItemChecklist, field: keyof ItemRow, value: string | boolean) {
-    salvarItem(buildRow(secaoId, item, { [field]: value }))
+  function updateItemPatch(secaoId: string, item: ItemChecklist, patch: Partial<ItemRow>) {
+    salvarItem(buildRow(secaoId, item, patch))
   }
 
   async function adicionarNovoItem(secaoId: string) {
@@ -868,7 +869,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                 type="text"
                                 placeholder={mecanico ? `PADRÃO: ${mecanico.toUpperCase()}` : 'EX: ROBERTO, CARLOS…'}
                                 value={data?.mecanico || ''}
-                                onChange={(e) => updateItemField(secao.id, item, 'mecanico', e.target.value.toUpperCase())}
+                                onChange={(e) => updateItemPatch(secao.id, item, { mecanico: e.target.value.toUpperCase() })}
                                 className="h-7 px-2.5 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary flex-1 uppercase"
                               />
                             </div>
@@ -884,16 +885,16 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                     type="date"
                                     value={data?.data_inicio || data?.data || ''}
                                     onChange={(e) => {
-                                      updateItemField(secao.id, item, 'data_inicio', e.target.value)
-                                      updateItemField(secao.id, item, 'data', e.target.value)
+                                      const val = e.target.value
+                                      updateItemPatch(secao.id, item, { data_inicio: val, data: val })
                                     }}
                                     className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                                   />
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      updateItemField(secao.id, item, 'data_inicio', nowDateString())
-                                      updateItemField(secao.id, item, 'data', nowDateString())
+                                      const hoje = nowDateString()
+                                      updateItemPatch(secao.id, item, { data_inicio: hoje, data: hoje })
                                     }}
                                     className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
                                   >
@@ -906,17 +907,19 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                   <input
                                     type="time"
                                     value={data?.hora_inicio || ''}
-                                    onChange={(e) => updateItemField(secao.id, item, 'hora_inicio', e.target.value)}
+                                    onChange={(e) => updateItemPatch(secao.id, item, { hora_inicio: e.target.value })}
                                     className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                                   />
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      updateItemField(secao.id, item, 'hora_inicio', nowTimeString())
-                                      if (!data?.data_inicio && !data?.data) {
-                                        updateItemField(secao.id, item, 'data_inicio', nowDateString())
-                                        updateItemField(secao.id, item, 'data', nowDateString())
-                                      }
+                                      const hora = nowTimeString()
+                                      const hoje = nowDateString()
+                                      updateItemPatch(secao.id, item, {
+                                        hora_inicio: hora,
+                                        data_inicio: data?.data_inicio || data?.data || hoje,
+                                        data: data?.data || hoje,
+                                      })
                                     }}
                                     className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
                                   >
@@ -934,12 +937,12 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                   <input
                                     type="date"
                                     value={data?.data_fim || ''}
-                                    onChange={(e) => updateItemField(secao.id, item, 'data_fim', e.target.value)}
+                                    onChange={(e) => updateItemPatch(secao.id, item, { data_fim: e.target.value })}
                                     className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                                   />
                                   <button
                                     type="button"
-                                    onClick={() => updateItemField(secao.id, item, 'data_fim', nowDateString())}
+                                    onClick={() => updateItemPatch(secao.id, item, { data_fim: nowDateString() })}
                                     className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
                                   >
                                     HOJE
@@ -951,26 +954,53 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                   <input
                                     type="time"
                                     value={data?.hora_fim || ''}
-                                    onChange={(e) => updateItemField(secao.id, item, 'hora_fim', e.target.value)}
+                                    onChange={(e) => updateItemPatch(secao.id, item, { hora_fim: e.target.value })}
                                     className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                                   />
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      updateItemField(secao.id, item, 'hora_fim', nowTimeString())
-                                      if (!data?.data_fim) updateItemField(secao.id, item, 'data_fim', nowDateString())
+                                      const hora = nowTimeString()
+                                      const hoje = nowDateString()
+                                      updateItemPatch(secao.id, item, {
+                                        hora_fim: hora,
+                                        data_fim: data?.data_fim || hoje,
+                                      })
                                     }}
                                     className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
                                   >
                                     AGORA
                                   </button>
                                 </div>
+                              </div>
 
-                                {duracao && (
-                                  <div className="text-xs font-bold text-primary flex items-center gap-1 ml-auto uppercase pt-1 sm:pt-0">
+                              {/* Rodapé do Bloco Expandido */}
+                              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/20">
+                                {duracao ? (
+                                  <div className="text-xs font-bold text-primary flex items-center gap-1 uppercase">
+                                    <Clock className="h-3.5 w-3.5" />
                                     <span>TEMPO GASTO: {duracao.texto}</span>
                                   </div>
+                                ) : (
+                                  <div />
                                 )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateItemPatch(secao.id, item, {})
+                                    setSalvoItemId(item.id)
+                                    setTimeout(() => setSalvoItemId(null), 2500)
+                                  }}
+                                  className={`px-3 py-1 rounded-md text-xs font-bold uppercase transition-all flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                                    salvoItemId === item.id
+                                      ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400'
+                                      : 'bg-primary/15 border border-primary/40 text-primary hover:bg-primary/25'
+                                  }`}
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                  <span>{salvoItemId === item.id ? 'SALVO COM SUCESSO!' : 'SALVAR ATIVIDADE'}</span>
+                                </button>
                               </div>
                             </div>
                           </div>

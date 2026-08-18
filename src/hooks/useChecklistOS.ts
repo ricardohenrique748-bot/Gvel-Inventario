@@ -261,20 +261,34 @@ export function useChecklistOS(movimentacaoId: string) {
 
   const salvarItem = useCallback(async (row: ItemRow) => {
     setItems((prev) => ({ ...prev, [row.item_id]: row }))   // optimistic
-    await supabase.from('checklist_itens').upsert({
-      movimentacao_id: movimentacaoId,
-      item_id: row.item_id,
-      secao_id: row.secao_id,
-      label: row.label,
-      is_custom: row.is_custom,
-      checked: row.checked,
-      data: row.data || row.data_inicio || null,
-      data_inicio: row.data_inicio || row.data || null,
-      data_fim: row.data_fim || null,
-      hora_inicio: row.hora_inicio || null,
-      hora_fim: row.hora_fim || null,
-      mecanico: row.mecanico || null,
-    }, { onConflict: 'movimentacao_id,item_id' })
+    try {
+      const payload: Record<string, unknown> = {
+        movimentacao_id: movimentacaoId,
+        item_id: row.item_id,
+        secao_id: row.secao_id,
+        label: row.label,
+        is_custom: row.is_custom,
+        checked: row.checked,
+        data: row.data || row.data_inicio || null,
+        data_inicio: row.data_inicio || row.data || null,
+        data_fim: row.data_fim || null,
+        hora_inicio: row.hora_inicio || null,
+        hora_fim: row.hora_fim || null,
+        mecanico: row.mecanico || null,
+      }
+
+      const { error } = await supabase.from('checklist_itens').upsert(payload, { onConflict: 'movimentacao_id,item_id' })
+      if (error) {
+        console.error('[salvarItem] Erro ao salvar no Supabase:', error)
+        if (error.message?.includes('column') || error.code === '42703') {
+          delete payload.data_inicio
+          delete payload.data_fim
+          await supabase.from('checklist_itens').upsert(payload, { onConflict: 'movimentacao_id,item_id' })
+        }
+      }
+    } catch (e) {
+      console.error('[salvarItem] Exception:', e)
+    }
   }, [movimentacaoId])
 
   const removerItem = useCallback(async (itemId: string) => {
