@@ -988,21 +988,28 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                         hora_fim: '',
                                         data_fim: '',
                                       })
+                                      setSalvoItemId(item.id)
+                                      setTimeout(() => setSalvoItemId(null), 2500)
                                     }}
-                                    className="text-[10px] text-amber-400 hover:text-amber-300 font-bold px-2 py-1 rounded border border-amber-500/30 bg-amber-500/10 uppercase transition-colors"
+                                    className="text-xs text-amber-400 hover:text-amber-300 font-black px-2.5 py-1 rounded border border-amber-500/40 bg-amber-500/15 uppercase transition-colors flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
                                     title="Limpa o término para deixar a atividade em andamento"
                                   >
-                                    ⏳ DEIXAR EM ANDAMENTO
+                                    <span>⏳ DEIXAR EM ANDAMENTO (LIMPAR TÉRMINO)</span>
                                   </button>
                                 )}
                               </div>
 
                               {/* Rodapé do Bloco Expandido */}
                               <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/20">
-                                {duracao ? (
+                                {duracao && !duracao.emAndamento ? (
                                   <div className="text-xs font-bold text-primary flex items-center gap-1 uppercase">
                                     <Clock className="h-3.5 w-3.5" />
                                     <span>TEMPO GASTO: {duracao.texto}</span>
+                                  </div>
+                                ) : duracao?.emAndamento ? (
+                                  <div className="text-xs font-bold text-amber-400 flex items-center gap-1 uppercase animate-pulse">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    <span>STATUS: ATIVIDADE EM ANDAMENTO</span>
                                   </div>
                                 ) : (
                                   <div />

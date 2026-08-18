@@ -286,6 +286,23 @@ export function useChecklistOS(movimentacaoId: string) {
           await supabase.from('checklist_itens').upsert(payload, { onConflict: 'movimentacao_id,item_id' })
         }
       }
+
+      // Sincroniza localStorage
+      try {
+        const itemsKey = `checklist_items_data_${movimentacaoId}`
+        const current = JSON.parse(localStorage.getItem(itemsKey) || '{}')
+        current[row.item_id] = {
+          checked: row.checked,
+          horaInicio: row.hora_inicio || undefined,
+          horaFim: row.hora_fim || undefined,
+          mecanico: row.mecanico || undefined,
+          dataInicio: row.data_inicio || undefined,
+          dataFim: row.data_fim || undefined,
+        }
+        localStorage.setItem(itemsKey, JSON.stringify(current))
+      } catch {}
+
+      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacaoId } }))
     } catch (e) {
       console.error('[salvarItem] Exception:', e)
     }
