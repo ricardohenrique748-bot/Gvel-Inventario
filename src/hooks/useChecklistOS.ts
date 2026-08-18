@@ -17,6 +17,7 @@ export interface OSData {
   mecanico: string
   funcao: string
   setor: string
+  statusOS: string
   dataHoraAbertura: string   // datetime-local string (ex: "2026-08-18T10:00")
   dataHoraFechamento: string
 }
@@ -27,6 +28,9 @@ export interface ItemRow {
   label: string
   is_custom: boolean
   checked: boolean
+  data?: string
+  data_inicio?: string
+  data_fim?: string
   hora_inicio: string
   hora_fim: string
   mecanico: string
@@ -64,6 +68,7 @@ export function useChecklistOS(movimentacaoId: string) {
     mecanico: '',
     funcao: '',
     setor: '',
+    statusOS: 'EM ANDAMENTO',
     dataHoraAbertura: '',
     dataHoraFechamento: '',
   })
@@ -111,6 +116,7 @@ export function useChecklistOS(movimentacaoId: string) {
           mecanico: info.mecanico || null,
           funcao: info.funcao || null,
           setor: info.setor || null,
+          status_os: info.statusOS || 'EM ANDAMENTO',
           data_hora_abertura: toISO(info.dataHoraAbertura),
           data_hora_fechamento: toISO(info.dataHoraFechamento),
         }, { onConflict: 'movimentacao_id' })
@@ -183,11 +189,12 @@ export function useChecklistOS(movimentacaoId: string) {
         mecanico: (os.mecanico as string) || '',
         funcao: (os.funcao as string) || '',
         setor: (os.setor as string) || '',
+        statusOS: (os.status_os as string) || 'EM ANDAMENTO',
         dataHoraAbertura: toLocalString(os.data_hora_abertura as string),
         dataHoraFechamento: toLocalString(os.data_hora_fechamento as string),
       })
     } else {
-      setOsData({ mecanico: '', funcao: '', setor: '', dataHoraAbertura: '', dataHoraFechamento: '' })
+      setOsData({ mecanico: '', funcao: '', setor: '', statusOS: 'EM ANDAMENTO', dataHoraAbertura: '', dataHoraFechamento: '' })
     }
 
     const map: ItemsMap = {}
@@ -199,6 +206,9 @@ export function useChecklistOS(movimentacaoId: string) {
         label: r.label as string,
         is_custom: Boolean(r.is_custom),
         checked: Boolean(r.checked),
+        data: (r.data as string) || (r.data_inicio as string) || '',
+        data_inicio: (r.data_inicio as string) || (r.data as string) || '',
+        data_fim: (r.data_fim as string) || '',
         hora_inicio: (r.hora_inicio as string) || '',
         hora_fim: (r.hora_fim as string) || '',
         mecanico: (r.mecanico as string) || '',
@@ -240,6 +250,7 @@ export function useChecklistOS(movimentacaoId: string) {
       mecanico: next.mecanico || null,
       funcao: next.funcao || null,
       setor: next.setor || null,
+      status_os: next.statusOS || 'EM ANDAMENTO',
       data_hora_abertura: toISO(next.dataHoraAbertura),
       data_hora_fechamento: toISO(next.dataHoraFechamento),
     }, { onConflict: 'movimentacao_id' })
@@ -257,6 +268,9 @@ export function useChecklistOS(movimentacaoId: string) {
       label: row.label,
       is_custom: row.is_custom,
       checked: row.checked,
+      data: row.data || row.data_inicio || null,
+      data_inicio: row.data_inicio || row.data || null,
+      data_fim: row.data_fim || null,
       hora_inicio: row.hora_inicio || null,
       hora_fim: row.hora_fim || null,
       mecanico: row.mecanico || null,

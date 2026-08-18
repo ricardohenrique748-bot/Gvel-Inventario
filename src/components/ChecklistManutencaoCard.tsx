@@ -123,8 +123,29 @@ function nowTimeString() {
   return now.toTimeString().slice(0, 5)
 }
 
-function calcularDuracaoHorasMin(inicio?: string, fim?: string): { minutos: number; texto: string } | null {
+function nowDateString() {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+function calcularDuracaoHorasMin(
+  inicio?: string,
+  fim?: string,
+  dataInicio?: string,
+  dataFim?: string,
+): { minutos: number; texto: string } | null {
   if (!inicio || !fim) return null
+
+  if (dataInicio && dataFim) {
+    const d1 = new Date(`${dataInicio}T${inicio}:00`)
+    const d2 = new Date(`${dataFim}T${fim}:00`)
+    if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+      const diff = Math.round((d2.getTime() - d1.getTime()) / 60000)
+      if (diff >= 0) return { minutos: diff, texto: formatMinutosParaTexto(diff).toUpperCase() }
+    }
+  }
+
   const [h1, m1] = inicio.split(':').map(Number)
   const [h2, m2] = fim.split(':').map(Number)
   if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) return null
@@ -161,6 +182,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
   const [mecanico, setMecanico] = useState('')
   const [funcao, setFuncao] = useState('')
   const [setor, setSetor] = useState('')
+  const [statusOS, setStatusOS] = useState('EM ANDAMENTO')
   const [dataHoraAbertura, setDataHoraAbertura] = useState('')
   const [dataHoraFechamento, setDataHoraFechamento] = useState('')
 
@@ -169,6 +191,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     setMecanico(osData.mecanico)
     setFuncao(osData.funcao)
     setSetor(osData.setor)
+    setStatusOS(osData.statusOS || 'EM ANDAMENTO')
     setDataHoraAbertura(osData.dataHoraAbertura)
     setDataHoraFechamento(osData.dataHoraFechamento)
   }, [osData])
@@ -215,7 +238,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     let soma = 0
     for (const data of Object.values(itemsDB)) {
       if (data.hora_inicio && data.hora_fim) {
-        const dur = calcularDuracaoHorasMin(data.hora_inicio, data.hora_fim)
+        const dur = calcularDuracaoHorasMin(data.hora_inicio, data.hora_fim, data.data_inicio || data.data, data.data_fim)
         if (dur) soma += dur.minutos
       }
     }
@@ -270,6 +293,11 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     setTimeout(() => setSucessoSalvar(false), 3000)
   }
 
+  function handleStatusOSChange(val: string) {
+    setStatusOS(val)
+    salvarOS({ statusOS: val })
+  }
+
   function handleReabrirOS() {
     setDataHoraFechamento('')
     salvarOS({ dataHoraFechamento: '' })
@@ -280,7 +308,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
   async function salvarDadosServico() {
     setSalvandoDados(true)
     setSucessoSalvar(false)
-    await salvarOS({ mecanico, funcao, setor, dataHoraAbertura, dataHoraFechamento })
+    await salvarOS({ mecanico, funcao, setor, statusOS, dataHoraAbertura, dataHoraFechamento })
     setSucessoSalvar(true)
     setTimeout(() => setSucessoSalvar(false), 3000)
     setSalvandoDados(false)
@@ -308,6 +336,9 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
       label: item.label,
       is_custom: Boolean(item.isCustom),
       checked: existing?.checked ?? false,
+      data: existing?.data ?? '',
+      data_inicio: existing?.data_inicio ?? existing?.data ?? '',
+      data_fim: existing?.data_fim ?? '',
       hora_inicio: existing?.hora_inicio ?? '',
       hora_fim: existing?.hora_fim ?? '',
       mecanico: existing?.mecanico ?? '',
@@ -318,6 +349,8 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
   function toggleItem(secaoId: string, item: ItemChecklist) {
     const existing = itemsDB[item.id]
     const nextChecked = !(existing?.checked ?? false)
+    const dataInicio = existing?.data_inicio || existing?.data || (nextChecked ? nowDateString() : '')
+    const dataFim = existing?.data_fim || (nextChecked && existing?.hora_inicio ? nowDateString() : '')
     const horaInicio =
       nextChecked && !(existing?.hora_inicio)
         ? nowTimeString()
@@ -330,6 +363,9 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     salvarItem(buildRow(secaoId, item, {
       checked: nextChecked,
       mecanico: existing?.mecanico || mecanico,
+      data: dataInicio,
+      data_inicio: dataInicio,
+      data_fim: dataFim,
       hora_inicio: horaInicio,
       hora_fim: horaFim,
     }))
@@ -545,6 +581,40 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
           </div>
         </div>
 
+        {/* Campo Status da O.S */}
+        <div className="pt-2 border-t border-border/20 space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="status-os-field" className="!text-xs font-semibold text-secondary uppercase">
+              STATUS DA O.S / ETAPA ATUAL
+            </Label>
+            <span className="text-[11px] font-black text-primary uppercase">
+              {statusOS}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {[
+              { id: 'EM ANDAMENTO', label: '🟢 EM ANDAMENTO', cor: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' },
+              { id: 'AGUARDANDO PEÇAS', label: '⏳ AGUARDANDO PEÇAS', cor: 'border-amber-500/40 text-amber-400 bg-amber-500/10' },
+              { id: 'AGUARDANDO APROVAÇÃO DO ORÇAMENTO', label: '📄 AGUARD. ORÇAMENTO', cor: 'border-purple-500/40 text-purple-400 bg-purple-500/10' },
+              { id: 'AGUARDANDO AUTORIZAÇÃO', label: '⚠️ AGUARD. AUTORIZAÇÃO', cor: 'border-orange-500/40 text-orange-400 bg-orange-500/10' },
+            ].map((st) => (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => handleStatusOSChange(st.id)}
+                className={`py-2 px-3 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 border text-center ${
+                  statusOS === st.id
+                    ? `${st.cor} ring-2 ring-primary/40 shadow-sm`
+                    : 'border-border/30 bg-surface/40 text-secondary hover:text-foreground hover:border-border'
+                }`}
+              >
+                <span>{st.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/20">
           <div className="flex items-center gap-2 flex-wrap">
             {sucessoSalvar && (
@@ -699,7 +769,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                     const data = itemsDB[item.id]
                     const isChecked = Boolean(data?.checked)
                     const isExpanded = Boolean(expandedItems[item.id])
-                    const duracao = calcularDuracaoHorasMin(data?.hora_inicio, data?.hora_fim)
+                    const duracao = calcularDuracaoHorasMin(data?.hora_inicio, data?.hora_fim, data?.data_inicio || data?.data, data?.data_fim)
                     const mecanicoDoItem = data?.mecanico || ''
 
                     return (
@@ -762,9 +832,9 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             <Timer className="h-3 w-3 text-secondary" />
                             <span className="text-[11px]">
                               {data?.hora_inicio && data?.hora_fim
-                                ? `${data.hora_inicio} - ${data.hora_fim}`
+                                ? `${data?.data_inicio || data?.data ? `${(data.data_inicio || data.data || '').slice(8, 10)}/${(data.data_inicio || data.data || '').slice(5, 7)} ` : ''}${data.hora_inicio} - ${data.hora_fim}`
                                 : data?.hora_inicio
-                                  ? `${data.hora_inicio} - …`
+                                  ? `${data?.data_inicio || data?.data ? `${(data.data_inicio || data.data || '').slice(8, 10)}/${(data.data_inicio || data.data || '').slice(5, 7)} ` : ''}${data.hora_inicio} - …`
                                   : 'DETALHES'}
                             </span>
                             {isExpanded ? (
@@ -803,48 +873,105 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                               />
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-border/10">
-                              {/* Hora Início */}
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-secondary font-bold whitespace-nowrap">INÍCIO:</span>
-                                <input
-                                  type="time"
-                                  value={data?.hora_inicio || ''}
-                                  onChange={(e) => updateItemField(secao.id, item, 'hora_inicio', e.target.value)}
-                                  className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => updateItemField(secao.id, item, 'hora_inicio', nowTimeString())}
-                                  className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
-                                >
-                                  AGORA
-                                </button>
-                              </div>
+                            <div className="space-y-2 pt-1 border-t border-border/10">
+                              {/* Linha INÍCIO */}
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                <span className="text-xs text-secondary font-bold whitespace-nowrap w-16">INÍCIO:</span>
 
-                              {/* Hora Fim */}
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-secondary font-bold whitespace-nowrap">FIM:</span>
-                                <input
-                                  type="time"
-                                  value={data?.hora_fim || ''}
-                                  onChange={(e) => updateItemField(secao.id, item, 'hora_fim', e.target.value)}
-                                  className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => updateItemField(secao.id, item, 'hora_fim', nowTimeString())}
-                                  className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
-                                >
-                                  AGORA
-                                </button>
-                              </div>
-
-                              {duracao && (
-                                <div className="text-xs font-bold text-primary flex items-center gap-1 ml-auto uppercase">
-                                  <span>TEMPO GASTO: {duracao.texto}</span>
+                                {/* Data Início */}
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="date"
+                                    value={data?.data_inicio || data?.data || ''}
+                                    onChange={(e) => {
+                                      updateItemField(secao.id, item, 'data_inicio', e.target.value)
+                                      updateItemField(secao.id, item, 'data', e.target.value)
+                                    }}
+                                    className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateItemField(secao.id, item, 'data_inicio', nowDateString())
+                                      updateItemField(secao.id, item, 'data', nowDateString())
+                                    }}
+                                    className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
+                                  >
+                                    HOJE
+                                  </button>
                                 </div>
-                              )}
+
+                                {/* Hora Início */}
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="time"
+                                    value={data?.hora_inicio || ''}
+                                    onChange={(e) => updateItemField(secao.id, item, 'hora_inicio', e.target.value)}
+                                    className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateItemField(secao.id, item, 'hora_inicio', nowTimeString())
+                                      if (!data?.data_inicio && !data?.data) {
+                                        updateItemField(secao.id, item, 'data_inicio', nowDateString())
+                                        updateItemField(secao.id, item, 'data', nowDateString())
+                                      }
+                                    }}
+                                    className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
+                                  >
+                                    AGORA
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Linha FIM */}
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                <span className="text-xs text-secondary font-bold whitespace-nowrap w-16">FIM:</span>
+
+                                {/* Data Fim */}
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="date"
+                                    value={data?.data_fim || ''}
+                                    onChange={(e) => updateItemField(secao.id, item, 'data_fim', e.target.value)}
+                                    className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItemField(secao.id, item, 'data_fim', nowDateString())}
+                                    className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
+                                  >
+                                    HOJE
+                                  </button>
+                                </div>
+
+                                {/* Hora Fim */}
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="time"
+                                    value={data?.hora_fim || ''}
+                                    onChange={(e) => updateItemField(secao.id, item, 'hora_fim', e.target.value)}
+                                    className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateItemField(secao.id, item, 'hora_fim', nowTimeString())
+                                      if (!data?.data_fim) updateItemField(secao.id, item, 'data_fim', nowDateString())
+                                    }}
+                                    className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
+                                  >
+                                    AGORA
+                                  </button>
+                                </div>
+
+                                {duracao && (
+                                  <div className="text-xs font-bold text-primary flex items-center gap-1 ml-auto uppercase pt-1 sm:pt-0">
+                                    <span>TEMPO GASTO: {duracao.texto}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         )}

@@ -408,9 +408,21 @@ export function Manutencao() {
                             <Badge tone="neutral" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide bg-blue-500/20 text-blue-300 border border-blue-500/40">
                               🏁 O.S FINALIZADA {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
                             </Badge>
+                          ) : osStatus.statusOS === 'AGUARDANDO PEÇAS' ? (
+                            <Badge tone="warning" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                              ⏳ AGUARDANDO PEÇAS {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
+                            </Badge>
+                          ) : osStatus.statusOS === 'AGUARDANDO APROVAÇÃO DO ORÇAMENTO' ? (
+                            <Badge tone="neutral" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                              📄 AGUARD. ORÇAMENTO {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
+                            </Badge>
+                          ) : osStatus.statusOS === 'AGUARDANDO AUTORIZAÇÃO' ? (
+                            <Badge tone="danger" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide bg-orange-500/20 text-orange-300 border border-orange-500/40">
+                              ⚠️ AGUARD. AUTORIZAÇÃO {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
+                            </Badge>
                           ) : (
                             <Badge tone="success" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide">
-                              🟢 EM ANDAMENTO {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
+                              🟢 {osStatus.statusOS || 'EM ANDAMENTO'} {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
                             </Badge>
                           )
                         ) : (

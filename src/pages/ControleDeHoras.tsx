@@ -20,7 +20,7 @@ import { Select } from '@/components/ui/Input'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useControleHoras, type ControleHorasItem } from '@/hooks/useControleHoras'
-import { formatDateTime, formatMinutosParaTexto, permanenciaEmMinutos } from '@/lib/format'
+import { formatDateTime, formatMinutosParaTexto } from '@/lib/format'
 import { CHART_SAIDA, CHART_CHROME, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
 
 const tooltipStyle = {
@@ -60,11 +60,18 @@ function opcoes(itens: ControleHorasItem[], campo: 'mecanico_executor' | 'funcao
   return [...valores].sort((a, b) => a.localeCompare(b))
 }
 
-function Horas({ abertura, fechamento }: { abertura: string; fechamento: string | null }) {
-  if (!fechamento) {
-    return <span className="text-secondary/70">Em aberto</span>
+function extrairMinutosItem(item: ControleHorasItem): number {
+  if (typeof item.minutos_atividade === 'number') {
+    return item.minutos_atividade
   }
-  return <span>{formatMinutosParaTexto(permanenciaEmMinutos(abertura, fechamento))}</span>
+  return 0
+}
+
+function Horas({ item }: { item: ControleHorasItem }) {
+  if (typeof item.minutos_atividade === 'number' && item.minutos_atividade > 0) {
+    return <span className="font-bold text-foreground">{formatMinutosParaTexto(item.minutos_atividade)}</span>
+  }
+  return <span className="text-secondary/60">0min</span>
 }
 
 export function ControleDeHoras() {
@@ -97,9 +104,7 @@ export function ControleDeHoras() {
     for (const item of itensFiltrados) {
       const placa = item.movimentacao?.veiculo?.placa
       if (placa) placas.add(placa)
-      if (item.data_hora_fechamento) {
-        minutosTotais += permanenciaEmMinutos(inicioAbertura(item), item.data_hora_fechamento)
-      }
+      minutosTotais += extrairMinutosItem(item)
     }
     return { veiculosAtendendo: placas.size, minutosTotais }
   }, [itensFiltrados])
@@ -107,9 +112,8 @@ export function ControleDeHoras() {
   const porMecanico = useMemo(() => {
     const somaMinutos = new Map<string, number>()
     for (const item of itensFiltrados) {
-      if (!item.data_hora_fechamento) continue
       const nome = item.mecanico_executor || 'Sem nome'
-      const minutos = permanenciaEmMinutos(inicioAbertura(item), item.data_hora_fechamento)
+      const minutos = extrairMinutosItem(item)
       somaMinutos.set(nome, (somaMinutos.get(nome) ?? 0) + minutos)
     }
     return [...somaMinutos.entries()]
@@ -472,7 +476,7 @@ export function ControleDeHoras() {
                         {item.movimentacao?.veiculo?.placa || '—'}
                       </td>
                       <td className="px-3 py-3 text-secondary whitespace-nowrap">
-                        <Horas abertura={inicioAbertura(item)} fechamento={item.data_hora_fechamento} />
+                        <Horas item={item} />
                       </td>
                     </tr>
                   ))}
@@ -495,7 +499,7 @@ export function ControleDeHoras() {
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-secondary">
                   <p>Placa: {item.movimentacao?.veiculo?.placa || '—'}</p>
                   <p>
-                    Horas: <Horas abertura={inicioAbertura(item)} fechamento={item.data_hora_fechamento} />
+                    Horas: <Horas item={item} />
                   </p>
                   <p>Abertura: {formatDateTime(inicioAbertura(item))}</p>
                   <p>Fechamento: {item.data_hora_fechamento ? formatDateTime(item.data_hora_fechamento) : '—'}</p>

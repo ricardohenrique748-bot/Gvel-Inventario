@@ -12,11 +12,12 @@ import { supabase } from '@/lib/supabase'
 export interface OSStatusItem {
   iniciada: boolean
   mecanico: string | null
+  statusOS: string | null
   dataHoraAbertura: string | null
   fechada: boolean
 }
 
-const VAZIO: OSStatusItem = { iniciada: false, mecanico: null, dataHoraAbertura: null, fechada: false }
+const VAZIO: OSStatusItem = { iniciada: false, mecanico: null, statusOS: null, dataHoraAbertura: null, fechada: false }
 
 export function useOSStatusBatch(movimentacaoIds: string[]) {
   const [statusMap, setStatusMap] = useState<Record<string, OSStatusItem>>({})
@@ -29,7 +30,7 @@ export function useOSStatusBatch(movimentacaoIds: string[]) {
 
     const { data } = await supabase
       .from('checklist_os')
-      .select('movimentacao_id, mecanico, data_hora_abertura, data_hora_fechamento')
+      .select('movimentacao_id, mecanico, status_os, data_hora_abertura, data_hora_fechamento')
       .in('movimentacao_id', movimentacaoIds)
 
     const next: Record<string, OSStatusItem> = {}
@@ -46,6 +47,7 @@ export function useOSStatusBatch(movimentacaoIds: string[]) {
         next[id] = {
           iniciada,
           mecanico: iniciada ? mec : null,
+          statusOS: row.status_os || 'EM ANDAMENTO',
           dataHoraAbertura: row.data_hora_abertura ?? null,
           fechada: Boolean(row.data_hora_fechamento),
         }
@@ -61,6 +63,7 @@ export function useOSStatusBatch(movimentacaoIds: string[]) {
             next[id] = {
               iniciada,
               mecanico: iniciada ? mec : null,
+              statusOS: parsed.statusOS || 'EM ANDAMENTO',
               dataHoraAbertura: parsed.dataHoraAbertura || null,
               fechada: Boolean(parsed.dataHoraFechamento),
             }
