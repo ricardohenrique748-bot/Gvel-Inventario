@@ -9,7 +9,6 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 import { format, isSameDay, parseISO } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { Card } from '@/components/ui/Card'
@@ -21,12 +20,13 @@ import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { ChecklistManutencaoCard } from '@/components/ChecklistManutencaoCard'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useStatusManutencao } from '@/hooks/useStatusManutencao'
+import { usePatios } from '@/hooks/usePatios'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 
 export function Manutencao() {
   const filtroInicial: FiltersValue = {
-    dataInicio: format(new Date(), 'yyyy-MM-dd'),
-    dataFim: format(new Date(), 'yyyy-MM-dd'),
+    dataInicio: '',
+    dataFim: '',
   }
 
   const [filters, setFilters] = useState<FiltersValue>(filtroInicial)
@@ -34,6 +34,7 @@ export function Manutencao() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [abaMobile, setAbaMobile] = useState<'lista' | 'checklist'>('lista')
   const { statusManutencao } = useStatusManutencao()
+  const { patios } = usePatios()
 
   // Determina se o filtro representa um único dia ou um intervalo
   const umDiaSelecionado =
@@ -41,16 +42,13 @@ export function Manutencao() {
       ? parseISO(filters.dataInicio)
       : null
 
-  const labelEntradas = umDiaSelecionado
-    ? `ENTRADAS EM ${format(umDiaSelecionado, 'dd/MM', { locale: ptBR })}`
-    : 'ENTRADAS NO PERÍODO'
-
-  // Busca movimentações com base nos filtros
+  // Busca movimentações com base nos filtros — busca todos os veículos atualmente no pátio
   const {
     movimentacoes: periodo,
     loading,
     refetch,
   } = useMovimentacoes({
+    status: 'no_patio',
     dataInicio: filters.dataInicio ? `${filters.dataInicio}T00:00:00` : undefined,
     dataFim: filters.dataFim ? `${filters.dataFim}T23:59:59` : undefined,
     search: filters.search,
@@ -60,10 +58,13 @@ export function Manutencao() {
     patioId: filters.patioId,
   })
 
-  // Filtra estritamente as movimentações cuja data de ENTRADA está no período selecionado
+  // Filtra as movimentações que continuam no pátio
   const entradas = useMemo(() => {
     return periodo.filter((m) => {
-      // Verifica se a data de entrada bate com o dia/período
+      // Garante que só exibe veículos presentes no pátio
+      if (m.status === 'saiu') return false
+
+      // Verifica se a data de entrada bate com o dia/período se informado
       if (umDiaSelecionado) {
         if (!isSameDay(new Date(m.data_hora_entrada), umDiaSelecionado)) return false
       }
@@ -94,9 +95,9 @@ export function Manutencao() {
   }, [entradas, selectedId])
 
   // Métricas
-  const totalEntradas = entradas.length
+  const totalEntradasNoPatio = entradas.length
   const emManutencaoCount = entradas.filter((m) => m.status_id).length
-  const noPatioCount = entradas.filter((m) => m.status === 'no_patio').length
+  const aguardandoServicoCount = entradas.filter((m) => !m.status_id).length
 
   function handleSelecionarEntrada(id: string) {
     setSelectedId(id)
@@ -107,15 +108,15 @@ export function Manutencao() {
     <div className="space-y-6 uppercase">
       <PageHeader
         title="MANUTENÇÃO"
-        subtitle="GERENCIAMENTO DE SERVIÇOS, ETAPAS E TRAJETO DAS ENTRADAS DE VEÍCULOS"
+        subtitle="VEÍCULOS NO PÁTIO, OFICINA LEVE, OFICINA PESADA E INSPEÇÃO DE CHECKLIST"
       />
 
       {/* Cards de Métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
-          icon={LogIn}
-          label={labelEntradas.toUpperCase()}
-          value={String(totalEntradas)}
+          icon={Truck}
+          label="VEÍCULOS NO PÁTIO"
+          value={String(totalEntradasNoPatio)}
         />
 
         <StatCard
@@ -125,9 +126,9 @@ export function Manutencao() {
         />
 
         <StatCard
-          icon={Truck}
-          label="AINDA NO PÁTIO"
-          value={String(noPatioCount)}
+          icon={LogIn}
+          label="AGUARDANDO SERVIÇO"
+          value={String(aguardandoServicoCount)}
         />
       </div>
 
@@ -143,6 +144,45 @@ export function Manutencao() {
             setStatusFiltro('')
           }}
         />
+
+        {/* Filtro Rápido de Pátio / Oficina */}
+        {patios.length > 0 && (
+          <div className="pt-2 border-t border-border/20 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
+              PÁTIO / OFICINA:
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setFilters((prev) => ({ ...prev, patioId: undefined }))}
+                className={`px-3 py-1 rounded-lg text-xs font-bold uppercase transition-all ${
+                  !filters.patioId
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'bg-surface text-secondary hover:text-foreground border border-border/30'
+                }`}
+              >
+                TODOS ({periodo.filter((m) => m.status === 'no_patio').length})
+              </button>
+              {patios.map((p) => {
+                const count = periodo.filter((m) => m.status === 'no_patio' && m.patio_id === p.id).length
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setFilters((prev) => ({ ...prev, patioId: p.id }))}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold uppercase transition-all ${
+                      filters.patioId === p.id
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'bg-surface text-secondary hover:text-foreground border border-border/30'
+                    }`}
+                  >
+                    {p.nome.toUpperCase()} ({count})
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="pt-2 border-t border-border/20 flex flex-wrap items-center gap-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
@@ -202,7 +242,7 @@ export function Manutencao() {
         <Card className="p-12 text-center">
           <div className="flex flex-col items-center justify-center gap-3 text-secondary">
             <div className="h-7 w-7 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
-            <p className="text-sm font-semibold uppercase">CARREGANDO ENTRADAS DO PERÍODO…</p>
+            <p className="text-sm font-semibold uppercase">CARREGANDO ENTRADAS DO PÁTIO…</p>
           </div>
         </Card>
       ) : entradas.length === 0 ? (
@@ -211,9 +251,9 @@ export function Manutencao() {
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
               <Truck className="h-7 w-7" />
             </div>
-            <p className="text-base font-bold text-foreground uppercase">NENHUMA ENTRADA ENCONTRADA</p>
+            <p className="text-base font-bold text-foreground uppercase">NENHUM VEÍCULO ENCONTRADO NO PÁTIO</p>
             <p className="text-sm text-secondary max-w-md uppercase">
-              NÃO FORAM REGISTRADAS ENTRADAS PARA O PERÍODO E FILTROS SELECIONADOS.
+              NÃO HÁ VEÍCULOS NO PÁTIO COM OS FILTROS SELECIONADOS.
             </p>
           </div>
         </Card>
@@ -227,7 +267,7 @@ export function Manutencao() {
           >
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
-                ENTRADAS ({entradas.length}) — TOQUE PARA ABRIR O CHECKLIST
+                VEÍCULOS NO PÁTIO ({entradas.length}) — TOQUE PARA ABRIR
               </span>
             </div>
 
@@ -276,12 +316,12 @@ export function Manutencao() {
                           'VEÍCULO'}
                       </p>
 
-                      <p className="text-xs text-secondary truncate mt-0.5 uppercase font-medium">
+                      <p className="text-xs text-primary font-bold truncate mt-0.5 uppercase">
                         PÁTIO: {m.patio?.nome || '—'}
                       </p>
 
                       <div className="mt-2 flex items-center justify-between text-[11px] text-secondary/80 border-t border-border/20 pt-1.5 uppercase font-bold">
-                        <span>ENTRADA: {format(new Date(m.data_hora_entrada), 'HH:mm')}</span>
+                        <span>ENTRADA: {format(new Date(m.data_hora_entrada), 'dd/MM HH:mm')}</span>
                         <span className="text-primary font-bold">
                           {isSelected ? '✓ ABERTO' : 'PREENCHER →'}
                         </span>
@@ -311,7 +351,7 @@ export function Manutencao() {
                     className="!h-8 !px-3 gap-1.5 text-xs uppercase font-bold"
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    VER OUTRAS ENTRADAS
+                    VER OUTROS VEÍCULOS
                   </Button>
                   <span className="text-xs font-black text-primary uppercase font-mono px-2 py-1 rounded-lg bg-primary/10 border border-primary/30">
                     {selecionado.veiculo?.placa}
@@ -356,6 +396,9 @@ export function Manutencao() {
                             .filter(Boolean)
                             .join(' · ')}{' '}
                           — {selecionado.veiculo?.cliente?.nome || 'CLIENTE NÃO INFORMADO'}
+                        </p>
+                        <p className="text-xs text-primary font-bold uppercase">
+                          LOCAL ATUAL: {selecionado.patio?.nome || 'PÁTIO NÃO INFORMADO'}
                         </p>
                       </div>
                     </div>
