@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
+import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
 
 interface PageHeaderProps {
   title: string
@@ -36,12 +37,10 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
   )
 }
 
-import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
-
 export function MobileTopBar() {
   return (
-    <div className="md:hidden sticky top-0 z-20 flex min-h-14 items-center justify-between border-b border-border/10 bg-surface px-4 pt-[env(safe-area-inset-top)] gap-2">
-      <Logo showText={false} />
+    <div className="md:hidden sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/15 bg-surface/95 backdrop-blur-md px-4 pt-[env(safe-area-inset-top)] gap-2 shadow-sm">
+      <Logo size="sm" />
       <div className="flex items-center gap-2">
         <NotificacoesDropdown />
         <ThemeToggleButton />

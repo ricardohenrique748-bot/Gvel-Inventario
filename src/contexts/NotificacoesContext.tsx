@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { notificationSound } from '@/lib/notificationSound'
+import { dispararPushLocal, solicitarPermissaoNotificacoes } from '@/lib/pushNotifications'
 
 export interface NotificacaoItem {
   id: string
@@ -99,6 +100,9 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     try {
       localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(novaConfig))
     } catch {}
+    if (novaConfig.pushAtivo) {
+      solicitarPermissaoNotificacoes()
+    }
   }, [])
 
   const updateConfig = useCallback((patch: Partial<ConfigNotificacoes>) => {
@@ -380,6 +384,10 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
       notificationSound.playChime()
     }
 
+    if (config.pushAtivo) {
+      dispararPushLocal(item.titulo, item.mensagem)
+    }
+
     setManuais((prev) => {
       const next = [item, ...prev]
       try {
@@ -387,13 +395,17 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
       } catch {}
       return next
     })
-  }, [config.somAtivo])
+  }, [config.somAtivo, config.pushAtivo])
 
   const dispararNotificacaoTeste = useCallback(() => {
     notificationSound.playChime()
+    dispararPushLocal(
+      '🔔 TESTE DE NOTIFICAÇÃO',
+      'As notificações no celular e no sistema estão funcionando perfeitamente!'
+    )
     criarNotificacaoManual(
       '🔔 NOTIFICAÇÃO DE TESTE DO SISTEMA',
-      'As notificações sonoras e visuais do sistema estão ativas e funcionando!',
+      'As notificações sonoras, push e visuais do sistema estão ativas e funcionando!',
       'alerta'
     )
   }, [criarNotificacaoManual])

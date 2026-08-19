@@ -31,7 +31,7 @@ export function NotificacoesDropdown() {
     limparTodas,
   } = useNotificacoes()
 
-  // Bloqueia rolagem do body quando o drawer estiver aberto
+  // Bloqueia rolagem do body quando o painel/sheet estiver aberto
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -75,14 +75,14 @@ export function NotificacoesDropdown() {
 
   return (
     <>
-      {/* Botão do Sininho */}
+      {/* Botão do Sininho de Notificações */}
       <button
         type="button"
         onClick={() => setIsOpen(true)}
         aria-label="Central de Notificações"
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border/40 bg-surface text-secondary hover:text-foreground hover:border-primary/50 transition-all active:scale-95 cursor-pointer shadow-sm"
+        className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-border/50 bg-surface/80 backdrop-blur-md text-secondary hover:text-foreground hover:border-primary/50 transition-all active:scale-95 cursor-pointer shadow-sm"
       >
-        <Bell className={`h-4 w-4 ${naoLidasCount > 0 ? 'text-primary' : ''}`} />
+        <Bell className={`h-5 w-5 transition-colors ${naoLidasCount > 0 ? 'text-primary' : ''}`} />
         
         {naoLidasCount > 0 && (
           <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white shadow-lg ring-2 ring-surface animate-pulse">
@@ -91,34 +91,45 @@ export function NotificacoesDropdown() {
         )}
       </button>
 
-      {/* Drawer Lateral via React Portal no Body (z-index absoluto e isolado) */}
+      {/* Painel via React Portal */}
       {isOpen &&
         createPortal(
-          <div className="fixed inset-0 z-[99999] flex justify-end font-sans">
-            {/* Backdrop Escuro com Blur total */}
+          <div className="fixed inset-0 z-[99999] flex flex-col justify-end sm:justify-center sm:items-end font-sans">
+            {/* Backdrop Escuro com Blur */}
             <div
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
+              className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
               onClick={() => setIsOpen(false)}
             />
 
-            {/* Painel Lateral Direito */}
-            <div className="relative z-10 flex h-full w-full sm:w-[440px] flex-col border-l border-border bg-[#18181b] text-foreground shadow-2xl animate-in slide-in-from-right duration-250">
+            {/* Painel: Bottom Sheet no Mobile (sobe de baixo) / Drawer no Desktop (lado direito) */}
+            <div className="relative z-10 flex w-full flex-col bg-[#18181b] text-foreground shadow-2xl transition-all duration-300
+              max-h-[90vh] sm:max-h-full sm:h-full sm:w-[440px]
+              rounded-t-[28px] sm:rounded-none
+              border-t sm:border-t-0 sm:border-l border-border/60
+              animate-in slide-in-from-bottom sm:slide-in-from-right
+              pb-[env(safe-area-inset-bottom)] sm:pb-0"
+            >
+              {/* Barra / Pílula de toque no topo do celular */}
+              <div className="sm:hidden flex justify-center pt-3 pb-1">
+                <div className="h-1.5 w-12 rounded-full bg-white/20" />
+              </div>
+
               {/* Cabeçalho */}
-              <div className="flex items-center justify-between border-b border-border/50 px-5 py-4 bg-[#1f1f23]">
-                <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5 bg-[#1f1f23] rounded-t-[28px] sm:rounded-none">
+                <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary">
                     <Bell className="h-4 w-4" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">
-                      CENTRAL DE NOTIFICAÇÕES
+                      NOTIFICAÇÕES
                     </h3>
                     {naoLidasCount > 0 ? (
                       <span className="text-[11px] font-semibold text-primary uppercase">
-                        {naoLidasCount} NOVA{naoLidasCount > 1 ? 'S' : ''} NÃO LIDA{naoLidasCount > 1 ? 'S' : ''}
+                        {naoLidasCount} NÃO LIDA{naoLidasCount > 1 ? 'S' : ''}
                       </span>
                     ) : (
-                      <span className="text-[11px] text-secondary uppercase">TODOS OS ALERTAS EM DIA</span>
+                      <span className="text-[11px] text-secondary uppercase">TUDO EM DIA</span>
                     )}
                   </div>
                 </div>
@@ -129,7 +140,7 @@ export function NotificacoesDropdown() {
                       type="button"
                       onClick={marcarTodasComoLidas}
                       title="Marcar todas como lidas"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:text-primary hover:bg-white/5 transition-colors cursor-pointer"
+                      className="flex h-9 w-9 items-center justify-center rounded-xl text-secondary hover:text-primary hover:bg-white/5 active:scale-95 transition-colors cursor-pointer"
                     >
                       <CheckCheck className="h-4 w-4" />
                     </button>
@@ -139,7 +150,7 @@ export function NotificacoesDropdown() {
                       type="button"
                       onClick={limparTodas}
                       title="Limpar histórico"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:text-red-400 hover:bg-white/5 transition-colors cursor-pointer"
+                      className="flex h-9 w-9 items-center justify-center rounded-xl text-secondary hover:text-red-400 hover:bg-white/5 active:scale-95 transition-colors cursor-pointer"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -148,22 +159,22 @@ export function NotificacoesDropdown() {
                     type="button"
                     onClick={() => setIsOpen(false)}
                     aria-label="Fechar"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:text-foreground hover:bg-white/5 transition-colors cursor-pointer"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl text-secondary hover:text-foreground hover:bg-white/5 active:scale-95 transition-colors cursor-pointer"
                   >
                     <X className="h-5 w-5" />
                   </button>
                 </div>
               </div>
 
-              {/* Filtros em Abas */}
-              <div className="flex border-b border-border/40 px-4 py-2.5 gap-2 bg-[#141416]">
+              {/* Filtros em Abas Grandes para Celular */}
+              <div className="flex border-b border-border/30 px-4 py-2 gap-2 bg-[#141416]">
                 <button
                   type="button"
                   onClick={() => setFiltro('todas')}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg uppercase transition-all cursor-pointer ${
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl uppercase transition-all active:scale-95 cursor-pointer ${
                     filtro === 'todas'
-                      ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm'
-                      : 'text-secondary hover:text-foreground hover:bg-white/5'
+                      ? 'bg-primary text-white shadow-md'
+                      : 'text-secondary hover:text-foreground hover:bg-white/5 bg-surface/30'
                   }`}
                 >
                   TODAS ({notificacoes.length})
@@ -171,10 +182,10 @@ export function NotificacoesDropdown() {
                 <button
                   type="button"
                   onClick={() => setFiltro('os')}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg uppercase transition-all cursor-pointer ${
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl uppercase transition-all active:scale-95 cursor-pointer ${
                     filtro === 'os'
-                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-sm'
-                      : 'text-secondary hover:text-foreground hover:bg-white/5'
+                      ? 'bg-amber-500 text-black shadow-md'
+                      : 'text-secondary hover:text-foreground hover:bg-white/5 bg-surface/30'
                   }`}
                 >
                   O.S / OFICINA
@@ -182,26 +193,26 @@ export function NotificacoesDropdown() {
                 <button
                   type="button"
                   onClick={() => setFiltro('patio')}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg uppercase transition-all cursor-pointer ${
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl uppercase transition-all active:scale-95 cursor-pointer ${
                     filtro === 'patio'
-                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-sm'
-                      : 'text-secondary hover:text-foreground hover:bg-white/5'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'text-secondary hover:text-foreground hover:bg-white/5 bg-surface/30'
                   }`}
                 >
                   PÁTIO
                 </button>
               </div>
 
-              {/* Lista com Rolagem Fluida */}
-              <div className="flex-1 overflow-y-auto divide-y divide-border/20 p-3 overscroll-contain bg-[#18181b]">
+              {/* Lista de Notificações com Rolagem Fluida */}
+              <div className="flex-1 overflow-y-auto divide-y divide-border/10 p-3 overscroll-contain bg-[#18181b]">
                 {listaFiltrada.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-center text-secondary">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-border mb-3">
+                  <div className="flex flex-col items-center justify-center py-16 text-center text-secondary">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-border/40 mb-3">
                       <Bell className="h-6 w-6 stroke-1 opacity-50" />
                     </div>
-                    <p className="text-sm font-bold uppercase text-foreground">SEM NOTIFICAÇÕES</p>
+                    <p className="text-sm font-bold uppercase text-foreground">NENHUMA NOTIFICAÇÃO</p>
                     <p className="text-xs text-secondary/70 mt-1 max-w-[240px] normal-case">
-                      Nenhum alerta pendente no momento para este filtro.
+                      Você não possui alertas pendentes nesta categoria.
                     </p>
                   </div>
                 ) : (
@@ -215,14 +226,14 @@ export function NotificacoesDropdown() {
                       <div
                         key={item.id}
                         onClick={() => handleItemClick(item)}
-                        className={`flex items-start gap-3.5 p-3.5 rounded-xl transition-all cursor-pointer text-left mb-2 ${
+                        className={`flex items-start gap-3.5 p-3.5 rounded-2xl transition-all active:scale-[0.99] cursor-pointer text-left mb-2.5 ${
                           !item.lida
-                            ? 'bg-primary/10 border border-primary/30 shadow-sm'
-                            : 'bg-[#202024] hover:bg-[#27272c] border border-border/30 opacity-85 hover:opacity-100'
+                            ? 'bg-primary/10 border border-primary/35 shadow-sm'
+                            : 'bg-[#202024] hover:bg-[#27272c] border border-border/30 opacity-90 hover:opacity-100'
                         }`}
                       >
                         <div
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border mt-0.5 ${
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border mt-0.5 ${
                             item.prioridade === 'urgente'
                               ? 'bg-red-500/15 border-red-500/40'
                               : item.prioridade === 'alerta'
@@ -241,22 +252,22 @@ export function NotificacoesDropdown() {
                               {item.titulo}
                             </p>
                             {!item.lida && (
-                              <span className="h-2 w-2 rounded-full bg-primary shrink-0 ring-2 ring-primary/30" />
+                              <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0 ring-4 ring-primary/20 animate-pulse" />
                             )}
                           </div>
 
-                          <p className="text-xs text-[#a1a1aa] leading-snug">
+                          <p className="text-xs text-[#a1a1aa] leading-relaxed">
                             {item.mensagem}
                           </p>
 
-                          <div className="mt-2 flex items-center justify-between text-[11px] text-[#71717a] uppercase font-medium">
+                          <div className="mt-2.5 flex items-center justify-between text-[11px] text-[#71717a] uppercase font-medium">
                             <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
+                              <Clock className="h-3.5 w-3.5" />
                               {tempoAtras}
                             </span>
                             {item.link && (
                               <span className="text-primary font-bold flex items-center gap-1 hover:underline">
-                                VER NO SISTEMA <ExternalLink className="h-3 w-3" />
+                                ABRIR <ExternalLink className="h-3.5 w-3.5" />
                               </span>
                             )}
                           </div>
@@ -267,15 +278,15 @@ export function NotificacoesDropdown() {
                 )}
               </div>
 
-              {/* Rodapé com Atalho para Configurações */}
-              <div className="border-t border-border/40 p-3.5 bg-[#1f1f23]">
+              {/* Rodapé com Atalho para Preferências */}
+              <div className="border-t border-border/40 p-4 bg-[#1f1f23]">
                 <button
                   type="button"
                   onClick={() => {
                     navigate('/configuracoes')
                     setIsOpen(false)
                   }}
-                  className="flex w-full items-center justify-center gap-2 py-2.5 text-xs font-bold text-primary hover:bg-primary/10 rounded-xl border border-primary/30 transition-all uppercase cursor-pointer"
+                  className="flex w-full items-center justify-center gap-2 py-3 text-xs font-bold text-primary hover:bg-primary/10 active:scale-[0.98] rounded-xl border border-primary/30 transition-all uppercase cursor-pointer shadow-sm"
                 >
                   <Settings className="h-4 w-4" />
                   <span>CONFIGURAR REGRAS DE NOTIFICAÇÕES</span>
