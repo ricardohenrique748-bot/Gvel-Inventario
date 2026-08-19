@@ -1,34 +1,19 @@
-import { useState, useEffect } from 'react'
-import { Bell, BellOff, Clock, ClipboardCheck, Save, Check, Smartphone } from 'lucide-react'
+import { useState } from 'react'
+import {
+  Bell,
+  BellOff,
+  ClipboardCheck,
+  Save,
+  Send,
+  Car,
+  Radio,
+  Volume2,
+  VolumeX,
+} from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Input, Label } from '@/components/ui/Input'
-
-const STORAGE_KEY = 'config_notificacoes'
-
-interface ConfigNotificacoes {
-  pushAtivo: boolean
-  alertaPatioAtivo: boolean
-  alertaPatioHoras: number
-  alertaOsAbertaAtivo: boolean
-  alertaOsFinalizadaAtivo: boolean
-}
-
-const DEFAULTS: ConfigNotificacoes = {
-  pushAtivo: true,
-  alertaPatioAtivo: true,
-  alertaPatioHoras: 24,
-  alertaOsAbertaAtivo: true,
-  alertaOsFinalizadaAtivo: true,
-}
-
-function loadConfig(): ConfigNotificacoes {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) return { ...DEFAULTS, ...JSON.parse(saved) }
-  } catch {}
-  return DEFAULTS
-}
+import { Input, Label, Textarea } from '@/components/ui/Input'
+import { useNotificacoes, type ConfigNotificacoes } from '@/contexts/NotificacoesContext'
 
 function Toggle({
   checked,
@@ -64,201 +49,431 @@ function Toggle({
 }
 
 export function NotificacoesTab() {
-  const [config, setConfig] = useState<ConfigNotificacoes>(loadConfig)
-  const [salvo, setSalvo] = useState(false)
+  const {
+    config,
+    salvarConfig,
+    dispararNotificacaoTeste,
+    criarNotificacaoManual,
+    tocarSom,
+  } = useNotificacoes()
 
-  // Recarrega sempre que a aba for montada
-  useEffect(() => {
-    setConfig(loadConfig())
-  }, [])
+  const [formConfig, setFormConfig] = useState<ConfigNotificacoes>(config)
+  const [salvo, setSalvo] = useState(false)
+  const [testeDisparado, setTesteDisparado] = useState(false)
+
+  // Estados do Comunicado Manual
+  const [tituloComunicado, setTituloComunicado] = useState('')
+  const [mensagemComunicado, setMensagemComunicado] = useState('')
+  const [prioridadeComunicado, setPrioridadeComunicado] = useState<'normal' | 'alerta' | 'urgente'>('normal')
+  const [comunicadoEnviado, setComunicadoEnviado] = useState(false)
 
   function update<K extends keyof ConfigNotificacoes>(key: K, value: ConfigNotificacoes[K]) {
-    setConfig((prev) => ({ ...prev, [key]: value }))
+    setFormConfig((prev) => ({ ...prev, [key]: value }))
   }
 
-  function salvar() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
-      setSalvo(true)
-      setTimeout(() => setSalvo(false), 2500)
-    } catch {}
+  function handleSalvar() {
+    salvarConfig(formConfig)
+    setSalvo(true)
+    setTimeout(() => setSalvo(false), 2500)
   }
 
-  const patioBloqueado = !config.pushAtivo || !config.alertaPatioAtivo
+  function handleTestar() {
+    dispararNotificacaoTeste()
+    setTesteDisparado(true)
+    setTimeout(() => setTesteDisparado(false), 3000)
+  }
+
+  function handleEnviarComunicado(e: React.FormEvent) {
+    e.preventDefault()
+    if (!tituloComunicado.trim() || !mensagemComunicado.trim()) return
+
+    criarNotificacaoManual(tituloComunicado.trim(), mensagemComunicado.trim(), prioridadeComunicado)
+    setTituloComunicado('')
+    setMensagemComunicado('')
+    setComunicadoEnviado(true)
+    setTimeout(() => setComunicadoEnviado(false), 3000)
+  }
+
+  const patioBloqueado = !formConfig.pushAtivo || !formConfig.alertaPatioAtivo
 
   return (
-    <div className="space-y-5 uppercase">
-
-      {/* Notificações Push Globais */}
-      <Card className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors ${
-                config.pushAtivo
-                  ? 'bg-primary/10 border-primary/30 text-primary'
-                  : 'bg-secondary/10 border-border/30 text-secondary'
-              }`}
-            >
-              {config.pushAtivo ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
-            </div>
-            <div>
-              <p className="font-bold text-foreground text-sm">Notificações Push</p>
-              <p className="text-xs text-secondary mt-0.5 normal-case">
-                Ativa ou desativa todas as notificações no celular
-              </p>
-            </div>
-          </div>
-          <Toggle checked={config.pushAtivo} onChange={(v) => update('pushAtivo', v)} />
+    <div className="space-y-6 uppercase">
+      {/* Barra de Ações Rápidas do Topo */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-surface/40 p-4 rounded-2xl border border-border/40">
+        <div>
+          <h2 className="text-base font-bold text-foreground">CONFIGURAÇÕES DE NOTIFICAÇÕES</h2>
+          <p className="text-xs text-secondary normal-case">
+            Defina quais eventos acionam a Central de Notificações, efeitos sonoros e alertas no sistema.
+          </p>
         </div>
-
-        {!config.pushAtivo && (
-          <div className="mt-4 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-            <Smartphone className="h-4 w-4 text-amber-400 shrink-0" />
-            <p className="text-xs text-amber-300 font-semibold normal-case">
-              Todas as notificações estão desativadas. Ative para configurar os alertas abaixo.
-            </p>
-          </div>
-        )}
-      </Card>
-
-      {/* Alerta de Tempo no Pátio */}
-      <Card className={`p-5 transition-opacity ${!config.pushAtivo ? 'opacity-50 pointer-events-none' : ''}`}>
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors ${
-                config.alertaPatioAtivo && config.pushAtivo
-                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                  : 'bg-secondary/10 border-border/30 text-secondary'
-              }`}
-            >
-              <Clock className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-bold text-foreground text-sm">Alerta de Tempo no Pátio</p>
-              <p className="text-xs text-secondary mt-0.5 normal-case">
-                Notifica quando um veículo ultrapassar o limite de horas no pátio
-              </p>
-            </div>
-          </div>
-          <Toggle
-            checked={config.alertaPatioAtivo}
-            onChange={(v) => update('alertaPatioAtivo', v)}
-            disabled={!config.pushAtivo}
-          />
-        </div>
-
-        <div
-          className={`transition-all overflow-hidden ${
-            config.alertaPatioAtivo ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'
-          }`}
-        >
-          <div className="border-t border-border/20 pt-4">
-            <div className="flex items-end gap-3">
-              <div className="flex-1">
-                <Label
-                  htmlFor="horas-patio"
-                  className="!text-xs !mb-1.5 font-semibold text-secondary uppercase"
-                >
-                  Limite de horas no pátio
-                </Label>
-                <Input
-                  id="horas-patio"
-                  type="number"
-                  min={1}
-                  max={720}
-                  value={config.alertaPatioHoras}
-                  onChange={(e) =>
-                    update('alertaPatioHoras', Math.max(1, Number(e.target.value)))
-                  }
-                  disabled={patioBloqueado}
-                  className="!h-10 !text-sm !px-3"
-                />
-              </div>
-              <div className="pb-px">
-                <span className="text-sm font-bold text-secondary">HORAS</span>
-              </div>
-            </div>
-            <p className="mt-2 text-[11px] text-secondary/70 normal-case">
-              Ex: 24 horas = alerta se o veículo estiver há mais de 1 dia no pátio sem saída.
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Alertas de O.S */}
-      <Card className={`p-5 space-y-0 transition-opacity ${!config.pushAtivo ? 'opacity-50 pointer-events-none' : ''}`}>
-        <div className="flex items-center gap-3 mb-4">
-          <div
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors ${
-              (config.alertaOsAbertaAtivo || config.alertaOsFinalizadaAtivo) && config.pushAtivo
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                : 'bg-secondary/10 border-border/30 text-secondary'
-            }`}
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            onClick={handleTestar}
+            className="!h-9 !text-xs gap-1.5"
           >
-            <ClipboardCheck className="h-5 w-5" />
+            <Bell className="h-4 w-4 text-primary" />
+            <span>{testeDisparado ? 'DISPARADO NO SININHO! 🔔' : 'TESTAR COM SOM'}</span>
+          </Button>
+          <Button
+            type="button"
+            size="md"
+            onClick={handleSalvar}
+            className="!h-9 !text-xs gap-1.5"
+          >
+            <Save className="h-4 w-4" />
+            <span>{salvo ? 'SALVO COM SUCESSO! ✅' : 'SALVAR PREFERÊNCIAS'}</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* 1. Ativação Geral / Notificações Push & Som */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Ativação Geral */}
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors ${
+                  formConfig.pushAtivo
+                    ? 'bg-primary/10 border-primary/30 text-primary'
+                    : 'bg-secondary/10 border-border/30 text-secondary'
+                }`}
+              >
+                {formConfig.pushAtivo ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+              </div>
+              <div>
+                <p className="font-bold text-foreground text-sm">Central de Notificações</p>
+                <p className="text-xs text-secondary mt-0.5 normal-case">
+                  Exibe o sininho e os alertas no sistema
+                </p>
+              </div>
+            </div>
+            <Toggle checked={formConfig.pushAtivo} onChange={(v) => update('pushAtivo', v)} />
+          </div>
+        </Card>
+
+        {/* Som de Notificação */}
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors ${
+                  formConfig.somAtivo
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    : 'bg-secondary/10 border-border/30 text-secondary'
+                }`}
+              >
+                {formConfig.somAtivo ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-foreground text-sm">Alerta Sonoro (Áudio)</p>
+                  <button
+                    type="button"
+                    onClick={() => tocarSom()}
+                    className="text-[10px] text-primary hover:underline font-black px-1.5 py-0.5 rounded border border-primary/30 bg-primary/10"
+                    title="Tocar som de teste agora"
+                  >
+                    OUVIR SOM 🔊
+                  </button>
+                </div>
+                <p className="text-xs text-secondary mt-0.5 normal-case">
+                  Toca sinal sonoro quando um novo alerta chegar
+                </p>
+              </div>
+            </div>
+            <Toggle checked={formConfig.somAtivo} onChange={(v) => update('somAtivo', v)} />
+          </div>
+        </Card>
+      </div>
+
+      {/* 2. Alertas de Pátio e Fluxo de Veículos */}
+      <Card className={`p-5 transition-opacity ${!formConfig.pushAtivo ? 'opacity-50 pointer-events-none' : ''}`}>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-blue-500/10 border-blue-500/30 text-blue-400">
+            <Car className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-bold text-foreground text-sm">Alertas de Ordem de Serviço (O.S)</p>
+            <p className="font-bold text-foreground text-sm">Alertas de Movimentação do Pátio</p>
             <p className="text-xs text-secondary mt-0.5 normal-case">
-              Notificações relacionadas à abertura e finalização de ordens de serviço
+              Notificações ao registrar entrada, saída ou tempo de permanência no pátio
             </p>
           </div>
         </div>
 
         <div className="space-y-3 border-t border-border/20 pt-4">
-          {/* O.S Aberta */}
+          {/* Alerta de Entrada */}
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
             <div>
-              <p className="text-sm font-semibold text-foreground">🟢 O.S Aberta</p>
+              <p className="text-sm font-semibold text-foreground">🚗 Entrada de Veículo</p>
               <p className="text-[11px] text-secondary mt-0.5 normal-case">
-                Notificar quando uma nova O.S for iniciada
+                Notificar no sininho assim que um novo veículo der entrada no pátio
               </p>
             </div>
             <Toggle
-              checked={config.alertaOsAbertaAtivo}
+              checked={formConfig.alertaEntradaAtivo}
+              onChange={(v) => update('alertaEntradaAtivo', v)}
+              disabled={!formConfig.pushAtivo}
+            />
+          </div>
+
+          {/* Alerta de Saída */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">🏁 Saída de Veículo</p>
+              <p className="text-[11px] text-secondary mt-0.5 normal-case">
+                Notificar quando a saída de um veículo for concluída
+              </p>
+            </div>
+            <Toggle
+              checked={formConfig.alertaSaidaAtivo}
+              onChange={(v) => update('alertaSaidaAtivo', v)}
+              disabled={!formConfig.pushAtivo}
+            />
+          </div>
+
+          {/* Alerta de Tempo Excedido no Pátio */}
+          <div className="rounded-lg border border-border/20 bg-background/50 p-3.5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">⏰ Alerta de Tempo no Pátio</p>
+                <p className="text-[11px] text-secondary mt-0.5 normal-case">
+                  Alerta crítico quando um veículo ultrapassar o limite de horas no pátio
+                </p>
+              </div>
+              <Toggle
+                checked={formConfig.alertaPatioAtivo}
+                onChange={(v) => update('alertaPatioAtivo', v)}
+                disabled={!formConfig.pushAtivo}
+              />
+            </div>
+
+            {formConfig.alertaPatioAtivo && (
+              <div className="border-t border-border/20 pt-3 flex items-center gap-3">
+                <div className="w-36">
+                  <Label htmlFor="horas-patio" className="!text-[11px] !mb-1 text-secondary uppercase">
+                    Limite Máximo
+                  </Label>
+                  <Input
+                    id="horas-patio"
+                    type="number"
+                    min={1}
+                    max={720}
+                    value={formConfig.alertaPatioHoras}
+                    onChange={(e) => update('alertaPatioHoras', Math.max(1, Number(e.target.value)))}
+                    disabled={patioBloqueado}
+                    className="!h-9 !text-xs !px-3"
+                  />
+                </div>
+                <div className="pt-4">
+                  <span className="text-xs font-bold text-secondary">HORAS NO PÁTIO</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* 3. Alertas de O.S e Manutenção */}
+      <Card className={`p-5 space-y-0 transition-opacity ${!formConfig.pushAtivo ? 'opacity-50 pointer-events-none' : ''}`}>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
+            <ClipboardCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="font-bold text-foreground text-sm">Alertas de Ordem de Serviço (O.S)</p>
+            <p className="text-xs text-secondary mt-0.5 normal-case">
+              Configure quais mudanças de etapa de oficina devem gerar alertas no sistema
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-border/20 pt-4">
+          {/* O.S Aberta */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">🟢 O.S EM ANDAMENTO</p>
+              <p className="text-[10px] text-secondary mt-0.5 normal-case">Quando um mecânico inicia uma O.S</p>
+            </div>
+            <Toggle
+              checked={formConfig.alertaOsAbertaAtivo}
               onChange={(v) => update('alertaOsAbertaAtivo', v)}
-              disabled={!config.pushAtivo}
+              disabled={!formConfig.pushAtivo}
+            />
+          </div>
+
+          {/* Aguardando Peças */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">⏳ AGUARDANDO PEÇAS</p>
+              <p className="text-[10px] text-secondary mt-0.5 normal-case">Quando a O.S entra em espera de peças</p>
+            </div>
+            <Toggle
+              checked={formConfig.alertaOsPecasAtivo}
+              onChange={(v) => update('alertaOsPecasAtivo', v)}
+              disabled={!formConfig.pushAtivo}
+            />
+          </div>
+
+          {/* Aguardando Orçamento */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">📄 AGUARD. ORÇAMENTO</p>
+              <p className="text-[10px] text-secondary mt-0.5 normal-case">Pendente de aprovação orçamentária</p>
+            </div>
+            <Toggle
+              checked={formConfig.alertaOsOrcamentoAtivo}
+              onChange={(v) => update('alertaOsOrcamentoAtivo', v)}
+              disabled={!formConfig.pushAtivo}
+            />
+          </div>
+
+          {/* Aguardando Autorização */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">⚠️ AGUARD. AUTORIZAÇÃO</p>
+              <p className="text-[10px] text-secondary mt-0.5 normal-case">Aguardando autorização de serviço</p>
+            </div>
+            <Toggle
+              checked={formConfig.alertaOsAutorizacaoAtivo}
+              onChange={(v) => update('alertaOsAutorizacaoAtivo', v)}
+              disabled={!formConfig.pushAtivo}
+            />
+          </div>
+
+          {/* Aguardando Aprovação Multilixo */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">🏢 AGUARD. MULTILIXO</p>
+              <p className="text-[10px] text-secondary mt-0.5 normal-case">Aguardando aprovação da Multilixo</p>
+            </div>
+            <Toggle
+              checked={formConfig.alertaOsMultilixoAtivo}
+              onChange={(v) => update('alertaOsMultilixoAtivo', v)}
+              disabled={!formConfig.pushAtivo}
+            />
+          </div>
+
+          {/* Aguardando Aprovação do Cliente */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">👥 AGUARD. CLIENTE</p>
+              <p className="text-[10px] text-secondary mt-0.5 normal-case">Aguardando aprovação do cliente</p>
+            </div>
+            <Toggle
+              checked={formConfig.alertaOsClienteAtivo}
+              onChange={(v) => update('alertaOsClienteAtivo', v)}
+              disabled={!formConfig.pushAtivo}
             />
           </div>
 
           {/* O.S Finalizada */}
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
             <div>
-              <p className="text-sm font-semibold text-foreground">🏁 O.S Finalizada</p>
-              <p className="text-[11px] text-secondary mt-0.5 normal-case">
-                Notificar quando uma O.S for concluída e fechada
-              </p>
+              <p className="text-xs font-bold text-foreground">✅ O.S FINALIZADA</p>
+              <p className="text-[10px] text-secondary mt-0.5 normal-case">Quando a O.S é concluída com sucesso</p>
             </div>
             <Toggle
-              checked={config.alertaOsFinalizadaAtivo}
+              checked={formConfig.alertaOsFinalizadaAtivo}
               onChange={(v) => update('alertaOsFinalizadaAtivo', v)}
-              disabled={!config.pushAtivo}
+              disabled={!formConfig.pushAtivo}
             />
           </div>
         </div>
       </Card>
 
-      {/* Botão Salvar */}
-      <div className="flex items-center justify-end gap-3 pt-1">
-        {salvo && (
-          <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-            <Check className="h-4 w-4" />
-            CONFIGURAÇÕES SALVAS!
-          </span>
-        )}
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={salvar}
-          className="!px-6 !h-10 uppercase font-bold"
-        >
-          <Save className="h-4 w-4 mr-1.5" />
-          SALVAR CONFIGURAÇÕES
-        </Button>
-      </div>
+      {/* 4. Disparar Comunicado Geral para Todos os Usuários */}
+      <Card className="p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-primary/10 border-primary/30 text-primary">
+            <Radio className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="font-bold text-foreground text-sm">Disparar Comunicado Geral</p>
+            <p className="text-xs text-secondary mt-0.5 normal-case">
+              Envie uma notificação instantânea para o sininho de todos os usuários do sistema
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleEnviarComunicado} className="space-y-3.5 border-t border-border/20 pt-4">
+          <div>
+            <Label htmlFor="titulo-comunicado" className="!text-xs uppercase font-bold text-secondary">
+              Título do Comunicado *
+            </Label>
+            <Input
+              id="titulo-comunicado"
+              placeholder="EX: AVISO DE MANUTENÇÃO NO PÁTIO, REUNIÃO DA EQUIPE…"
+              value={tituloComunicado}
+              onChange={(e) => setTituloComunicado(e.target.value.toUpperCase())}
+              className="!h-9 !text-xs uppercase"
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="msg-comunicado" className="!text-xs uppercase font-bold text-secondary">
+              Mensagem *
+            </Label>
+            <Textarea
+              id="msg-comunicado"
+              rows={2}
+              placeholder="Digite a mensagem que aparecerá no sininho de todos..."
+              value={mensagemComunicado}
+              onChange={(e) => setMensagemComunicado(e.target.value)}
+              className="!text-xs"
+              required
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-secondary">PRIORIDADE:</span>
+              <button
+                type="button"
+                onClick={() => setPrioridadeComunicado('normal')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border uppercase transition-all ${
+                  prioridadeComunicado === 'normal'
+                    ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                    : 'border-border/30 text-secondary'
+                }`}
+              >
+                NORMAL
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrioridadeComunicado('alerta')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border uppercase transition-all ${
+                  prioridadeComunicado === 'alerta'
+                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                    : 'border-border/30 text-secondary'
+                }`}
+              >
+                ALERTA
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrioridadeComunicado('urgente')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border uppercase transition-all ${
+                  prioridadeComunicado === 'urgente'
+                    ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                    : 'border-border/30 text-secondary'
+                }`}
+              >
+                URGENTE
+              </button>
+            </div>
+
+            <Button type="submit" size="md" className="!h-9 !text-xs gap-1.5">
+              <Send className="h-3.5 w-3.5" />
+              <span>{comunicadoEnviado ? 'ENVIADO COM SUCESSO! 📢' : 'ENVIAR COMUNICADO'}</span>
+            </Button>
+          </div>
+        </form>
+      </Card>
     </div>
   )
 }

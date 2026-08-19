@@ -424,6 +424,10 @@ export function Manutencao() {
                             <Badge tone="neutral" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
                               🏢 AGUARD. MULTILIXO {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
                             </Badge>
+                          ) : osStatus.statusOS === 'AGUARDANDO APROVAÇÃO DO CLIENTE' ? (
+                            <Badge tone="neutral" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide bg-pink-500/20 text-pink-300 border border-pink-500/40">
+                              👥 AGUARD. CLIENTE {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
+                            </Badge>
                           ) : (
                             <Badge tone="success" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide">
                               🟢 {osStatus.statusOS || 'EM ANDAMENTO'} {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}

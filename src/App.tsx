@@ -38,6 +38,8 @@ const VeiculoPublico = lazy(() =>
   import('@/pages/publico/VeiculoPublico').then((m) => ({ default: m.VeiculoPublico })),
 )
 
+import { NotificacoesProvider } from '@/contexts/NotificacoesContext'
+
 function PaginaCarregando() {
   return (
     <div className="flex min-h-[50vh] items-center justify-center">
@@ -64,46 +66,48 @@ export default function App() {
     <ThemeProvider>
       <BrowserRouter>
         <AuthProvider>
-          <Suspense fallback={<PaginaCarregando />}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/publico/frota/:token" element={<FrotaPublica />} />
-              <Route path="/publico/frota/:token/veiculo/:veiculoId" element={<VeiculoPublico />} />
-              <Route
-                path="/trocar-senha"
-                element={
-                  <ProtectedRoute>
-                    <TrocarSenha />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                element={
-                  <ProtectedRoute>
-                    <AppLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/controle-horas" element={<ControleDeHoras />} />
-                <Route path="/movimentacoes" element={<Movimentacoes />} />
-                <Route path="/movimentacoes/nova" element={<RegistrarEntrada />} />
-                <Route path="/veiculos/:id" element={<VeiculoDetalhe />} />
-                <Route path="/clientes" element={<Clientes />} />
-                <Route path="/clientes/:id" element={<ClienteDetalhe />} />
-                <Route path="/relatorios" element={<Relatorios />} />
-                <Route path="/manutencao" element={<Manutencao />} />
-                <Route path="/inventario-caminhoes" element={<InventarioCaminhoes />} />
-                <Route path="/inventario-ferramentas" element={<InventarioFerramentas />} />
-                <Route path="/dashboard-gerencial" element={<DashboardGerencial />} />
-                <Route path="/financeiro" element={<Financeiro />} />
-                <Route path="/rh" element={<RH />} />
-                <Route path="/compras" element={<Compras />} />
-                <Route path="/inspecoes/nova" element={<NovaInspecao />} />
-                <Route path="/configuracoes" element={<Configuracoes />} />
-              </Route>
-            </Routes>
-          </Suspense>
+          <NotificacoesProvider>
+            <Suspense fallback={<PaginaCarregando />}>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/publico/frota/:token" element={<FrotaPublica />} />
+                <Route path="/publico/frota/:token/veiculo/:veiculoId" element={<VeiculoPublico />} />
+                <Route
+                  path="/trocar-senha"
+                  element={
+                    <ProtectedRoute>
+                      <TrocarSenha />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/controle-horas" element={<ControleDeHoras />} />
+                  <Route path="/movimentacoes" element={<Movimentacoes />} />
+                  <Route path="/movimentacoes/nova" element={<RegistrarEntrada />} />
+                  <Route path="/veiculos/:id" element={<VeiculoDetalhe />} />
+                  <Route path="/clientes" element={<Clientes />} />
+                  <Route path="/clientes/:id" element={<ClienteDetalhe />} />
+                  <Route path="/relatorios" element={<Relatorios />} />
+                  <Route path="/manutencao" element={<Manutencao />} />
+                  <Route path="/inventario-caminhoes" element={<InventarioCaminhoes />} />
+                  <Route path="/inventario-ferramentas" element={<InventarioFerramentas />} />
+                  <Route path="/dashboard-gerencial" element={<DashboardGerencial />} />
+                  <Route path="/financeiro" element={<Financeiro />} />
+                  <Route path="/rh" element={<RH />} />
+                  <Route path="/compras" element={<Compras />} />
+                  <Route path="/inspecoes/nova" element={<NovaInspecao />} />
+                  <Route path="/configuracoes" element={<Configuracoes />} />
+                </Route>
+              </Routes>
+            </Suspense>
+          </NotificacoesProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>

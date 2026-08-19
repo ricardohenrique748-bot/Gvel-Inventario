@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
+import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
 import { navItems, ADMIN_ONLY_ROUTES } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/cn'
@@ -70,8 +71,11 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-60 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl md:border md:border-border/[0.06] bg-surface shadow-2xl shadow-black/50">
-      <div className="flex h-12 items-center px-3.5 border-b border-border/[0.06]">
+      <div className="flex h-14 items-center justify-between px-3.5 border-b border-border/[0.06]">
         <Logo size="sm" />
+        <div className="flex items-center gap-1">
+          <NotificacoesDropdown />
+        </div>
       </div>
 
       <div className="px-2.5 pt-2.5 pb-1.5">

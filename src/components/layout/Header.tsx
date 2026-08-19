@@ -36,11 +36,16 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
   )
 }
 
+import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
+
 export function MobileTopBar() {
   return (
-    <div className="md:hidden sticky top-0 z-20 flex min-h-14 items-center justify-between border-b border-border/5 bg-surface px-4 pt-[env(safe-area-inset-top)]">
+    <div className="md:hidden sticky top-0 z-20 flex min-h-14 items-center justify-between border-b border-border/10 bg-surface px-4 pt-[env(safe-area-inset-top)] gap-2">
       <Logo showText={false} />
-      <ThemeToggleButton />
+      <div className="flex items-center gap-2">
+        <NotificacoesDropdown />
+        <ThemeToggleButton />
+      </div>
     </div>
   )
 }
