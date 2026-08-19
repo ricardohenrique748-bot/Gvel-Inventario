@@ -428,12 +428,9 @@ export function RegistrarEntrada() {
               <div>
                 <Label htmlFor="motorista">
                   Motorista
-                  {isPesadoOuLeve && modoNovoVeiculo && <Req />}
-                  {(isTratorOuCarreta || !modoNovoVeiculo) && (
-                    <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>
-                  )}
+                  <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>
                 </Label>
-                <Input id="motorista" placeholder={isPesadoOuLeve && modoNovoVeiculo ? '' : 'Opcional'} {...register('motorista')} />
+                <Input id="motorista" placeholder="Opcional" {...register('motorista')} />
                 <FieldError message={errors.motorista?.message} />
               </div>
               <div>
