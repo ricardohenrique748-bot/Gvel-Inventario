@@ -593,12 +593,13 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
             {[
               { id: 'EM ANDAMENTO', label: '🟢 EM ANDAMENTO', cor: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' },
               { id: 'AGUARDANDO PEÇAS', label: '⏳ AGUARDANDO PEÇAS', cor: 'border-amber-500/40 text-amber-400 bg-amber-500/10' },
               { id: 'AGUARDANDO APROVAÇÃO DO ORÇAMENTO', label: '📄 AGUARD. ORÇAMENTO', cor: 'border-purple-500/40 text-purple-400 bg-purple-500/10' },
               { id: 'AGUARDANDO AUTORIZAÇÃO', label: '⚠️ AGUARD. AUTORIZAÇÃO', cor: 'border-orange-500/40 text-orange-400 bg-orange-500/10' },
+              { id: 'AGUARDANDO APROVAÇÃO MULTILIXO', label: '🏢 AGUARD. MULTILIXO', cor: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10' },
             ].map((st) => (
               <button
                 key={st.id}

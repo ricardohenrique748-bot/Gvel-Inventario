@@ -420,6 +420,10 @@ export function Manutencao() {
                             <Badge tone="danger" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide bg-orange-500/20 text-orange-300 border border-orange-500/40">
                               ⚠️ AGUARD. AUTORIZAÇÃO {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
                             </Badge>
+                          ) : osStatus.statusOS === 'AGUARDANDO APROVAÇÃO MULTILIXO' ? (
+                            <Badge tone="neutral" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                              🏢 AGUARD. MULTILIXO {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
+                            </Badge>
                           ) : (
                             <Badge tone="success" className="!text-[10px] !py-0.5 !px-2 uppercase font-black tracking-wide">
                               🟢 {osStatus.statusOS || 'EM ANDAMENTO'} {osStatus.mecanico ? `· ${osStatus.mecanico}` : ''}
