@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { PageHeader } from '@/components/layout/Header'
-import { Card } from '@/components/ui/Card'
 import { useAuth } from '@/contexts/AuthContext'
 import { ClientesTab } from '@/pages/configuracoes/ClientesTab'
 import { FrotaTab } from '@/pages/configuracoes/FrotaTab'
@@ -17,27 +16,27 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 
 export function Configuracoes() {
-  const [tab, setTab] = useState<TabId>('clientes')
   const { perfil, perfilLoading } = useAuth()
+  const isAdmin = perfil?.nivel === 'admin'
+  const [tab, setTab] = useState<TabId>(isAdmin ? 'clientes' : 'notificacoes')
 
   if (perfilLoading) {
     return <p className="text-sm text-secondary">Carregando…</p>
   }
 
-  if (perfil?.nivel !== 'admin') {
+  // Usuários comuns acessam diretamente a aba de Notificações
+  if (!isAdmin) {
     return (
       <div>
-        <PageHeader title="Configurações" subtitle="Cadastros do sistema" />
-        <Card className="p-6 text-center">
-          <p className="text-sm text-secondary">Apenas administradores podem acessar as configurações.</p>
-        </Card>
+        <PageHeader title="Preferências e Notificações" subtitle="Personalização de alertas e avisos sonoros" />
+        <NotificacoesTab />
       </div>
     )
   }
 
   return (
     <div>
-      <PageHeader title="Configurações" subtitle="Cadastros do sistema" />
+      <PageHeader title="Configurações" subtitle="Cadastros do sistema e notificações" />
 
       <div className="mb-6 flex gap-3">
         {TABS.map((t) => (

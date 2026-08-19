@@ -14,6 +14,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input, Label, Textarea } from '@/components/ui/Input'
 import { useNotificacoes, type ConfigNotificacoes } from '@/contexts/NotificacoesContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 function Toggle({
   checked,
@@ -49,6 +50,9 @@ function Toggle({
 }
 
 export function NotificacoesTab() {
+  const { perfil } = useAuth()
+  const isAdmin = perfil?.nivel === 'admin'
+
   const {
     config,
     salvarConfig,
@@ -385,95 +389,97 @@ export function NotificacoesTab() {
         </div>
       </Card>
 
-      {/* 4. Disparar Comunicado Geral para Todos os Usuários */}
-      <Card className="p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-primary/10 border-primary/30 text-primary">
-            <Radio className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="font-bold text-foreground text-sm">Disparar Comunicado Geral</p>
-            <p className="text-xs text-secondary mt-0.5 normal-case">
-              Envie uma notificação instantânea para o sininho de todos os usuários do sistema
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={handleEnviarComunicado} className="space-y-3.5 border-t border-border/20 pt-4">
-          <div>
-            <Label htmlFor="titulo-comunicado" className="!text-xs uppercase font-bold text-secondary">
-              Título do Comunicado *
-            </Label>
-            <Input
-              id="titulo-comunicado"
-              placeholder="EX: AVISO DE MANUTENÇÃO NO PÁTIO, REUNIÃO DA EQUIPE…"
-              value={tituloComunicado}
-              onChange={(e) => setTituloComunicado(e.target.value.toUpperCase())}
-              className="!h-9 !text-xs uppercase"
-              required
-            />
+      {/* 4. Disparar Comunicado Geral para Todos os Usuários (Apenas Administradores) */}
+      {isAdmin && (
+        <Card className="p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-primary/10 border-primary/30 text-primary">
+              <Radio className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-bold text-foreground text-sm">Disparar Comunicado Geral</p>
+              <p className="text-xs text-secondary mt-0.5 normal-case">
+                Envie uma notificação instantânea para o sininho de todos os usuários do sistema
+              </p>
+            </div>
           </div>
 
-          <div>
-            <Label htmlFor="msg-comunicado" className="!text-xs uppercase font-bold text-secondary">
-              Mensagem *
-            </Label>
-            <Textarea
-              id="msg-comunicado"
-              rows={2}
-              placeholder="Digite a mensagem que aparecerá no sininho de todos..."
-              value={mensagemComunicado}
-              onChange={(e) => setMensagemComunicado(e.target.value)}
-              className="!text-xs"
-              required
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-secondary">PRIORIDADE:</span>
-              <button
-                type="button"
-                onClick={() => setPrioridadeComunicado('normal')}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border uppercase transition-all ${
-                  prioridadeComunicado === 'normal'
-                    ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
-                    : 'border-border/30 text-secondary'
-                }`}
-              >
-                NORMAL
-              </button>
-              <button
-                type="button"
-                onClick={() => setPrioridadeComunicado('alerta')}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border uppercase transition-all ${
-                  prioridadeComunicado === 'alerta'
-                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-                    : 'border-border/30 text-secondary'
-                }`}
-              >
-                ALERTA
-              </button>
-              <button
-                type="button"
-                onClick={() => setPrioridadeComunicado('urgente')}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border uppercase transition-all ${
-                  prioridadeComunicado === 'urgente'
-                    ? 'bg-red-500/20 text-red-400 border-red-500/40'
-                    : 'border-border/30 text-secondary'
-                }`}
-              >
-                URGENTE
-              </button>
+          <form onSubmit={handleEnviarComunicado} className="space-y-3.5 border-t border-border/20 pt-4">
+            <div>
+              <Label htmlFor="titulo-comunicado" className="!text-xs uppercase font-bold text-secondary">
+                Título do Comunicado *
+              </Label>
+              <Input
+                id="titulo-comunicado"
+                placeholder="EX: AVISO DE MANUTENÇÃO NO PÁTIO, REUNIÃO DA EQUIPE…"
+                value={tituloComunicado}
+                onChange={(e) => setTituloComunicado(e.target.value.toUpperCase())}
+                className="!h-9 !text-xs uppercase"
+                required
+              />
             </div>
 
-            <Button type="submit" size="md" className="!h-9 !text-xs gap-1.5">
-              <Send className="h-3.5 w-3.5" />
-              <span>{comunicadoEnviado ? 'ENVIADO COM SUCESSO! 📢' : 'ENVIAR COMUNICADO'}</span>
-            </Button>
-          </div>
-        </form>
-      </Card>
+            <div>
+              <Label htmlFor="msg-comunicado" className="!text-xs uppercase font-bold text-secondary">
+                Mensagem *
+              </Label>
+              <Textarea
+                id="msg-comunicado"
+                rows={2}
+                placeholder="Digite a mensagem que aparecerá no sininho de todos..."
+                value={mensagemComunicado}
+                onChange={(e) => setMensagemComunicado(e.target.value)}
+                className="!text-xs"
+                required
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-secondary">PRIORIDADE:</span>
+                <button
+                  type="button"
+                  onClick={() => setPrioridadeComunicado('normal')}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border uppercase transition-all ${
+                    prioridadeComunicado === 'normal'
+                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                      : 'border-border/30 text-secondary'
+                  }`}
+                >
+                  NORMAL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrioridadeComunicado('alerta')}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border uppercase transition-all ${
+                    prioridadeComunicado === 'alerta'
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                      : 'border-border/30 text-secondary'
+                  }`}
+                >
+                  ALERTA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrioridadeComunicado('urgente')}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border uppercase transition-all ${
+                    prioridadeComunicado === 'urgente'
+                      ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                      : 'border-border/30 text-secondary'
+                  }`}
+                >
+                  URGENTE
+                </button>
+              </div>
+
+              <Button type="submit" size="md" className="!h-9 !text-xs gap-1.5">
+                <Send className="h-3.5 w-3.5" />
+                <span>{comunicadoEnviado ? 'ENVIADO COM SUCESSO! 📢' : 'ENVIAR COMUNICADO'}</span>
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
     </div>
   )
 }

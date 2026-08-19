@@ -41,9 +41,15 @@ export function Sidebar() {
 
   const currentNavItems = useMemo(() => {
     const base = native ? nativeNavItems : navItems
-    return isAdmin
-      ? base
-      : base.filter((item) => !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number]))
+    return base
+      .filter((item) => isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number]))
+      .map((item) => {
+        if (!isAdmin && item.to === '/configuracoes') {
+          const { children: _children, ...rest } = item as any
+          return rest
+        }
+        return item
+      })
   }, [native, isAdmin])
 
   // For search: flatten all items (including children) to find matches
@@ -52,8 +58,8 @@ export function Sidebar() {
     if (!q) return currentNavItems
     return currentNavItems.filter((item) => {
       if (item.label.toLowerCase().includes(q)) return true
-      if ('children' in item && item.children) {
-        return item.children.some((c) => c.label.toLowerCase().includes(q))
+      if ('children' in item && (item as any).children) {
+        return ((item as any).children as { label: string }[]).some((c) => c.label.toLowerCase().includes(q))
       }
       return false
     })

@@ -51,7 +51,6 @@ export const navItems = [
 export type NavItem = (typeof navItems)[number]
 
 export const ADMIN_ONLY_ROUTES = [
-  '/configuracoes',
   '/controle-horas',
   '/dashboard-gerencial',
   '/financeiro',
