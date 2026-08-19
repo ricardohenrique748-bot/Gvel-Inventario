@@ -5,12 +5,13 @@ import { ClientesTab } from '@/pages/configuracoes/ClientesTab'
 import { FrotaTab } from '@/pages/configuracoes/FrotaTab'
 import { UsuariosTab } from '@/pages/configuracoes/UsuariosTab'
 import { NotificacoesTab } from '@/pages/configuracoes/NotificacoesTab'
+import { Users, Truck, UserCheck, Bell } from 'lucide-react'
 
 const TABS = [
-  { id: 'clientes', label: 'Clientes' },
-  { id: 'frota', label: 'Frota' },
-  { id: 'usuarios', label: 'Usuários' },
-  { id: 'notificacoes', label: '🔔 Notificações' },
+  { id: 'clientes', label: 'Clientes', icon: Users },
+  { id: 'frota', label: 'Frota', icon: Truck },
+  { id: 'usuarios', label: 'Usuários', icon: UserCheck },
+  { id: 'notificacoes', label: 'Notificações', icon: Bell },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -21,7 +22,11 @@ export function Configuracoes() {
   const [tab, setTab] = useState<TabId>(isAdmin ? 'clientes' : 'notificacoes')
 
   if (perfilLoading) {
-    return <p className="text-sm text-secondary">Carregando…</p>
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-secondary font-medium">Carregando configurações…</p>
+      </div>
+    )
   }
 
   // Usuários comuns acessam diretamente a aba de Notificações
@@ -35,30 +40,42 @@ export function Configuracoes() {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader title="Configurações" subtitle="Cadastros do sistema e notificações" />
 
-      <div className="mb-6 flex gap-3">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={
-              t.id === tab
-                ? 'h-11 flex-1 rounded-xl border border-primary bg-primary/10 text-foreground font-medium sm:flex-none sm:px-6'
-                : 'h-11 flex-1 rounded-xl border border-secondary/30 text-secondary sm:flex-none sm:px-6'
-            }
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Barra de Abas: Grid de 4 Colunas Perfeito no Mobile e Desktop */}
+      <div className="w-full">
+        <div className="grid grid-cols-4 p-1 rounded-2xl bg-surface/90 border border-border/50 gap-1 shadow-sm">
+          {TABS.map((t) => {
+            const Icon = t.icon
+            const isActive = t.id === tab
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2.5 px-1 sm:px-3 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 text-center ${
+                  isActive
+                    ? 'bg-primary text-white shadow-md shadow-primary/25 ring-1 ring-primary/40 font-bold'
+                    : 'text-secondary hover:text-foreground hover:bg-white/5 font-medium'
+                }`}
+              >
+                <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-secondary'}`} />
+                <span className="text-[10px] sm:text-xs uppercase tracking-tight truncate max-w-full">
+                  {t.id === 'notificacoes' ? 'Notificações' : t.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      {tab === 'clientes' && <ClientesTab />}
-      {tab === 'frota' && <FrotaTab />}
-      {tab === 'usuarios' && <UsuariosTab />}
-      {tab === 'notificacoes' && <NotificacoesTab />}
+      <div>
+        {tab === 'clientes' && <ClientesTab />}
+        {tab === 'frota' && <FrotaTab />}
+        {tab === 'usuarios' && <UsuariosTab />}
+        {tab === 'notificacoes' && <NotificacoesTab />}
+      </div>
     </div>
   )
 }

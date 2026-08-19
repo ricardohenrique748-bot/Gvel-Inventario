@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Bell,
   BellOff,
@@ -65,6 +65,11 @@ export function NotificacoesTab() {
   const [salvo, setSalvo] = useState(false)
   const [testeDisparado, setTesteDisparado] = useState(false)
 
+  // Sincroniza sempre que a configuração mudar
+  useEffect(() => {
+    setFormConfig(config)
+  }, [config])
+
   // Estados do Comunicado Manual
   const [tituloComunicado, setTituloComunicado] = useState('')
   const [mensagemComunicado, setMensagemComunicado] = useState('')
@@ -72,7 +77,12 @@ export function NotificacoesTab() {
   const [comunicadoEnviado, setComunicadoEnviado] = useState(false)
 
   function update<K extends keyof ConfigNotificacoes>(key: K, value: ConfigNotificacoes[K]) {
-    setFormConfig((prev) => ({ ...prev, [key]: value }))
+    const novo = { ...formConfig, [key]: value }
+    setFormConfig(novo)
+    // Salva instantaneamente a cada alteração
+    salvarConfig(novo)
+    setSalvo(true)
+    setTimeout(() => setSalvo(false), 1500)
   }
 
   function handleSalvar() {

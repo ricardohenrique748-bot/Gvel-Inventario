@@ -12,7 +12,7 @@ import {
   Car,
   AlertTriangle,
   CheckCircle2,
-  Settings,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { useNotificacoes, type NotificacaoItem } from '@/contexts/NotificacoesContext'
 import { formatDistanceToNow } from 'date-fns'
@@ -31,7 +31,7 @@ export function NotificacoesDropdown() {
     limparTodas,
   } = useNotificacoes()
 
-  // Bloqueia rolagem do body quando o painel/sheet estiver aberto
+  // Bloqueia rolagem do body quando o painel estiver aberto
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -75,72 +75,58 @@ export function NotificacoesDropdown() {
 
   return (
     <>
-      {/* Botão do Sininho de Notificações */}
+      {/* Botão do Sininho no Topo */}
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        aria-label="Central de Notificações"
-        className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-border/50 bg-surface/80 backdrop-blur-md text-secondary hover:text-foreground hover:border-primary/50 transition-all active:scale-95 cursor-pointer shadow-sm"
+        aria-label="Notificações"
+        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border/40 bg-surface/80 text-secondary hover:text-foreground hover:border-primary/50 transition-all active:scale-95 cursor-pointer shadow-sm"
       >
-        <Bell className={`h-5 w-5 transition-colors ${naoLidasCount > 0 ? 'text-primary' : ''}`} />
+        <Bell className={`h-4 w-4 ${naoLidasCount > 0 ? 'text-primary' : ''}`} />
         
         {naoLidasCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white shadow-lg ring-2 ring-surface animate-pulse">
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white shadow-md ring-2 ring-surface animate-pulse">
             {naoLidasCount > 99 ? '99+' : naoLidasCount}
           </span>
         )}
       </button>
 
-      {/* Painel via React Portal */}
+      {/* Painel Minimalista via React Portal */}
       {isOpen &&
         createPortal(
           <div className="fixed inset-0 z-[99999] flex flex-col justify-end sm:justify-center sm:items-end font-sans">
-            {/* Backdrop Escuro com Blur */}
+            {/* Backdrop com Blur Suave */}
             <div
-              className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
               onClick={() => setIsOpen(false)}
             />
 
-            {/* Painel: Bottom Sheet no Mobile (sobe de baixo) / Drawer no Desktop (lado direito) */}
-            <div className="relative z-10 flex w-full flex-col bg-[#18181b] text-foreground shadow-2xl transition-all duration-300
-              max-h-[90vh] sm:max-h-full sm:h-full sm:w-[440px]
-              rounded-t-[28px] sm:rounded-none
-              border-t sm:border-t-0 sm:border-l border-border/60
+            {/* Container Principal */}
+            <div className="relative z-10 flex w-full flex-col bg-[#121214] text-foreground shadow-2xl transition-all duration-300
+              max-h-[85vh] sm:max-h-full sm:h-full sm:w-[420px]
+              rounded-t-3xl sm:rounded-none
+              border-t sm:border-t-0 sm:border-l border-white/10
               animate-in slide-in-from-bottom sm:slide-in-from-right
               pb-[env(safe-area-inset-bottom)] sm:pb-0"
             >
-              {/* Barra / Pílula de toque no topo do celular */}
-              <div className="sm:hidden flex justify-center pt-3 pb-1">
-                <div className="h-1.5 w-12 rounded-full bg-white/20" />
-              </div>
-
-              {/* Cabeçalho */}
-              <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5 bg-[#1f1f23] rounded-t-[28px] sm:rounded-none">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary">
-                    <Bell className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">
-                      NOTIFICAÇÕES
-                    </h3>
-                    {naoLidasCount > 0 ? (
-                      <span className="text-[11px] font-semibold text-primary uppercase">
-                        {naoLidasCount} NÃO LIDA{naoLidasCount > 1 ? 'S' : ''}
-                      </span>
-                    ) : (
-                      <span className="text-[11px] text-secondary uppercase">TUDO EM DIA</span>
-                    )}
-                  </div>
+              {/* Header Clean */}
+              <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white tracking-wide">Notificações</span>
+                  {naoLidasCount > 0 && (
+                    <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                      {naoLidasCount} nova{naoLidasCount > 1 ? 's' : ''}
+                    </span>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   {naoLidasCount > 0 && (
                     <button
                       type="button"
                       onClick={marcarTodasComoLidas}
                       title="Marcar todas como lidas"
-                      className="flex h-9 w-9 items-center justify-center rounded-xl text-secondary hover:text-primary hover:bg-white/5 active:scale-95 transition-colors cursor-pointer"
+                      className="p-2 rounded-lg text-secondary hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
                     >
                       <CheckCheck className="h-4 w-4" />
                     </button>
@@ -149,8 +135,8 @@ export function NotificacoesDropdown() {
                     <button
                       type="button"
                       onClick={limparTodas}
-                      title="Limpar histórico"
-                      className="flex h-9 w-9 items-center justify-center rounded-xl text-secondary hover:text-red-400 hover:bg-white/5 active:scale-95 transition-colors cursor-pointer"
+                      title="Limpar todas"
+                      className="p-2 rounded-lg text-secondary hover:text-red-400 hover:bg-white/5 transition-colors cursor-pointer"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -159,60 +145,60 @@ export function NotificacoesDropdown() {
                     type="button"
                     onClick={() => setIsOpen(false)}
                     aria-label="Fechar"
-                    className="flex h-9 w-9 items-center justify-center rounded-xl text-secondary hover:text-foreground hover:bg-white/5 active:scale-95 transition-colors cursor-pointer"
+                    className="p-2 rounded-lg text-secondary hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
                   >
-                    <X className="h-5 w-5" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
-              {/* Filtros em Abas Grandes para Celular */}
-              <div className="flex border-b border-border/30 px-4 py-2 gap-2 bg-[#141416]">
+              {/* Filtros em Abas Minimalistas */}
+              <div className="flex px-4 py-2.5 gap-1.5 border-b border-white/5 bg-white/[0.02]">
                 <button
                   type="button"
                   onClick={() => setFiltro('todas')}
-                  className={`flex-1 py-2 text-xs font-bold rounded-xl uppercase transition-all active:scale-95 cursor-pointer ${
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     filtro === 'todas'
-                      ? 'bg-primary text-white shadow-md'
-                      : 'text-secondary hover:text-foreground hover:bg-white/5 bg-surface/30'
+                      ? 'bg-white/10 text-white border border-white/15'
+                      : 'text-secondary hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  TODAS ({notificacoes.length})
+                  Todas ({notificacoes.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setFiltro('os')}
-                  className={`flex-1 py-2 text-xs font-bold rounded-xl uppercase transition-all active:scale-95 cursor-pointer ${
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     filtro === 'os'
-                      ? 'bg-amber-500 text-black shadow-md'
-                      : 'text-secondary hover:text-foreground hover:bg-white/5 bg-surface/30'
+                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
+                      : 'text-secondary hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  O.S / OFICINA
+                  O.S / Oficina
                 </button>
                 <button
                   type="button"
                   onClick={() => setFiltro('patio')}
-                  className={`flex-1 py-2 text-xs font-bold rounded-xl uppercase transition-all active:scale-95 cursor-pointer ${
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     filtro === 'patio'
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'text-secondary hover:text-foreground hover:bg-white/5 bg-surface/30'
+                      ? 'bg-blue-500/15 text-blue-300 border border-blue-500/25'
+                      : 'text-secondary hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  PÁTIO
+                  Pátio
                 </button>
               </div>
 
-              {/* Lista de Notificações com Rolagem Fluida */}
-              <div className="flex-1 overflow-y-auto divide-y divide-border/10 p-3 overscroll-contain bg-[#18181b]">
+              {/* Lista de Alertas */}
+              <div className="flex-1 overflow-y-auto p-3.5 space-y-2 overscroll-contain">
                 {listaFiltrada.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center text-secondary">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-border/40 mb-3">
-                      <Bell className="h-6 w-6 stroke-1 opacity-50" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.03] border border-white/5 mb-3 text-secondary/50">
+                      <Bell className="h-5 w-5 stroke-1" />
                     </div>
-                    <p className="text-sm font-bold uppercase text-foreground">NENHUMA NOTIFICAÇÃO</p>
-                    <p className="text-xs text-secondary/70 mt-1 max-w-[240px] normal-case">
-                      Você não possui alertas pendentes nesta categoria.
+                    <p className="text-xs font-semibold text-white/80">Nenhuma notificação</p>
+                    <p className="text-[11px] text-secondary mt-0.5">
+                      Você está em dia com todos os alertas
                     </p>
                   </div>
                 ) : (
@@ -226,48 +212,48 @@ export function NotificacoesDropdown() {
                       <div
                         key={item.id}
                         onClick={() => handleItemClick(item)}
-                        className={`flex items-start gap-3.5 p-3.5 rounded-2xl transition-all active:scale-[0.99] cursor-pointer text-left mb-2.5 ${
+                        className={`group relative flex items-start gap-3 p-3.5 rounded-2xl transition-all cursor-pointer ${
                           !item.lida
-                            ? 'bg-primary/10 border border-primary/35 shadow-sm'
-                            : 'bg-[#202024] hover:bg-[#27272c] border border-border/30 opacity-90 hover:opacity-100'
+                            ? 'bg-white/[0.06] border border-primary/30 shadow-sm'
+                            : 'bg-white/[0.02] hover:bg-white/[0.05] border border-white/5'
                         }`}
                       >
                         <div
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border mt-0.5 ${
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border mt-0.5 ${
                             item.prioridade === 'urgente'
-                              ? 'bg-red-500/15 border-red-500/40'
+                              ? 'bg-red-500/10 border-red-500/30'
                               : item.prioridade === 'alerta'
-                                ? 'bg-amber-500/15 border-amber-500/40'
-                                : 'bg-primary/15 border-primary/30'
+                                ? 'bg-amber-500/10 border-amber-500/30'
+                                : 'bg-primary/10 border-primary/20'
                           }`}
                         >
                           {renderIcon(item.tipo, item.prioridade)}
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1 mb-1">
+                          <div className="flex items-center justify-between gap-1 mb-0.5">
                             <p className={`text-xs font-bold truncate uppercase ${
-                              !item.lida ? 'text-white font-black' : 'text-foreground/90'
+                              !item.lida ? 'text-white' : 'text-white/80'
                             }`}>
                               {item.titulo}
                             </p>
                             {!item.lida && (
-                              <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0 ring-4 ring-primary/20 animate-pulse" />
+                              <span className="h-2 w-2 rounded-full bg-primary shrink-0 ring-2 ring-primary/20" />
                             )}
                           </div>
 
-                          <p className="text-xs text-[#a1a1aa] leading-relaxed">
+                          <p className="text-xs text-secondary leading-relaxed normal-case">
                             {item.mensagem}
                           </p>
 
-                          <div className="mt-2.5 flex items-center justify-between text-[11px] text-[#71717a] uppercase font-medium">
+                          <div className="mt-2 flex items-center justify-between text-[10px] text-secondary/70">
                             <span className="flex items-center gap-1">
-                              <Clock className="h-3.5 w-3.5" />
+                              <Clock className="h-3 w-3" />
                               {tempoAtras}
                             </span>
                             {item.link && (
-                              <span className="text-primary font-bold flex items-center gap-1 hover:underline">
-                                ABRIR <ExternalLink className="h-3.5 w-3.5" />
+                              <span className="text-primary font-semibold flex items-center gap-1 group-hover:underline">
+                                Abrir <ExternalLink className="h-3 w-3" />
                               </span>
                             )}
                           </div>
@@ -278,18 +264,18 @@ export function NotificacoesDropdown() {
                 )}
               </div>
 
-              {/* Rodapé com Atalho para Preferências */}
-              <div className="border-t border-border/40 p-4 bg-[#1f1f23]">
+              {/* Rodapé Clean */}
+              <div className="p-3 border-t border-white/5 bg-white/[0.01]">
                 <button
                   type="button"
                   onClick={() => {
                     navigate('/configuracoes')
                     setIsOpen(false)
                   }}
-                  className="flex w-full items-center justify-center gap-2 py-3 text-xs font-bold text-primary hover:bg-primary/10 active:scale-[0.98] rounded-xl border border-primary/30 transition-all uppercase cursor-pointer shadow-sm"
+                  className="flex w-full items-center justify-center gap-2 py-2.5 text-xs font-medium text-secondary hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer"
                 >
-                  <Settings className="h-4 w-4" />
-                  <span>CONFIGURAR REGRAS DE NOTIFICAÇÕES</span>
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>Configurar preferências de alertas</span>
                 </button>
               </div>
             </div>

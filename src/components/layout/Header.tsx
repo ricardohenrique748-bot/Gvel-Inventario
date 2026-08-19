@@ -39,9 +39,9 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
 
 export function MobileTopBar() {
   return (
-    <div className="md:hidden sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/15 bg-surface/95 backdrop-blur-md px-4 pt-[env(safe-area-inset-top)] gap-2 shadow-sm">
+    <div className="md:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border/15 bg-surface/95 backdrop-blur-md px-4 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-3 gap-3 shadow-sm">
       <Logo size="sm" />
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         <NotificacoesDropdown />
         <ThemeToggleButton />
       </div>

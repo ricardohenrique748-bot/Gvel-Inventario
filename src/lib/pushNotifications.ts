@@ -39,6 +39,8 @@ export async function dispararPushLocal(titulo: string, mensagem: string) {
             title: titulo,
             body: mensagem,
             schedule: { at: new Date(Date.now() + 200) },
+            smallIcon: 'ic_stat_notification',
+            iconColor: '#C7301F',
             sound: undefined,
             attachments: undefined,
             actionTypeId: '',

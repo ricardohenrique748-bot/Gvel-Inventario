@@ -5,6 +5,10 @@ const config: CapacitorConfig = {
   appName: 'Entrada e Saida',
   webDir: 'dist',
   plugins: {
+    LocalNotifications: {
+      smallIcon: 'ic_stat_notification',
+      iconColor: '#C7301F',
+    },
     SplashScreen: {
       launchAutoHide: false,
       backgroundColor: '#C7301F',
