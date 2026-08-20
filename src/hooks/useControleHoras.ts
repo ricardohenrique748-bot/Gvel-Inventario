@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { obterNomeCompletoMembro, buscarFuncaoPorNome } from '@/constants/equipe'
 
 export interface ControleHorasItem {
   id: string
@@ -111,11 +112,14 @@ export function useControleHoras() {
       // Processa atividades individuais apontadas no checklist
       for (const it of itensList ?? []) {
         const osGeral = osMap.get(it.movimentacao_id)
-        const mec = (it.mecanico || osGeral?.mecanico || '').trim().toUpperCase()
+        const mecBruto = (it.mecanico || osGeral?.mecanico || '').trim().toUpperCase()
 
-        if (!mec || mec === '—' || mec === '-' || mec === 'SEM NOME' || mec === 'OPCIONAL') {
+        if (!mecBruto || mecBruto === '—' || mecBruto === '-' || mecBruto === 'SEM NOME' || mecBruto === 'OPCIONAL') {
           continue
         }
+
+        const mec = obterNomeCompletoMembro(mecBruto)
+        const func = osGeral?.funcao || buscarFuncaoPorNome(mec) || 'MECANICO'
 
         // Se o item tem horários apontados ou está marcado
         const temHorarios = Boolean(it.hora_inicio && it.hora_fim)
@@ -132,7 +136,7 @@ export function useControleHoras() {
             id: it.id,
             descricao: it.label || 'ATIVIDADE CHECKLIST',
             mecanico_executor: mec,
-            funcao: (osGeral?.funcao || 'MECÂNICO').trim().toUpperCase(),
+            funcao: func.trim().toUpperCase(),
             setor,
             data_hora: it.created_at,
             data_hora_abertura: it.hora_inicio ? `${new Date(it.created_at).toISOString().slice(0, 10)}T${it.hora_inicio}` : it.created_at,
@@ -149,10 +153,13 @@ export function useControleHoras() {
       for (const os of osList ?? []) {
         if (movimentacoesComAtividades.has(os.movimentacao_id)) continue
 
-        const mec = (os.mecanico || '').trim().toUpperCase()
-        if (!mec || mec === '—' || mec === '-' || mec === 'SEM NOME' || mec === 'OPCIONAL') {
+        const mecBruto = (os.mecanico || '').trim().toUpperCase()
+        if (!mecBruto || mecBruto === '—' || mecBruto === '-' || mecBruto === 'SEM NOME' || mecBruto === 'OPCIONAL') {
           continue
         }
+
+        const mec = obterNomeCompletoMembro(mecBruto)
+        const func = os.funcao || buscarFuncaoPorNome(mec) || 'MECANICO'
 
         const movOS = os.movimentacao as unknown as { patio?: { nome?: string } }
         const patioNome = movOS?.patio?.nome
@@ -162,7 +169,7 @@ export function useControleHoras() {
           id: os.id,
           descricao: `O.S - ${os.status_os || 'MANUTENÇÃO GERAL'}`,
           mecanico_executor: mec,
-          funcao: (os.funcao || 'MECÂNICO').trim().toUpperCase(),
+          funcao: func.trim().toUpperCase(),
           setor,
           data_hora: os.created_at,
           data_hora_abertura: os.created_at,

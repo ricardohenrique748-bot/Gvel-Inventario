@@ -39,7 +39,7 @@ export const EQUIPE_GVEL: MembroEquipe[] = [
 export const FUNCOES_EQUIPE = Array.from(new Set(EQUIPE_GVEL.map((m) => m.funcao))).sort()
 
 // Remove acentos para busca flexível
-function removerAcentos(texto: string): string {
+export function removerAcentos(texto: string): string {
   return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
@@ -51,4 +51,36 @@ export function buscarFuncaoPorNome(nome: string): string | undefined {
     return mNorm === norm || norm.includes(mNorm) || mNorm.includes(norm)
   })
   return encontrado?.funcao
+}
+
+export function obterNomeCompletoMembro(nome: string): string {
+  if (!nome) return ''
+  const norm = removerAcentos(nome.trim().toLowerCase())
+  
+  // Apelidos ou variações comuns
+  if (norm === 'maicon') return 'MAICOM EVERTON PEREIRA FERREIRA'
+  if (norm === 'chaim') return 'GABRIEL HENRIQUE CHAIM FAUSTINO'
+  if (norm === 'pontel') return 'JOAO VITOR PONTEL MARTINS'
+
+  const encontrado = EQUIPE_GVEL.find((m) => {
+    const mNorm = removerAcentos(m.nome.toLowerCase())
+    if (mNorm === norm) return true
+    const partes = mNorm.split(' ')
+    return partes.includes(norm) || (norm.length >= 4 && mNorm.includes(norm))
+  })
+  return encontrado ? encontrado.nome : nome
+}
+
+export function formatarNomeSobrenome(nomeCompleto: string): string {
+  if (!nomeCompleto) return ''
+  const nomeResolvido = obterNomeCompletoMembro(nomeCompleto)
+  const partes = nomeResolvido.trim().split(/\s+/).filter(Boolean)
+  if (partes.length <= 1) return partes[0] || ''
+
+  const prep = ['DE', 'DA', 'DO', 'DOS', 'DAS', 'E']
+  if (prep.includes(partes[1].toUpperCase()) && partes[2]) {
+    return `${partes[0]} ${partes[1]} ${partes[2]}`
+  }
+
+  return `${partes[0]} ${partes[1]}`
 }

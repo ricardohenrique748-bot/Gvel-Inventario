@@ -32,7 +32,7 @@ import {
 } from '@/lib/format'
 import { differenceInMinutes } from 'date-fns'
 import type { MovimentacaoComVeiculo } from '@/lib/types'
-import { EQUIPE_GVEL, FUNCOES_EQUIPE, buscarFuncaoPorNome } from '@/constants/equipe'
+import { EQUIPE_GVEL, FUNCOES_EQUIPE, buscarFuncaoPorNome, obterNomeCompletoMembro } from '@/constants/equipe'
 
 // ─── Tipos exportados (usados pelo hook de migração) ─────────────────────────
 
@@ -194,8 +194,9 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
 
   // Sincroniza os campos locais quando o banco carrega/atualiza (Realtime)
   useEffect(() => {
-    setMecanico(osData.mecanico)
-    setFuncao(osData.funcao)
+    const mecNome = obterNomeCompletoMembro(osData.mecanico)
+    setMecanico(mecNome)
+    setFuncao(osData.funcao || buscarFuncaoPorNome(mecNome) || '')
     setSetor(osData.setor)
     setStatusOS(osData.statusOS || 'EM ANDAMENTO')
     setDataHoraAbertura(osData.dataHoraAbertura)
@@ -828,7 +829,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                     const isChecked = Boolean(data?.checked)
                     const isExpanded = Boolean(expandedItems[item.id])
                     const duracao = calcularDuracaoHorasMin(data?.hora_inicio, data?.hora_fim, data?.data_inicio || data?.data, data?.data_fim)
-                    const mecanicoDoItem = data?.mecanico || ''
+                    const mecanicoDoItem = obterNomeCompletoMembro(data?.mecanico || '')
 
                     return (
                       <div
@@ -942,7 +943,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                 MECÂNICO:
                               </span>
                               <select
-                                value={data?.mecanico || ''}
+                                value={obterNomeCompletoMembro(data?.mecanico || '')}
                                 onChange={(e) => updateItemPatch(secao.id, item, { mecanico: e.target.value.toUpperCase() })}
                                 className="h-8 px-2.5 text-xs rounded-lg border border-border/40 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-primary flex-1 uppercase font-bold"
                               >
@@ -954,7 +955,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                     {m.nome}
                                   </option>
                                 ))}
-                                {data?.mecanico && !EQUIPE_GVEL.some((m) => m.nome === data.mecanico) && (
+                                {data?.mecanico && !EQUIPE_GVEL.some((m) => m.nome === obterNomeCompletoMembro(data.mecanico)) && (
                                   <option value={data.mecanico}>{data.mecanico}</option>
                                 )}
                               </select>

@@ -23,6 +23,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { useControleHoras, type ControleHorasItem } from '@/hooks/useControleHoras'
 import { formatDateTime, formatMinutosParaTexto } from '@/lib/format'
 import { CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
+import { formatarNomeSobrenome } from '@/constants/equipe'
 
 const MEDALHAS = ['🥇', '🥈', '🥉']
 
@@ -127,9 +128,10 @@ export function ControleDeHoras() {
   const porMecanico = useMemo(() => {
     const somaMinutos = new Map<string, number>()
     for (const item of itensFiltrados) {
-      const nome = item.mecanico_executor || 'Sem nome'
+      const nomeOriginal = item.mecanico_executor || 'Sem nome'
+      const nomeExibicao = formatarNomeSobrenome(nomeOriginal)
       const minutos = extrairMinutosItem(item)
-      somaMinutos.set(nome, (somaMinutos.get(nome) ?? 0) + minutos)
+      somaMinutos.set(nomeExibicao, (somaMinutos.get(nomeExibicao) ?? 0) + minutos)
     }
     return [...somaMinutos.entries()]
       .filter(([, minutos]) => minutos > 0)
@@ -244,20 +246,20 @@ export function ControleDeHoras() {
               {porMecanico.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-sm text-secondary">Sem dados</div>
               ) : (
-                <div style={{ minWidth: Math.max(360, porMecanico.length * 68), height: '100%' }}>
+                <div style={{ minWidth: Math.max(380, porMecanico.length * 85), height: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart key={theme} data={porMecanico} margin={{ top: 28, right: 16, left: -10, bottom: 35 }}>
+                    <BarChart key={theme} data={porMecanico} margin={{ top: 28, right: 16, left: -10, bottom: 40 }}>
                       <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 3" />
                       <XAxis
                         dataKey="name"
                         stroke={textColor}
-                        tick={{ fill: textColor, fontSize: 11, fontWeight: 700 }}
+                        tick={{ fill: textColor, fontSize: 10, fontWeight: 700 }}
                         tickLine={false}
                         axisLine={{ stroke: axisLineColor }}
                         interval={0}
-                        angle={porMecanico.length > 3 ? -30 : 0}
-                        textAnchor={porMecanico.length > 3 ? 'end' : 'middle'}
-                        height={porMecanico.length > 3 ? 55 : 26}
+                        angle={porMecanico.length > 2 ? -35 : 0}
+                        textAnchor={porMecanico.length > 2 ? 'end' : 'middle'}
+                        height={porMecanico.length > 2 ? 65 : 26}
                       />
                       <YAxis
                         type="number"
@@ -395,7 +397,7 @@ export function ControleDeHoras() {
                         tickLine={false}
                         axisLine={false}
                         interval={0}
-                        width={140}
+                        width={160}
                       />
                       <Tooltip
                         contentStyle={tooltipStyle}
