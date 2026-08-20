@@ -422,9 +422,9 @@ export function Kanban() {
         </div>
       </Card>
 
-      {/* MODO KANBAN - LAYOUT ESPAÇOSO E ELEGANTE */}
+      {/* MODO KANBAN - LAYOUT RESPONSIVO QUE PREENCHE QUALQUER MONITOR */}
       {viewMode === 'kanban' && (
-        <div className="flex gap-4 overflow-x-auto pb-6 pt-1 scrollbar-thin items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-start w-full pb-6 pt-1">
           {COLUNAS.map((col) => {
             const colItens = itensPorColuna.get(col.id) || []
             const Icon = col.icone
@@ -432,7 +432,7 @@ export function Kanban() {
             return (
               <div
                 key={col.id}
-                className="flex flex-col min-w-[340px] max-w-[340px] shrink-0 rounded-2xl border border-border/10 bg-surface/40 backdrop-blur-md p-3.5 shadow-sm"
+                className="flex flex-col w-full min-w-0 rounded-2xl border border-border/10 bg-surface/40 backdrop-blur-md p-3.5 shadow-sm"
               >
                 {/* Header da Coluna */}
                 <div className={`rounded-xl border p-3 mb-3.5 flex items-center justify-between ${col.headerBg}`}>
