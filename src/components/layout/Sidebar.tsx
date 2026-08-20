@@ -4,7 +4,7 @@ import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench } f
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
-import { navItems, ADMIN_ONLY_ROUTES } from './nav'
+import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/cn'
 import { isNativeApp } from '@/lib/isNativeApp'
@@ -22,6 +22,7 @@ export function Sidebar() {
   const [search, setSearch] = useState('')
   const native = isNativeApp()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
+  const canAccessKanban = isKanbanAuthorized(user?.email)
   const location = useLocation()
 
   // Track which parent groups are open
@@ -42,7 +43,12 @@ export function Sidebar() {
   const currentNavItems = useMemo(() => {
     const base = native ? nativeNavItems : navItems
     return base
-      .filter((item) => isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number]))
+      .filter((item) => {
+        if (item.to === '/kanban') {
+          return canAccessKanban
+        }
+        return isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number])
+      })
       .map((item) => {
         if (!isAdmin && item.to === '/configuracoes') {
           const { children: _children, ...rest } = item as any
@@ -50,7 +56,7 @@ export function Sidebar() {
         }
         return item
       })
-  }, [native, isAdmin])
+  }, [native, isAdmin, canAccessKanban])
 
   // For search: flatten all items (including children) to find matches
   const filteredNavItems = useMemo(() => {

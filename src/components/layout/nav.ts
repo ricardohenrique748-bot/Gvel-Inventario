@@ -76,3 +76,13 @@ export const ADMIN_ONLY_ROUTES = [
   '/rh',
   '/compras',
 ] as const
+
+export const KANBAN_ALLOWED_EMAILS = [
+  'victor@gveldiesel.com',
+  'ricardo_h.16@hotmail.com',
+] as const
+
+export function isKanbanAuthorized(email?: string | null): boolean {
+  if (!email) return false
+  return KANBAN_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
+}

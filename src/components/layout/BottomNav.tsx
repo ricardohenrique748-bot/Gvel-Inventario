@@ -1,14 +1,15 @@
 import { NavLink } from 'react-router-dom'
 import { LogOut, Home, ArrowLeftRight, Settings, Wrench } from 'lucide-react'
-import { navItems, ADMIN_ONLY_ROUTES } from './nav'
+import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized } from './nav'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
 
 export function BottomNav() {
-  const { signOut, perfil, perfilLoading } = useAuth()
+  const { signOut, user, perfil, perfilLoading } = useAuth()
   const native = isNativeApp()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
+  const canAccessKanban = isKanbanAuthorized(user?.email)
 
   if (native) {
     return (
@@ -84,7 +85,10 @@ export function BottomNav() {
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-border/10 bg-surface/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] uppercase">
       {navItems
         .filter((item) => !('children' in item))
-        .filter((item) => isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number]))
+        .filter((item) => {
+          if (item.to === '/kanban') return canAccessKanban
+          return isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number])
+        })
         .map((item) => (
         <NavLink
           key={item.to}

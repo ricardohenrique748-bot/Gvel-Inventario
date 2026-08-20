@@ -18,11 +18,16 @@ import {
   Info,
   Copy,
   Check,
+  ShieldAlert,
 } from 'lucide-react'
+import { Navigate } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { useAuth } from '@/contexts/AuthContext'
+import { isNativeApp } from '@/lib/isNativeApp'
+import { isKanbanAuthorized } from '@/components/layout/nav'
 import { useKanbanSheet, type KanbanItem } from '@/hooks/useKanbanSheet'
 
 type ViewMode = 'kanban' | 'tabela'
@@ -132,7 +137,32 @@ const COLUNAS: ColunaConfig[] = [
 ]
 
 export function Kanban() {
+  const { user, perfilLoading } = useAuth()
   const { items, loading, error, lastSync, fetchSheet } = useKanbanSheet()
+
+  // Bloqueio no APK mobile
+  if (isNativeApp()) {
+    return <Navigate to="/" replace />
+  }
+
+  const authorized = isKanbanAuthorized(user?.email)
+
+  if (!perfilLoading && !authorized) {
+    return (
+      <div className="uppercase space-y-6 animate-fade-in">
+        <PageHeader title="QUADRO KANBAN" subtitle="FLUXO DE OPERAÇÃO E GESTÃO DE PROCESSOS" />
+        <Card className="p-8 sm:p-12 text-center uppercase border-border/20 bg-surface shadow-2xl">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 text-red-400 shadow-inner">
+            <ShieldAlert className="h-8 w-8" />
+          </div>
+          <p className="text-lg font-black text-foreground">ACESSO RESTRITO AO KANBAN</p>
+          <p className="mt-2 text-xs sm:text-sm text-secondary font-medium max-w-md mx-auto leading-relaxed">
+            ESTE MÓDULO ESTÁ DISPONÍVEL EXCLUSIVAMENTE PARA OS USUÁRIOS AUTORIZADOS PELA DIRETORIA.
+          </p>
+        </Card>
+      </div>
+    )
+  }
 
   const [busca, setBusca] = useState('')
   const [mesFiltro, setMesFiltro] = useState('')

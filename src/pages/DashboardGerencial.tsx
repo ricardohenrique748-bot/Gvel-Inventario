@@ -29,6 +29,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useClientes } from '@/hooks/useClientes'
 import { useUsuarios } from '@/hooks/useUsuarios'
+import { isKanbanAuthorized } from '@/components/layout/nav'
 
 export function DashboardGerencial() {
   const { perfil, user, perfilLoading } = useAuth()
@@ -299,7 +300,9 @@ export function DashboardGerencial() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 uppercase">
-          {atalhos.map((item) => (
+          {atalhos
+            .filter((item) => item.to !== '/kanban' || isKanbanAuthorized(user?.email))
+            .map((item) => (
             <Link
               key={item.to}
               to={item.to}
