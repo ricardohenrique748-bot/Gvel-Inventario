@@ -19,6 +19,8 @@ import {
   Copy,
   Check,
   ShieldAlert,
+  User,
+  History,
 } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/Header'
@@ -59,6 +61,8 @@ const COLUNAS: ColunaConfig[] = [
     icone: Clock,
     matcher: (item) => {
       const obs = item.obsGvel.toUpperCase()
+      const prev = item.previsaoEntrega.toUpperCase()
+      if (obs.includes('ENTREGUE') || prev.includes('ENTREGUE') || obs.includes('FINALIZADO') || prev.includes('FINALIZADO')) return false
       return obs.includes('DEFINIÇÃO') || obs.includes('DIRETORIA')
     },
   },
@@ -74,8 +78,17 @@ const COLUNAS: ColunaConfig[] = [
     icone: Wrench,
     matcher: (item) => {
       const obs = item.obsGvel.toUpperCase()
+      const prev = item.previsaoEntrega.toUpperCase()
       const orc = item.orcamento.toUpperCase()
-      if (obs.includes('DEFINIÇÃO') || obs.includes('DIRETORIA') || obs.includes('ENTREGUE')) return false
+      if (
+        obs.includes('ENTREGUE') ||
+        prev.includes('ENTREGUE') ||
+        obs.includes('FINALIZADO') ||
+        prev.includes('FINALIZADO') ||
+        obs.includes('DEFINIÇÃO') ||
+        obs.includes('DIRETORIA')
+      )
+        return false
       return (
         orc.includes('LEVANTANDO') ||
         orc.includes('REGULAGEM') ||
@@ -96,10 +109,22 @@ const COLUNAS: ColunaConfig[] = [
     icone: Truck,
     matcher: (item) => {
       const obs = item.obsGvel.toUpperCase()
+      const prev = item.previsaoEntrega.toUpperCase()
       const orc = item.orcamento.toUpperCase()
-      if (obs.includes('ENTREGUE') || obs.includes('TRANSPORTE') || obs.includes('DEFINIÇÃO') || obs.includes('DIRETORIA'))
+      if (
+        obs.includes('ENTREGUE') ||
+        prev.includes('ENTREGUE') ||
+        obs.includes('TRANSPORTE') ||
+        obs.includes('PRONTO') ||
+        obs.includes('LIBERADO') ||
+        obs.includes('FINALIZADO') ||
+        prev.includes('FINALIZADO') ||
+        obs.includes('DEFINIÇÃO') ||
+        obs.includes('DIRETORIA')
+      )
         return false
-      if (orc.includes('LEVANTANDO') || orc.includes('REGULAGEM')) return false
+      if (orc.includes('LEVANTANDO') || orc.includes('REGULAGEM') || obs.includes('LEVANTANDO') || obs.includes('REGULAGEM'))
+        return false
       return obs.includes('ANDAMENTO') || obs.includes('EXECUÇÃO') || orc.includes('OK')
     },
   },
@@ -115,7 +140,15 @@ const COLUNAS: ColunaConfig[] = [
     icone: MapPin,
     matcher: (item) => {
       const obs = item.obsGvel.toUpperCase()
-      return obs.includes('TRANSPORTE') || obs.includes('PRONTO') || obs.includes('LIBERADO')
+      const prev = item.previsaoEntrega.toUpperCase()
+      if (obs.includes('ENTREGUE') || prev.includes('ENTREGUE')) return false
+      return (
+        obs.includes('TRANSPORTE') ||
+        obs.includes('PRONTO') ||
+        obs.includes('LIBERADO') ||
+        obs.includes('FINALIZADO') ||
+        prev.includes('FINALIZADO')
+      )
     },
   },
   {
@@ -138,7 +171,15 @@ const COLUNAS: ColunaConfig[] = [
 
 export function Kanban() {
   const { user, perfilLoading } = useAuth()
-  const { items, loading, error, lastSync, fetchSheet } = useKanbanSheet()
+  const nomeUsuario =
+    user?.user_metadata?.nome ||
+    (user?.email === 'victor@gveldiesel.com'
+      ? 'VICTOR'
+      : user?.email === 'ricardo_h.16@hotmail.com'
+      ? 'RICARDO'
+      : user?.email?.split('@')[0]?.toUpperCase() || 'USUÁRIO')
+
+  const { items, historico, loading, error, lastSync, lastSyncUser, fetchSheet } = useKanbanSheet(nomeUsuario)
 
   // Bloqueio no APK mobile
   if (isNativeApp()) {
@@ -170,6 +211,7 @@ export function Kanban() {
   const [localFiltro, setLocalFiltro] = useState('')
   const [orcamentoFiltro, setOrcamentoFiltro] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
+  const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false)
 
   // Modal de Detalhe
   const [selectedItem, setSelectedItem] = useState<KanbanItem | null>(null)
@@ -213,13 +255,14 @@ export function Kanban() {
   // Métricas rápidas
   const metricas = useMemo(() => {
     const total = itensFiltrados.length
-    const entregues = itensFiltrados.filter((i) => COLUNAS.find((c) => c.id === 'entregue')?.matcher(i)).length
-    const andamento = itensFiltrados.filter((i) => COLUNAS.find((c) => c.id === 'andamento')?.matcher(i)).length
     const definicao = itensFiltrados.filter((i) => COLUNAS.find((c) => c.id === 'definicao')?.matcher(i)).length
     const orcamento = itensFiltrados.filter((i) => COLUNAS.find((c) => c.id === 'orcamento')?.matcher(i)).length
+    const andamento = itensFiltrados.filter((i) => COLUNAS.find((c) => c.id === 'andamento')?.matcher(i)).length
+    const transporte = itensFiltrados.filter((i) => COLUNAS.find((c) => c.id === 'transporte')?.matcher(i)).length
+    const entregues = itensFiltrados.filter((i) => COLUNAS.find((c) => c.id === 'entregue')?.matcher(i)).length
     const inoperantes = itensFiltrados.filter((i) => i.condicao.toLowerCase().includes('inop')).length
 
-    return { total, entregues, andamento, definicao, orcamento, inoperantes }
+    return { total, definicao, orcamento, andamento, transporte, entregues, inoperantes }
   }, [itensFiltrados])
 
   // Agrupamento por coluna
@@ -271,6 +314,16 @@ export function Kanban() {
             <Button
               variant="secondary"
               size="md"
+              onClick={() => setModalHistoricoAberto(true)}
+              className="gap-2 font-bold hover:border-primary/50 text-foreground"
+            >
+              <History className="h-4 w-4 text-primary" />
+              <span>HISTÓRICO</span>
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="md"
               onClick={() => setViewMode(viewMode === 'kanban' ? 'tabela' : 'kanban')}
               className="gap-2 font-bold"
             >
@@ -281,7 +334,7 @@ export function Kanban() {
             <Button
               variant="primary"
               size="md"
-              onClick={fetchSheet}
+              onClick={() => fetchSheet(nomeUsuario)}
               disabled={loading}
               className="gap-2 font-bold shadow-lg shadow-primary/20"
             >
@@ -294,10 +347,22 @@ export function Kanban() {
 
       {/* Banner de Sincronização & Informações */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/10 bg-surface/80 px-4 py-3 text-xs font-medium text-secondary backdrop-blur-md">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="font-bold text-foreground">GOOGLE SHEETS:</span>
-          <span>{lastSync ? `ÚLTIMA SINCRONIZAÇÃO ÀS ${lastSync}` : 'PLANILHA CONECTADA'}</span>
+          <span>{lastSync ? `ÚLTIMA SINCRONIZAÇÃO EM ${lastSync}` : 'PLANILHA CONECTADA'}</span>
+          {lastSyncUser && (
+            <button
+              type="button"
+              onClick={() => setModalHistoricoAberto(true)}
+              title="Clique para ver o histórico completo de edições"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/25 px-2.5 py-1 text-[11px] font-black text-primary uppercase hover:bg-primary/20 transition-all cursor-pointer shadow-sm"
+            >
+              <User className="h-3.5 w-3.5" />
+              <span>ÚLTIMA ALTERAÇÃO: <strong className="text-foreground">{lastSyncUser}</strong></span>
+              <History className="h-3 w-3 ml-1 opacity-70" />
+            </button>
+          )}
         </div>
 
         <a
@@ -320,7 +385,7 @@ export function Kanban() {
       )}
 
       {/* Cards de Métricas */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         <Card className="p-4 transition-all hover:border-primary/40">
           <p className="text-[11px] font-bold text-secondary">TOTAL</p>
           <p className="mt-1 text-2xl font-black text-foreground tabular-nums">{metricas.total}</p>
@@ -339,6 +404,11 @@ export function Kanban() {
         <Card className="p-4 transition-all hover:border-blue-500/40">
           <p className="text-[11px] font-bold text-blue-400">EM ANDAMENTO</p>
           <p className="mt-1 text-2xl font-black text-blue-400 tabular-nums">{metricas.andamento}</p>
+        </Card>
+
+        <Card className="p-4 transition-all hover:border-cyan-500/40">
+          <p className="text-[11px] font-bold text-cyan-400">PRONTO / TRANSP.</p>
+          <p className="mt-1 text-2xl font-black text-cyan-400 tabular-nums">{metricas.transporte}</p>
         </Card>
 
         <Card className="p-4 transition-all hover:border-emerald-500/40">
@@ -755,6 +825,124 @@ export function Kanban() {
             {/* Botão Fechar */}
             <div className="flex justify-end pt-2">
               <Button variant="secondary" size="md" onClick={() => setSelectedItem(null)}>
+                FECHAR
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal / Painel Lateral: Histórico de Versões do Google Sheets */}
+      {modalHistoricoAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border/20 bg-surface p-6 shadow-2xl space-y-5">
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between border-b border-border/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 text-primary shadow-inner">
+                  <History className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-foreground">HISTÓRICO DE VERSÕES</h3>
+                  <p className="text-xs text-secondary font-medium">
+                    REGISTRO DE QUEM ALTEROU A PLANILHA DO GOOGLE SHEETS
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalHistoricoAberto(false)}
+                className="rounded-xl p-2 text-secondary hover:bg-white/5 hover:text-foreground transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Banner Informativo */}
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/10 bg-background/50 p-3.5 text-xs">
+              <div className="flex items-center gap-2 text-secondary">
+                <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="font-bold text-foreground">CONECTADO AO GOOGLE SHEETS</span>
+              </div>
+              <a
+                href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQA_sHIwYemwUI6KdcR7xIjXzLi6SNcGC0ZSJyUyrRQ83L1w_qLiVi_fvd8ZVcCktq-2ui2G18RNqNW/pubhtml"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 font-bold text-primary hover:underline text-[11px]"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span>ABRIR NO GOOGLE DRIVE</span>
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+
+            {/* Linha do Tempo das Edições */}
+            <div className="space-y-3">
+              <p className="text-[11px] font-black text-secondary uppercase tracking-wider">
+                TODAS AS VERSÕES E ALTERAÇÕES ({historico.length})
+              </p>
+
+              <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-border/20">
+                {historico.map((item, idx) => (
+                  <div key={item.id || idx} className="relative group">
+                    {/* Ponto na timeline */}
+                    <div
+                      className={`absolute -left-6 top-1.5 h-3 w-3 rounded-full border-2 transition-transform group-hover:scale-125 ${
+                        item.versaoAtual
+                          ? 'border-primary bg-primary shadow-lg shadow-primary/50'
+                          : 'border-secondary/40 bg-surface'
+                      }`}
+                    />
+
+                    {/* Card da Versão */}
+                    <div
+                      className={`rounded-2xl border p-4 transition-all ${
+                        item.versaoAtual
+                          ? 'border-primary/40 bg-primary/5 shadow-md'
+                          : 'border-border/10 bg-background/40 hover:border-border/20'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-foreground">
+                            {item.dataHora}
+                          </span>
+                          {item.versaoAtual && (
+                            <span className="rounded-md bg-primary/20 border border-primary/30 px-2 py-0.5 text-[10px] font-black text-primary uppercase">
+                              VERSÃO ATUAL
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-lg">
+                          <User className="h-3 w-3" />
+                          <span>{item.usuario}</span>
+                        </div>
+                      </div>
+
+                      <p className="mt-2 text-xs text-secondary font-medium leading-relaxed">
+                        {item.detalhes}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Rodapé */}
+            <div className="flex items-center justify-between border-t border-border/10 pt-4">
+              <Button
+                variant="primary"
+                size="md"
+                disabled={loading}
+                onClick={() => fetchSheet(nomeUsuario)}
+                className="gap-2 text-xs font-bold"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <span>SINCRONIZAR AGORA</span>
+              </Button>
+
+              <Button variant="secondary" size="md" onClick={() => setModalHistoricoAberto(false)}>
                 FECHAR
               </Button>
             </div>

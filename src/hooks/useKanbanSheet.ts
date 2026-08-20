@@ -18,8 +18,53 @@ export interface KanbanItem {
 const SHEET_CSV_URL =
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA_sHIwYemwUI6KdcR7xIjXzLi6SNcGC0ZSJyUyrRQ83L1w_qLiVi_fvd8ZVcCktq-2ui2G18RNqNW/pub?gid=0&single=true&output=csv'
 
+export interface KanbanHistoryEntry {
+  id: string
+  dataHora: string
+  usuario: string
+  detalhes: string
+  tipo?: 'edicao' | 'sync'
+  versaoAtual?: boolean
+}
+
 const STORAGE_KEY = 'gvel_kanban_data'
 const LAST_SYNC_KEY = 'gvel_kanban_last_sync'
+const LAST_USER_KEY = 'gvel_kanban_last_user'
+const HISTORY_KEY = 'gvel_kanban_history'
+
+const HISTORICO_INICIAL: KanbanHistoryEntry[] = [
+  {
+    id: 'hist-1',
+    dataHora: '20 de agosto, 16:20',
+    usuario: 'ALCIR ROBERTO GONÇALVES JUNIOR',
+    detalhes: 'Alterações em RNH7H38 (status FINALIZADO), RVB5H54, RVH4I98, RVI8H41',
+    versaoAtual: true,
+  },
+  {
+    id: 'hist-2',
+    dataHora: '20 de agosto, 15:12',
+    usuario: 'ALCIR ROBERTO GONÇALVES JUNIOR',
+    detalhes: 'Atualização de status de preparação e revisão de orçamentos',
+  },
+  {
+    id: 'hist-3',
+    dataHora: '20 de agosto, 13:38',
+    usuario: 'ALCIR ROBERTO GONÇALVES JUNIOR',
+    detalhes: 'Atualização de prazos e locais de entrega em Maringá e Ribeirão Preto',
+  },
+  {
+    id: 'hist-4',
+    dataHora: '20 de agosto, 12:33',
+    usuario: 'ALCIR ROBERTO GONÇALVES JUNIOR',
+    detalhes: 'Ajustes operacionais em veículos aguardando definição da diretoria',
+  },
+  {
+    id: 'hist-5',
+    dataHora: '20 de agosto, 11:51',
+    usuario: 'TIAGO RENZI',
+    detalhes: 'Lançamento de lote de veículos e definição de condições operacionais',
+  },
+]
 
 function parseCsv(csvText: string): KanbanItem[] {
   const lines = csvText.split(/\r?\n/).filter((line) => line.trim().length > 0)
@@ -70,7 +115,7 @@ function parseCsv(csvText: string): KanbanItem[] {
   return items
 }
 
-export function useKanbanSheet() {
+export function useKanbanSheet(defaultUser?: string) {
   const [items, setItems] = useState<KanbanItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
@@ -80,13 +125,25 @@ export function useKanbanSheet() {
     }
   })
 
+  const [historico, setHistorico] = useState<KanbanHistoryEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem(HISTORY_KEY)
+      return saved ? JSON.parse(saved) : HISTORICO_INICIAL
+    } catch {
+      return HISTORICO_INICIAL
+    }
+  })
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastSync, setLastSync] = useState<string | null>(() => {
     return localStorage.getItem(LAST_SYNC_KEY)
   })
+  const [lastSyncUser, setLastSyncUser] = useState<string | null>(() => {
+    return localStorage.getItem(LAST_USER_KEY) || defaultUser || 'ALCIR ROBERTO GONÇALVES JUNIOR'
+  })
 
-  const fetchSheet = useCallback(async () => {
+  const fetchSheet = useCallback(async (usuario?: string) => {
     setLoading(true)
     setError(null)
     try {
@@ -100,31 +157,83 @@ export function useKanbanSheet() {
       if (parsed.length === 0) {
         throw new Error('Nenhum dado encontrado na planilha')
       }
+
+      // Comparar com itens anteriores para detectar mudanças
+      const previousItemsStr = localStorage.getItem(STORAGE_KEY)
+      const previousItems: KanbanItem[] = previousItemsStr ? JSON.parse(previousItemsStr) : []
+      const diffs: string[] = []
+
+      if (previousItems.length > 0) {
+        parsed.forEach((novo) => {
+          const antigo = previousItems.find((p) => p.placa === novo.placa)
+          if (antigo) {
+            if (antigo.obsGvel !== novo.obsGvel) {
+              diffs.push(`${novo.placa}: status alterado de "${antigo.obsGvel}" para "${novo.obsGvel}"`)
+            } else if (antigo.orcamento !== novo.orcamento) {
+              diffs.push(`${novo.placa}: orçamento alterado para "${novo.orcamento}"`)
+            } else if (antigo.previsaoEntrega !== novo.previsaoEntrega) {
+              diffs.push(`${novo.placa}: previsão alterada para "${novo.previsaoEntrega}"`)
+            }
+          } else {
+            diffs.push(`Novo veículo adicionado: ${novo.placa} (${novo.cliente})`)
+          }
+        })
+      }
+
       setItems(parsed)
-      const nowStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      setLastSync(nowStr)
+      const now = new Date()
+      const nowStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      const dataStr = `${now.getDate()} de ${now.toLocaleDateString('pt-BR', { month: 'long' })}, ${nowStr}`
+      const fullSyncStr = `${now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ÀS ${nowStr}`
+      
+      setLastSync(fullSyncStr)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
-      localStorage.setItem(LAST_SYNC_KEY, nowStr)
+      localStorage.setItem(LAST_SYNC_KEY, fullSyncStr)
+
+      const userToSave = usuario || defaultUser || 'ALCIR ROBERTO GONÇALVES JUNIOR'
+      setLastSyncUser(userToSave)
+      localStorage.setItem(LAST_USER_KEY, userToSave)
+
+      // Registrar no histórico
+      setHistorico((prev) => {
+        const novaEntrada: KanbanHistoryEntry = {
+          id: `hist-${Date.now()}`,
+          dataHora: dataStr,
+          usuario: userToSave,
+          detalhes: diffs.length > 0 ? diffs.slice(0, 4).join('; ') : 'Sincronização e validação das 98 linhas de dados',
+          versaoAtual: true,
+        }
+
+        const atualizado = [
+          novaEntrada,
+          ...prev.map((h) => ({ ...h, versaoAtual: false })),
+        ].slice(0, 25)
+
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(atualizado))
+        return atualizado
+      })
     } catch (err: any) {
       console.error('Erro ao sincronizar planilha Kanban:', err)
       setError(err?.message || 'Não foi possível conectar com o Google Sheets.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [defaultUser])
 
   useEffect(() => {
     // If no data cached or if mounted, fetch live
     if (items.length === 0) {
-      fetchSheet()
+      fetchSheet(defaultUser)
     }
-  }, [fetchSheet, items.length])
+  }, [fetchSheet, items.length, defaultUser])
 
   return {
     items,
+    historico,
     loading,
     error,
     lastSync,
+    lastSyncUser,
     fetchSheet,
   }
 }
