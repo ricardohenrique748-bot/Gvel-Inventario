@@ -19,17 +19,10 @@ import { StatCard } from '@/components/ui/StatCard'
 import { Select } from '@/components/ui/Input'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
+import { useTheme } from '@/contexts/ThemeContext'
 import { useControleHoras, type ControleHorasItem } from '@/hooks/useControleHoras'
 import { formatDateTime, formatMinutosParaTexto } from '@/lib/format'
-import { CHART_SAIDA, CHART_CHROME, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
-
-const tooltipStyle = {
-  backgroundColor: CHART_CHROME.tooltipBg,
-  border: `1px solid ${CHART_CHROME.tooltipBorder}`,
-  borderRadius: 12,
-  color: '#fff',
-  fontSize: 13,
-}
+import { CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
 
 const MEDALHAS = ['🥇', '🥈', '🥉']
 
@@ -67,6 +60,14 @@ function extrairMinutosItem(item: ControleHorasItem): number {
   return 0
 }
 
+function formatMinutosCompacto(minutos: number): string {
+  const h = Math.floor(minutos / 60)
+  const m = minutos % 60
+  if (h === 0) return `${m}m`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}m`
+}
+
 function Horas({ item }: { item: ControleHorasItem }) {
   if (typeof item.minutos_atividade === 'number' && item.minutos_atividade > 0) {
     return <span className="font-bold text-foreground">{formatMinutosParaTexto(item.minutos_atividade)}</span>
@@ -75,6 +76,20 @@ function Horas({ item }: { item: ControleHorasItem }) {
 }
 
 export function ControleDeHoras() {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const textColor = isDark ? '#ffffff' : '#18181b'
+  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
+  const axisLineColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+    border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+    borderRadius: 12,
+    color: isDark ? '#ffffff' : '#18181b',
+    fontSize: 13,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+  }
+
   const { itens, loading, error } = useControleHoras()
   const [filtros, setFiltros] = useState<Filtros>({})
 
@@ -117,6 +132,7 @@ export function ControleDeHoras() {
       somaMinutos.set(nome, (somaMinutos.get(nome) ?? 0) + minutos)
     }
     return [...somaMinutos.entries()]
+      .filter(([, minutos]) => minutos > 0)
       .map(([name, minutos]) => ({ name, horas: Math.round((minutos / 60) * 10) / 10, minutos }))
       .sort((a, b) => b.minutos - a.minutos)
   }, [itensFiltrados])
@@ -224,49 +240,57 @@ export function ControleDeHoras() {
             <CardTitle>Horas por mecânico</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-72">
+            <div className="h-80 w-full overflow-x-auto">
               {porMecanico.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-sm text-secondary">Sem dados</div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={porMecanico} margin={{ top: 24 }}>
-                    <CartesianGrid vertical={false} stroke={CHART_CHROME.grid} strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="name"
-                      stroke={CHART_CHROME.axis}
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      type="number"
-                      allowDecimals
-                      stroke={CHART_CHROME.axis}
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      width={32}
-                      unit="h"
-                    />
-                    <Tooltip
-                      contentStyle={tooltipStyle}
-                      cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                      formatter={(_value, _name, props) => [
-                        formatMinutosParaTexto(props.payload.minutos),
-                        'Horas',
-                      ]}
-                    />
-                    <Bar dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[4, 4, 0, 0]} maxBarSize={48}>
-                      <LabelList
-                        dataKey="minutos"
-                        position="top"
-                        fill={CHART_CHROME.axis}
-                        fontSize={12}
-                        formatter={(val: any) => (typeof val === 'number' ? formatMinutosParaTexto(val) : String(val ?? ''))}
+                <div style={{ minWidth: Math.max(360, porMecanico.length * 68), height: '100%' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart key={theme} data={porMecanico} margin={{ top: 28, right: 16, left: -10, bottom: 35 }}>
+                      <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="name"
+                        stroke={textColor}
+                        tick={{ fill: textColor, fontSize: 11, fontWeight: 700 }}
+                        tickLine={false}
+                        axisLine={{ stroke: axisLineColor }}
+                        interval={0}
+                        angle={porMecanico.length > 3 ? -30 : 0}
+                        textAnchor={porMecanico.length > 3 ? 'end' : 'middle'}
+                        height={porMecanico.length > 3 ? 55 : 26}
                       />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                      <YAxis
+                        type="number"
+                        allowDecimals={false}
+                        stroke={textColor}
+                        tick={{ fill: textColor, fontSize: 11, fontWeight: 700 }}
+                        tickFormatter={(v) => `${v}h`}
+                        tickLine={false}
+                        axisLine={false}
+                        width={36}
+                      />
+                      <Tooltip
+                        contentStyle={tooltipStyle}
+                        cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
+                        formatter={(_value, _name, props) => [
+                          formatMinutosParaTexto(props.payload.minutos),
+                          'Total Trabalhado',
+                        ]}
+                      />
+                      <Bar dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={44}>
+                        <LabelList
+                          dataKey="minutos"
+                          position="top"
+                          fill={textColor}
+                          fontSize={11}
+                          fontWeight={800}
+                          offset={8}
+                          formatter={(val: any) => (typeof val === 'number' ? formatMinutosCompacto(val) : String(val ?? ''))}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               )}
             </div>
           </CardContent>
@@ -288,7 +312,7 @@ export function ControleDeHoras() {
                   <>
                     <div className="h-52">
                       <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
+                        <PieChart key={theme}>
                           <Pie
                             data={porSetor}
                             dataKey="value"
@@ -301,14 +325,14 @@ export function ControleDeHoras() {
                               <Cell
                                 key={entry.name}
                                 fill={corDe(entry, i)}
-                                stroke={CHART_CHROME.tooltipBg}
+                                stroke={isDark ? '#1c1c1c' : '#ffffff'}
                                 strokeWidth={2}
                               />
                             ))}
                           </Pie>
                           <Tooltip
                             contentStyle={tooltipStyle}
-                            itemStyle={{ color: '#fff' }}
+                            itemStyle={{ color: textColor }}
                             formatter={(value, name) => [
                               `${value} (${Math.round((Number(value) / total) * 100)}%)`,
                               name,
@@ -326,8 +350,8 @@ export function ControleDeHoras() {
                               className="h-2.5 w-2.5 shrink-0 rounded-full"
                               style={{ backgroundColor: corDe(entry, i) }}
                             />
-                            <span className="text-foreground">{entry.name}</span>
-                            <span className="text-secondary">{percent}%</span>
+                            <span className="text-foreground font-bold">{entry.name}</span>
+                            <span className="text-secondary font-medium">{percent}%</span>
                           </div>
                         )
                       })}
@@ -346,50 +370,55 @@ export function ControleDeHoras() {
             <CardTitle>Ranking de mecânicos por horas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-72">
+            <div className="max-h-[380px] overflow-y-auto overflow-x-hidden pr-1">
               {rankingMecanicoHoras.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-secondary">Sem dados</div>
+                <div className="flex h-72 items-center justify-center text-sm text-secondary">Sem dados</div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={rankingMecanicoHoras} layout="vertical" margin={{ left: 8, right: 24 }}>
-                    <CartesianGrid horizontal={false} stroke={CHART_CHROME.grid} strokeDasharray="3 3" />
-                    <XAxis
-                      type="number"
-                      allowDecimals
-                      stroke={CHART_CHROME.axis}
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      unit="h"
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      stroke={CHART_CHROME.axis}
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      width={140}
-                    />
-                    <Tooltip
-                      contentStyle={tooltipStyle}
-                      cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                      formatter={(_value, _name, props) => [
-                        formatMinutosParaTexto(props.payload.minutos),
-                        'Horas',
-                      ]}
-                    />
-                    <Bar dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[0, 4, 4, 0]} maxBarSize={22}>
-                      <LabelList
-                        dataKey="minutos"
-                        position="right"
-                        fill="#fff"
-                        fontSize={12}
-                        formatter={(val: any) => (typeof val === 'number' ? formatMinutosParaTexto(val) : String(val ?? ''))}
+                <div style={{ height: Math.max(288, rankingMecanicoHoras.length * 36) }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart key={theme} data={rankingMecanicoHoras} layout="vertical" margin={{ left: 8, right: 65, top: 10, bottom: 10 }}>
+                      <CartesianGrid horizontal={false} stroke={gridColor} strokeDasharray="3 3" />
+                      <XAxis
+                        type="number"
+                        allowDecimals={false}
+                        stroke={textColor}
+                        tick={{ fill: textColor, fontSize: 11, fontWeight: 700 }}
+                        tickFormatter={(v) => `${v}h`}
+                        tickLine={false}
+                        axisLine={{ stroke: axisLineColor }}
                       />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        stroke={textColor}
+                        tick={{ fill: textColor, fontSize: 11, fontWeight: 700 }}
+                        tickLine={false}
+                        axisLine={false}
+                        interval={0}
+                        width={140}
+                      />
+                      <Tooltip
+                        contentStyle={tooltipStyle}
+                        cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
+                        formatter={(_value, _name, props) => [
+                          formatMinutosParaTexto(props.payload.minutos),
+                          'Tempo Total',
+                        ]}
+                      />
+                      <Bar dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[0, 6, 6, 0]} maxBarSize={22}>
+                        <LabelList
+                          dataKey="minutos"
+                          position="right"
+                          fill={textColor}
+                          fontSize={11}
+                          fontWeight={800}
+                          offset={8}
+                          formatter={(val: any) => (typeof val === 'number' ? formatMinutosCompacto(val) : String(val ?? ''))}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               )}
             </div>
           </CardContent>
@@ -400,36 +429,39 @@ export function ControleDeHoras() {
             <CardTitle>Ranking de setores por veículos atendidos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-72">
+            <div className="max-h-[380px] overflow-y-auto overflow-x-hidden pr-1">
               {rankingSetorVeiculos.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-secondary">Sem dados</div>
+                <div className="flex h-72 items-center justify-center text-sm text-secondary">Sem dados</div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={rankingSetorVeiculos} layout="vertical" margin={{ left: 8, right: 24 }}>
-                    <CartesianGrid horizontal={false} stroke={CHART_CHROME.grid} strokeDasharray="3 3" />
-                    <XAxis
-                      type="number"
-                      allowDecimals={false}
-                      stroke={CHART_CHROME.axis}
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      stroke={CHART_CHROME.axis}
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      width={120}
-                    />
-                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-                    <Bar dataKey="value" name="Veículos" fill={CHART_SAIDA} radius={[0, 4, 4, 0]} maxBarSize={22}>
-                      <LabelList dataKey="value" position="right" fill="#fff" fontSize={12} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <div style={{ height: Math.max(288, rankingSetorVeiculos.length * 36) }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart key={theme} data={rankingSetorVeiculos} layout="vertical" margin={{ left: 8, right: 45, top: 10, bottom: 10 }}>
+                      <CartesianGrid horizontal={false} stroke={gridColor} strokeDasharray="3 3" />
+                      <XAxis
+                        type="number"
+                        allowDecimals={false}
+                        stroke={textColor}
+                        tick={{ fill: textColor, fontSize: 11, fontWeight: 700 }}
+                        tickLine={false}
+                        axisLine={{ stroke: axisLineColor }}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        stroke={textColor}
+                        tick={{ fill: textColor, fontSize: 11, fontWeight: 700 }}
+                        tickLine={false}
+                        axisLine={false}
+                        interval={0}
+                        width={130}
+                      />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }} />
+                      <Bar dataKey="value" name="Veículos" fill={CHART_SAIDA} radius={[0, 6, 6, 0]} maxBarSize={22}>
+                        <LabelList dataKey="value" position="right" fill={textColor} fontSize={11} fontWeight={800} offset={8} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               )}
             </div>
           </CardContent>
@@ -452,12 +484,12 @@ export function ControleDeHoras() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border/5 text-left text-secondary">
-                    <th className="px-3 py-3 font-medium whitespace-nowrap">Nome</th>
-                    <th className="px-3 py-3 font-medium">Descrição</th>
-                    <th className="px-3 py-3 font-medium">Status</th>
-                    <th className="px-3 py-3 font-medium whitespace-nowrap">Placa</th>
-                    <th className="px-3 py-3 font-medium whitespace-nowrap">Horas</th>
+                  <tr className="border-b border-border/10 text-left text-white font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap text-white">Nome</th>
+                    <th className="px-3 py-3 font-bold text-white">Descrição</th>
+                    <th className="px-3 py-3 font-bold text-white">Status</th>
+                    <th className="px-3 py-3 font-bold whitespace-nowrap text-white">Placa</th>
+                    <th className="px-3 py-3 font-bold whitespace-nowrap text-white">Horas</th>
                   </tr>
                 </thead>
                 <tbody>

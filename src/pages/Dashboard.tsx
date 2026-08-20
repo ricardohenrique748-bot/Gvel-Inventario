@@ -23,24 +23,31 @@ import { StatCard } from '@/components/ui/StatCard'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
+import { useTheme } from '@/contexts/ThemeContext'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { permanenciaEmMinutos, formatMinutosParaTexto } from '@/lib/format'
-import { CHART_ENTRADA, CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER, CHART_CHROME } from '@/lib/chartColors'
+import { CHART_ENTRADA, CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 
-const tooltipStyle = {
-  backgroundColor: CHART_CHROME.tooltipBg,
-  border: `1px solid ${CHART_CHROME.tooltipBorder}`,
-  borderRadius: 12,
-  color: '#fff',
-  fontSize: 13,
-}
-
 export function Dashboard() {
-  const filtroInicial = {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const textColor = isDark ? '#ffffff' : '#18181b'
+  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
+  const axisLineColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+    border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+    borderRadius: 12,
+    color: isDark ? '#ffffff' : '#18181b',
+    fontSize: 13,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+  }
+
+  const filtroInicial = useMemo(() => ({
     dataInicio: format(new Date(), 'yyyy-MM-dd'),
     dataFim: format(new Date(), 'yyyy-MM-dd'),
-  }
+  }), [])
 
   const [filters, setFilters] = useState<FiltersValue>(filtroInicial)
 
@@ -401,19 +408,19 @@ export function Dashboard() {
           <CardContent>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={porDia} barGap={4}>
-                  <CartesianGrid vertical={false} stroke={CHART_CHROME.grid} strokeDasharray="3 3" />
-                  <XAxis dataKey="dia" stroke={CHART_CHROME.axis} fontSize={12} tickLine={false} axisLine={false} />
+                <BarChart key={theme} data={porDia} barGap={4}>
+                  <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 3" />
+                  <XAxis dataKey="dia" stroke={textColor} tick={{ fill: textColor, fontSize: 12, fontWeight: 600 }} tickLine={false} axisLine={{ stroke: axisLineColor }} />
                   <YAxis
                     allowDecimals={false}
-                    stroke={CHART_CHROME.axis}
-                    fontSize={12}
+                    stroke={textColor}
+                    tick={{ fill: textColor, fontSize: 12, fontWeight: 600 }}
                     tickLine={false}
                     axisLine={false}
                     width={28}
                   />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-                  <Legend wrapperStyle={{ fontSize: 12, color: '#9A9A9A' }} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }} />
+                  <Legend wrapperStyle={{ fontSize: 12, color: textColor }} />
                   <Bar dataKey="Entradas" fill={CHART_ENTRADA} radius={[4, 4, 0, 0]} maxBarSize={28} />
                   <Bar dataKey="Saídas" fill={CHART_SAIDA} radius={[4, 4, 0, 0]} maxBarSize={28} />
                 </BarChart>
@@ -438,15 +445,15 @@ export function Dashboard() {
                   <>
                     <div className="h-52">
                       <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
+                        <PieChart key={theme}>
                           <Pie data={porMarca} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={2}>
                             {porMarca.map((entry, i) => (
-                              <Cell key={entry.name} fill={corDe(entry, i)} stroke={CHART_CHROME.tooltipBg} strokeWidth={2} />
+                              <Cell key={entry.name} fill={corDe(entry, i)} stroke={isDark ? '#1c1c1c' : '#ffffff'} strokeWidth={2} />
                             ))}
                           </Pie>
                           <Tooltip
                             contentStyle={tooltipStyle}
-                            itemStyle={{ color: '#fff' }}
+                            itemStyle={{ color: textColor }}
                             formatter={(value, name) => [
                               `${value} (${Math.round((Number(value) / total) * 100)}%)`,
                               name,
@@ -464,8 +471,8 @@ export function Dashboard() {
                               className="h-2.5 w-2.5 shrink-0 rounded-full"
                               style={{ backgroundColor: corDe(entry, i) }}
                             />
-                            <span className="text-foreground">{entry.name}</span>
-                            <span className="text-secondary">{percent}%</span>
+                            <span className="text-foreground font-bold">{entry.name}</span>
+                            <span className="text-secondary font-medium">{percent}%</span>
                           </div>
                         )
                       })}
@@ -487,21 +494,21 @@ export function Dashboard() {
                 <div className="flex h-full items-center justify-center text-sm text-secondary">Sem dados</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={rankingPatios} layout="vertical" margin={{ left: 8, right: 24 }}>
-                    <CartesianGrid horizontal={false} stroke={CHART_CHROME.grid} strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} stroke={CHART_CHROME.axis} fontSize={12} tickLine={false} axisLine={false} />
+                  <BarChart key={theme} data={rankingPatios} layout="vertical" margin={{ left: 8, right: 35 }}>
+                    <CartesianGrid horizontal={false} stroke={gridColor} strokeDasharray="3 3" />
+                    <XAxis type="number" allowDecimals={false} stroke={textColor} tick={{ fill: textColor, fontSize: 12, fontWeight: 600 }} tickLine={false} axisLine={{ stroke: axisLineColor }} />
                     <YAxis
                       type="category"
                       dataKey="name"
-                      stroke={CHART_CHROME.axis}
-                      fontSize={12}
+                      stroke={textColor}
+                      tick={{ fill: textColor, fontSize: 12, fontWeight: 600 }}
                       tickLine={false}
                       axisLine={false}
                       width={120}
                     />
-                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }} />
                     <Bar dataKey="value" name="Veículos" fill={CHART_SAIDA} radius={[0, 4, 4, 0]} maxBarSize={22}>
-                      <LabelList dataKey="value" position="right" fill="#fff" fontSize={12} />
+                      <LabelList dataKey="value" position="right" fill={textColor} fontSize={12} fontWeight={700} offset={6} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
