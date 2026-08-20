@@ -289,6 +289,7 @@ export function useChecklistOS(movimentacaoId: string) {
     setItems((prev) => ({ ...prev, [sanitizedRow.item_id]: sanitizedRow }))   // optimistic update
 
     try {
+      const dataInicio = sanitizedRow.data_inicio || sanitizedRow.data || null
       const payload: Record<string, unknown> = {
         movimentacao_id: movimentacaoId,
         item_id: sanitizedRow.item_id,
@@ -296,8 +297,7 @@ export function useChecklistOS(movimentacaoId: string) {
         label: sanitizedRow.label,
         is_custom: sanitizedRow.is_custom,
         checked: sanitizedRow.checked,
-        data: sanitizedRow.data || sanitizedRow.data_inicio || null,
-        data_inicio: sanitizedRow.data_inicio || sanitizedRow.data || null,
+        data_inicio: dataInicio,
         data_fim: sanitizedRow.data_fim || null,
         hora_inicio: sanitizedRow.hora_inicio || null,
         hora_fim: sanitizedRow.hora_fim || null,
@@ -307,11 +307,6 @@ export function useChecklistOS(movimentacaoId: string) {
       const { error } = await supabase.from('checklist_itens').upsert(payload, { onConflict: 'movimentacao_id,item_id' })
       if (error) {
         console.error('[salvarItem] Erro ao salvar no Supabase:', error)
-        if (error.message?.includes('column') || error.code === '42703') {
-          delete payload.data_inicio
-          delete payload.data_fim
-          await supabase.from('checklist_itens').upsert(payload, { onConflict: 'movimentacao_id,item_id' })
-        }
       }
 
       // Sincroniza localStorage de forma limpa
