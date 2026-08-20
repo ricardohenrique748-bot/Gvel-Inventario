@@ -13,6 +13,8 @@ import {
   X,
   Package,
   Layers,
+  LayoutList,
+  LayoutGrid,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -41,6 +43,7 @@ const CATEGORIAS_SUGERIDAS = [
   'HIDRÁULICA',
   'MEDIÇÃO E DIAGNÓSTICO',
   'CORTE E DESBASTE',
+  'INSUMOS',
   'GERAL',
 ]
 
@@ -48,6 +51,7 @@ export function InventarioFerramentas() {
   const [abaAtiva, setAbaAtiva] = useState<'estoque' | 'em_uso' | 'historico'>('estoque')
   const [busca, setBusca] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState('TODAS')
+  const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'grid'>('lista')
 
   // Hooks de ferramentas e retiradas
   const { ferramentas, loading: loadingFerramentas, refetch: refetchFerramentas } = useFerramentas()
@@ -284,16 +288,48 @@ export function InventarioFerramentas() {
       {/* ==================== ABA 1: ESTOQUE DE FERRAMENTAS ==================== */}
       {abaAtiva === 'estoque' && (
         <div className="space-y-4 uppercase">
-          {/* Filtros e Busca */}
+          {/* Filtros, Busca e Alternador de Visualização */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative flex-1 max-w-md">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
-              <input
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="BUSCAR POR NOME, CÓDIGO OU LOCALIZAÇÃO..."
-                className="h-10 w-full rounded-xl border border-border/10 bg-surface pl-9 pr-4 text-sm text-foreground placeholder:text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
-              />
+            <div className="flex flex-1 items-center gap-2 max-w-lg">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="BUSCAR POR NOME, CÓDIGO OU LOCALIZAÇÃO..."
+                  className="h-10 w-full rounded-xl border border-border/10 bg-surface pl-9 pr-4 text-sm text-foreground placeholder:text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+                />
+              </div>
+
+              {/* Botões de Alternância Lista / Grade */}
+              <div className="flex items-center rounded-xl border border-border/20 bg-surface p-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModoVisualizacao('lista')}
+                  className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                    modoVisualizacao === 'lista'
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-secondary hover:text-foreground'
+                  }`}
+                  title="VISUALIZAÇÃO EM LISTA"
+                  aria-label="VISUALIZAÇÃO EM LISTA"
+                >
+                  <LayoutList className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoVisualizacao('grid')}
+                  className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                    modoVisualizacao === 'grid'
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-secondary hover:text-foreground'
+                  }`}
+                  title="VISUALIZAÇÃO EM GRADE"
+                  aria-label="VISUALIZAÇÃO EM GRADE"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {/* Categorias */}
@@ -303,7 +339,7 @@ export function InventarioFerramentas() {
                   key={cat}
                   type="button"
                   onClick={() => setCategoriaFiltro(cat)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors whitespace-nowrap uppercase ${
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors whitespace-nowrap uppercase cursor-pointer ${
                     categoriaFiltro === cat
                       ? 'bg-primary text-white'
                       : 'bg-overlay/5 text-secondary hover:bg-overlay/10 hover:text-foreground'
@@ -330,6 +366,211 @@ export function InventarioFerramentas() {
                   : 'CADASTRE SUA PRIMEIRA FERRAMENTA CLICANDO NO BOTÃO "NOVA FERRAMENTA".'}
               </p>
             </Card>
+          ) : modoVisualizacao === 'lista' ? (
+            <div className="space-y-2">
+              {/* Desktop: Lista / Tabela de Estoque em Grid */}
+              <div className="hidden md:block overflow-hidden rounded-2xl border border-border/30 bg-surface/60 shadow-sm backdrop-blur-sm">
+                <div className="grid grid-cols-[130px_minmax(220px,1fr)_160px_160px_110px_160px] items-center gap-3 border-b border-border/15 bg-surface/80 px-4 py-3 text-[11px] font-black text-secondary tracking-wider">
+                  <div>CÓDIGO</div>
+                  <div>FERRAMENTA / DESCRIÇÃO</div>
+                  <div>CATEGORIA</div>
+                  <div>LOCALIZAÇÃO</div>
+                  <div className="text-center">ESTOQUE DISP.</div>
+                  <div className="text-right">AÇÕES</div>
+                </div>
+
+                <div className="divide-y divide-border/10">
+                  {ferramentasFiltradas.map((f) => {
+                    const emUsoQtd = (f.quantidade_total || 0) - (f.quantidade_disponivel || 0)
+                    const semEstoque = (f.quantidade_disponivel || 0) <= 0
+
+                    return (
+                      <div
+                        key={f.id}
+                        className="grid grid-cols-[130px_minmax(220px,1fr)_160px_160px_110px_160px] items-center gap-3 px-4 py-3 transition-colors hover:bg-overlay/5"
+                      >
+                        {/* CÓDIGO */}
+                        <div className="truncate">
+                          <span className="inline-flex rounded-lg bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs font-mono font-black text-primary truncate max-w-full">
+                            {f.codigo || 'S/ CÓD'}
+                          </span>
+                        </div>
+
+                        {/* FERRAMENTA / DESCRIÇÃO */}
+                        <div className="min-w-0 pr-2">
+                          <div className="font-bold text-foreground leading-snug truncate">
+                            {f.nome}
+                          </div>
+                          {f.observacoes && (
+                            <div className="text-[11px] text-secondary line-clamp-1 italic mt-0.5 truncate">
+                              "{f.observacoes}"
+                            </div>
+                          )}
+                        </div>
+
+                        {/* CATEGORIA */}
+                        <div className="truncate">
+                          <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[11px] font-bold text-secondary truncate inline-block max-w-full">
+                            {f.categoria || 'GERAL'}
+                          </span>
+                        </div>
+
+                        {/* LOCALIZAÇÃO */}
+                        <div className="truncate">
+                          {f.localizacao ? (
+                            <span className="text-xs font-semibold text-foreground flex items-center gap-1 truncate">
+                              <Layers className="h-3.5 w-3.5 text-secondary shrink-0" />
+                              <span className="truncate">{f.localizacao}</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-secondary">—</span>
+                          )}
+                        </div>
+
+                        {/* ESTOQUE DISP. */}
+                        <div className="text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className={`text-base font-black tabular-nums ${semEstoque ? 'text-status-danger' : 'text-emerald-500'}`}>
+                              {f.quantidade_disponivel}
+                            </span>
+                            <span className="text-xs text-secondary font-semibold">/ {f.quantidade_total}</span>
+                          </div>
+                          {emUsoQtd > 0 && (
+                            <span className="inline-block mt-0.5 text-[10px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                              {emUsoQtd} EM USO
+                            </span>
+                          )}
+                        </div>
+
+                        {/* AÇÕES */}
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            type="button"
+                            size="md"
+                            disabled={semEstoque}
+                            onClick={() => {
+                              setFerramentaSelecionadaParaRetirada(f)
+                              setModalRetiradaAberto(true)
+                            }}
+                            className="!h-8 !px-3 !text-xs gap-1 uppercase font-bold"
+                          >
+                            <ArrowUpRight className="h-3.5 w-3.5" />
+                            RETIRAR
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFerramentaEditando(f)
+                              setModalFerramentaAberto(true)
+                            }}
+                            className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
+                            title="EDITAR FERRAMENTA"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleExcluirFerramenta(f)}
+                            className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer"
+                            title="EXCLUIR FERRAMENTA"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Mobile: Lista Compacta e Fluida */}
+              <div className="md:hidden space-y-2.5">
+                {ferramentasFiltradas.map((f) => {
+                  const emUsoQtd = (f.quantidade_total || 0) - (f.quantidade_disponivel || 0)
+                  const semEstoque = (f.quantidade_disponivel || 0) <= 0
+
+                  return (
+                    <div
+                      key={f.id}
+                      className="rounded-2xl border border-border/30 bg-surface/70 p-3.5 space-y-2.5 transition-all shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-lg bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-mono font-black text-primary">
+                            {f.codigo || 'S/ CÓD'}
+                          </span>
+                          <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[11px] font-bold text-secondary">
+                            {f.categoria || 'GERAL'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFerramentaEditando(f)
+                              setModalFerramentaAberto(true)
+                            }}
+                            className="p-1.5 text-secondary hover:text-foreground cursor-pointer"
+                            title="EDITAR"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleExcluirFerramenta(f)}
+                            className="p-1.5 text-secondary hover:text-status-danger cursor-pointer"
+                            title="EXCLUIR"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-black text-foreground uppercase">{f.nome}</h4>
+                        {f.localizacao && (
+                          <p className="text-xs text-secondary font-medium mt-0.5">
+                            LOCAL: <strong className="text-foreground">{f.localizacao}</strong>
+                          </p>
+                        )}
+                        {f.observacoes && (
+                          <p className="text-[11px] text-secondary/80 italic mt-0.5 line-clamp-1">
+                            "{f.observacoes}"
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-border/10">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-base font-black ${semEstoque ? 'text-status-danger' : 'text-emerald-500'}`}>
+                            {f.quantidade_disponivel}
+                          </span>
+                          <span className="text-xs text-secondary font-semibold">/ {f.quantidade_total} DISP.</span>
+                          {emUsoQtd > 0 && (
+                            <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded ml-1 border border-amber-500/20">
+                              {emUsoQtd} EM USO
+                            </span>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          size="md"
+                          disabled={semEstoque}
+                          onClick={() => {
+                            setFerramentaSelecionadaParaRetirada(f)
+                            setModalRetiradaAberto(true)
+                          }}
+                          className="!h-8 !px-3 !text-xs gap-1 uppercase font-bold"
+                        >
+                          <ArrowUpRight className="h-3.5 w-3.5" />
+                          RETIRAR
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {ferramentasFiltradas.map((f) => {
@@ -359,7 +600,7 @@ export function InventarioFerramentas() {
                               setFerramentaEditando(f)
                               setModalFerramentaAberto(true)
                             }}
-                            className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors"
+                            className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
                             aria-label="EDITAR"
                             title="EDITAR FERRAMENTA"
                           >
@@ -368,7 +609,7 @@ export function InventarioFerramentas() {
                           <button
                             type="button"
                             onClick={() => handleExcluirFerramenta(f)}
-                            className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors"
+                            className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer"
                             aria-label="EXCLUIR"
                             title="EXCLUIR FERRAMENTA"
                           >
@@ -725,11 +966,17 @@ function ModalFerramenta({
               <Label htmlFor="categoria" className="uppercase font-bold">CATEGORIA</Label>
               <Input
                 id="categoria"
+                list="lista-categorias-sugeridas"
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
-                placeholder="EX: PNEUMÁTICA"
+                placeholder="EX: INSUMOS, PNEUMÁTICA..."
                 className="uppercase"
               />
+              <datalist id="lista-categorias-sugeridas">
+                {CATEGORIAS_SUGERIDAS.filter((c) => c !== 'TODAS').map((cat) => (
+                  <option key={cat} value={cat} />
+                ))}
+              </datalist>
             </div>
           </div>
 
