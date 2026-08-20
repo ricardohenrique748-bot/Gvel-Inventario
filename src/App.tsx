@@ -29,6 +29,7 @@ const InventarioCaminhoes = lazy(() => import('@/pages/InventarioCaminhoes').the
 const InventarioFerramentas = lazy(() => import('@/pages/InventarioFerramentas').then((m) => ({ default: m.InventarioFerramentas })))
 const DashboardGerencial = lazy(() => import('@/pages/DashboardGerencial').then((m) => ({ default: m.DashboardGerencial })))
 const Financeiro = lazy(() => import('@/pages/Financeiro').then((m) => ({ default: m.Financeiro })))
+const Kanban = lazy(() => import('@/pages/Kanban').then((m) => ({ default: m.Kanban })))
 const RH = lazy(() => import('@/pages/RH').then((m) => ({ default: m.RH })))
 const Compras = lazy(() => import('@/pages/Compras').then((m) => ({ default: m.Compras })))
 const FrotaPublica = lazy(() =>
@@ -99,6 +100,7 @@ export default function App() {
                   <Route path="/inventario-caminhoes" element={<InventarioCaminhoes />} />
                   <Route path="/inventario-ferramentas" element={<InventarioFerramentas />} />
                   <Route path="/dashboard-gerencial" element={<DashboardGerencial />} />
+                  <Route path="/kanban" element={<Kanban />} />
                   <Route path="/financeiro" element={<Financeiro />} />
                   <Route path="/financeiro/conciliacao" element={<Financeiro />} />
                   <Route path="/financeiro/dre" element={<Financeiro />} />

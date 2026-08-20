@@ -15,6 +15,7 @@ import {
   FileText,
   Link2,
   Building2,
+  Columns3,
 } from 'lucide-react'
 
 export const navItems = [
@@ -27,6 +28,7 @@ export const navItems = [
     ],
   },
   { to: '/manutencao', label: 'Manutenção', icon: Wrench },
+  { to: '/kanban', label: 'Kanban', icon: Columns3 },
   {
     to: '/inventario-caminhoes',
     label: 'Inventário de Caminhões',
@@ -66,6 +68,7 @@ export type NavItem = (typeof navItems)[number]
 export const ADMIN_ONLY_ROUTES = [
   '/controle-horas',
   '/dashboard-gerencial',
+  '/kanban',
   '/financeiro',
   '/financeiro/conciliacao',
   '/financeiro/dre',

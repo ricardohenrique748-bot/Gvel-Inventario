@@ -17,6 +17,7 @@ import {
   DollarSign,
   UserCheck,
   ShoppingCart,
+  Columns3,
   ArrowUpRight,
 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -130,9 +131,17 @@ export function DashboardGerencial() {
     {
       to: '/financeiro',
       title: 'FINANCEIRO',
-      desc: 'RECEITAS, DESPESAS E FLUXO DE CAIXA',
+      desc: 'RECEITAS, DESPESAS, CONCILIAÇÃO E DRE',
       icon: DollarSign,
       tone: 'from-emerald-500/20 to-emerald-500/5 text-emerald-500 border-emerald-500/20',
+      badge: 'GESTÃO',
+    },
+    {
+      to: '/kanban',
+      title: 'QUADRO KANBAN',
+      desc: 'FLUXO DE PROCESSOS, ETAPAS E ORDENS EM TEMPO REAL',
+      icon: Columns3,
+      tone: 'from-amber-500/20 to-amber-500/5 text-amber-500 border-amber-500/20',
       badge: 'EM BREVE',
     },
     {
