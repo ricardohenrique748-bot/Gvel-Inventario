@@ -179,7 +179,7 @@ export function Kanban() {
       ? 'RICARDO'
       : user?.email?.split('@')[0]?.toUpperCase() || 'USUÁRIO')
 
-  const { items, historico, loading, error, lastSync, lastSyncUser, fetchSheet } = useKanbanSheet(nomeUsuario)
+  const { items, historico, loading, error, lastSync, fetchSheet } = useKanbanSheet(nomeUsuario)
 
   // Bloqueio no APK mobile
   if (isNativeApp()) {
@@ -347,22 +347,10 @@ export function Kanban() {
 
       {/* Banner de Sincronização & Informações */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/10 bg-surface/80 px-4 py-3 text-xs font-medium text-secondary backdrop-blur-md">
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="font-bold text-foreground">GOOGLE SHEETS:</span>
           <span>{lastSync ? `ÚLTIMA SINCRONIZAÇÃO EM ${lastSync}` : 'PLANILHA CONECTADA'}</span>
-          {lastSyncUser && (
-            <button
-              type="button"
-              onClick={() => setModalHistoricoAberto(true)}
-              title="Clique para ver o histórico completo de edições"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/25 px-2.5 py-1 text-[11px] font-black text-primary uppercase hover:bg-primary/20 transition-all cursor-pointer shadow-sm"
-            >
-              <User className="h-3.5 w-3.5" />
-              <span>ÚLTIMA ALTERAÇÃO: <strong className="text-foreground">{lastSyncUser}</strong></span>
-              <History className="h-3 w-3 ml-1 opacity-70" />
-            </button>
-          )}
         </div>
 
         <a
