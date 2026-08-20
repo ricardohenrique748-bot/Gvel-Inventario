@@ -226,6 +226,8 @@ export function useChecklistOS(movimentacaoId: string) {
     load()
   }, [load])
 
+  const lastMutationTime = useRef<number>(0)
+
   // ── Realtime ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const channel = supabase
@@ -233,12 +235,20 @@ export function useChecklistOS(movimentacaoId: string) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'checklist_os', filter: `movimentacao_id=eq.${movimentacaoId}` },
-        () => load(),
+        () => {
+          // Ignora se a alteração acabou de ser feita por este cliente
+          if (Date.now() - lastMutationTime.current < 3000) return
+          load()
+        },
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'checklist_itens', filter: `movimentacao_id=eq.${movimentacaoId}` },
-        () => load(),
+        () => {
+          // Ignora se a alteração acabou de ser feita por este cliente
+          if (Date.now() - lastMutationTime.current < 3000) return
+          load()
+        },
       )
       .subscribe()
 
@@ -248,6 +258,7 @@ export function useChecklistOS(movimentacaoId: string) {
   // ── Mutations ──────────────────────────────────────────────────────────────
 
   const salvarOS = useCallback(async (data: Partial<OSData>) => {
+    lastMutationTime.current = Date.now()
     const next = { ...osData, ...data }
     setOsData(next)   // optimistic update
     await supabase.from('checklist_os').upsert({
@@ -265,6 +276,7 @@ export function useChecklistOS(movimentacaoId: string) {
   }, [movimentacaoId, osData])
 
   const salvarItem = useCallback(async (row: ItemRow) => {
+    lastMutationTime.current = Date.now()
     const sanitizedRow: ItemRow = {
       ...row,
       hora_inicio: row.hora_inicio ?? '',

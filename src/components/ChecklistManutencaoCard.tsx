@@ -269,12 +269,15 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
   function handleMecanicoChange(val: string) {
     const valUpper = val.toUpperCase()
     setMecanico(valUpper)
+  }
+
+  function handleMecanicoBlur() {
     let dtAbertura = dataHoraAbertura
-    if (valUpper.trim().length > 0 && !dtAbertura) {
+    if (mecanico.trim().length > 0 && !dtAbertura) {
       dtAbertura = nowLocalInputValue()
       setDataHoraAbertura(dtAbertura)
     }
-    salvarOS({ mecanico: valUpper.trim(), dataHoraAbertura: dtAbertura })
+    salvarOS({ mecanico: mecanico.trim(), dataHoraAbertura: dtAbertura })
   }
 
   function handleDataHoraAberturaChange(val: string) {
@@ -288,13 +291,19 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
   }
 
   function handleFinalizarOS() {
-    if (!mecanico.trim()) {
+    const resp = mecanico.trim() || Object.values(itemsDB).find((i) => i.mecanico)?.mecanico || ''
+    if (!resp) {
       alert('POR FAVOR, INFORME O NOME DO RESPONSÁVEL / MECÂNICO ANTES DE FINALIZAR A O.S.')
       return
     }
     const dtAgora = nowLocalInputValue()
     setDataHoraFechamento(dtAgora)
-    salvarOS({ dataHoraFechamento: dtAgora, dataHoraAbertura: dataHoraAbertura || dtAgora })
+    salvarOS({
+      mecanico: resp,
+      dataHoraFechamento: dtAgora,
+      dataHoraAbertura: dataHoraAbertura || dtAgora,
+      statusOS: 'CONCLUÍDO',
+    })
     setSucessoSalvar(true)
     setTimeout(() => setSucessoSalvar(false), 3000)
   }
@@ -531,6 +540,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               placeholder="EX: CARLOS SILVA, ROBERTO…"
               value={mecanico}
               onChange={(e) => handleMecanicoChange(e.target.value)}
+              onBlur={handleMecanicoBlur}
               className="!h-9 !text-sm !px-3 uppercase"
             />
           </div>
@@ -878,6 +888,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                 placeholder={mecanico ? `PADRÃO: ${mecanico.toUpperCase()}` : 'EX: ROBERTO, CARLOS…'}
                                 value={data?.mecanico || ''}
                                 onChange={(e) => updateItemPatch(secao.id, item, { mecanico: e.target.value.toUpperCase() })}
+                                onBlur={(e) => updateItemPatch(secao.id, item, { mecanico: e.target.value.toUpperCase() })}
                                 className="h-7 px-2.5 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary flex-1 uppercase"
                               />
                             </div>
@@ -985,11 +996,12 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                 {(data?.hora_fim || data?.data_fim) && (
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      updateItemPatch(secao.id, item, {
+                                    onClick={async () => {
+                                      const row = buildRow(secao.id, item, {
                                         hora_fim: '',
                                         data_fim: '',
                                       })
+                                      await salvarItem(row)
                                       setSalvoItemId(item.id)
                                       setTimeout(() => setSalvoItemId(null), 2500)
                                     }}
@@ -1019,12 +1031,15 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
 
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    updateItemPatch(secao.id, item, {})
+                                  onClick={async () => {
+                                    const row = buildRow(secao.id, item, {
+                                      mecanico: data?.mecanico || mecanico || '',
+                                    })
+                                    await salvarItem(row)
                                     setSalvoItemId(item.id)
                                     setTimeout(() => setSalvoItemId(null), 2500)
                                   }}
-                                  className={`px-3 py-1 rounded-md text-xs font-bold uppercase transition-all flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                                  className={`px-3 py-1 rounded-md text-xs font-bold uppercase transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer ${
                                     salvoItemId === item.id
                                       ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400'
                                       : 'bg-primary/15 border border-primary/40 text-primary hover:bg-primary/25'
