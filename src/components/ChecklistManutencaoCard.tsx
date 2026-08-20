@@ -32,6 +32,7 @@ import {
 } from '@/lib/format'
 import { differenceInMinutes } from 'date-fns'
 import type { MovimentacaoComVeiculo } from '@/lib/types'
+import { EQUIPE_GVEL, FUNCOES_EQUIPE, buscarFuncaoPorNome } from '@/constants/equipe'
 
 // ─── Tipos exportados (usados pelo hook de migração) ─────────────────────────
 
@@ -269,15 +270,24 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
   function handleMecanicoChange(val: string) {
     const valUpper = val.toUpperCase()
     setMecanico(valUpper)
-  }
-
-  function handleMecanicoBlur() {
     let dtAbertura = dataHoraAbertura
-    if (mecanico.trim().length > 0 && !dtAbertura) {
+    if (valUpper.trim().length > 0 && !dtAbertura) {
       dtAbertura = nowLocalInputValue()
       setDataHoraAbertura(dtAbertura)
     }
-    salvarOS({ mecanico: mecanico.trim(), dataHoraAbertura: dtAbertura })
+    const funcAuto = buscarFuncaoPorNome(valUpper)
+    if (funcAuto) {
+      setFuncao(funcAuto)
+      salvarOS({ mecanico: valUpper, funcao: funcAuto, dataHoraAbertura: dtAbertura })
+    } else {
+      salvarOS({ mecanico: valUpper, dataHoraAbertura: dtAbertura })
+    }
+  }
+
+  function handleFuncaoChange(val: string) {
+    const valUpper = val.toUpperCase()
+    setFuncao(valUpper)
+    salvarOS({ funcao: valUpper })
   }
 
   function handleDataHoraAberturaChange(val: string) {
@@ -496,24 +506,27 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
       </div>
 
       {/* BLOCO: Dados do Mecânico / Abertura / Fechamento */}
-      <div className="rounded-xl border border-border/40 bg-background/70 p-4 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/20 pb-3">
+      <div className="rounded-2xl border border-border/30 bg-surface/60 p-4 sm:p-5 space-y-4 shadow-sm backdrop-blur-sm">
+        {/* Cabeçalho do Bloco */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-border/15 pb-3">
           <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground uppercase">
-              RESPONSÁVEL PRINCIPAL &amp; APONTAMENTO PARA O INDICADOR DE PERFORMANCE
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 text-primary">
+              <User className="h-4 w-4" />
+            </div>
+            <span className="text-xs sm:text-sm font-black text-foreground tracking-wide uppercase">
+              RESPONSÁVEL PRINCIPAL &amp; APONTAMENTO DE HORAS
             </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {totalMinutosAtividades > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs font-bold uppercase">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary/30 bg-primary/10 text-primary text-[11px] font-black uppercase">
                 <Clock className="h-3.5 w-3.5" />
-                <span>SOMA ATIVIDADES: {formatMinutosParaTexto(totalMinutosAtividades).toUpperCase()}</span>
+                <span>ATIVIDADES: {formatMinutosParaTexto(totalMinutosAtividades).toUpperCase()}</span>
               </div>
             )}
             <div
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-bold uppercase ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-[11px] font-black uppercase ${
                 calculoHorasGeral.status === 'fechado'
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                   : calculoHorasGeral.status === 'em_andamento'
@@ -524,37 +537,69 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               }`}
             >
               <Timer className="h-3.5 w-3.5" />
-              <span>DURAÇÃO TOTAL: {calculoHorasGeral.texto}</span>
+              <span>DURAÇÃO: {calculoHorasGeral.texto}</span>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Mecânico */}
-          <div>
-            <Label htmlFor="mecanico-nome" className="!text-xs !mb-1 font-medium text-secondary uppercase">
-              MECÂNICO PRINCIPAL / RESPONSÁVEL
+        {/* Grid de Inputs: 4 Colunas Perfeitas no Desktop e Adaptativas no Mobile */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* Mecânico Principal / Responsável */}
+          <div className="flex flex-col justify-between">
+            <Label htmlFor="mecanico-nome" className="!text-[11px] !mb-1.5 font-bold text-secondary uppercase tracking-wider h-5 flex items-center">
+              MECÂNICO PRINCIPAL
             </Label>
-            <Input
+            <Select
               id="mecanico-nome"
-              placeholder="EX: CARLOS SILVA, ROBERTO…"
               value={mecanico}
               onChange={(e) => handleMecanicoChange(e.target.value)}
-              onBlur={handleMecanicoBlur}
-              className="!h-9 !text-sm !px-3 uppercase"
-            />
+              className="!h-10 !text-xs !px-3 uppercase font-bold text-foreground border-border/40 focus:border-primary bg-surface"
+            >
+              <option value="">SELECIONE O RESPONSÁVEL...</option>
+              {EQUIPE_GVEL.map((m) => (
+                <option key={m.nome} value={m.nome}>
+                  {m.nome}
+                </option>
+              ))}
+              {mecanico && !EQUIPE_GVEL.some((m) => m.nome === mecanico) && (
+                <option value={mecanico}>{mecanico}</option>
+              )}
+            </Select>
+          </div>
+
+          {/* Função / Cargo */}
+          <div className="flex flex-col justify-between">
+            <Label htmlFor="mecanico-funcao" className="!text-[11px] !mb-1.5 font-bold text-secondary uppercase tracking-wider h-5 flex items-center">
+              FUNÇÃO / CARGO
+            </Label>
+            <Select
+              id="mecanico-funcao"
+              value={funcao}
+              onChange={(e) => handleFuncaoChange(e.target.value)}
+              className="!h-10 !text-xs !px-3 uppercase font-bold text-foreground border-border/40 focus:border-primary bg-surface"
+            >
+              <option value="">SELECIONE A FUNÇÃO...</option>
+              {FUNCOES_EQUIPE.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+              {funcao && !FUNCOES_EQUIPE.includes(funcao) && (
+                <option value={funcao}>{funcao}</option>
+              )}
+            </Select>
           </div>
 
           {/* Abertura */}
-          <div>
-            <div className="flex items-center justify-between !mb-1">
-              <Label htmlFor="data-hora-abertura" className="!text-xs font-medium text-secondary uppercase">
-                DATA/HORA DA ABERTURA
+          <div className="flex flex-col justify-between">
+            <div className="flex items-center justify-between !mb-1.5 h-5">
+              <Label htmlFor="data-hora-abertura" className="!text-[11px] font-bold text-secondary uppercase tracking-wider">
+                ABERTURA
               </Label>
               <button
                 type="button"
                 onClick={() => handleDataHoraAberturaChange(nowLocalInputValue())}
-                className="text-[11px] text-primary hover:underline font-bold uppercase"
+                className="text-[10px] text-primary hover:underline font-black uppercase cursor-pointer"
               >
                 AGORA
               </button>
@@ -564,20 +609,20 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               type="datetime-local"
               value={dataHoraAbertura}
               onChange={(e) => handleDataHoraAberturaChange(e.target.value)}
-              className="!h-9 !text-sm !px-3"
+              className="!h-10 !text-xs !px-3 text-foreground font-semibold border-border/40 focus:border-primary"
             />
           </div>
 
           {/* Fechamento */}
-          <div>
-            <div className="flex items-center justify-between !mb-1">
-              <Label htmlFor="data-hora-fechamento" className="!text-xs font-medium text-secondary uppercase">
-                DATA/HORA DO FECHAMENTO
+          <div className="flex flex-col justify-between">
+            <div className="flex items-center justify-between !mb-1.5 h-5">
+              <Label htmlFor="data-hora-fechamento" className="!text-[11px] font-bold text-secondary uppercase tracking-wider">
+                FECHAMENTO
               </Label>
               <button
                 type="button"
                 onClick={() => handleDataHoraFechamentoChange(nowLocalInputValue())}
-                className="text-[11px] text-primary hover:underline font-bold uppercase"
+                className="text-[10px] text-primary hover:underline font-black uppercase cursor-pointer"
               >
                 AGORA
               </button>
@@ -587,18 +632,18 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
               type="datetime-local"
               value={dataHoraFechamento}
               onChange={(e) => handleDataHoraFechamentoChange(e.target.value)}
-              className="!h-9 !text-sm !px-3"
+              className="!h-10 !text-xs !px-3 text-foreground font-semibold border-border/40 focus:border-primary"
             />
           </div>
         </div>
 
         {/* Campo Status da O.S */}
-        <div className="pt-2 border-t border-border/20 space-y-2">
+        <div className="pt-3 border-t border-border/15 space-y-2.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="status-os-field" className="!text-xs font-semibold text-secondary uppercase">
+            <Label htmlFor="status-os-field" className="!text-[11px] font-bold text-secondary uppercase tracking-wider">
               STATUS DA O.S / ETAPA ATUAL
             </Label>
-            <span className="text-[11px] font-black text-primary uppercase">
+            <span className="text-xs font-black text-primary uppercase">
               {statusOS}
             </span>
           </div>
@@ -606,7 +651,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             {[
               { id: 'EM ANDAMENTO', label: '🟢 EM ANDAMENTO', cor: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' },
-              { id: 'AGUARDANDO PEÇAS', label: '⏳ AGUARDANDO PEÇAS', cor: 'border-amber-500/40 text-amber-400 bg-amber-500/10' },
+              { id: 'AGUARDANDO PEÇAS', label: '⏳ AGUARD. PEÇAS', cor: 'border-amber-500/40 text-amber-400 bg-amber-500/10' },
               { id: 'AGUARDANDO APROVAÇÃO DO ORÇAMENTO', label: '📄 AGUARD. ORÇAMENTO', cor: 'border-purple-500/40 text-purple-400 bg-purple-500/10' },
               { id: 'AGUARDANDO AUTORIZAÇÃO', label: '⚠️ AGUARD. AUTORIZAÇÃO', cor: 'border-orange-500/40 text-orange-400 bg-orange-500/10' },
               { id: 'AGUARDANDO APROVAÇÃO MULTILIXO', label: '🏢 AGUARD. MULTILIXO', cor: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10' },
@@ -616,13 +661,13 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                 key={st.id}
                 type="button"
                 onClick={() => handleStatusOSChange(st.id)}
-                className={`py-2 px-3 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 border text-center ${
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1 border text-center cursor-pointer ${
                   statusOS === st.id
                     ? `${st.cor} ring-2 ring-primary/40 shadow-sm`
-                    : 'border-border/30 bg-surface/40 text-secondary hover:text-foreground hover:border-border'
+                    : 'border-border/20 bg-surface/50 text-secondary hover:text-foreground hover:border-border/60'
                 }`}
               >
-                <span>{st.label}</span>
+                <span className="truncate">{st.label}</span>
               </button>
             ))}
           </div>
@@ -896,14 +941,23 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                 <User className="h-3.5 w-3.5 text-primary" />
                                 MECÂNICO:
                               </span>
-                              <input
-                                type="text"
-                                placeholder={mecanico ? `PADRÃO: ${mecanico.toUpperCase()}` : 'EX: ROBERTO, CARLOS…'}
+                              <select
                                 value={data?.mecanico || ''}
                                 onChange={(e) => updateItemPatch(secao.id, item, { mecanico: e.target.value.toUpperCase() })}
-                                onBlur={(e) => updateItemPatch(secao.id, item, { mecanico: e.target.value.toUpperCase() })}
-                                className="h-7 px-2.5 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary flex-1 uppercase"
-                              />
+                                className="h-8 px-2.5 text-xs rounded-lg border border-border/40 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-primary flex-1 uppercase font-bold"
+                              >
+                                <option value="">
+                                  {mecanico ? `PADRÃO DA O.S: ${mecanico}` : 'SELECIONE O MECÂNICO...'}
+                                </option>
+                                {EQUIPE_GVEL.map((m) => (
+                                  <option key={m.nome} value={m.nome}>
+                                    {m.nome}
+                                  </option>
+                                ))}
+                                {data?.mecanico && !EQUIPE_GVEL.some((m) => m.nome === data.mecanico) && (
+                                  <option value={data.mecanico}>{data.mecanico}</option>
+                                )}
+                              </select>
                             </div>
 
                             <div className="space-y-2 pt-1 border-t border-border/10">
