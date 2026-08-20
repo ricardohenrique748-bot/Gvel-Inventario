@@ -794,85 +794,98 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                             : 'border-border/30 bg-background/60 hover:border-border hover:bg-overlay/5'
                         }`}
                       >
-                        {/* Linha Principal */}
-                        <div className="flex items-center gap-3 p-2.5 min-w-0 overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => toggleItem(secao.id, item)}
-                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-all ${
-                              isChecked
-                                ? 'border-primary bg-primary text-white shadow-sm'
-                                : 'border-secondary/40 bg-surface/50 hover:border-primary/60'
-                            }`}
-                            aria-label={isChecked ? 'DESMARCAR' : 'MARCAR'}
-                          >
-                            {isChecked && <Check className="h-3.5 w-3.5 stroke-[2.5]" />}
-                          </button>
+                        {/* Linha Principal com Suporte a Mobile Perfeito */}
+                        <div className="p-2.5">
+                          <div className="flex items-start justify-between gap-2.5">
+                            {/* Lado Esquerdo: Checkbox + Título + Badges em Nova Linha */}
+                            <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => toggleItem(secao.id, item)}
+                                className={`flex h-5 w-5 shrink-0 mt-0.5 items-center justify-center rounded-md border transition-all cursor-pointer ${
+                                  isChecked
+                                    ? 'border-primary bg-primary text-white shadow-sm'
+                                    : 'border-secondary/40 bg-surface/50 hover:border-primary/60'
+                                }`}
+                                aria-label={isChecked ? 'DESMARCAR' : 'MARCAR'}
+                              >
+                                {isChecked && <Check className="h-3.5 w-3.5 stroke-[2.5]" />}
+                              </button>
 
-                          <span
-                            onClick={() => toggleItem(secao.id, item)}
-                            className={`text-sm leading-snug flex-1 cursor-pointer select-none uppercase truncate min-w-0 ${
-                              isChecked ? 'font-semibold text-foreground' : 'text-foreground/90 font-medium'
-                            }`}
-                          >
-                            {item.label}
-                          </span>
+                              <div
+                                onClick={() => toggleExpandItem(item.id)}
+                                className="flex-1 min-w-0 cursor-pointer select-none space-y-1"
+                              >
+                                <span
+                                  className={`text-sm leading-tight block uppercase truncate ${
+                                    isChecked ? 'font-semibold text-foreground' : 'text-foreground/90 font-medium'
+                                  }`}
+                                >
+                                  {item.label}
+                                </span>
 
-                          {mecanicoDoItem && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/25 text-blue-400 shrink-0 uppercase">
-                              <User className="h-3 w-3" />
-                              {mecanicoDoItem}
-                            </span>
-                          )}
+                                {/* Badges de Mecânico e Andamento / Duração */}
+                                {(mecanicoDoItem || duracao) && (
+                                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                    {mecanicoDoItem && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/25 text-blue-400 shrink-0 uppercase">
+                                        <User className="h-3 w-3" />
+                                        {mecanicoDoItem}
+                                      </span>
+                                    )}
 
-                          {duracao && (
-                            <span
-                              className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md border shrink-0 uppercase ${
-                                duracao.emAndamento
-                                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 animate-pulse'
-                                  : 'bg-primary/10 border-primary/25 text-primary'
-                              }`}
-                            >
-                              <Clock className="h-3 w-3" />
-                              {duracao.texto}
-                            </span>
-                          )}
+                                    {duracao && (
+                                      <span
+                                        className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-md border shrink-0 uppercase ${
+                                          duracao.emAndamento
+                                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 animate-pulse'
+                                            : 'bg-primary/10 border-primary/25 text-primary'
+                                        }`}
+                                      >
+                                        <Clock className="h-3 w-3" />
+                                        {duracao.texto}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
 
-                          <button
-                            type="button"
-                            onClick={() => toggleExpandItem(item.id)}
-                            title={isExpanded ? 'OCULTAR DETALHES' : 'DEFINIR MECÂNICO E HORÁRIOS'}
-                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors shrink-0 uppercase font-semibold ${
-                              data?.hora_inicio || data?.hora_fim || data?.mecanico || isExpanded
-                                ? 'border-border bg-surface text-foreground'
-                                : 'border-transparent text-secondary hover:text-foreground hover:bg-surface/50'
-                            }`}
-                          >
-                            <Timer className="h-3 w-3 text-secondary" />
-                            <span className="text-[11px]">
-                              {data?.hora_inicio && data?.hora_fim
-                                ? `${data?.data_inicio || data?.data ? `${(data.data_inicio || data.data || '').slice(8, 10)}/${(data.data_inicio || data.data || '').slice(5, 7)} ` : ''}${data.hora_inicio} - ${data.hora_fim}`
-                                : data?.hora_inicio
-                                  ? `${data?.data_inicio || data?.data ? `${(data.data_inicio || data.data || '').slice(8, 10)}/${(data.data_inicio || data.data || '').slice(5, 7)} ` : ''}${data.hora_inicio} - …`
-                                  : 'DETALHES'}
-                            </span>
-                            {isExpanded ? (
-                              <ChevronUp className="h-3 w-3 text-secondary" />
-                            ) : (
-                              <ChevronDown className="h-3 w-3 text-secondary" />
-                            )}
-                          </button>
+                            {/* Lado Direito: Botão de Detalhes / Expandir Sempre Visível e Fácil de Tocar */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => toggleExpandItem(item.id)}
+                                title={isExpanded ? 'OCULTAR DETALHES' : 'DEFINIR MECÂNICO E HORÁRIOS'}
+                                className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-all shrink-0 uppercase font-semibold cursor-pointer active:scale-95 ${
+                                  data?.hora_inicio || data?.hora_fim || data?.mecanico || isExpanded
+                                    ? 'border-primary/40 bg-surface text-foreground shadow-sm'
+                                    : 'border-border/40 bg-surface/50 text-secondary hover:text-foreground'
+                                }`}
+                              >
+                                <Timer className="h-3.5 w-3.5 text-primary" />
+                                <span className="text-[11px] font-bold">
+                                  {isExpanded ? 'FECHAR' : 'DETALHES'}
+                                </span>
+                                {isExpanded ? (
+                                  <ChevronUp className="h-3.5 w-3.5 text-secondary" />
+                                ) : (
+                                  <ChevronDown className="h-3.5 w-3.5 text-secondary" />
+                                )}
+                              </button>
 
-                          {item.isCustom && (
-                            <button
-                              type="button"
-                              onClick={() => removerItem(item.id)}
-                              title="REMOVER ITEM CUSTOMIZADO"
-                              className="text-secondary/50 hover:text-red-400 p-1 transition-colors"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+                              {item.isCustom && (
+                                <button
+                                  type="button"
+                                  onClick={() => removerItem(item.id)}
+                                  title="REMOVER ITEM CUSTOMIZADO"
+                                  className="text-secondary/50 hover:text-red-400 p-1.5 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
 
                         {/* Bloco Expandido */}
