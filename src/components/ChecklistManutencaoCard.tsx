@@ -110,9 +110,12 @@ export const SECOES_PADRAO: SecaoChecklist[] = [
     icone: Sparkles,
     cor: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
     itens: [
-      { id: 'est_limpeza_interna', label: 'LIMPEZA INTERNA' },
-      { id: 'est_limpeza_externa', label: 'LIMPEZA EXTERNA' },
-      { id: 'est_bancos_painel_revestimentos', label: 'BANCOS, PAINEL E REVESTIMENTOS' },
+      { id: 'est_polimento_tanque', label: 'POLIMENTO TANQUE' },
+      { id: 'est_polimento_cabine', label: 'POLIMENTO CABINE' },
+      { id: 'est_higienizacao_interna', label: 'HIGIENIZAÇÃO INTERNA' },
+      { id: 'est_pintura_chassi', label: 'PINTURA CHASSI' },
+      { id: 'est_pintura_ciclista', label: 'PINTURA CICLISTA' },
+      { id: 'est_lavagem_detalhada', label: 'LAVAGEM DETALHADA' },
     ],
   },
 ]
