@@ -1,6 +1,6 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut, Home, ArrowLeftRight, Settings, Wrench } from 'lucide-react'
-import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized } from './nav'
+import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized } from './nav'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
@@ -14,6 +14,7 @@ export function BottomNav() {
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
   const canAccessKanban = isKanbanAuthorized(user?.email)
   const canAccessDashboardGerencial = isDashboardGerencialAuthorized(user?.email)
+  const canAccessFinanceiro = isFinanceiroAuthorized(user?.email)
 
   if (native) {
     const apkItems = [
@@ -86,6 +87,9 @@ export function BottomNav() {
           if (item.to === '/kanban') return canAccessKanban
           if (item.to === '/dashboard-gerencial') {
             return isAdmin || canAccessDashboardGerencial
+          }
+          if (item.to === '/financeiro') {
+            return canAccessFinanceiro
           }
           return isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number])
         })

@@ -84,3 +84,14 @@ export function isDashboardGerencialAuthorized(email?: string | null): boolean {
   if (!email) return false
   return DASHBOARD_GERENCIAL_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
 }
+
+export const FINANCEIRO_ALLOWED_EMAILS = [
+  'victor@gveldiesel.com',
+  'ricardo_h.16@hotmail.com',
+] as const
+
+export function isFinanceiroAuthorized(email?: string | null): boolean {
+  if (!email) return false
+  return FINANCEIRO_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
+}
+

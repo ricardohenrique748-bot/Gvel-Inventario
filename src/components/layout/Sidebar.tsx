@@ -4,7 +4,7 @@ import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench } f
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
-import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized } from './nav'
+import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/cn'
 import { isNativeApp } from '@/lib/isNativeApp'
@@ -24,6 +24,7 @@ export function Sidebar() {
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
   const canAccessKanban = isKanbanAuthorized(user?.email)
   const canAccessDashboardGerencial = isDashboardGerencialAuthorized(user?.email)
+  const canAccessFinanceiro = isFinanceiroAuthorized(user?.email)
   const location = useLocation()
 
   // Track which parent groups are open
@@ -51,6 +52,9 @@ export function Sidebar() {
         if (item.to === '/dashboard-gerencial') {
           return isAdmin || canAccessDashboardGerencial
         }
+        if (item.to === '/financeiro') {
+          return canAccessFinanceiro
+        }
         return isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number])
       })
       .map((item) => {
@@ -60,7 +64,7 @@ export function Sidebar() {
         }
         return item
       })
-  }, [native, isAdmin, canAccessKanban, canAccessDashboardGerencial])
+  }, [native, isAdmin, canAccessKanban, canAccessDashboardGerencial, canAccessFinanceiro])
 
   // For search: flatten all items (including children) to find matches
   const filteredNavItems = useMemo(() => {
