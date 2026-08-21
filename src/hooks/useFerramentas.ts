@@ -75,6 +75,32 @@ export function useRetiradasFerramentas(filtros: RetiradasFiltros = {}) {
   return { retiradas, loading, error, refetch }
 }
 
+const FOTOS_BUCKET = 'fotos'
+
+export async function uploadFotoFerramenta(file: File): Promise<string> {
+  try {
+    const ext = file.name.split('.').pop() || 'jpg'
+    const path = `ferramentas/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
+      cacheControl: '3600',
+      upsert: false,
+    })
+    if (!error) {
+      return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+    }
+  } catch (err) {
+    console.warn('Falha no storage, convertendo em dataURL:', err)
+  }
+
+  // Fallback para DataURL caso o bucket de storage esteja offline ou inacessível
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 export interface CriarFerramentaInput {
   codigo?: string
   nome: string
@@ -82,21 +108,28 @@ export interface CriarFerramentaInput {
   quantidade_total: number
   localizacao?: string
   observacoes?: string
+  foto_url?: string | null
 }
 
 export async function criarFerramenta(input: CriarFerramentaInput): Promise<Ferramenta> {
   const total = Number(input.quantidade_total) || 1
+  const payload: any = {
+    codigo: input.codigo ? up(input.codigo) : null,
+    nome: up(input.nome),
+    categoria: input.categoria ? up(input.categoria) : 'GERAL',
+    quantidade_total: total,
+    quantidade_disponivel: total,
+    localizacao: input.localizacao ? up(input.localizacao) : null,
+    observacoes: input.observacoes?.trim() || null,
+  }
+
+  if (input.foto_url !== undefined) {
+    payload.foto_url = input.foto_url
+  }
+
   const { data, error } = await supabase
     .from('ferramentas')
-    .insert({
-      codigo: input.codigo ? up(input.codigo) : null,
-      nome: up(input.nome),
-      categoria: input.categoria ? up(input.categoria) : 'GERAL',
-      quantidade_total: total,
-      quantidade_disponivel: total,
-      localizacao: input.localizacao ? up(input.localizacao) : null,
-      observacoes: input.observacoes?.trim() || null,
-    })
+    .insert(payload)
     .select()
     .single()
 
@@ -111,6 +144,7 @@ export interface AtualizarFerramentaInput {
   quantidade_total: number
   localizacao?: string
   observacoes?: string
+  foto_url?: string | null
 }
 
 export async function atualizarFerramenta(id: string, input: AtualizarFerramentaInput): Promise<Ferramenta> {
@@ -127,17 +161,23 @@ export async function atualizarFerramenta(id: string, input: AtualizarFerramenta
   const emUso = (atual.quantidade_total || 0) - (atual.quantidade_disponivel || 0)
   const novaDisponivel = Math.max(0, novoTotal - emUso)
 
+  const payload: any = {
+    codigo: input.codigo ? up(input.codigo) : null,
+    nome: up(input.nome),
+    categoria: input.categoria ? up(input.categoria) : 'GERAL',
+    quantidade_total: novoTotal,
+    quantidade_disponivel: novaDisponivel,
+    localizacao: input.localizacao ? up(input.localizacao) : null,
+    observacoes: input.observacoes?.trim() || null,
+  }
+
+  if (input.foto_url !== undefined) {
+    payload.foto_url = input.foto_url
+  }
+
   const { data, error } = await supabase
     .from('ferramentas')
-    .update({
-      codigo: input.codigo ? up(input.codigo) : null,
-      nome: up(input.nome),
-      categoria: input.categoria ? up(input.categoria) : 'GERAL',
-      quantidade_total: novoTotal,
-      quantidade_disponivel: novaDisponivel,
-      localizacao: input.localizacao ? up(input.localizacao) : null,
-      observacoes: input.observacoes?.trim() || null,
-    })
+    .update(payload)
     .eq('id', id)
     .select()
     .single()

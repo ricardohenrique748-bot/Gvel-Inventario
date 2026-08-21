@@ -173,6 +173,7 @@ export interface Ferramenta {
   quantidade_disponivel: number
   localizacao: string | null
   observacoes: string | null
+  foto_url?: string | null
   created_at: string
 }
 

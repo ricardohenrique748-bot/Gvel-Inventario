@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import {
   Hammer,
   Plus,
@@ -15,6 +15,10 @@ import {
   Layers,
   LayoutList,
   LayoutGrid,
+  Camera,
+  Image as ImageIcon,
+  Eye,
+  Loader2,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -31,7 +35,9 @@ import {
   excluirFerramenta,
   registrarRetiradaFerramenta,
   registrarDevolucaoFerramenta,
+  uploadFotoFerramenta,
 } from '@/hooks/useFerramentas'
+import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
 import type { Ferramenta, FerramentaRetirada } from '@/lib/types'
 
@@ -79,6 +85,7 @@ export function InventarioFerramentas() {
 
   const [modalDevolucaoAberto, setModalDevolucaoAberto] = useState(false)
   const [retiradaParaDevolver, setRetiradaParaDevolver] = useState<FerramentaRetirada | null>(null)
+  const [fotoModalUrl, setFotoModalUrl] = useState<{ url: string; titulo: string } | null>(null)
 
   // Mensagens de erro/sucesso
   const [mensagemErro, setMensagemErro] = useState<string | null>(null)
@@ -389,9 +396,30 @@ export function InventarioFerramentas() {
                         key={f.id}
                         className="grid grid-cols-[130px_minmax(220px,1fr)_160px_160px_110px_160px] items-center gap-3 px-4 py-3 transition-colors hover:bg-overlay/5"
                       >
-                        {/* CÓDIGO */}
-                        <div className="truncate">
-                          <span className="inline-flex rounded-lg bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs font-mono font-black text-primary truncate max-w-full">
+                        {/* CÓDIGO & FOTO */}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {f.foto_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
+                              className="relative group/thumb h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-primary/30 bg-surface shadow-sm cursor-pointer hover:border-primary transition-all"
+                              title="Ver foto ampliada"
+                            >
+                              <img
+                                src={f.foto_url}
+                                alt={f.nome}
+                                className="h-full w-full object-cover group-hover/thumb:scale-110 transition-transform duration-200"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
+                                <Eye className="h-3.5 w-3.5 text-white" />
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-border/20 bg-surface text-secondary/50">
+                              <Hammer className="h-4 w-4" />
+                            </div>
+                          )}
+                          <span className="inline-flex rounded-lg bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs font-mono font-black text-primary truncate max-w-[85px]">
                             {f.codigo || 'S/ CÓD'}
                           </span>
                         </div>
@@ -526,18 +554,34 @@ export function InventarioFerramentas() {
                         </div>
                       </div>
 
-                      <div>
-                        <h4 className="text-sm font-black text-foreground uppercase">{f.nome}</h4>
-                        {f.localizacao && (
-                          <p className="text-xs text-secondary font-medium mt-0.5">
-                            LOCAL: <strong className="text-foreground">{f.localizacao}</strong>
-                          </p>
-                        )}
-                        {f.observacoes && (
-                          <p className="text-[11px] text-secondary/80 italic mt-0.5 line-clamp-1">
-                            "{f.observacoes}"
-                          </p>
-                        )}
+                      <div className="flex items-start gap-3">
+                        {f.foto_url ? (
+                          <button
+                            type="button"
+                            onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
+                            className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-primary/30 bg-surface shadow-sm cursor-pointer"
+                          >
+                            <img
+                              src={f.foto_url}
+                              alt={f.nome}
+                              className="h-full w-full object-cover"
+                            />
+                          </button>
+                        ) : null}
+
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-black text-foreground uppercase">{f.nome}</h4>
+                          {f.localizacao && (
+                            <p className="text-xs text-secondary font-medium mt-0.5">
+                              LOCAL: <strong className="text-foreground">{f.localizacao}</strong>
+                            </p>
+                          )}
+                          {f.observacoes && (
+                            <p className="text-[11px] text-secondary/80 italic mt-0.5 line-clamp-1">
+                              "{f.observacoes}"
+                            </p>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-between pt-2 border-t border-border/10">
@@ -583,6 +627,24 @@ export function InventarioFerramentas() {
                     className="group relative flex flex-col justify-between overflow-hidden p-5 transition-all duration-200 hover:border-primary/40 hover:shadow-xl uppercase"
                   >
                     <div>
+                      {/* Foto no Card Grid */}
+                      {f.foto_url && (
+                        <div
+                          onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
+                          className="group/img relative mb-3 h-36 w-full overflow-hidden rounded-2xl border border-border/20 bg-background/80 cursor-pointer"
+                        >
+                          <img
+                            src={f.foto_url}
+                            alt={f.nome}
+                            className="h-full w-full object-cover group-hover/img:scale-105 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center gap-1.5 text-white text-xs font-bold transition-opacity">
+                            <Eye className="h-4 w-4" />
+                            <span>AMPLIAR FOTO</span>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-[11px] font-mono font-bold text-primary">
@@ -858,6 +920,39 @@ export function InventarioFerramentas() {
           }}
         />
       )}
+
+      {/* ==================== MODAL: VISUALIZADOR DE FOTO AMPLIADA ==================== */}
+      {fotoModalUrl && (
+        <div
+          onClick={() => setFotoModalUrl(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-h-[85vh] max-w-lg w-full overflow-hidden rounded-3xl border border-border/20 bg-surface shadow-2xl animate-scale-in"
+          >
+            <div className="flex items-center justify-between border-b border-border/10 p-4 bg-overlay/5">
+              <h3 className="font-bold text-foreground truncate pr-2 uppercase text-sm">
+                {fotoModalUrl.titulo}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setFotoModalUrl(null)}
+                className="rounded-xl p-1.5 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4 flex items-center justify-center bg-background/60">
+              <img
+                src={fotoModalUrl.url}
+                alt={fotoModalUrl.titulo}
+                className="max-h-[65vh] w-auto rounded-2xl object-contain shadow-md"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -880,8 +975,35 @@ function ModalFerramenta({
   const [quantidadeTotal, setQuantidadeTotal] = useState(String(ferramenta?.quantidade_total || 1))
   const [localizacao, setLocalizacao] = useState(ferramenta?.localizacao || '')
   const [observacoes, setObservacoes] = useState(ferramenta?.observacoes || '')
+  
+  // Foto da Ferramenta
+  const [fotoUrl, setFotoUrl] = useState(ferramenta?.foto_url || '')
+  const [fotoFile, setFotoFile] = useState<File | null>(null)
+  const [processandoFoto, setProcessandoFoto] = useState(false)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galeriaInputRef = useRef<HTMLInputElement>(null)
+
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+
+  const handleFotoSelecionada = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    setProcessandoFoto(true)
+    setErro(null)
+    try {
+      const comprimida = await comprimirImagem(file)
+      setFotoFile(comprimida)
+      setFotoUrl(URL.createObjectURL(comprimida))
+    } catch (err) {
+      console.error('Erro ao processar imagem:', err)
+      setErro('NÃO FOI POSSÍVEL PROCESSAR A FOTO.')
+    } finally {
+      setProcessandoFoto(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -894,6 +1016,11 @@ function ModalFerramenta({
     setErro(null)
 
     try {
+      let finalFotoUrl: string | null = fotoUrl || null
+      if (fotoFile) {
+        finalFotoUrl = await uploadFotoFerramenta(fotoFile)
+      }
+
       if (ferramenta) {
         await atualizarFerramenta(ferramenta.id, {
           nome: nome.toUpperCase(),
@@ -902,6 +1029,7 @@ function ModalFerramenta({
           quantidade_total: Number(quantidadeTotal) || 1,
           localizacao: localizacao.toUpperCase(),
           observacoes: observacoes.toUpperCase(),
+          foto_url: finalFotoUrl,
         })
       } else {
         await criarFerramenta({
@@ -911,6 +1039,7 @@ function ModalFerramenta({
           quantidade_total: Number(quantidadeTotal) || 1,
           localizacao: localizacao.toUpperCase(),
           observacoes: observacoes.toUpperCase(),
+          foto_url: finalFotoUrl,
         })
       }
       await onSalvo()
@@ -922,15 +1051,20 @@ function ModalFerramenta({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 uppercase">
-      <div className="w-full max-w-md rounded-2xl border border-border/10 bg-surface p-6 shadow-2xl animate-scale-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 uppercase backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl border border-border/10 bg-surface p-6 shadow-2xl animate-scale-in">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold text-foreground uppercase">
-            {ferramenta ? 'EDITAR FERRAMENTA' : 'NOVA FERRAMENTA'}
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <Hammer className="h-5 w-5" />
+            </div>
+            <h2 className="text-base font-bold text-foreground uppercase">
+              {ferramenta ? 'EDITAR FERRAMENTA' : 'NOVA FERRAMENTA'}
+            </h2>
+          </div>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-secondary hover:bg-overlay/10 hover:text-foreground"
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -947,7 +1081,7 @@ function ModalFerramenta({
               onChange={(e) => setNome(e.target.value)}
               placeholder="EX: CHAVE DE IMPACTO 1/2, TORQUÍMETRO, SCANNER..."
               required
-              className="uppercase"
+              className="uppercase font-medium"
             />
           </div>
 
@@ -959,7 +1093,7 @@ function ModalFerramenta({
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value)}
                 placeholder="EX: FER-012"
-                className="uppercase"
+                className="uppercase font-medium"
               />
             </div>
             <div>
@@ -970,7 +1104,7 @@ function ModalFerramenta({
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
                 placeholder="EX: INSUMOS, PNEUMÁTICA..."
-                className="uppercase"
+                className="uppercase font-medium"
               />
               <datalist id="lista-categorias-sugeridas">
                 {CATEGORIAS_SUGERIDAS.filter((c) => c !== 'TODAS').map((cat) => (
@@ -990,6 +1124,7 @@ function ModalFerramenta({
                 value={quantidadeTotal}
                 onChange={(e) => setQuantidadeTotal(e.target.value)}
                 required
+                className="font-medium"
               />
             </div>
             <div>
@@ -999,9 +1134,102 @@ function ModalFerramenta({
                 value={localizacao}
                 onChange={(e) => setLocalizacao(e.target.value)}
                 placeholder="EX: ARMÁRIO 02"
-                className="uppercase"
+                className="uppercase font-medium"
               />
             </div>
+          </div>
+
+          {/* FOTO DA FERRAMENTA */}
+          <div className="space-y-2 rounded-2xl border border-border/20 bg-background/40 p-3.5">
+            <Label className="uppercase font-bold text-xs text-secondary flex items-center justify-between">
+              <span>FOTO DA FERRAMENTA</span>
+              {fotoUrl && <span className="text-[10px] text-emerald-400 font-black">FOTO SELECIONADA</span>}
+            </Label>
+
+            {/* Inputs Ocultos de Arquivo */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFotoSelecionada}
+            />
+            <input
+              ref={galeriaInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFotoSelecionada}
+            />
+
+            {fotoUrl ? (
+              <div className="relative flex items-center gap-3 rounded-xl border border-border/30 bg-surface/80 p-2.5">
+                <img
+                  src={fotoUrl}
+                  alt="Foto da Ferramenta"
+                  className="h-16 w-16 rounded-xl object-cover border border-border/30 bg-background shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-foreground truncate">IMAGEM ANEXADA</p>
+                  <p className="text-[10px] text-secondary mt-0.5">
+                    {fotoFile ? `${(fotoFile.size / 1024).toFixed(0)} KB (Pronta p/ salvar)` : 'Imagem vinculada'}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="text-[10px] font-bold text-primary hover:underline"
+                    >
+                      Trocar foto
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFotoUrl('')
+                    setFotoFile(null)
+                  }}
+                  className="rounded-xl p-2 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer"
+                  title="Remover foto"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={processandoFoto}
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="gap-2 text-xs font-bold border-border/30 hover:border-primary/40 text-foreground"
+                >
+                  {processandoFoto ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  ) : (
+                    <Camera className="h-4 w-4 text-primary" />
+                  )}
+                  <span>CÂMERA</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={processandoFoto}
+                  onClick={() => galeriaInputRef.current?.click()}
+                  className="gap-2 text-xs font-bold border-border/30 hover:border-primary/40 text-foreground"
+                >
+                  {processandoFoto ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  ) : (
+                    <ImageIcon className="h-4 w-4 text-primary" />
+                  )}
+                  <span>GALERIA</span>
+                </Button>
+              </div>
+            )}
           </div>
 
           <div>
@@ -1011,11 +1239,11 @@ function ModalFerramenta({
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
               placeholder="MARCA, ESTADO DE CONSERVAÇÃO, ETC."
-              className="uppercase"
+              className="uppercase font-medium"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 pt-2 border-t border-border/10">
             <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="uppercase font-semibold">
               CANCELAR
             </Button>
