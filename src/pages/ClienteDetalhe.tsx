@@ -39,7 +39,7 @@ export function ClienteDetalhe() {
           <p className="mt-1 text-3xl font-semibold text-foreground">{movimentacoes.length}</p>
         </Card>
         <Card className="p-5">
-          <p className="text-sm text-secondary">CNPJ</p>
+          <p className="text-sm text-secondary">CPF / CNPJ</p>
           <p className="mt-1 text-lg font-medium text-foreground">{cliente?.cnpj || '—'}</p>
         </Card>
       </div>

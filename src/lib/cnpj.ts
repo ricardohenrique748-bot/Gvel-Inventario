@@ -1,3 +1,11 @@
+export function formatCpf(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+  if (digits.length > 9) return digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{1,2})$/, '$1.$2.$3-$4')
+  if (digits.length > 6) return digits.replace(/^(\d{3})(\d{3})(\d{1,3})$/, '$1.$2.$3')
+  if (digits.length > 3) return digits.replace(/^(\d{3})(\d{1,3})$/, '$1.$2')
+  return digits
+}
+
 export function formatCnpj(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 14)
   if (digits.length > 12) return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})$/, '$1.$2.$3/$4-$5')
@@ -5,6 +13,14 @@ export function formatCnpj(value: string) {
   if (digits.length > 5) return digits.replace(/^(\d{2})(\d{3})(\d{1,3})$/, '$1.$2.$3')
   if (digits.length > 2) return digits.replace(/^(\d{2})(\d{1,3})$/, '$1.$2')
   return digits
+}
+
+export function formatCpfCnpj(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 14)
+  if (digits.length <= 11) {
+    return formatCpf(digits)
+  }
+  return formatCnpj(digits)
 }
 
 export interface CnpjInfo {

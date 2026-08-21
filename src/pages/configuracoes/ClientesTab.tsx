@@ -7,11 +7,11 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useClientes, criarCliente, atualizarCliente, excluirCliente } from '@/hooks/useClientes'
-import { buscarCnpj, formatCnpj } from '@/lib/cnpj'
+import { buscarCnpj, formatCpfCnpj } from '@/lib/cnpj'
 import type { Cliente } from '@/lib/types'
 
 const schema = z.object({
-  nome: z.string().trim().min(1, 'Informe o nome da empresa'),
+  nome: z.string().trim().min(1, 'Informe o nome do cliente ou empresa'),
   cnpj: z.string().optional(),
   endereco: z.string().optional(),
   telefone: z.string().optional(),
@@ -39,15 +39,20 @@ export function ClientesTab() {
 
   const { onBlur: cnpjOnBlur, onChange: cnpjOnChange, ...cnpjField } = register('cnpj')
 
-  function handleCnpjChange(e: React.ChangeEvent<HTMLInputElement>) {
-    e.target.value = formatCnpj(e.target.value)
+  function handleCpfCnpjChange(e: React.ChangeEvent<HTMLInputElement>) {
+    e.target.value = formatCpfCnpj(e.target.value)
     cnpjOnChange(e)
   }
 
-  async function handleCnpjBlur(e: React.FocusEvent<HTMLInputElement>) {
+  async function handleCpfCnpjBlur(e: React.FocusEvent<HTMLInputElement>) {
     cnpjOnBlur(e)
     const digits = (getValues('cnpj') ?? '').replace(/\D/g, '')
-    if (digits.length !== 14) return
+    if (digits.length !== 14) {
+      if (digits.length === 11) {
+        setCnpjInfo(null)
+      }
+      return
+    }
 
     setBuscandoCnpj(true)
     setCnpjInfo(null)
@@ -56,7 +61,7 @@ export function ClientesTab() {
       if (info.nome) setValue('nome', info.nome)
       if (info.endereco) setValue('endereco', info.endereco)
       if (info.telefone) setValue('telefone', info.telefone)
-      setCnpjInfo('Dados da empresa preenchidos automaticamente.')
+      setCnpjInfo('Dados da empresa preenchidos automaticamente via CNPJ.')
     } catch (err) {
       setCnpjInfo(err instanceof Error ? err.message : 'Não foi possível buscar o CNPJ.')
     } finally {
@@ -102,21 +107,21 @@ export function ClientesTab() {
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div>
-                <Label htmlFor="nome">Nome da empresa</Label>
-                <Input id="nome" placeholder="Razão social ou nome fantasia" {...register('nome')} />
+                <Label htmlFor="nome">Nome do cliente / Razão Social</Label>
+                <Input id="nome" placeholder="Nome completo ou Razão social / Nome fantasia" {...register('nome')} />
                 <FieldError message={errors.nome?.message} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="cnpj">CNPJ</Label>
+                  <Label htmlFor="cnpj">CPF / CNPJ</Label>
                   <Input
                     id="cnpj"
-                    placeholder="00.000.000/0000-00"
+                    placeholder="000.000.000-00 ou 00.000.000/0000-00"
                     inputMode="numeric"
                     maxLength={18}
                     {...cnpjField}
-                    onChange={handleCnpjChange}
-                    onBlur={handleCnpjBlur}
+                    onChange={handleCpfCnpjChange}
+                    onBlur={handleCpfCnpjBlur}
                   />
                   {buscandoCnpj && <p className="mt-1 text-xs text-secondary">Buscando dados da empresa…</p>}
                   {!buscandoCnpj && cnpjInfo && <p className="mt-1 text-xs text-secondary">{cnpjInfo}</p>}
@@ -177,7 +182,12 @@ export function ClientesTab() {
                     <div>
                       <p className="text-foreground font-medium">{c.nome}</p>
                       <p className="text-sm text-secondary">
-                        {c.cnpj || 'Sem CNPJ'} · {c.telefone || 'Sem telefone'}
+                        {c.cnpj
+                          ? c.cnpj.replace(/\D/g, '').length <= 11
+                            ? `CPF: ${c.cnpj}`
+                            : `CNPJ: ${c.cnpj}`
+                          : 'Sem CPF/CNPJ'}{' '}
+                        · {c.telefone || 'Sem telefone'}
                       </p>
                       {c.endereco && <p className="text-sm text-secondary">{c.endereco}</p>}
                     </div>
@@ -238,6 +248,13 @@ function EditarClienteForm({
     },
   })
 
+  const { onChange: cnpjOnChange, ...cnpjField } = register('cnpj')
+
+  function handleCpfCnpjChange(e: React.ChangeEvent<HTMLInputElement>) {
+    e.target.value = formatCpfCnpj(e.target.value)
+    cnpjOnChange(e)
+  }
+
   async function onSubmit(values: FormValues) {
     try {
       await atualizarCliente(cliente.id, values)
@@ -254,12 +271,19 @@ function EditarClienteForm({
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <Label htmlFor={`nome-${cliente.id}`}>Nome da empresa</Label>
+          <Label htmlFor={`nome-${cliente.id}`}>Nome do cliente / Razão Social</Label>
           <Input id={`nome-${cliente.id}`} {...register('nome')} />
         </div>
         <div>
-          <Label htmlFor={`cnpj-${cliente.id}`}>CNPJ</Label>
-          <Input id={`cnpj-${cliente.id}`} {...register('cnpj')} />
+          <Label htmlFor={`cnpj-${cliente.id}`}>CPF / CNPJ</Label>
+          <Input
+            id={`cnpj-${cliente.id}`}
+            placeholder="000.000.000-00 ou 00.000.000/0000-00"
+            inputMode="numeric"
+            maxLength={18}
+            {...cnpjField}
+            onChange={handleCpfCnpjChange}
+          />
         </div>
         <div>
           <Label htmlFor={`telefone-${cliente.id}`}>Telefone</Label>
