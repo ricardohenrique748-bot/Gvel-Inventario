@@ -1258,7 +1258,7 @@ function ModalFerramenta({
 }
 
 // ----------------------------------------------------------------------------------
-// Subcomponente: Modal de Retirada de Ferramenta (Vinculação com Placa do Caminhão)
+// Subcomponente: Modal de Retirada de Ferramenta (Vinculação com Placa(s) do Caminhão)
 // ----------------------------------------------------------------------------------
 function ModalRetirada({
   ferramentaPreSelecionada,
@@ -1274,7 +1274,8 @@ function ModalRetirada({
   onSucesso: () => Promise<void>
 }) {
   const [ferramentaId, setFerramentaId] = useState(ferramentaPreSelecionada?.id || ferramentasDisponiveis[0]?.id || '')
-  const [placa, setPlaca] = useState('')
+  const [placasSelecionadas, setPlacasSelecionadas] = useState<string[]>([])
+  const [placaInput, setPlacaInput] = useState('')
   const [responsavel, setResponsavel] = useState('')
   const [quantidade, setQuantidade] = useState('1')
   const [observacoes, setObservacoes] = useState('')
@@ -1285,24 +1286,61 @@ function ModalRetirada({
     return ferramentasDisponiveis.find((f) => f.id === ferramentaId) || ferramentaPreSelecionada
   }, [ferramentasDisponiveis, ferramentaId, ferramentaPreSelecionada])
 
+  function adicionarPlaca(p: string) {
+    const limpa = p.trim().toUpperCase()
+    if (!limpa) return
+    const partes = limpa.split(/[,;/ ]+/).map((s) => s.trim().toUpperCase()).filter(Boolean)
+    setPlacasSelecionadas((prev) => {
+      const set = new Set([...prev, ...partes])
+      return Array.from(set)
+    })
+    setPlacaInput('')
+  }
+
+  function removerPlaca(p: string) {
+    setPlacasSelecionadas((prev) => prev.filter((item) => item !== p))
+  }
+
+  function handleKeyDownPlaca(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',' || e.key === ';') {
+      e.preventDefault()
+      adicionarPlaca(placaInput)
+    }
+  }
+
+  const maxQtd = ferramentaAtual?.quantidade_disponivel || 1
+
+  function ajustarQtd(delta: number) {
+    const atual = Number(quantidade) || 1
+    const nova = Math.max(1, Math.min(maxQtd, atual + delta))
+    setQuantidade(String(nova))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!ferramentaId) {
-      setErro('SELECIONE UMA FERRAMENTA.')
+      setErro('Selecione uma ferramenta.')
       return
     }
-    if (!placa.trim()) {
-      setErro('INFORME A PLACA DO CAMINHÃO.')
+
+    let listaFinalPlacas = [...placasSelecionadas]
+    if (placaInput.trim()) {
+      const partes = placaInput.split(/[,;/ ]+/).map((s) => s.trim().toUpperCase()).filter(Boolean)
+      listaFinalPlacas = Array.from(new Set([...listaFinalPlacas, ...partes]))
+    }
+
+    if (listaFinalPlacas.length === 0) {
+      setErro('Informe ao menos uma placa de caminhão.')
       return
     }
     if (!responsavel.trim()) {
-      setErro('INFORME O NOME DO RESPONSÁVEL (MECÂNICO/MOTORISTA).')
+      setErro('Informe o nome do responsável.')
       return
     }
 
     const qtdNum = Number(quantidade) || 1
     if (ferramentaAtual && qtdNum > ferramentaAtual.quantidade_disponivel) {
-      setErro(`QUANTIDADE MÁXIMA DISPONÍVEL: ${ferramentaAtual.quantidade_disponivel}`)
+      setErro(`Quantidade máxima disponível: ${ferramentaAtual.quantidade_disponivel}`)
       return
     }
 
@@ -1310,12 +1348,13 @@ function ModalRetirada({
     setErro(null)
 
     try {
-      const veiculoEncontrado = veiculos.find((v) => v.placa.toUpperCase() === placa.trim().toUpperCase())
+      const placaFinalFormatada = listaFinalPlacas.join(' / ')
+      const veiculoEncontrado = veiculos.find((v) => listaFinalPlacas.includes(v.placa.toUpperCase()))
 
       await registrarRetiradaFerramenta({
         ferramenta_id: ferramentaId,
         veiculo_id: veiculoEncontrado?.id || null,
-        placa: placa.toUpperCase(),
+        placa: placaFinalFormatada,
         responsavel: responsavel.toUpperCase(),
         quantidade: qtdNum,
         observacoes_retirada: observacoes.toUpperCase(),
@@ -1323,112 +1362,230 @@ function ModalRetirada({
 
       await onSucesso()
     } catch (err) {
-      setErro(err instanceof Error ? err.message.toUpperCase() : 'ERRO AO REGISTRAR RETIRADA.')
+      setErro(err instanceof Error ? err.message : 'Erro ao registrar retirada.')
     } finally {
       setSalvando(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 uppercase">
-      <div className="w-full max-w-md rounded-2xl border border-border/10 bg-surface p-6 shadow-2xl animate-scale-in">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/20 text-primary">
-              <ArrowUpRight className="h-4 w-4" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-border/30 bg-surface p-6 shadow-2xl animate-scale-in">
+        {/* Cabeçalho Clean */}
+        <div className="mb-5 flex items-center justify-between border-b border-border/20 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/20">
+              <ArrowUpRight className="h-5 w-5" />
             </div>
-            <h2 className="text-base font-bold text-foreground uppercase">RETIRAR FERRAMENTA</h2>
+            <div>
+              <h2 className="text-base font-bold text-foreground">Retirar Ferramenta</h2>
+              <p className="text-xs text-secondary">Vincule a ferramenta ao caminhão e ao responsável</p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-secondary hover:bg-overlay/10 hover:text-foreground"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:bg-background hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {erro && <p className="mb-4 text-sm text-status-danger uppercase font-bold">{erro}</p>}
+        {erro && (
+          <div className="mb-4 rounded-xl bg-status-danger/10 border border-status-danger/30 p-3 text-xs font-semibold text-status-danger">
+            {erro}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Campo: Ferramenta */}
           <div>
-            <Label htmlFor="ferramenta" className="uppercase font-bold">FERRAMENTA *</Label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label htmlFor="ferramenta" className="text-xs font-bold text-foreground uppercase tracking-wide">
+                Ferramenta *
+              </label>
+              {ferramentaAtual && (
+                <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+                  {ferramentaAtual.quantidade_disponivel} disponível(is)
+                </span>
+              )}
+            </div>
             <select
               id="ferramenta"
               value={ferramentaId}
               onChange={(e) => setFerramentaId(e.target.value)}
-              className="h-10 w-full rounded-xl border border-border/10 bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+              className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
               required
             >
               {ferramentasDisponiveis.map((f) => (
                 <option key={f.id} value={f.id}>
-                  {f.nome.toUpperCase()} ({f.quantidade_disponivel} DISP.) {f.codigo ? `- [${f.codigo}]` : ''}
+                  {f.nome} ({f.quantidade_disponivel} disp.) {f.codigo ? `— [${f.codigo}]` : ''}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="placa" className="uppercase font-bold">PLACA DO CAMINHÃO *</Label>
+          {/* Campo: Placas dos Caminhões */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label htmlFor="placa" className="text-xs font-bold text-foreground uppercase tracking-wide">
+                Placa(s) do Caminhão *
+              </label>
+              <span className="text-[11px] text-secondary">pode adicionar mais de uma</span>
+            </div>
+
+            {/* Tags de Placas Selecionadas */}
+            {placasSelecionadas.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {placasSelecionadas.map((p) => (
+                  <span
+                    key={p}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/30 text-primary font-mono text-xs font-bold shadow-sm"
+                  >
+                    🚛 {p}
+                    <button
+                      type="button"
+                      onClick={() => removerPlaca(p)}
+                      className="hover:text-status-danger transition-colors p-0.5 rounded"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
               <Input
                 id="placa"
                 list="placas-sugestoes"
-                value={placa}
-                onChange={(e) => setPlaca(e.target.value.toUpperCase())}
-                placeholder="EX: ABC1D23"
-                required
-                className="uppercase"
+                value={placaInput}
+                onChange={(e) => setPlacaInput(e.target.value.toUpperCase())}
+                onKeyDown={handleKeyDownPlaca}
+                placeholder="Digite a placa (ex: ABC1D23)..."
+                className="flex-1 font-mono uppercase text-sm"
               />
-              <datalist id="placas-sugestoes">
-                {veiculos.map((v) => (
-                  <option key={v.id} value={v.placa} />
-                ))}
-              </datalist>
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={() => adicionarPlaca(placaInput)}
+                disabled={!placaInput.trim()}
+                className="shrink-0 !h-10 px-3.5 text-xs font-bold uppercase"
+              >
+                + Adicionar
+              </Button>
+            </div>
+            <datalist id="placas-sugestoes">
+              {veiculos.map((v) => (
+                <option key={v.id} value={v.placa} />
+              ))}
+            </datalist>
+
+            {/* Sugestões rápidas e limpas */}
+            {veiculos.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] uppercase font-bold text-secondary mr-1">Rápidos:</span>
+                {veiculos.slice(0, 6).map((v) => {
+                  const jaAdd = placasSelecionadas.includes(v.placa.toUpperCase())
+                  return (
+                    <button
+                      type="button"
+                      key={v.id}
+                      onClick={() => jaAdd ? removerPlaca(v.placa.toUpperCase()) : adicionarPlaca(v.placa.toUpperCase())}
+                      className={`text-[11px] px-2.5 py-0.5 rounded-full font-mono font-medium border transition-all ${
+                        jaAdd
+                          ? 'bg-primary/20 border-primary text-primary shadow-sm'
+                          : 'bg-background/60 border-border/30 text-secondary hover:text-foreground hover:border-primary/50'
+                      }`}
+                    >
+                      {jaAdd ? `✓ ${v.placa}` : `+ ${v.placa}`}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Grid de 2 Colunas: Quantidade & Responsável */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="qtd" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1.5">
+                Quantidade *
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => ajustarQtd(-1)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground hover:bg-surface font-bold text-base transition-colors"
+                >
+                  -
+                </button>
+                <Input
+                  id="qtd"
+                  type="number"
+                  min="1"
+                  max={maxQtd}
+                  value={quantidade}
+                  onChange={(e) => setQuantidade(e.target.value)}
+                  required
+                  className="text-center font-bold text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => ajustarQtd(1)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground hover:bg-surface font-bold text-base transition-colors"
+                >
+                  +
+                </button>
+              </div>
             </div>
 
             <div>
-              <Label htmlFor="qtd" className="uppercase font-bold">QUANTIDADE *</Label>
+              <label htmlFor="resp" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1.5">
+                Responsável *
+              </label>
               <Input
-                id="qtd"
-                type="number"
-                min="1"
-                max={ferramentaAtual?.quantidade_disponivel || 1}
-                value={quantidade}
-                onChange={(e) => setQuantidade(e.target.value)}
+                id="resp"
+                value={responsavel}
+                onChange={(e) => setResponsavel(e.target.value)}
+                placeholder="Nome do mecânico ou motorista..."
                 required
+                className="text-sm"
               />
             </div>
           </div>
 
+          {/* Campo: Observações */}
           <div>
-            <Label htmlFor="resp" className="uppercase font-bold">RESPONSÁVEL (MECÂNICO / MOTORISTA) *</Label>
-            <Input
-              id="resp"
-              value={responsavel}
-              onChange={(e) => setResponsavel(e.target.value)}
-              placeholder="QUEM ESTÁ RETIRANDO A FERRAMENTA..."
-              required
-              className="uppercase"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="obs" className="uppercase font-bold">OBSERVAÇÕES / MOTIVO</Label>
+            <label htmlFor="obs" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1.5">
+              Observações / Motivo <span className="text-secondary font-normal lowercase">(opcional)</span>
+            </label>
             <Input
               id="obs"
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="EX: MANUTENÇÃO NO FREIO, TROCA DE ÓLEO..."
-              className="uppercase"
+              placeholder="Ex: Manutenção preventiva no freio, troca de óleo..."
+              className="text-sm"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="uppercase font-semibold">
-              CANCELAR
+          {/* Ações do Rodapé */}
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/20">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={salvando}
+              className="!h-10 px-5 rounded-xl text-xs font-semibold"
+            >
+              Cancelar
             </Button>
-            <Button type="submit" disabled={salvando} className="uppercase font-bold">
-              {salvando ? 'REGISTRANDO...' : 'CONFIRMAR RETIRADA'}
+            <Button
+              type="submit"
+              disabled={salvando}
+              className="!h-10 px-6 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
+            >
+              {salvando ? 'Registrando...' : 'Confirmar Retirada'}
             </Button>
           </div>
         </form>
