@@ -3,6 +3,26 @@ import { supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
 import type { Ferramenta, FerramentaRetirada, StatusRetiradaFerramenta } from '@/lib/types'
 
+function formatarFerramentaComFoto(f: any): Ferramenta {
+  if (!f) return f
+  let foto_url: string | null = f.foto_url || null
+  let observacoes: string | null = f.observacoes || null
+
+  if (observacoes && observacoes.includes('[FOTO:')) {
+    const match = observacoes.match(/\[FOTO:(.*?)\]/)
+    if (match) {
+      foto_url = match[1]
+      observacoes = observacoes.replace(/\[FOTO:.*?\]/g, '').trim() || null
+    }
+  }
+
+  return {
+    ...f,
+    observacoes,
+    foto_url,
+  }
+}
+
 export function useFerramentas() {
   const [ferramentas, setFerramentas] = useState<Ferramenta[]>([])
   const [loading, setLoading] = useState(true)
@@ -18,7 +38,7 @@ export function useFerramentas() {
     if (error) {
       setError(error.message)
     } else {
-      setFerramentas(data ?? [])
+      setFerramentas((data ?? []).map(formatarFerramentaComFoto))
     }
     setLoading(false)
   }, [])
@@ -63,7 +83,11 @@ export function useRetiradasFerramentas(filtros: RetiradasFiltros = {}) {
     if (error) {
       setError(error.message)
     } else {
-      setRetiradas((data as unknown as FerramentaRetirada[]) ?? [])
+      const formatadas = ((data as unknown as FerramentaRetirada[]) ?? []).map((r) => ({
+        ...r,
+        ferramenta: r.ferramenta ? formatarFerramentaComFoto(r.ferramenta) : r.ferramenta,
+      }))
+      setRetiradas(formatadas)
     }
     setLoading(false)
   }, [filtros.status, filtros.placa, filtros.responsavel])
@@ -113,6 +137,13 @@ export interface CriarFerramentaInput {
 
 export async function criarFerramenta(input: CriarFerramentaInput): Promise<Ferramenta> {
   const total = Number(input.quantidade_total) || 1
+  
+  // Embutir foto_url no campo observacoes para garantir compatibilidade 100% caso a coluna não exista no Postgres
+  let observacoesFinal = input.observacoes?.trim() || ''
+  if (input.foto_url) {
+    observacoesFinal = observacoesFinal ? `${observacoesFinal} [FOTO:${input.foto_url}]` : `[FOTO:${input.foto_url}]`
+  }
+
   const payload: any = {
     codigo: input.codigo ? up(input.codigo) : null,
     nome: up(input.nome),
@@ -120,11 +151,7 @@ export async function criarFerramenta(input: CriarFerramentaInput): Promise<Ferr
     quantidade_total: total,
     quantidade_disponivel: total,
     localizacao: input.localizacao ? up(input.localizacao) : null,
-    observacoes: input.observacoes?.trim() || null,
-  }
-
-  if (input.foto_url !== undefined) {
-    payload.foto_url = input.foto_url
+    observacoes: observacoesFinal || null,
   }
 
   const { data, error } = await supabase
@@ -134,7 +161,7 @@ export async function criarFerramenta(input: CriarFerramentaInput): Promise<Ferr
     .single()
 
   if (error) throw new Error(error.message)
-  return data as Ferramenta
+  return formatarFerramentaComFoto(data)
 }
 
 export interface AtualizarFerramentaInput {
@@ -161,6 +188,12 @@ export async function atualizarFerramenta(id: string, input: AtualizarFerramenta
   const emUso = (atual.quantidade_total || 0) - (atual.quantidade_disponivel || 0)
   const novaDisponivel = Math.max(0, novoTotal - emUso)
 
+  // Embutir foto_url no campo observacoes
+  let observacoesFinal = input.observacoes?.trim() || ''
+  if (input.foto_url) {
+    observacoesFinal = observacoesFinal ? `${observacoesFinal} [FOTO:${input.foto_url}]` : `[FOTO:${input.foto_url}]`
+  }
+
   const payload: any = {
     codigo: input.codigo ? up(input.codigo) : null,
     nome: up(input.nome),
@@ -168,11 +201,7 @@ export async function atualizarFerramenta(id: string, input: AtualizarFerramenta
     quantidade_total: novoTotal,
     quantidade_disponivel: novaDisponivel,
     localizacao: input.localizacao ? up(input.localizacao) : null,
-    observacoes: input.observacoes?.trim() || null,
-  }
-
-  if (input.foto_url !== undefined) {
-    payload.foto_url = input.foto_url
+    observacoes: observacoesFinal || null,
   }
 
   const { data, error } = await supabase
@@ -183,7 +212,7 @@ export async function atualizarFerramenta(id: string, input: AtualizarFerramenta
     .single()
 
   if (error) throw new Error(error.message)
-  return data as Ferramenta
+  return formatarFerramentaComFoto(data)
 }
 
 export async function excluirFerramenta(id: string): Promise<void> {
