@@ -6,6 +6,24 @@
 class NotificationAudioPlayer {
   private ctx: AudioContext | null = null
 
+  constructor() {
+    if (typeof window !== 'undefined') {
+      const unlockAudio = () => {
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume()
+        } else {
+          this.getContext()
+        }
+        window.removeEventListener('click', unlockAudio)
+        window.removeEventListener('touchstart', unlockAudio)
+        window.removeEventListener('keydown', unlockAudio)
+      }
+      window.addEventListener('click', unlockAudio, { passive: true })
+      window.addEventListener('touchstart', unlockAudio, { passive: true })
+      window.addEventListener('keydown', unlockAudio, { passive: true })
+    }
+  }
+
   private getContext(): AudioContext | null {
     try {
       if (!this.ctx) {

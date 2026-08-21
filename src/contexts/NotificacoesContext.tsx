@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { notificationSound } from '@/lib/notificationSound'
 import { dispararPushLocal, solicitarPermissaoNotificacoes } from '@/lib/pushNotifications'
@@ -50,6 +50,7 @@ export const CONFIG_NOTIF_DEFAULT: ConfigNotificacoes = {
 const STORAGE_CONFIG_KEY = 'config_notificacoes'
 const STORAGE_LIDAS_KEY = 'notificacoes_lidas_ids'
 const STORAGE_MANUAIS_KEY = 'notificacoes_manuais_broadcast'
+const STORAGE_DISPARADAS_KEY = 'notificacoes_disparadas_push_ids'
 
 interface NotificacoesContextType {
   notificacoes: NotificacaoItem[]
@@ -69,6 +70,9 @@ interface NotificacoesContextType {
 const NotificacoesContext = createContext<NotificacoesContextType | undefined>(undefined)
 
 export function NotificacoesProvider({ children }: { children: React.ReactNode }) {
+  const inicializadoRef = useRef(false)
+  const disparadasRef = useRef<Set<string>>(new Set())
+
   const [config, setConfig] = useState<ConfigNotificacoes>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_CONFIG_KEY)
@@ -76,6 +80,18 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     } catch {}
     return CONFIG_NOTIF_DEFAULT
   })
+
+  // Inicializa canal e permissões no Android/APK logo na inicialização
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_DISPARADAS_KEY)
+      if (raw) {
+        disparadasRef.current = new Set(JSON.parse(raw))
+      }
+    } catch {}
+
+    solicitarPermissaoNotificacoes()
+  }, [])
 
   const [lidas, setLidas] = useState<Set<string>>(() => {
     try {
@@ -334,6 +350,35 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
         }
       }
 
+      // Gerenciamento de disparo de push nativo e som
+      if (!inicializadoRef.current) {
+        // Na primeira carga, memoriza os itens já existentes para não disparar histórico de uma vez
+        lista.forEach((item) => disparadasRef.current.add(item.id))
+        try {
+          localStorage.setItem(STORAGE_DISPARADAS_KEY, JSON.stringify(Array.from(disparadasRef.current)))
+        } catch {}
+        inicializadoRef.current = true
+      } else {
+        // Pega somente os novos eventos que acabaram de acontecer
+        const novos = lista.filter((item) => !disparadasRef.current.has(item.id))
+        if (novos.length > 0) {
+          novos.forEach((item) => {
+            disparadasRef.current.add(item.id)
+            if (config.pushAtivo) {
+              dispararPushLocal(item.titulo, item.mensagem)
+            }
+          })
+
+          if (config.somAtivo) {
+            notificationSound.playChime()
+          }
+
+          try {
+            localStorage.setItem(STORAGE_DISPARADAS_KEY, JSON.stringify(Array.from(disparadasRef.current)))
+          } catch {}
+        }
+      }
+
       setNotificacoesDinamicas(lista)
     } catch (e) {
       console.error('[useNotificacoes] Erro ao carregar notificações:', e)
@@ -342,7 +387,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     carregarEventos()
-    const timer = setInterval(carregarEventos, 30000)
+    const timer = setInterval(carregarEventos, 15000)
 
     const channel = supabase
       .channel('notificacoes_realtime')
@@ -350,6 +395,12 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
         carregarEventos()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_os' }, () => {
+        carregarEventos()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, () => {
+        carregarEventos()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ferramentas_retiradas' }, () => {
         carregarEventos()
       })
       .subscribe()
