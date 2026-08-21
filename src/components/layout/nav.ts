@@ -86,3 +86,14 @@ export function isKanbanAuthorized(email?: string | null): boolean {
   if (!email) return false
   return KANBAN_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
 }
+
+export const DASHBOARD_GERENCIAL_ALLOWED_EMAILS = [
+  'junior@gveldiesel.com',
+  'victor@gveldiesel.com',
+  'ricardo_h.16@hotmail.com',
+] as const
+
+export function isDashboardGerencialAuthorized(email?: string | null): boolean {
+  if (!email) return false
+  return DASHBOARD_GERENCIAL_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
+}
