@@ -12,9 +12,6 @@ import {
   DollarSign,
   UserCheck,
   ShoppingCart,
-  FileText,
-  Link2,
-  Building2,
   Columns3,
 } from 'lucide-react'
 
@@ -39,17 +36,7 @@ export const navItems = [
     ],
   },
   { to: '/inventario-ferramentas', label: 'Inventário de Ferramentas', icon: Hammer },
-  {
-    to: '/financeiro',
-    label: 'Financeiro',
-    icon: DollarSign,
-    children: [
-      { to: '/financeiro', label: 'Lançamentos', icon: FileText, end: true },
-      { to: '/financeiro/conciliacao', label: 'Conciliação', icon: Link2 },
-      { to: '/financeiro/dre', label: 'DRE', icon: BarChart3 },
-      { to: '/financeiro/contas', label: 'Contas Bancárias', icon: Building2 },
-    ],
-  },
+  { to: '/financeiro', label: 'Financeiro', icon: DollarSign },
   { to: '/rh', label: 'RH', icon: UserCheck },
   { to: '/compras', label: 'Compras', icon: ShoppingCart },
   {

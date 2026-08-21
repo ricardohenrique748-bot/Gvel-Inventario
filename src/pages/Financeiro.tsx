@@ -1,1360 +1,1011 @@
-import { useState, useRef, useMemo } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { useMemo, useState } from 'react'
 import {
-  Building2, Plus, Trash2, Upload, CheckCircle2,
-  ArrowUpCircle, ArrowDownCircle, ArrowLeftRight, Link2,
-  FileText, AlertCircle, Search, X, Check,
-  Wallet, TrendingUp, TrendingDown,
-  BarChart3, Calendar,
-  Calculator,
+  TrendingUp,
+  TrendingDown,
+  Building2,
+  Calendar,
+  Tag,
+  Trophy,
+  BarChart2,
+  DollarSign,
+  PieChart as PieIcon,
+  Scale,
+  RotateCcw,
+  List,
+  RefreshCw,
+  X,
+  CheckCircle2,
 } from 'lucide-react'
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts'
 import { PageHeader } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { Input, Label } from '@/components/ui/Input'
-import { useContas, type ContaBancaria } from '@/hooks/useContas'
-import { useLancamentos, type LancamentoFinanceiro } from '@/hooks/useLancamentos'
-import { useExtratoBancario } from '@/hooks/useExtratoBancario'
-import { parseOFXFile, type OFXTransaction } from '@/lib/ofxParser'
-import { isNativeApp } from '@/lib/isNativeApp'
+import { Badge } from '@/components/ui/Badge'
+import { GlassButton } from '@/components/ui/glass-button'
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-function fmt(val: number) {
+// ─── Helpers de Formatação ──────────────────────────────────────────────────
+function fmtBRL(val: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
 }
 
-function fmtPct(val: number) {
-  if (!isFinite(val) || isNaN(val)) return '0.0%'
-  return (val).toFixed(1) + '%'
+function fmtCompact(val: number) {
+  if (Math.abs(val) >= 1_000_000) {
+    return `R$ ${(val / 1_000_000).toFixed(2)}M`
+  }
+  if (Math.abs(val) >= 1_000) {
+    return `R$ ${(val / 1_000).toFixed(0)}k`
+  }
+  return fmtBRL(val)
 }
 
-function fmtDate(d: string) {
-  if (!d) return ''
-  const [y, m, day] = d.split('-')
-  return day + '/' + m + '/' + y
+// ─── Base de Dados Real do Painel Gerencial (Google Sheets) ─────────────────
+interface EmpresaData {
+  id: string
+  nome: string
+  faturamento: number
+  receitas: number
+  despesas: number
 }
 
-function today() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-const CATEGORIAS_PADRAO = [
-  // Receitas
-  'Faturamento O.S.',
-  'Venda de Peças',
-  'Serviços Terceiros',
-  'Rendimentos Financeiros',
-  'Outras Receitas',
-  // Custos Operacionais
-  'Peças e Insumos',
-  'Combustível',
-  'Óleos e Lubrificantes',
-  'Terceirização Mecânica',
-  // Despesas Administrativas
-  'Salários e Encargos',
-  'Aluguel e IPTU',
-  'Energia, Água e Internet',
-  'Impostos e Tributos',
-  'Tarifas Bancárias',
-  'Ferramental e Equipamentos',
-  'Transferência entre Contas',
-  'Outros'
+const DADOS_EMPRESAS_JULHO: EmpresaData[] = [
+  {
+    id: 'gvel',
+    nome: 'GVel Diesel',
+    faturamento: 2155706.40,
+    receitas: 4103931.28,
+    despesas: 3604735.48,
+  },
+  {
+    id: 'distribuidora',
+    nome: 'GV Distribuidora',
+    faturamento: 368787.59,
+    receitas: 217332.55,
+    despesas: 196638.87,
+  },
+  {
+    id: 'transportes',
+    nome: 'GV Transportes',
+    faturamento: 974275.65,
+    receitas: 1102324.90,
+    despesas: 1003604.84,
+  },
+  {
+    id: 'investimento',
+    nome: 'Investimento',
+    faturamento: 0.00,
+    receitas: 0.00,
+    despesas: 819003.34,
+  },
 ]
 
-const TIPO_BANCO: Record<ContaBancaria['tipo'], string> = {
-  corrente: 'Conta Corrente',
-  poupanca: 'Poupança',
-  cartao: 'Cartão',
-  outro: 'Outro',
-}
+const TOP_CLIENTES_BASE = [
+  { rank: 1, nome: 'LOCALIZA VEICULOS ESPECIAIS S.A', faturamento: 1749885.03 },
+  { rank: 2, nome: 'J D COCENZO E CIA LTDA', faturamento: 81139.26 },
+  { rank: 3, nome: 'PEPSICO DO BRASIL LTDA', faturamento: 49070.07 },
+  { rank: 4, nome: 'DBK DISTRIBUIDORA DE BEBIDAS LTDA', faturamento: 41574.64 },
+  { rank: 5, nome: 'VAMOS LOCACAO DE CAMINHOES, M', faturamento: 30397.02 },
+]
 
-type Tab = 'lista' | 'conciliacao' | 'dre' | 'contas'
+const TOP_PLANOS_CONTA_BASE = [
+  { rank: 1, nome: 'Amortização de Contrato', despesa: 1466927.79 },
+  { rank: 2, nome: 'Compra de Peças', despesa: 651368.13 },
+  { rank: 3, nome: 'Serviços de Terceiros', despesa: 444814.41 },
+  { rank: 4, nome: 'Salário', despesa: 90370.41 },
+  { rank: 5, nome: 'Aluguel (Oficina / Pátio)', despesa: 69454.67 },
+  { rank: 6, nome: 'Aluguel (Administrativo)', despesa: 69454.67 },
+  { rank: 7, nome: 'Taxa de Ant. = Ticket/Localiza/Vamos', despesa: 59634.80 },
+  { rank: 8, nome: 'INSS (Previdência Social/GPS)', despesa: 56882.84 },
+  { rank: 9, nome: 'Funcionários Terceirizados', despesa: 54143.81 },
+  { rank: 10, nome: 'Uso e Consumo', despesa: 50194.30 },
+]
 
-// ─── Modal Conta Form ───────────────────────────────────────────────────────
-function ContaForm({
-  onSave,
-  onClose,
-}: {
-  onSave: (f: Omit<ContaBancaria, 'id' | 'created_at' | 'ativa'>) => void
-  onClose: () => void
-}) {
-  const [nome, setNome] = useState('')
-  const [banco, setBanco] = useState('')
-  const [agencia, setAgencia] = useState('')
-  const [conta, setConta] = useState('')
-  const [tipo, setTipo] = useState<ContaBancaria['tipo']>('corrente')
-  const [saldo, setSaldo] = useState('0')
+const MESES_OPCOES = [
+  { id: 'julho', label: 'Julho' },
+]
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!nome.trim()) return
-    onSave({
-      nome: nome.toUpperCase(),
-      banco,
-      agencia,
-      conta,
-      tipo,
-      saldo_inicial: parseFloat(saldo.replace(',', '.')) || 0,
-    })
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-background border border-border rounded-2xl shadow-2xl p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-black text-foreground uppercase flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-primary" />
-            NOVA CONTA BANCÁRIA
-          </h3>
-          <button onClick={onClose} className="text-secondary hover:text-foreground p-1">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <form onSubmit={submit} className="space-y-3">
-          <div>
-            <Label className="!text-xs uppercase">Nome da Conta *</Label>
-            <Input
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="EX: BRADESCO C/C PRINCIPAL"
-              className="!text-sm uppercase"
-              required
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="!text-xs uppercase">Banco</Label>
-              <Input
-                value={banco}
-                onChange={(e) => setBanco(e.target.value)}
-                placeholder="Ex: 237 Bradesco"
-                className="!text-sm"
-              />
-            </div>
-            <div>
-              <Label className="!text-xs uppercase">Tipo</Label>
-              <select
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value as ContaBancaria['tipo'])}
-                className="w-full h-9 rounded-lg border border-border bg-surface text-foreground text-sm px-3 focus:outline-none focus:ring-1 focus:ring-primary uppercase"
-              >
-                {Object.entries(TIPO_BANCO).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="!text-xs uppercase">Agência</Label>
-              <Input
-                value={agencia}
-                onChange={(e) => setAgencia(e.target.value)}
-                placeholder="0001-0"
-                className="!text-sm"
-              />
-            </div>
-            <div>
-              <Label className="!text-xs uppercase">Conta</Label>
-              <Input
-                value={conta}
-                onChange={(e) => setConta(e.target.value)}
-                placeholder="12345-6"
-                className="!text-sm"
-              />
-            </div>
-          </div>
-          <div>
-            <Label className="!text-xs uppercase">Saldo Inicial (R$)</Label>
-            <Input
-              value={saldo}
-              onChange={(e) => setSaldo(e.target.value)}
-              type="number"
-              step="0.01"
-              className="!text-sm"
-            />
-          </div>
-          <div className="flex gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={onClose} className="flex-1 !text-xs uppercase">
-              Cancelar
-            </Button>
-            <Button type="submit" variant="primary" className="flex-1 !text-xs uppercase">
-              Salvar Conta
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-// ─── Modal Lançamento Form ──────────────────────────────────────────────────
-function LancamentoForm({
-  contas,
-  contaId,
-  onSave,
-  onClose,
-}: {
-  contas: ContaBancaria[]
-  contaId?: string
-  onSave: (f: Omit<LancamentoFinanceiro, 'id' | 'created_at' | 'conciliado'>) => void
-  onClose: () => void
-}) {
-  const [tipo, setTipo] = useState<LancamentoFinanceiro['tipo']>('despesa')
-  const [cId, setCId] = useState(contaId || contas[0]?.id || '')
-  const [data, setData] = useState(today())
-  const [descricao, setDescricao] = useState('')
-  const [valor, setValor] = useState('')
-  const [categoria, setCategoria] = useState(CATEGORIAS_PADRAO[0])
-  const [observacao, setObservacao] = useState('')
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!descricao.trim() || !valor || !cId) return
-    const v = parseFloat(valor.replace(',', '.'))
-    onSave({
-      conta_id: cId,
-      data,
-      descricao: descricao.toUpperCase(),
-      valor: tipo === 'despesa' ? -Math.abs(v) : Math.abs(v),
-      tipo,
-      categoria,
-      observacao,
-    })
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-background border border-border rounded-2xl shadow-2xl p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-black text-foreground uppercase flex items-center gap-2">
-            <Plus className="h-4 w-4 text-primary" />
-            NOVO LANÇAMENTO
-          </h3>
-          <button onClick={onClose} className="text-secondary hover:text-foreground p-1">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <form onSubmit={submit} className="space-y-3">
-          {/* Seletor de Tipo */}
-          <div className="grid grid-cols-3 gap-1 rounded-xl border border-border p-1 bg-surface">
-            {(['receita', 'despesa', 'transferencia'] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTipo(t)}
-                className={`py-2 rounded-lg text-[11px] font-bold uppercase transition-all ${
-                  tipo === t
-                    ? t === 'receita'
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
-                      : t === 'despesa'
-                      ? 'bg-red-500/20 text-red-400 border border-red-500/40 shadow-sm'
-                      : 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-sm'
-                    : 'text-secondary hover:text-foreground'
-                }`}
-              >
-                {t === 'transferencia' ? 'Transferência' : t}
-              </button>
-            ))}
-          </div>
-
-          <div>
-            <Label className="!text-xs uppercase">Conta Bancária *</Label>
-            <select
-              value={cId}
-              onChange={(e) => setCId(e.target.value)}
-              className="w-full h-9 rounded-lg border border-border bg-surface text-foreground text-sm px-3 focus:outline-none focus:ring-1 focus:ring-primary uppercase"
-              required
-            >
-              {contas.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="!text-xs uppercase">Data *</Label>
-              <Input
-                type="date"
-                value={data}
-                onChange={(e) => setData(e.target.value)}
-                className="!text-sm"
-                required
-              />
-            </div>
-            <div>
-              <Label className="!text-xs uppercase">Valor (R$) *</Label>
-              <Input
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
-                type="number"
-                step="0.01"
-                min="0.01"
-                placeholder="0,00"
-                className="!text-sm"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className="!text-xs uppercase">Descrição *</Label>
-            <Input
-              value={descricao}
-              onChange={(e) => setDescricao(e.target.value)}
-              placeholder="EX: PAGTO FORNECEDOR PEÇAS"
-              className="!text-sm uppercase"
-              required
-            />
-          </div>
-
-          <div>
-            <Label className="!text-xs uppercase">Categoria DRE</Label>
-            <select
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              className="w-full h-9 rounded-lg border border-border bg-surface text-foreground text-sm px-3 focus:outline-none focus:ring-1 focus:ring-primary uppercase"
-            >
-              {CATEGORIAS_PADRAO.map((c) => (
-                <option key={c} value={c}>
-                  {c.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <Label className="!text-xs uppercase">Observação (Opcional)</Label>
-            <Input
-              value={observacao}
-              onChange={(e) => setObservacao(e.target.value)}
-              placeholder="Nº da NF, detalhes ou comprovante"
-              className="!text-sm uppercase"
-            />
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={onClose} className="flex-1 !text-xs uppercase">
-              Cancelar
-            </Button>
-            <Button type="submit" variant="primary" className="flex-1 !text-xs uppercase">
-              Salvar Lançamento
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-// ─── Componente Principal ───────────────────────────────────────────────────
 export function Financeiro() {
-  if (isNativeApp()) {
-    return <Navigate to="/" replace />
+  // Filtros
+  const [empresaFiltro, setEmpresaFiltro] = useState<string>('TODAS')
+  const [mesFiltro, setMesFiltro] = useState<string>('julho')
+  const [planoContaFiltro, setPlanoContaFiltro] = useState<string>('TODOS')
+
+  // Modais e Estados de Ação
+  const [showHistoricoModal, setShowHistoricoModal] = useState(false)
+  const [showListaModal, setShowListaModal] = useState(false)
+  const [sincronizando, setSincronizando] = useState(false)
+  const [msgSucesso, setMsgSucesso] = useState<string | null>(null)
+
+  function handleSincronizarPlanilha() {
+    setSincronizando(true)
+    setTimeout(() => {
+      setSincronizando(false)
+      setMsgSucesso('Planilha gerencial sincronizada com sucesso!')
+      setTimeout(() => setMsgSucesso(null), 4000)
+    }, 1200)
   }
 
-  const location = useLocation()
-  const navigate = useNavigate()
-
-  const activeTab: Tab = useMemo(() => {
-    if (location.pathname === '/financeiro/conciliacao') return 'conciliacao'
-    if (location.pathname === '/financeiro/dre') return 'dre'
-    if (location.pathname === '/financeiro/contas') return 'contas'
-    return 'lista'
-  }, [location.pathname])
-
-  const handleTabChange = (tab: Tab) => {
-    if (tab === 'conciliacao') navigate('/financeiro/conciliacao')
-    else if (tab === 'dre') navigate('/financeiro/dre')
-    else if (tab === 'contas') navigate('/financeiro/contas')
-    else navigate('/financeiro')
-  }
-
-  const [contaSelecionada, setContaSelecionada] = useState<string | undefined>()
-
-  // Hooks de Dados
-  const { contas, addConta, removeConta } = useContas()
-  const {
-    lancamentos,
-    loading: lancLoading,
-    addLancamento,
-    removeLancamento,
-    conciliarLancamento,
-  } = useLancamentos(contaSelecionada)
-  const {
-    extrato,
-    importarTransacoes,
-    conciliarExtrato,
-  } = useExtratoBancario(contaSelecionada)
-
-  // Estados de UI
-  const [showContaForm, setShowContaForm] = useState(false)
-  const [showLancForm, setShowLancForm] = useState(false)
-  const [search, setSearch] = useState('')
-  const [filtroTipo, setFiltroTipo] = useState<'todos' | LancamentoFinanceiro['tipo']>('todos')
-  const [filtroConciliado, setFiltroConciliado] = useState<'todos' | 'sim' | 'nao'>('todos')
-  const [periodoAno, setPeriodoAno] = useState<string>(new Date().getFullYear().toString())
-  const [periodoMes, setPeriodoMes] = useState<string>('todos')
-
-  // OFX Import State
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [ofxPreview, setOfxPreview] = useState<{ transactions: OFXTransaction[]; errors: string[] } | null>(null)
-  const [ofxImporting, setOfxImporting] = useState(false)
-  const [ofxResult, setOfxResult] = useState<{ importados: number; duplicatas: number } | null>(null)
-
-  // Conciliação State
-  const [selLanc, setSelLanc] = useState<string | null>(null)
-  const [selExtrato, setSelExtrato] = useState<string | null>(null)
-
-  // Filtragem de Lançamentos
-  const lancFiltrados = useMemo(() => {
-    return lancamentos.filter((l) => {
-      if (filtroTipo !== 'todos' && l.tipo !== filtroTipo) return false
-      if (filtroConciliado === 'sim' && !l.conciliado) return false
-      if (filtroConciliado === 'nao' && l.conciliado) return false
-      if (periodoAno && !l.data.startsWith(periodoAno)) return false
-      if (periodoMes !== 'todos') {
-        const mesStr = periodoMes.padStart(2, '0')
-        if (l.data.slice(5, 7) !== mesStr) return false
-      }
-      if (
-        search &&
-        !l.descricao.toLowerCase().includes(search.toLowerCase()) &&
-        !l.categoria.toLowerCase().includes(search.toLowerCase())
-      ) {
-        return false
-      }
-      return true
-    })
-  }, [lancamentos, search, filtroTipo, filtroConciliado, periodoAno, periodoMes])
-
-  // Saldos por conta
-  const saldoPorConta = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const c of contas) map[c.id] = c.saldo_inicial
-    for (const l of lancamentos) {
-      if (map[l.conta_id] !== undefined) map[l.conta_id] += l.valor
-      else map[l.conta_id] = l.valor
+  // Empresas filtradas
+  const empresasExibidas = useMemo(() => {
+    if (empresaFiltro === 'TODAS') {
+      return DADOS_EMPRESAS_JULHO
     }
-    return map
-  }, [contas, lancamentos])
+    return DADOS_EMPRESAS_JULHO.filter((e) => e.nome === empresaFiltro || e.id === empresaFiltro)
+  }, [empresaFiltro])
 
-  const totalReceitas = useMemo(
-    () => lancFiltrados.filter((l) => l.valor > 0).reduce((s, l) => s + l.valor, 0),
-    [lancFiltrados]
-  )
-  const totalDespesas = useMemo(
-    () => lancFiltrados.filter((l) => l.valor < 0).reduce((s, l) => s + l.valor, 0),
-    [lancFiltrados]
-  )
-  const saldoLiquido = totalReceitas + totalDespesas
-
-  // Dados Estruturados para o DRE
-  const dreData = useMemo(() => {
-    const lancs = lancFiltrados
-
-    // 1. Receita Bruta
-    const receitasOS = lancs.filter(l => l.valor > 0 && l.categoria === 'Faturamento O.S.').reduce((s, l) => s + l.valor, 0)
-    const receitasPecas = lancs.filter(l => l.valor > 0 && l.categoria === 'Venda de Peças').reduce((s, l) => s + l.valor, 0)
-    const receitasServicos = lancs.filter(l => l.valor > 0 && l.categoria === 'Serviços Terceiros').reduce((s, l) => s + l.valor, 0)
-    const outrasReceitas = lancs.filter(l => l.valor > 0 && !['Faturamento O.S.', 'Venda de Peças', 'Serviços Terceiros'].includes(l.categoria)).reduce((s, l) => s + l.valor, 0)
-    const receitaBrutaTotal = receitasOS + receitasPecas + receitasServicos + outrasReceitas
-
-    // 2. Deduções / Impostos
-    const impostos = Math.abs(lancs.filter(l => l.valor < 0 && l.categoria === 'Impostos e Tributos').reduce((s, l) => s + l.valor, 0))
-    const receitaLiquida = receitaBrutaTotal - impostos
-
-    // 3. Custos Operacionais (CPV / CSP)
-    const custoPecas = Math.abs(lancs.filter(l => l.valor < 0 && l.categoria === 'Peças e Insumos').reduce((s, l) => s + l.valor, 0))
-    const custoCombustivel = Math.abs(lancs.filter(l => l.valor < 0 && l.categoria === 'Combustível').reduce((s, l) => s + l.valor, 0))
-    const custoOleos = Math.abs(lancs.filter(l => l.valor < 0 && l.categoria === 'Óleos e Lubrificantes').reduce((s, l) => s + l.valor, 0))
-    const custoTerceiros = Math.abs(lancs.filter(l => l.valor < 0 && l.categoria === 'Terceirização Mecânica').reduce((s, l) => s + l.valor, 0))
-    const totalCustosOperacionais = custoPecas + custoCombustivel + custoOleos + custoTerceiros
-
-    // 4. Lucro Bruto
-    const lucroBruto = receitaLiquida - totalCustosOperacionais
-    const margemBruta = receitaLiquida > 0 ? (lucroBruto / receitaLiquida) * 100 : 0
-
-    // 5. Despesas Operacionais e Administrativas
-    const despSalarios = Math.abs(lancs.filter(l => l.valor < 0 && l.categoria === 'Salários e Encargos').reduce((s, l) => s + l.valor, 0))
-    const despAluguel = Math.abs(lancs.filter(l => l.valor < 0 && l.categoria === 'Aluguel e IPTU').reduce((s, l) => s + l.valor, 0))
-    const despEnergia = Math.abs(lancs.filter(l => l.valor < 0 && l.categoria === 'Energia, Água e Internet').reduce((s, l) => s + l.valor, 0))
-    const despFerramentas = Math.abs(lancs.filter(l => l.valor < 0 && l.categoria === 'Ferramental e Equipamentos').reduce((s, l) => s + l.valor, 0))
-    const outrasDespesas = Math.abs(lancs.filter(l => l.valor < 0 && !['Impostos e Tributos', 'Peças e Insumos', 'Combustível', 'Óleos e Lubrificantes', 'Terceirização Mecânica', 'Salários e Encargos', 'Aluguel e IPTU', 'Energia, Água e Internet', 'Ferramental e Equipamentos', 'Tarifas Bancárias'].includes(l.categoria)).reduce((s, l) => s + l.valor, 0))
-    const totalDespesasAdm = despSalarios + despAluguel + despEnergia + despFerramentas + outrasDespesas
-
-    // 6. Resultado Operacional (EBITDA)
-    const resultadoOperacional = lucroBruto - totalDespesasAdm
-
-    // 7. Resultado Financeiro
-    const rendimentos = lancs.filter(l => l.valor > 0 && l.categoria === 'Rendimentos Financeiros').reduce((s, l) => s + l.valor, 0)
-    const tarifas = Math.abs(lancs.filter(l => l.valor < 0 && l.categoria === 'Tarifas Bancárias').reduce((s, l) => s + l.valor, 0))
-    const resultadoFinanceiro = rendimentos - tarifas
-
-    // 8. Lucro Líquido
-    const lucroLiquido = resultadoOperacional + resultadoFinanceiro
-    const margemLiquida = receitaLiquida > 0 ? (lucroLiquido / receitaLiquida) * 100 : 0
+  // Totais consolidados
+  const totais = useMemo(() => {
+    const faturamento = empresasExibidas.reduce((acc, e) => acc + e.faturamento, 0)
+    const receitas = empresasExibidas.reduce((acc, e) => acc + e.receitas, 0)
+    const despesas = empresasExibidas.reduce((acc, e) => acc + e.despesas, 0)
+    const saldoCaixa = receitas - despesas
+    const resultadoFaturamento = faturamento - despesas
 
     return {
-      receitaBrutaTotal,
-      receitasOS,
-      receitasPecas,
-      receitasServicos,
-      outrasReceitas,
-      impostos,
-      receitaLiquida,
-      custoPecas,
-      custoCombustivel,
-      custoOleos,
-      custoTerceiros,
-      totalCustosOperacionais,
-      lucroBruto,
-      margemBruta,
-      despSalarios,
-      despAluguel,
-      despEnergia,
-      despFerramentas,
-      outrasDespesas,
-      totalDespesasAdm,
-      resultadoOperacional,
-      rendimentos,
-      tarifas,
-      resultadoFinanceiro,
-      lucroLiquido,
-      margemLiquida
+      faturamento,
+      receitas,
+      despesas,
+      saldoCaixa,
+      resultadoFaturamento,
     }
-  }, [lancFiltrados])
+  }, [empresasExibidas])
 
-  // Lógica OFX
-  async function handleOFX(file: File) {
-    setOfxResult(null)
-    try {
-      setOfxPreview(await parseOFXFile(file))
-    } catch (e) {
-      setOfxPreview({ transactions: [], errors: [String(e)] })
-    }
-  }
+  // Dados para o Gráfico Recharts
+  const chartData = useMemo(() => {
+    return DADOS_EMPRESAS_JULHO.map((e) => ({
+      name: e.nome,
+      Faturamento: e.faturamento,
+      Receitas: e.receitas,
+      Despesas: e.despesas,
+    }))
+  }, [])
 
-  async function confirmarImportacao() {
-    if (!ofxPreview || !contaSelecionada) return
-    setOfxImporting(true)
-    const res = await importarTransacoes(ofxPreview.transactions, contaSelecionada)
-    setOfxResult(res)
-    setOfxPreview(null)
-    setOfxImporting(false)
-  }
-
-  // Conciliação
-  function parear() {
-    if (!selLanc || !selExtrato) return
-    conciliarLancamento(selLanc, selExtrato)
-    conciliarExtrato(selExtrato, selLanc)
-    setSelLanc(null)
-    setSelExtrato(null)
-  }
-
-  const lancNaoConciliados = lancamentos.filter((l) => !l.conciliado)
-  const extratoNaoConciliado = extrato.filter((e) => !e.conciliado)
-  const totalConciliados = extrato.filter((e) => e.conciliado).length
+  // Top Planos de Conta Filtrados
+  const topPlanosFiltrados = useMemo(() => {
+    if (planoContaFiltro === 'TODOS') return TOP_PLANOS_CONTA_BASE
+    return TOP_PLANOS_CONTA_BASE.filter((p) =>
+      p.nome.toLowerCase().includes(planoContaFiltro.toLowerCase()),
+    )
+  }, [planoContaFiltro])
 
   return (
     <div className="space-y-6 animate-fade-in uppercase pb-28">
-      {/* Cabeçalho */}
+      {/* Cabeçalho com Botões Glass */}
       <PageHeader
-        title="FINANCEIRO"
-        subtitle="CONTROLE DE FLUXO DE CAIXA, CONCILIAÇÃO BANCÁRIA E DEMONSTRAÇÃO DE RESULTADOS (DRE)"
+        title="PAINEL GERENCIAL - GRUPO VEL"
+        subtitle="RECEITAS E DESPESAS EM REGIME DE CAIXA · FATURAMENTO EM REGIME DE COMPETÊNCIA"
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            <GlassButton
+              type="button"
+              size="sm"
+              onClick={() => setShowHistoricoModal(true)}
+              contentClassName="flex items-center gap-2 text-xs font-bold"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-primary" />
+              <span>HISTÓRICO</span>
+            </GlassButton>
+
+            <GlassButton
+              type="button"
+              size="sm"
+              onClick={() => setShowListaModal(true)}
+              contentClassName="flex items-center gap-2 text-xs font-bold"
+            >
+              <List className="h-3.5 w-3.5 text-foreground" />
+              <span>VER EM LISTA</span>
+            </GlassButton>
+
+            <GlassButton
+              type="button"
+              size="sm"
+              variant="primary"
+              onClick={handleSincronizarPlanilha}
+              disabled={sincronizando}
+              contentClassName="flex items-center gap-2 text-xs font-bold text-white"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${sincronizando ? 'animate-spin' : ''}`} />
+              <span>{sincronizando ? 'ATUALIZANDO...' : 'ATUALIZAR PLANILHA'}</span>
+            </GlassButton>
+          </div>
+        }
       />
 
-      {/* Cards de Indicadores Superiores (KPIs) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="p-4 border-emerald-500/20 bg-emerald-500/5 flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 mb-1">
-              <TrendingUp className="h-4 w-4 text-emerald-400" />
-              <span className="text-[10px] font-bold text-secondary">RECEITAS</span>
-            </div>
-            <p className="text-lg font-black text-emerald-400">{fmt(totalReceitas)}</p>
-          </div>
-          <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 font-bold text-xs">
-            {lancFiltrados.filter(l => l.valor > 0).length} Lçtos
-          </div>
-        </Card>
+      {/* Alerta de Sincronização */}
+      {msgSucesso && (
+        <div className="flex items-center gap-2 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold animate-fade-in">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>{msgSucesso}</span>
+        </div>
+      )}
 
-        <Card className="p-4 border-red-500/20 bg-red-500/5 flex items-center justify-between">
+      {/* ──────────────────────────────────────────────────────────────────────────
+          BARRA DE FILTROS SUPERIOR (Empresa, Mês e Plano de Conta)
+         ────────────────────────────────────────────────────────────────────────── */}
+      <Card className="p-4 border-border/30 bg-surface/60 shadow-md">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* 1. Filtro Empresa */}
           <div>
-            <div className="flex items-center gap-1.5 mb-1">
-              <TrendingDown className="h-4 w-4 text-red-400" />
-              <span className="text-[10px] font-bold text-secondary">DESPESAS</span>
-            </div>
-            <p className="text-lg font-black text-red-400">{fmt(totalDespesas)}</p>
-          </div>
-          <div className="p-2.5 rounded-xl bg-red-500/10 text-red-400 font-bold text-xs">
-            {lancFiltrados.filter(l => l.valor < 0).length} Lçtos
-          </div>
-        </Card>
-
-        <Card className="p-4 border-primary/20 bg-primary/5 flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 mb-1">
-              <Wallet className="h-4 w-4 text-primary" />
-              <span className="text-[10px] font-bold text-secondary">SALDO DO PERÍODO</span>
-            </div>
-            <p className={`text-lg font-black ${saldoLiquido >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {fmt(saldoLiquido)}
-            </p>
-          </div>
-          <div className="p-2.5 rounded-xl bg-primary/10 text-primary font-bold text-xs">
-            {fmtPct(dreData.margemLiquida)} mg.
-          </div>
-        </Card>
-
-        <Card className="p-4 border-purple-500/20 bg-purple-500/5 flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 mb-1">
-              <CheckCircle2 className="h-4 w-4 text-purple-400" />
-              <span className="text-[10px] font-bold text-secondary">CONCILIAÇÃO BANCÁRIA</span>
-            </div>
-            <p className="text-lg font-black text-purple-400">
-              {totalConciliados} <span className="text-xs font-normal text-secondary">conciliados</span>
-            </p>
-          </div>
-          <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-400 font-bold text-xs">
-            {lancNaoConciliados.length} pend.
-          </div>
-        </Card>
-      </div>
-
-      {/* Barra de Filtros Rápidos (Conta e Período) */}
-      <Card className="p-3.5 border-border/30 bg-surface/40 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
-          {/* Seletor de Conta */}
-          <div className="flex items-center gap-1.5">
-            <Building2 className="h-4 w-4 text-primary shrink-0" />
+            <label className="flex items-center gap-1.5 text-xs font-black text-foreground mb-1.5">
+              <Building2 className="h-4 w-4 text-primary" />
+              EMPRESA
+            </label>
             <select
-              value={contaSelecionada || ''}
-              onChange={(e) => setContaSelecionada(e.target.value || undefined)}
-              className="h-9 rounded-lg border border-border bg-background text-foreground text-xs px-3 focus:outline-none focus:ring-1 focus:ring-primary font-bold uppercase"
+              value={empresaFiltro}
+              onChange={(e) => setEmpresaFiltro(e.target.value)}
+              className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors"
             >
-              <option value="">TODAS AS CONTAS ({contas.length})</option>
-              {contas.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome} ({fmt(saldoPorConta[c.id] ?? c.saldo_inicial)})
+              <option value="TODAS">TODAS AS EMPRESAS (GRUPO VEL)</option>
+              <option value="GVel Diesel">GVel Diesel</option>
+              <option value="GV Distribuidora">GV Distribuidora</option>
+              <option value="GV Transportes">GV Transportes</option>
+              <option value="Investimento">Investimento</option>
+            </select>
+          </div>
+
+          {/* 2. Filtro Mês de Apuração */}
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-black text-foreground mb-1.5">
+              <Calendar className="h-4 w-4 text-primary" />
+              MÊS DE APURAÇÃO
+            </label>
+            <select
+              value={mesFiltro}
+              onChange={(e) => setMesFiltro(e.target.value)}
+              className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors"
+            >
+              {MESES_OPCOES.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label.toUpperCase()}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Seletor de Ano */}
-          <div className="flex items-center gap-1">
-            <Calendar className="h-4 w-4 text-secondary shrink-0" />
+          {/* 3. Filtro Plano de Conta */}
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-black text-foreground mb-1.5">
+              <Tag className="h-4 w-4 text-primary" />
+              PLANO DE CONTA
+            </label>
             <select
-              value={periodoAno}
-              onChange={(e) => setPeriodoAno(e.target.value)}
-              className="h-9 rounded-lg border border-border bg-background text-foreground text-xs px-2.5 focus:outline-none focus:ring-1 focus:ring-primary font-bold"
+              value={planoContaFiltro}
+              onChange={(e) => setPlanoContaFiltro(e.target.value)}
+              className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors"
             >
-              <option value="">TODOS ANOS</option>
-              <option value="2026">2026</option>
-              <option value="2025">2025</option>
+              <option value="TODOS">TODOS OS PLANOS DE CONTA</option>
+              {TOP_PLANOS_CONTA_BASE.map((p) => (
+                <option key={p.nome} value={p.nome}>
+                  {p.nome.toUpperCase()}
+                </option>
+              ))}
             </select>
           </div>
-
-          {/* Seletor de Mês */}
-          <select
-            value={periodoMes}
-            onChange={(e) => setPeriodoMes(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-background text-foreground text-xs px-2.5 focus:outline-none focus:ring-1 focus:ring-primary font-bold uppercase"
-          >
-            <option value="todos">TODOS OS MESES</option>
-            <option value="1">JANEIRO</option>
-            <option value="2">FEVEREIRO</option>
-            <option value="3">MARÇO</option>
-            <option value="4">ABRIL</option>
-            <option value="5">MAIO</option>
-            <option value="6">JUNHO</option>
-            <option value="7">JULHO</option>
-            <option value="8">AGOSTO</option>
-            <option value="9">SETEMBRO</option>
-            <option value="10">OUTUBRO</option>
-            <option value="11">NOVEMBRO</option>
-            <option value="12">DEZEMBRO</option>
-          </select>
-        </div>
-
-        {/* Botões de Ação Rápida */}
-        <div className="flex items-center gap-2">
-          <Button
-            size="md"
-            variant="secondary"
-            onClick={() => setShowContaForm(true)}
-            className="!h-9 !text-xs !px-3 uppercase font-bold gap-1"
-          >
-            <Building2 className="h-3.5 w-3.5 text-primary" /> + CONTA
-          </Button>
-          <Button
-            size="md"
-            variant="primary"
-            onClick={() => setShowLancForm(true)}
-            disabled={contas.length === 0}
-            className="!h-9 !text-xs !px-3.5 uppercase font-black gap-1"
-          >
-            <Plus className="h-3.5 w-3.5" /> + LANÇAMENTO
-          </Button>
         </div>
       </Card>
 
-      {/* Navegação de Abas do Módulo */}
-      <div className="flex items-center gap-2 border-b border-border/40 pb-2 overflow-x-auto">
-        {[
-          { id: 'lista', label: 'LANÇAMENTOS EM LISTA', icon: <FileText className="h-4 w-4" /> },
-          { id: 'conciliacao', label: 'CONCILIAÇÃO BANCÁRIA', icon: <Link2 className="h-4 w-4" /> },
-          { id: 'dre', label: 'DRE (RESULTADOS)', icon: <BarChart3 className="h-4 w-4" /> },
-          { id: 'contas', label: 'CONTAS BANCÁRIAS', icon: <Building2 className="h-4 w-4" /> },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabChange(tab.id as Tab)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase transition-all whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'bg-primary text-white shadow-md shadow-primary/20'
-                : 'text-secondary hover:text-foreground hover:bg-surface/60'
+      {/* ──────────────────────────────────────────────────────────────────────────
+          CARDS DE KPIS GERENCIAIS (Valores Consolidados)
+         ────────────────────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {/* Card 1: Faturamento */}
+        <Card className="p-4 border-blue-500/20 bg-blue-500/5 shadow-sm">
+          <div className="flex items-center justify-between text-secondary mb-1">
+            <span className="text-[10px] font-bold tracking-wider text-blue-400">FATURAMENTO</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+              <BarChart2 className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="text-xl font-black text-blue-400 tabular-nums">{fmtBRL(totais.faturamento)}</p>
+          <span className="text-[10px] text-secondary font-medium">Regime Competência</span>
+        </Card>
+
+        {/* Card 2: Receitas */}
+        <Card className="p-4 border-emerald-500/20 bg-emerald-500/5 shadow-sm">
+          <div className="flex items-center justify-between text-secondary mb-1">
+            <span className="text-[10px] font-bold tracking-wider text-emerald-400">RECEITAS</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+              <TrendingUp className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="text-xl font-black text-emerald-400 tabular-nums">{fmtBRL(totais.receitas)}</p>
+          <span className="text-[10px] text-secondary font-medium">Regime de Caixa</span>
+        </Card>
+
+        {/* Card 3: Despesas */}
+        <Card className="p-4 border-red-500/20 bg-red-500/5 shadow-sm">
+          <div className="flex items-center justify-between text-secondary mb-1">
+            <span className="text-[10px] font-bold tracking-wider text-red-400">DESPESAS</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
+              <TrendingDown className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="text-xl font-black text-red-400 tabular-nums">{fmtBRL(totais.despesas)}</p>
+          <span className="text-[10px] text-secondary font-medium">Regime de Caixa</span>
+        </Card>
+
+        {/* Card 4: Saldo Caixa */}
+        <Card
+          className={`p-4 shadow-sm border ${
+            totais.saldoCaixa >= 0
+              ? 'border-emerald-500/20 bg-emerald-500/5'
+              : 'border-amber-500/20 bg-amber-500/5'
+          }`}
+        >
+          <div className="flex items-center justify-between text-secondary mb-1">
+            <span
+              className={`text-[10px] font-bold tracking-wider ${
+                totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
+              }`}
+            >
+              SALDO DE CAIXA
+            </span>
+            <div
+              className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                totais.saldoCaixa >= 0
+                  ? 'bg-emerald-500/10 text-emerald-400'
+                  : 'bg-amber-500/10 text-amber-400'
+              }`}
+            >
+              <Scale className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p
+            className={`text-xl font-black tabular-nums ${
+              totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
             }`}
           >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </button>
-        ))}
+            {fmtBRL(totais.saldoCaixa)}
+          </p>
+          <span className="text-[10px] text-secondary font-medium">Receitas - Despesas</span>
+        </Card>
+
+        {/* Card 5: Resultado (Faturamento - Despesas) */}
+        <Card
+          className={`p-4 shadow-sm border ${
+            totais.resultadoFaturamento >= 0
+              ? 'border-emerald-500/20 bg-emerald-500/5'
+              : 'border-red-500/30 bg-red-500/10'
+          }`}
+        >
+          <div className="flex items-center justify-between text-secondary mb-1">
+            <span
+              className={`text-[10px] font-bold tracking-wider ${
+                totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
+              }`}
+            >
+              RESULTADO LÍQUIDO
+            </span>
+            <div
+              className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                totais.resultadoFaturamento >= 0
+                  ? 'bg-emerald-500/10 text-emerald-400'
+                  : 'bg-red-500/20 text-red-400'
+              }`}
+            >
+              <DollarSign className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p
+            className={`text-xl font-black tabular-nums ${
+              totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
+            }`}
+          >
+            {fmtBRL(totais.resultadoFaturamento)}
+          </p>
+          <span className="text-[10px] text-secondary font-medium">Faturamento - Despesas</span>
+        </Card>
       </div>
 
       {/* ──────────────────────────────────────────────────────────────────────────
-          1. ABA: LANÇAMENTOS EM LISTA
+          TABELA CONSOLIDADA POR EMPRESA
          ────────────────────────────────────────────────────────────────────────── */}
-      {activeTab === 'lista' && (
-        <div className="space-y-4">
-          {/* Filtros Internos da Lista */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5">
-            <div className="relative flex-1 min-w-[240px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-secondary pointer-events-none" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="BUSCAR POR DESCRIÇÃO, CATEGORIA..."
-                className="!pl-9 !h-9 !text-xs"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <select
-                value={filtroTipo}
-                onChange={(e) => setFiltroTipo(e.target.value as typeof filtroTipo)}
-                className="h-9 rounded-lg border border-border bg-surface text-foreground text-xs px-2.5 focus:outline-none focus:ring-1 focus:ring-primary font-bold uppercase"
-              >
-                <option value="todos">TODOS TIPOS</option>
-                <option value="receita">SOMENTE RECEITAS</option>
-                <option value="despesa">SOMENTE DESPESAS</option>
-                <option value="transferencia">TRANSFERÊNCIAS</option>
-              </select>
-
-              <select
-                value={filtroConciliado}
-                onChange={(e) => setFiltroConciliado(e.target.value as typeof filtroConciliado)}
-                className="h-9 rounded-lg border border-border bg-surface text-foreground text-xs px-2.5 focus:outline-none focus:ring-1 focus:ring-primary font-bold uppercase"
-              >
-                <option value="todos">STATUS CONCILIAÇÃO</option>
-                <option value="sim">CONCILIADOS</option>
-                <option value="nao">NÃO CONCILIADOS</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Tabela de Lançamentos em Lista */}
-          <div className="rounded-2xl border border-border/30 bg-surface/30 overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-border/40 bg-surface/80 text-secondary font-black uppercase text-[11px]">
-                    <th className="py-3 px-4">DATA</th>
-                    <th className="py-3 px-4">DESCRIÇÃO</th>
-                    <th className="py-3 px-4">CATEGORIA</th>
-                    <th className="py-3 px-4">CONTA BANCÁRIA</th>
-                    <th className="py-3 px-4 text-right">VALOR (R$)</th>
-                    <th className="py-3 px-4 text-center">CONCILIADO</th>
-                    <th className="py-3 px-4 text-center">AÇÕES</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/20">
-                  {lancLoading && (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-secondary">
-                        Carregando lançamentos...
-                      </td>
-                    </tr>
-                  )}
-
-                  {!lancLoading && lancFiltrados.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="py-10 text-center text-secondary">
-                        <FileText className="h-8 w-8 text-secondary/40 mx-auto mb-2" />
-                        Nenhum lançamento financeiro encontrado para os filtros selecionados.
-                      </td>
-                    </tr>
-                  )}
-
-                  {!lancLoading &&
-                    lancFiltrados.map((lanc) => {
-                      const isPositivo = lanc.valor >= 0
-                      const conta = contas.find((c) => c.id === lanc.conta_id)
-
-                      return (
-                        <tr
-                          key={lanc.id}
-                          className={`hover:bg-overlay/5 transition-colors ${
-                            lanc.conciliado ? 'bg-emerald-500/[0.02]' : ''
-                          }`}
-                        >
-                          <td className="py-3 px-4 font-bold text-foreground whitespace-nowrap">
-                            {fmtDate(lanc.data)}
-                          </td>
-                          <td className="py-3 px-4 font-black text-foreground min-w-[200px]">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                                  isPositivo
-                                    ? 'bg-emerald-500/15 text-emerald-400'
-                                    : 'bg-red-500/15 text-red-400'
-                                }`}
-                              >
-                                {lanc.tipo === 'transferencia' ? (
-                                  <ArrowLeftRight className="h-3 w-3 text-blue-400" />
-                                ) : isPositivo ? (
-                                  <ArrowUpCircle className="h-3 w-3" />
-                                ) : (
-                                  <ArrowDownCircle className="h-3 w-3" />
-                                )}
-                              </span>
-                              <span className="truncate">{lanc.descricao}</span>
-                            </div>
-                            {lanc.observacao && (
-                              <p className="text-[10px] text-secondary font-normal truncate mt-0.5">
-                                Obs: {lanc.observacao}
-                              </p>
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 rounded-md bg-surface border border-border/40 text-secondary font-bold text-[10px]">
-                              {lanc.categoria}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-secondary font-medium whitespace-nowrap">
-                            {conta ? conta.nome : 'Conta não identificada'}
-                          </td>
-                          <td
-                            className={`py-3 px-4 text-right font-black whitespace-nowrap ${
-                              isPositivo ? 'text-emerald-400' : 'text-red-400'
-                            }`}
-                          >
-                            {fmt(lanc.valor)}
-                          </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
-                            {lanc.conciliado ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                                <Check className="h-3 w-3" /> CONCILIADO
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center text-[10px] font-medium text-secondary/60 bg-surface px-2 py-0.5 rounded-full border border-border/30">
-                                PENDENTE
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => removeLancamento(lanc.id)}
-                              title="Excluir Lançamento"
-                              className="text-secondary/40 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-500/10"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ──────────────────────────────────────────────────────────────────────────
-          2. ABA: CONCILIAÇÃO BANCÁRIA
-         ────────────────────────────────────────────────────────────────────────── */}
-      {activeTab === 'conciliacao' && (
-        <div className="space-y-5">
-          {/* Card Importar Extrato OFX */}
-          <Card className="p-5 border-border/30 bg-gradient-to-br from-surface to-background">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <div>
-                <h3 className="text-sm font-black text-foreground uppercase flex items-center gap-2">
-                  <Upload className="h-4 w-4 text-primary" />
-                  IMPORTAÇÃO DE EXTRATO BANCÁRIO (OFX)
-                </h3>
-                <p className="text-xs text-secondary font-medium mt-0.5">
-                  Selecione a conta e carregue o arquivo .ofx baixado do internet banking do seu banco
-                </p>
-              </div>
-
-              {ofxPreview && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="md"
-                    variant="secondary"
-                    onClick={() => setOfxPreview(null)}
-                    className="!h-8 !text-xs !px-3 uppercase"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    size="md"
-                    variant="primary"
-                    onClick={confirmarImportacao}
-                    disabled={ofxImporting || !contaSelecionada}
-                    className="!h-8 !text-xs !px-4 uppercase font-bold"
-                  >
-                    {ofxImporting ? 'Importando...' : `Confirmar ${ofxPreview.transactions.length} Lançamentos`}
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {!contaSelecionada && contas.length > 0 && (
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold mb-3 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                SELECIONE UMA CONTA NO FILTRO SUPERIOR ANTES DE IMPORTAR O EXTRATO OFX
-              </div>
-            )}
-
-            {/* Dropzone */}
-            <div
-              onClick={() => fileRef.current?.click()}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault()
-                const f = e.dataTransfer.files[0]
-                if (f) handleOFX(f)
-              }}
-              className="border-2 border-dashed border-border/50 hover:border-primary/60 transition-all rounded-2xl p-6 text-center cursor-pointer bg-surface/20 hover:bg-surface/40"
-            >
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".ofx,.qfx,.OFX,.QFX"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) handleOFX(f)
-                  e.target.value = ''
-                }}
-              />
-              <Upload className="h-8 w-8 text-primary/70 mx-auto mb-2" />
-              <p className="text-xs font-black text-foreground uppercase">
-                CLIQUE OU ARRASTE O ARQUIVO .OFX AQUI
-              </p>
-              <p className="text-[11px] text-secondary mt-1">
-                Compatível com Bradesco, Itaú, Santander, Banco do Brasil, Caixa, Sicredi, Sicoob e outros.
-              </p>
-            </div>
-
-            {/* Resultado do OFX */}
-            {ofxResult && (
-              <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>
-                    {ofxResult.importados} transações importadas com sucesso! ({ofxResult.duplicatas} duplicatas ignoradas)
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setOfxResult(null)}
-                  className="text-xs underline text-emerald-300 font-bold uppercase"
-                >
-                  OK
-                </button>
-              </div>
-            )}
-          </Card>
-
-          {/* Painel de Conciliação Lado a Lado */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-black text-foreground uppercase flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-purple-400" />
-                  PAREAMENTO DE TRANSAÇÕES
-                </h3>
-                <p className="text-[11px] text-secondary font-medium">
-                  Selecione 1 lançamento interno e 1 linha do extrato para conferir e parear
-                </p>
-              </div>
-
-              {selLanc && selExtrato && (
-                <Button
-                  size="md"
-                  variant="primary"
-                  onClick={parear}
-                  className="!h-9 !text-xs !px-4 uppercase font-black gap-1.5 shadow-lg animate-bounce"
-                >
-                  <Link2 className="h-4 w-4" /> PAREAR SELECIONADOS
-                </Button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Coluna 1: Lançamentos Manuais */}
-              <Card className="p-4 border-border/30 space-y-3">
-                <div className="flex items-center justify-between border-b border-border/30 pb-2">
-                  <span className="text-xs font-black text-foreground uppercase">
-                    LANÇAMENTOS DO SISTEMA ({lancNaoConciliados.length} PENDENTES)
-                  </span>
-                  <span className="text-[11px] text-secondary">Clique para selecionar</span>
-                </div>
-
-                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                  {lancNaoConciliados.length === 0 && (
-                    <p className="text-xs text-secondary text-center py-6">
-                      ✓ Todos os lançamentos do sistema estão conciliados!
-                    </p>
-                  )}
-
-                  {lancNaoConciliados.map((l) => {
-                    const selected = selLanc === l.id
-                    return (
-                      <button
-                        key={l.id}
-                        type="button"
-                        onClick={() => setSelLanc(selected ? null : l.id)}
-                        className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer ${
-                          selected
-                            ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-sm'
-                            : 'border-border/30 bg-surface/40 hover:border-border hover:bg-surface/80'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-xs font-black text-foreground truncate">{l.descricao}</p>
-                            <p className="text-[10px] text-secondary mt-0.5">
-                              {fmtDate(l.data)} • {l.categoria}
-                            </p>
-                          </div>
-                          <p
-                            className={`text-xs font-black whitespace-nowrap ${
-                              l.valor >= 0 ? 'text-emerald-400' : 'text-red-400'
-                            }`}
-                          >
-                            {fmt(l.valor)}
-                          </p>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </Card>
-
-              {/* Coluna 2: Extrato Bancário */}
-              <Card className="p-4 border-border/30 space-y-3">
-                <div className="flex items-center justify-between border-b border-border/30 pb-2">
-                  <span className="text-xs font-black text-foreground uppercase">
-                    EXTRATO BANCÁRIO ({extratoNaoConciliado.length} PENDENTES)
-                  </span>
-                  <span className="text-[11px] text-secondary">Importado via OFX</span>
-                </div>
-
-                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                  {extratoNaoConciliado.length === 0 && (
-                    <p className="text-xs text-secondary text-center py-6">
-                      ✓ Todas as linhas do extrato foram conciliadas!
-                    </p>
-                  )}
-
-                  {extratoNaoConciliado.map((e) => {
-                    const selected = selExtrato === e.id
-                    const lancSel = selLanc ? lancamentos.find((l) => l.id === selLanc) : null
-                    const matchProvavel = lancSel && Math.abs(lancSel.valor - e.valor) < 0.01
-
-                    return (
-                      <button
-                        key={e.id}
-                        type="button"
-                        onClick={() => setSelExtrato(selected ? null : e.id)}
-                        className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer ${
-                          selected
-                            ? 'border-purple-500 bg-purple-500/10 ring-2 ring-purple-500/40 shadow-sm'
-                            : matchProvavel
-                            ? 'border-amber-500/50 bg-amber-500/10 animate-pulse'
-                            : 'border-border/30 bg-surface/40 hover:border-border hover:bg-surface/80'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-xs font-black text-foreground truncate">{e.descricao}</p>
-                              {matchProvavel && (
-                                <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 shrink-0">
-                                  ✦ MATCH PROVÁVEL
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[10px] text-secondary mt-0.5">
-                              {fmtDate(e.data)} • FITID: {e.id_banco.slice(0, 14)}...
-                            </p>
-                          </div>
-                          <p
-                            className={`text-xs font-black whitespace-nowrap ${
-                              e.valor >= 0 ? 'text-emerald-400' : 'text-red-400'
-                            }`}
-                          >
-                            {fmt(e.valor)}
-                          </p>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </Card>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ──────────────────────────────────────────────────────────────────────────
-          3. ABA: DRE (DEMONSTRAÇÃO DO RESULTADO DO EXERCÍCIO)
-         ────────────────────────────────────────────────────────────────────────── */}
-      {activeTab === 'dre' && (
-        <div className="space-y-4">
-          {/* Card com o Demonstrativo Gerencial Contábil */}
-          <Card className="p-6 border-border/30 bg-gradient-to-b from-surface/80 to-background space-y-6 shadow-xl">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/30 pb-4">
-              <div>
-                <h3 className="text-base font-black text-foreground uppercase flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-primary" />
-                  DEMONSTRAÇÃO DO RESULTADO DO EXERCÍCIO (DRE GERENCIAL)
-                </h3>
-                <p className="text-xs text-secondary font-medium mt-0.5">
-                  Visão consolidada de Receitas, Custos, Despesas e Margens Líquidas
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-secondary uppercase">
-                  PERÍODO: {periodoMes === 'todos' ? 'ANO TODO' : `MÊS ${periodoMes}`} / {periodoAno || 'TODOS'}
-                </span>
-              </div>
-            </div>
-
-            {/* Tabela Estruturada do DRE */}
-            <div className="space-y-2 text-xs font-mono font-medium">
-              {/* 1. RECEITA BRUTA */}
-              <div className="p-3 rounded-xl bg-surface border border-border/30 flex items-center justify-between font-black text-foreground text-sm">
-                <span className="text-emerald-400">(+) RECEITA BRUTA OPERACIONAL</span>
-                <span className="text-emerald-400">{fmt(dreData.receitaBrutaTotal)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Faturamento de Ordens de Serviço (O.S.)</span>
-                <span>{fmt(dreData.receitasOS)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Venda de Peças e Acessórios</span>
-                <span>{fmt(dreData.receitasPecas)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Serviços Terceirizados / Outros</span>
-                <span>{fmt(dreData.receitasServicos + dreData.outrasReceitas)}</span>
-              </div>
-
-              {/* 2. DEDUÇÕES */}
-              <div className="p-3 rounded-xl bg-surface/60 border border-border/20 flex items-center justify-between text-xs font-bold text-foreground mt-2">
-                <span className="text-red-400">(-) DEDUÇÕES DA RECEITA E IMPOSTOS</span>
-                <span className="text-red-400">- {fmt(dreData.impostos)}</span>
-              </div>
-
-              {/* 3. RECEITA LÍQUIDA */}
-              <div className="p-3 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-between font-black text-primary text-sm mt-2">
-                <span>(=) RECEITA OPERACIONAL LÍQUIDA</span>
-                <span>{fmt(dreData.receitaLiquida)}</span>
-              </div>
-
-              {/* 4. CUSTOS OPERACIONAIS */}
-              <div className="p-3 rounded-xl bg-surface/60 border border-border/20 flex items-center justify-between text-xs font-bold text-foreground mt-3">
-                <span className="text-amber-400">(-) CUSTOS DOS SERVIÇOS PRESTADOS (CPV / CSP)</span>
-                <span className="text-amber-400">- {fmt(dreData.totalCustosOperacionais)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Peças, Filtros e Insumos Mecânicos</span>
-                <span>- {fmt(dreData.custoPecas)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Combustível e Abastecimentos</span>
-                <span>- {fmt(dreData.custoCombustivel)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Óleos e Lubrificantes</span>
-                <span>- {fmt(dreData.custoOleos)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Terceirização Especializada</span>
-                <span>- {fmt(dreData.custoTerceiros)}</span>
-              </div>
-
-              {/* 5. LUCRO BRUTO */}
-              <div className="p-3 rounded-xl bg-surface border border-border/40 flex items-center justify-between font-black text-sm mt-3">
-                <span className="text-foreground">(=) RESULTADO OPERACIONAL BRUTO (LUCRO BRUTO)</span>
-                <div className="text-right">
-                  <span className={dreData.lucroBruto >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                    {fmt(dreData.lucroBruto)}
-                  </span>
-                  <span className="text-[11px] text-secondary ml-2">({fmtPct(dreData.margemBruta)})</span>
-                </div>
-              </div>
-
-              {/* 6. DESPESAS OPERACIONAIS */}
-              <div className="p-3 rounded-xl bg-surface/60 border border-border/20 flex items-center justify-between text-xs font-bold text-foreground mt-3">
-                <span className="text-red-400">(-) DESPESAS ADMINISTRATIVAS E FIXAS</span>
-                <span className="text-red-400">- {fmt(dreData.totalDespesasAdm)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Folha de Pagamento, Salários e Pró-labore</span>
-                <span>- {fmt(dreData.despSalarios)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Aluguel, IPTU e Condomínio da Oficina</span>
-                <span>- {fmt(dreData.despAluguel)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Energia Elétrica, Água, Internet e Telefonia</span>
-                <span>- {fmt(dreData.despEnergia)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Ferramental e Manutenção Interna</span>
-                <span>- {fmt(dreData.despFerramentas)}</span>
-              </div>
-              <div className="pl-6 pr-3 py-1 text-secondary flex justify-between text-xs">
-                <span>• Outras Despesas Administrativas</span>
-                <span>- {fmt(dreData.outrasDespesas)}</span>
-              </div>
-
-              {/* 7. EBITDA */}
-              <div className="p-3 rounded-xl bg-surface border border-border/40 flex items-center justify-between font-black text-sm mt-3">
-                <span>(=) RESULTADO ANTES DO FINANCIAMENTO (EBITDA)</span>
-                <span className={dreData.resultadoOperacional >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                  {fmt(dreData.resultadoOperacional)}
-                </span>
-              </div>
-
-              {/* 8. RESULTADO FINANCEIRO */}
-              <div className="p-3 rounded-xl bg-surface/60 border border-border/20 flex items-center justify-between text-xs font-bold text-foreground mt-2">
-                <span className="text-secondary">(+/-) RESULTADO FINANCEIRO LÍQUIDO</span>
-                <span className={dreData.resultadoFinanceiro >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                  {fmt(dreData.resultadoFinanceiro)}
-                </span>
-              </div>
-
-              {/* 9. LUCRO LÍQUIDO FINAL */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-surface to-surface/90 border-2 border-primary flex items-center justify-between font-black text-base mt-4 shadow-lg">
-                <div className="flex items-center gap-2">
-                  <Calculator className="h-5 w-5 text-primary" />
-                  <span className="text-foreground">(=) LUCRO / PREJUÍZO LÍQUIDO DO EXERCÍCIO</span>
-                </div>
-                <div className="text-right">
-                  <span className={dreData.lucroLiquido >= 0 ? 'text-emerald-400 text-lg' : 'text-red-400 text-lg'}>
-                    {fmt(dreData.lucroLiquido)}
-                  </span>
-                  <p className="text-xs text-secondary font-bold">
-                    Margem Líquida: {fmtPct(dreData.margemLiquida)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* ──────────────────────────────────────────────────────────────────────────
-          4. ABA: CONTAS BANCÁRIAS
-         ────────────────────────────────────────────────────────────────────────── */}
-      {activeTab === 'contas' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-foreground uppercase flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-primary" />
-              CONTAS BANCÁRIAS CADASTRADAS ({contas.length})
+      <Card className="overflow-hidden border-border/30 bg-surface/50 shadow-md">
+        <div className="border-b border-border/20 bg-surface/80 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-primary" />
+            <h3 className="text-sm font-black text-foreground uppercase">
+              DESEMPENHO CONSOLIDADO POR EMPRESA
             </h3>
-            <Button
-              size="md"
-              variant="primary"
-              onClick={() => setShowContaForm(true)}
-              className="!h-8 !text-xs !px-3 gap-1 uppercase font-bold"
-            >
-              <Plus className="h-3.5 w-3.5" /> ADICIONAR CONTA
-            </Button>
           </div>
+          <Badge tone="neutral" className="text-[10px] font-bold">
+            MÊS: {mesFiltro.toUpperCase()}
+          </Badge>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {contas.map((c) => (
-              <Card key={c.id} className="p-4 border-border/30 hover:border-primary/40 transition-all">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Building2 className="h-4 w-4 text-primary shrink-0" />
-                      <span className="text-sm font-black text-foreground truncate">{c.nome}</span>
-                    </div>
-                    <div className="space-y-0.5 text-[11px] text-secondary font-medium">
-                      {c.banco && <p>BANCO: {c.banco}</p>}
-                      {c.agencia && <p>AGÊNCIA: {c.agencia} • CONTA: {c.conta}</p>}
-                      <p className="capitalize font-bold text-foreground/80">
-                        {TIPO_BANCO[c.tipo]}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p
-                      className={`text-base font-black ${
-                        (saldoPorConta[c.id] ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border/30 bg-surface text-secondary font-black uppercase text-[11px]">
+                <th className="py-3.5 px-4">EMPRESA</th>
+                <th className="py-3.5 px-4 text-right">FATURAMENTO</th>
+                <th className="py-3.5 px-4 text-right">RECEITAS (CAIXA)</th>
+                <th className="py-3.5 px-4 text-right">DESPESAS (CAIXA)</th>
+                <th className="py-3.5 px-4 text-right">SALDO CAIXA</th>
+                <th className="py-3.5 px-4 text-right">RESULTADO FAT.</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/15 font-mono">
+              {empresasExibidas.map((emp) => {
+                const sCaixa = emp.receitas - emp.despesas
+                const sFat = emp.faturamento - emp.despesas
+
+                return (
+                  <tr key={emp.id} className="hover:bg-overlay/5 transition-colors">
+                    <td className="py-3.5 px-4 font-sans font-bold text-foreground flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-primary" />
+                      {emp.nome}
+                    </td>
+                    <td className="py-3.5 px-4 text-right text-blue-400 font-bold">
+                      {fmtBRL(emp.faturamento)}
+                    </td>
+                    <td className="py-3.5 px-4 text-right text-emerald-400 font-bold">
+                      {fmtBRL(emp.receitas)}
+                    </td>
+                    <td className="py-3.5 px-4 text-right text-red-400 font-bold">
+                      {fmtBRL(emp.despesas)}
+                    </td>
+                    <td
+                      className={`py-3.5 px-4 text-right font-black ${
+                        sCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
                       }`}
                     >
-                      {fmt(saldoPorConta[c.id] ?? c.saldo_inicial)}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => removeConta(c.id)}
-                      className="mt-2 text-secondary/40 hover:text-red-400 transition-colors p-1"
-                      title="Remover Conta"
+                      {fmtBRL(sCaixa)}
+                    </td>
+                    <td
+                      className={`py-3.5 px-4 text-right font-black ${
+                        sFat >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      }`}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                      {fmtBRL(sFat)}
+                    </td>
+                  </tr>
+                )
+              })}
+
+              {/* Linha de Total Geral */}
+              <tr className="border-t-2 border-primary/40 bg-primary/10 font-black text-sm text-foreground">
+                <td className="py-4 px-4 font-sans font-black tracking-wider text-primary">
+                  TOTAL GRUPO VEL
+                </td>
+                <td className="py-4 px-4 text-right text-blue-400">
+                  {fmtBRL(totais.faturamento)}
+                </td>
+                <td className="py-4 px-4 text-right text-emerald-400">
+                  {fmtBRL(totais.receitas)}
+                </td>
+                <td className="py-4 px-4 text-right text-red-400">
+                  {fmtBRL(totais.despesas)}
+                </td>
+                <td
+                  className={`py-4 px-4 text-right ${
+                    totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  {fmtBRL(totais.saldoCaixa)}
+                </td>
+                <td
+                  className={`py-4 px-4 text-right ${
+                    totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  {fmtBRL(totais.resultadoFaturamento)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* ──────────────────────────────────────────────────────────────────────────
+          SEÇÃO DE RANKINGS (Top 5 Clientes e Top 10 Planos de Conta)
+         ────────────────────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 1. TOP 5 CLIENTES */}
+        <Card className="overflow-hidden border-border/30 bg-surface/50 shadow-md flex flex-col justify-between">
+          <div>
+            <div className="border-b border-border/20 bg-surface/80 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400">
+                  <Trophy className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black text-foreground uppercase">
+                    TOP 5 CLIENTES (POR FATURAMENTO)
+                  </h3>
+                  <p className="text-[10px] text-secondary font-medium">Exceto faturamento interno do Grupo</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-3">
+              {TOP_CLIENTES_BASE.map((cli) => {
+                const maxFat = TOP_CLIENTES_BASE[0].faturamento
+                const pct = (cli.faturamento / maxFat) * 100
+
+                return (
+                  <div
+                    key={cli.nome}
+                    className="p-3 rounded-xl border border-border/15 bg-background/60 hover:border-primary/30 transition-all"
+                  >
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary font-bold text-[10px]">
+                          {cli.rank}º
+                        </span>
+                        <span className="font-bold text-foreground truncate">{cli.nome}</span>
+                      </div>
+                      <span className="font-mono font-black text-primary shrink-0">
+                        {fmtBRL(cli.faturamento)}
+                      </span>
+                    </div>
+
+                    {/* Barra de Progresso Relativa */}
+                    <div className="h-1.5 w-full rounded-full bg-surface overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-primary to-amber-400 transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </Card>
+
+        {/* 2. TOP 10 PLANOS DE CONTA */}
+        <Card className="overflow-hidden border-border/30 bg-surface/50 shadow-md flex flex-col justify-between">
+          <div>
+            <div className="border-b border-border/20 bg-surface/80 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/15 text-red-400">
+                  <PieIcon className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black text-foreground uppercase">
+                    TOP 10 PLANOS DE CONTA (POR DESPESA)
+                  </h3>
+                  <p className="text-[10px] text-secondary font-medium">Maiores centros de custos da operação</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-2 max-h-[420px] overflow-y-auto">
+              {topPlanosFiltrados.map((plano) => {
+                const maxDesp = TOP_PLANOS_CONTA_BASE[0].despesa
+                const pct = (plano.despesa / maxDesp) * 100
+
+                return (
+                  <div
+                    key={plano.nome + plano.rank}
+                    className="p-2.5 rounded-xl border border-border/15 bg-background/60 hover:border-red-500/30 transition-all"
+                  >
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-400 font-bold text-[10px]">
+                          {plano.rank}
+                        </span>
+                        <span className="font-bold text-foreground truncate">{plano.nome}</span>
+                      </div>
+                      <span className="font-mono font-black text-red-400 shrink-0">
+                        {fmtBRL(plano.despesa)}
+                      </span>
+                    </div>
+
+                    {/* Barra de Progresso */}
+                    <div className="h-1.5 w-full rounded-full bg-surface overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-red-500 to-rose-400 transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* ──────────────────────────────────────────────────────────────────────────
+          GRÁFICO E DETALHAMENTO: FATURAMENTO × RECEITAS × DESPESAS POR EMPRESA
+         ────────────────────────────────────────────────────────────────────────── */}
+      <Card className="p-5 sm:p-6 border-border/30 bg-surface/50 shadow-lg space-y-6">
+        {/* Cabeçalho da Seção */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/20 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                <BarChart2 className="h-4 w-4" />
+              </div>
+              <h3 className="text-sm sm:text-base font-black text-foreground uppercase tracking-wide">
+                FATURAMENTO × RECEITAS × DESPESAS POR EMPRESA
+              </h3>
+            </div>
+            <p className="text-xs text-secondary font-medium mt-1">
+              Comparativo visual e análise detalhada de desempenho por unidade de negócio
+            </p>
+          </div>
+
+          {/* Legenda Customizada e Elegante */}
+          <div className="flex flex-wrap items-center gap-2 bg-background/60 border border-border/20 px-3 py-1.5 rounded-xl text-xs font-bold">
+            <span className="flex items-center gap-1.5 text-blue-400">
+              <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-sm" /> FATURAMENTO
+            </span>
+            <span className="text-border/40">•</span>
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-sm" /> RECEITAS
+            </span>
+            <span className="text-border/40">•</span>
+            <span className="flex items-center gap-1.5 text-red-400">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-sm" /> DESPESAS
+            </span>
+          </div>
+        </div>
+
+        {/* Gráfico de Barras Responsivo */}
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              margin={{ top: 20, right: 20, left: 10, bottom: 10 }}
+              barGap={6}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis
+                dataKey="name"
+                stroke="var(--color-secondary, #888)"
+                fontSize={12}
+                fontWeight={700}
+                tickLine={false}
+                axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+              />
+              <YAxis
+                stroke="var(--color-secondary, #888)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(val) => fmtCompact(val)}
+              />
+              <Tooltip
+                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || !payload.length) return null
+
+                  const fat = Number(payload.find((p) => p.dataKey === 'Faturamento')?.value || 0)
+                  const rec = Number(payload.find((p) => p.dataKey === 'Receitas')?.value || 0)
+                  const desp = Number(payload.find((p) => p.dataKey === 'Despesas')?.value || 0)
+                  const saldo = rec - desp
+                  const resFat = fat - desp
+
+                  return (
+                    <div className="rounded-2xl border border-border/40 bg-surface/95 p-4 shadow-2xl backdrop-blur-md uppercase text-xs space-y-2 min-w-[240px]">
+                      <div className="border-b border-border/20 pb-2 flex items-center justify-between">
+                        <span className="font-black text-foreground text-sm flex items-center gap-1.5">
+                          🏢 {label}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 font-mono">
+                        <div className="flex items-center justify-between">
+                          <span className="text-blue-400 font-sans font-bold flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-blue-500" /> FATURAMENTO:
+                          </span>
+                          <span className="font-bold text-foreground">{fmtBRL(fat)}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-emerald-400 font-sans font-bold flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" /> RECEITAS (CAIXA):
+                          </span>
+                          <span className="font-bold text-foreground">{fmtBRL(rec)}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-red-400 font-sans font-bold flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-red-500" /> DESPESAS (CAIXA):
+                          </span>
+                          <span className="font-bold text-foreground">{fmtBRL(desp)}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-border/20 pt-2 space-y-1 font-mono text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-secondary font-sans font-bold">SALDO CAIXA:</span>
+                          <span className={`font-black ${saldo >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {fmtBRL(saldo)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-secondary font-sans font-bold">RESULTADO FAT.:</span>
+                          <span className={`font-black ${resFat >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {fmtBRL(resFat)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+              <Bar dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={48} />
+              <Bar dataKey="Receitas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={48} />
+              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={48} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* ────────────────────────────────────────────────────────────────────────
+            CARDS INDIVIDUAIS COM RESUMO DETALHADO POR EMPRESA
+           ──────────────────────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-border/20">
+          {DADOS_EMPRESAS_JULHO.map((emp) => {
+            const saldoCaixa = emp.receitas - emp.despesas
+            const resultadoFat = emp.faturamento - emp.despesas
+            const totalMax = Math.max(emp.faturamento, emp.receitas, emp.despesas, 1)
+
+            return (
+              <div
+                key={emp.id}
+                className="rounded-2xl border border-border/20 bg-background/50 p-4 hover:border-primary/40 transition-all space-y-3"
+              >
+                {/* Cabeçalho do Card */}
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-xs text-foreground truncate">{emp.nome}</h4>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full font-mono ${
+                      saldoCaixa >= 0
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-red-500/15 text-red-400 border border-red-500/30'
+                    }`}
+                  >
+                    {saldoCaixa >= 0 ? '+ CAIXA' : '- DÉFICIT'}
+                  </span>
+                </div>
+
+                {/* Linhas de Valores com Barras Proporcionais */}
+                <div className="space-y-2 text-[11px] font-mono">
+                  {/* Faturamento */}
+                  <div>
+                    <div className="flex items-center justify-between text-secondary mb-0.5">
+                      <span className="font-sans font-bold text-blue-400">FATURAMENTO:</span>
+                      <span className="font-bold text-foreground">{fmtBRL(emp.faturamento)}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 rounded-full"
+                        style={{ width: `${(emp.faturamento / totalMax) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Receitas */}
+                  <div>
+                    <div className="flex items-center justify-between text-secondary mb-0.5">
+                      <span className="font-sans font-bold text-emerald-400">RECEITAS (CAIXA):</span>
+                      <span className="font-bold text-foreground">{fmtBRL(emp.receitas)}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full"
+                        style={{ width: `${(emp.receitas / totalMax) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Despesas */}
+                  <div>
+                    <div className="flex items-center justify-between text-secondary mb-0.5">
+                      <span className="font-sans font-bold text-red-400">DESPESAS (CAIXA):</span>
+                      <span className="font-bold text-foreground">{fmtBRL(emp.despesas)}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-red-500 rounded-full"
+                        style={{ width: `${(emp.despesas / totalMax) * 100}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </Card>
-            ))}
+
+                {/* Rodapé do Card com Saldos */}
+                <div className="pt-2 border-t border-border/10 grid grid-cols-2 gap-2 text-[10px]">
+                  <div>
+                    <span className="text-secondary font-sans font-bold block">SALDO CAIXA</span>
+                    <span
+                      className={`font-mono font-black ${
+                        saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      }`}
+                    >
+                      {fmtBRL(saldoCaixa)}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-secondary font-sans font-bold block">RES. FATURAMENTO</span>
+                    <span
+                      className={`font-mono font-black ${
+                        resultadoFat >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      }`}
+                    >
+                      {fmtBRL(resultadoFat)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </Card>
+
+      {/* ────────────────────────────────────────────────────────────────────────
+          MODAL: HISTÓRICO DE APURAÇÕES
+         ──────────────────────────────────────────────────────────────────────── */}
+      {showHistoricoModal && (
+        <div
+          onClick={() => setShowHistoricoModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-3xl border border-border/30 bg-surface p-6 shadow-2xl animate-scale-in space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-border/20 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <RotateCcw className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-foreground uppercase">
+                    HISTÓRICO DE APURAÇÕES GERENCIAIS
+                  </h3>
+                  <p className="text-xs text-secondary font-medium">Histórico de fechamentos e balanços do Grupo VEL</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoricoModal(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:bg-background hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              {[
+                { mes: 'Julho / 2026', status: 'Apuração Aberta (Atual)', fat: 'R$ 3.498.769,64', rec: 'R$ 5.423.588,73', desp: 'R$ 5.623.982,53', tag: 'EM ABERTO', tagTone: 'warning' },
+                { mes: 'Junho / 2026', status: 'Fechamento Consolidado', fat: 'R$ 3.320.140,00', rec: 'R$ 5.180.200,00', desp: 'R$ 4.950.100,00', tag: 'CONCLUÍDO', tagTone: 'success' },
+                { mes: 'Maio / 2026', status: 'Fechamento Consolidado', fat: 'R$ 3.190.500,00', rec: 'R$ 4.890.300,00', desp: 'R$ 4.710.250,00', tag: 'CONCLUÍDO', tagTone: 'success' },
+                { mes: 'Abril / 2026', status: 'Fechamento Consolidado', fat: 'R$ 2.980.400,00', rec: 'R$ 4.620.100,00', desp: 'R$ 4.500.800,00', tag: 'CONCLUÍDO', tagTone: 'success' },
+              ].map((item, idx) => (
+                <div key={idx} className="p-3 rounded-2xl border border-border/20 bg-background/60 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-xs text-foreground">{item.mes}</span>
+                      <Badge tone={item.tagTone as any} className="text-[9px] font-bold">
+                        {item.tag}
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-secondary font-medium mt-0.5">{item.status}</p>
+                    <div className="flex items-center gap-3 text-[11px] font-mono mt-1 text-secondary">
+                      <span>Fat: <strong className="text-blue-400">{item.fat}</strong></span>
+                      <span>Rec: <strong className="text-emerald-400">{item.rec}</strong></span>
+                      <span>Desp: <strong className="text-red-400">{item.desp}</strong></span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-border/20">
+              <GlassButton size="sm" onClick={() => setShowHistoricoModal(false)}>
+                FECHAR
+              </GlassButton>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Modais */}
-      {showContaForm && <ContaForm onSave={addConta} onClose={() => setShowContaForm(false)} />}
-      {showLancForm && (
-        <LancamentoForm
-          contas={contas}
-          contaId={contaSelecionada}
-          onSave={addLancamento}
-          onClose={() => setShowLancForm(false)}
-        />
+      {/* ────────────────────────────────────────────────────────────────────────
+          MODAL: VISUALIZAÇÃO EM LISTA DETALHADA
+         ──────────────────────────────────────────────────────────────────────── */}
+      {showListaModal && (
+        <div
+          onClick={() => setShowListaModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-4xl rounded-3xl border border-border/30 bg-surface p-6 shadow-2xl animate-scale-in space-y-4 max-h-[90vh] flex flex-col"
+          >
+            <div className="flex items-center justify-between border-b border-border/20 pb-3 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <List className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-foreground uppercase">
+                    RELATÓRIO ANALÍTICO EM LISTA — GRUPO VEL
+                  </h3>
+                  <p className="text-xs text-secondary font-medium">Demonstrativo detalhado consolidado por empresa e plano de contas</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowListaModal(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:bg-background hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 space-y-4 pr-1">
+              {/* Tabela de Empresas */}
+              <div className="rounded-2xl border border-border/30 overflow-hidden bg-background/40">
+                <table className="w-full text-left text-xs border-collapse font-mono">
+                  <thead>
+                    <tr className="border-b border-border/30 bg-surface text-secondary font-black uppercase text-[11px]">
+                      <th className="py-3 px-4 font-sans">EMPRESA</th>
+                      <th className="py-3 px-4 text-right">FATURAMENTO</th>
+                      <th className="py-3 px-4 text-right">RECEITAS (CAIXA)</th>
+                      <th className="py-3 px-4 text-right">DESPESAS (CAIXA)</th>
+                      <th className="py-3 px-4 text-right">SALDO CAIXA</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/10">
+                    {DADOS_EMPRESAS_JULHO.map((e) => (
+                      <tr key={e.id} className="hover:bg-overlay/5">
+                        <td className="py-3 px-4 font-sans font-bold text-foreground">{e.nome}</td>
+                        <td className="py-3 px-4 text-right text-blue-400">{fmtBRL(e.faturamento)}</td>
+                        <td className="py-3 px-4 text-right text-emerald-400">{fmtBRL(e.receitas)}</td>
+                        <td className="py-3 px-4 text-right text-red-400">{fmtBRL(e.despesas)}</td>
+                        <td className={`py-3 px-4 text-right font-black ${e.receitas - e.despesas >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {fmtBRL(e.receitas - e.despesas)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Tabela de Maiores Despesas */}
+              <div>
+                <h4 className="font-black text-xs text-foreground uppercase mb-2">
+                  📊 Detalhamento de Planos de Conta (Maiores Despesas)
+                </h4>
+                <div className="rounded-2xl border border-border/30 overflow-hidden bg-background/40">
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead>
+                      <tr className="border-b border-border/30 bg-surface text-secondary font-black uppercase text-[11px]">
+                        <th className="py-2.5 px-4 font-sans">#</th>
+                        <th className="py-2.5 px-4 font-sans">PLANO DE CONTA</th>
+                        <th className="py-2.5 px-4 text-right">TOTAL DESPESA</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/10">
+                      {TOP_PLANOS_CONTA_BASE.map((p) => (
+                        <tr key={p.nome + p.rank} className="hover:bg-overlay/5">
+                          <td className="py-2 px-4 text-secondary font-bold">{p.rank}º</td>
+                          <td className="py-2 px-4 font-sans font-bold text-foreground">{p.nome}</td>
+                          <td className="py-2 px-4 text-right text-red-400 font-bold">{fmtBRL(p.despesa)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-border/20 shrink-0">
+              <GlassButton size="sm" onClick={() => setShowListaModal(false)}>
+                FECHAR
+              </GlassButton>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

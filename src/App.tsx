@@ -102,9 +102,6 @@ export default function App() {
                   <Route path="/dashboard-gerencial" element={<DashboardGerencial />} />
                   <Route path="/kanban" element={<Kanban />} />
                   <Route path="/financeiro" element={<Financeiro />} />
-                  <Route path="/financeiro/conciliacao" element={<Financeiro />} />
-                  <Route path="/financeiro/dre" element={<Financeiro />} />
-                  <Route path="/financeiro/contas" element={<Financeiro />} />
                   <Route path="/rh" element={<RH />} />
                   <Route path="/compras" element={<Compras />} />
                   <Route path="/inspecoes/nova" element={<NovaInspecao />} />
