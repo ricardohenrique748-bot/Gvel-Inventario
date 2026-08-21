@@ -58,9 +58,31 @@ export function obterNomeCompletoMembro(nome: string): string {
   const norm = removerAcentos(nome.trim().toLowerCase())
   
   // Apelidos ou variações comuns
-  if (norm === 'maicon') return 'MAICOM EVERTON PEREIRA FERREIRA'
-  if (norm === 'chaim') return 'GABRIEL HENRIQUE CHAIM FAUSTINO'
-  if (norm === 'pontel') return 'JOAO VITOR PONTEL MARTINS'
+  if (norm.includes('joao paulo') || norm.includes('eletria') || norm.includes('eletrica')) {
+    return 'JOAO PAULO MARTINS DAS NEVES'
+  }
+  if (norm.includes('pontel')) return 'JOAO VITOR PONTEL MARTINS'
+  if (norm.includes('souza lima') || (norm.includes('joao vitor') && norm.includes('lima'))) return 'JOAO VITOR DE SOUZA LIMA'
+  if (norm.includes('marques teixeira')) {
+    if (norm.includes('gabriel') || norm.includes('thomas')) return 'GABRIEL THOMAS MARQUES TEIXEIRA'
+    return 'JOAO VITOR MARQUES TEIXEIRA'
+  }
+  if (norm.includes('maicon') || norm.includes('maicom')) return 'MAICOM EVERTON PEREIRA FERREIRA'
+  if (norm.includes('chaim') || norm.includes('faustino')) return 'GABRIEL HENRIQUE CHAIM FAUSTINO'
+  if (norm.includes('sacomano')) return 'GUILHERME SILVA SACOMANO'
+  if (norm.includes('bocalon')) return 'GUILHERME BOCALON BUENO'
+  if (norm.includes('nadotti')) return 'FELIPE TAVARES NADOTTI'
+  if (norm.includes('leani')) return 'JOSE LINO LEANI'
+  if (norm.includes('magaiver')) return 'MAGAIVER DE LIMA LOPES'
+  if (norm.includes('saturnino')) return 'JOSE AUGUSTO SATURNINO DE SOUZA'
+  if (norm.includes('wellington') || norm.includes('wellinton')) return 'WELLINTON DE OLIVEIRA MARQUES'
+  if (norm.includes('miller')) return 'RAI MILLER LEMOS DE ASSIS'
+  if (norm.includes('ulisses')) return 'JOSE ULISSES RODRIGUES'
+  if (norm.includes('irala')) return 'KAUA NUNES IRALA CONSTANTE'
+  if (norm.includes('caires')) return 'KAUE CAIRES DE SOUZA'
+  if (norm.includes('inacio')) return 'MAURICIO INACIO DA SILVA'
+  if (norm.includes('elismar')) return 'ELISMAR BATISTA DE ALMEIDA'
+  if (norm.includes('rian')) return 'RIAN ROBSON DA SILVA'
 
   const encontrado = EQUIPE_GVEL.find((m) => {
     const mNorm = removerAcentos(m.nome.toLowerCase())

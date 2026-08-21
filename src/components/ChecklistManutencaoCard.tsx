@@ -555,7 +555,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             </Label>
             <Select
               id="mecanico-nome"
-              value={mecanico}
+              value={obterNomeCompletoMembro(mecanico)}
               onChange={(e) => handleMecanicoChange(e.target.value)}
               className="!h-10 !text-xs !px-3 uppercase font-bold text-foreground border-border/40 focus:border-primary bg-surface"
             >
@@ -565,8 +565,8 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                   {m.nome}
                 </option>
               ))}
-              {mecanico && !EQUIPE_GVEL.some((m) => m.nome === mecanico) && (
-                <option value={mecanico}>{mecanico}</option>
+              {mecanico && !EQUIPE_GVEL.some((m) => m.nome === obterNomeCompletoMembro(mecanico)) && (
+                <option value={obterNomeCompletoMembro(mecanico)}>{obterNomeCompletoMembro(mecanico)}</option>
               )}
             </Select>
           </div>

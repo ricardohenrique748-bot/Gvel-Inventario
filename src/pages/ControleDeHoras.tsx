@@ -23,7 +23,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { useControleHoras, type ControleHorasItem } from '@/hooks/useControleHoras'
 import { formatDateTime, formatMinutosParaTexto } from '@/lib/format'
 import { CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
-import { formatarNomeSobrenome } from '@/constants/equipe'
+import { formatarNomeSobrenome, obterNomeCompletoMembro } from '@/constants/equipe'
 
 const MEDALHAS = ['🥇', '🥈', '🥉']
 
@@ -48,8 +48,13 @@ function dataLocalYMD(iso: string) {
 function opcoes(itens: ControleHorasItem[], campo: 'mecanico_executor' | 'funcao' | 'setor') {
   const valores = new Set<string>()
   for (const item of itens) {
-    const valor = item[campo]
-    if (valor) valores.add(valor)
+    let valor = item[campo]
+    if (valor) {
+      if (campo === 'mecanico_executor') {
+        valor = obterNomeCompletoMembro(valor)
+      }
+      valores.add(valor)
+    }
   }
   return [...valores].sort((a, b) => a.localeCompare(b))
 }
@@ -104,7 +109,11 @@ export function ControleDeHoras() {
 
   const itensFiltrados = useMemo(() => {
     return itens.filter((item) => {
-      if (filtros.nome && item.mecanico_executor !== filtros.nome) return false
+      if (filtros.nome) {
+        const itemMec = obterNomeCompletoMembro(item.mecanico_executor || '')
+        const filtroMec = obterNomeCompletoMembro(filtros.nome)
+        if (itemMec !== filtroMec) return false
+      }
       if (filtros.funcao && item.funcao !== filtros.funcao) return false
       if (filtros.setor && item.setor !== filtros.setor) return false
       const dataRef = dataLocalYMD(inicioAbertura(item))
@@ -239,7 +248,7 @@ export function ControleDeHoras() {
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <Card>
           <CardHeader>
-            <CardTitle>Horas por mecânico</CardTitle>
+            <CardTitle>Horas por colaborador</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-80 w-full overflow-x-auto">
@@ -369,7 +378,7 @@ export function ControleDeHoras() {
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <Card>
           <CardHeader>
-            <CardTitle>Ranking de mecânicos por horas</CardTitle>
+            <CardTitle>Ranking de colaboradores por horas</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="max-h-[380px] overflow-y-auto overflow-x-hidden pr-1">
