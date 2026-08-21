@@ -19,6 +19,7 @@ import {
   Image as ImageIcon,
   Eye,
   Loader2,
+  Briefcase,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -41,6 +42,65 @@ import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
 import type { Ferramenta, FerramentaRetirada } from '@/lib/types'
 
+export interface ItemCaixa {
+  id: string
+  nome: string
+  quantidade: number
+}
+
+export interface CaixaFerramenta {
+  id: string
+  nome: string
+  codigo?: string
+  status: 'disponivel' | 'em_uso' | 'manutencao'
+  responsavel?: string
+  placa?: string
+  localizacao?: string
+  foto_url?: string | null
+  itens: ItemCaixa[]
+  observacoes?: string
+  data_retirada?: string
+  created_at: string
+}
+
+const STORAGE_CAIXAS_KEY = 'gvel_caixas_ferramentas_v1'
+
+const CAIXAS_INICIAIS: CaixaFerramenta[] = [
+  {
+    id: 'caixa_1',
+    nome: 'CAIXA 01 - SOCORRO MECÂNICO',
+    codigo: 'CX-001',
+    status: 'disponivel',
+    localizacao: 'ARMÁRIO A1',
+    foto_url: null,
+    itens: [
+      { id: '1', nome: 'Jogo de Chaves Combinadas 6 a 32mm', quantidade: 1 },
+      { id: '2', nome: 'Alicate de Pressão Gedore', quantidade: 2 },
+      { id: '3', nome: 'Catraca Reversível 1/2 com Extensões', quantidade: 1 },
+      { id: '4', nome: 'Jogo de Soquetes Sextavados', quantidade: 1 },
+      { id: '5', nome: 'Martelo de Borracha', quantidade: 1 },
+    ],
+    observacoes: 'Kit completo para atendimento de socorro na pista',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'caixa_2',
+    nome: 'CAIXA 02 - ELÉTRICA & DIAGNÓSTICO',
+    codigo: 'CX-002',
+    status: 'disponivel',
+    localizacao: 'BANCADA ELÉTRICA',
+    foto_url: null,
+    itens: [
+      { id: '1', nome: 'Multímetro Digital Automotivo Minipa', quantidade: 1 },
+      { id: '2', nome: 'Alicate Decapador e Crimpador', quantidade: 1 },
+      { id: '3', nome: 'Caneta de Polaridade 12/24V', quantidade: 1 },
+      { id: '4', nome: 'Ferro de Solda 60W', quantidade: 1 },
+    ],
+    observacoes: 'Destinado para manutenção elétrica de caminhões',
+    created_at: new Date().toISOString(),
+  },
+]
+
 const CATEGORIAS_SUGERIDAS = [
   'TODAS',
   'CHAVES E SOQUETES',
@@ -54,10 +114,32 @@ const CATEGORIAS_SUGERIDAS = [
 ]
 
 export function InventarioFerramentas() {
-  const [abaAtiva, setAbaAtiva] = useState<'estoque' | 'em_uso' | 'historico'>('estoque')
+  const [abaAtiva, setAbaAtiva] = useState<'estoque' | 'em_uso' | 'historico' | 'caixas'>('estoque')
   const [busca, setBusca] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState('TODAS')
   const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'grid'>('lista')
+
+  // Caixas de Ferramentas State
+  const [caixas, setCaixas] = useState<CaixaFerramenta[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_CAIXAS_KEY)
+      if (raw) return JSON.parse(raw)
+    } catch {}
+    return CAIXAS_INICIAIS
+  })
+  const [buscaCaixas, setBuscaCaixas] = useState('')
+  const [statusFiltroCaixas, setStatusFiltroCaixas] = useState<'TODOS' | 'disponivel' | 'em_uso' | 'manutencao'>('TODOS')
+  const [modalCaixaAberto, setModalCaixaAberto] = useState(false)
+  const [caixaEditando, setCaixaEditando] = useState<CaixaFerramenta | null>(null)
+  const [modalRetiradaCaixaAberto, setModalRetiradaCaixaAberto] = useState(false)
+  const [caixaParaRetirar, setCaixaParaRetirar] = useState<CaixaFerramenta | null>(null)
+
+  function salvarCaixas(novasCaixas: CaixaFerramenta[]) {
+    setCaixas(novasCaixas)
+    try {
+      localStorage.setItem(STORAGE_CAIXAS_KEY, JSON.stringify(novasCaixas))
+    } catch {}
+  }
 
   // Hooks de ferramentas e retiradas
   const { ferramentas, loading: loadingFerramentas, refetch: refetchFerramentas } = useFerramentas()
@@ -128,6 +210,21 @@ export function InventarioFerramentas() {
   const retiradasAtivas = useMemo(() => {
     return retiradas.filter((r) => r.status === 'em_uso')
   }, [retiradas])
+
+  // Caixas Filtradas
+  const caixasFiltradas = useMemo(() => {
+    return caixas.filter((c) => {
+      const matchBusca =
+        !buscaCaixas.trim() ||
+        c.nome.toLowerCase().includes(buscaCaixas.toLowerCase()) ||
+        (c.codigo && c.codigo.toLowerCase().includes(buscaCaixas.toLowerCase())) ||
+        (c.placa && c.placa.toLowerCase().includes(buscaCaixas.toLowerCase())) ||
+        (c.responsavel && c.responsavel.toLowerCase().includes(buscaCaixas.toLowerCase()))
+
+      const matchStatus = statusFiltroCaixas === 'TODOS' || c.status === statusFiltroCaixas
+      return matchBusca && matchStatus
+    })
+  }, [caixas, buscaCaixas, statusFiltroCaixas])
 
   // Recarrega tudo
   const recarregarDados = async () => {
@@ -289,6 +386,24 @@ export function InventarioFerramentas() {
         >
           <Clock className="h-4 w-4" />
           HISTÓRICO DE RETIRADAS
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('caixas')}
+          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors uppercase ${
+            abaAtiva === 'caixas'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-secondary hover:text-foreground'
+          }`}
+        >
+          <Briefcase className="h-4 w-4" />
+          CAIXAS DE FERRAMENTAS ({caixas.length})
+          {caixas.filter((c) => c.status === 'em_uso').length > 0 && (
+            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-bold text-amber-500">
+              {caixas.filter((c) => c.status === 'em_uso').length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -883,6 +998,266 @@ export function InventarioFerramentas() {
         </Card>
       )}
 
+      {/* ==================== ABA 4: CAIXAS DE FERRAMENTAS ==================== */}
+      {abaAtiva === 'caixas' && (
+        <div className="space-y-4 uppercase">
+          {/* Barra de Filtros e Busca de Caixas */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative flex-1 max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+              <input
+                value={buscaCaixas}
+                onChange={(e) => setBuscaCaixas(e.target.value)}
+                placeholder="BUSCAR CAIXA POR NOME, CÓDIGO OU PLACA..."
+                className="h-10 w-full rounded-xl border border-border/10 bg-surface pl-9 pr-4 text-sm text-foreground placeholder:text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 bg-overlay/5 p-1 rounded-xl">
+                {(['TODOS', 'disponivel', 'em_uso', 'manutencao'] as const).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setStatusFiltroCaixas(st)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors uppercase cursor-pointer ${
+                      statusFiltroCaixas === st
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-secondary hover:text-foreground'
+                    }`}
+                  >
+                    {st === 'TODOS'
+                      ? 'TODAS'
+                      : st === 'disponivel'
+                      ? 'DISPONÍVEIS'
+                      : st === 'em_uso'
+                      ? 'EM USO'
+                      : 'MANUTENÇÃO'}
+                  </button>
+                ))}
+              </div>
+
+              <Button
+                type="button"
+                onClick={() => {
+                  setCaixaEditando(null)
+                  setModalCaixaAberto(true)
+                }}
+                className="gap-2 text-xs font-bold uppercase shadow-md shadow-primary/20"
+              >
+                <Plus className="h-4 w-4" />
+                NOVA CAIXA
+              </Button>
+            </div>
+          </div>
+
+          {/* Grid de Cards de Caixas de Ferramentas */}
+          {caixasFiltradas.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-secondary font-medium">
+              NENHUMA CAIXA DE FERRAMENTAS ENCONTRADA.
+            </Card>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {caixasFiltradas.map((caixa) => {
+                const totalItensNaCaixa = caixa.itens.reduce((acc, it) => acc + (it.quantidade || 1), 0)
+                return (
+                  <Card
+                    key={caixa.id}
+                    className="p-5 flex flex-col justify-between border border-border/20 hover:border-primary/40 transition-all shadow-md group relative overflow-hidden bg-surface"
+                  >
+                    <div>
+                      {/* Topo do Card com Foto ou Ícone + Status */}
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-3">
+                          {caixa.foto_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setFotoModalUrl({ url: caixa.foto_url!, titulo: caixa.nome })}
+                              className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-primary/20 hover:border-primary transition-all group/foto cursor-pointer"
+                            >
+                              <img
+                                src={caixa.foto_url}
+                                alt={caixa.nome}
+                                className="h-full w-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/foto:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                <Eye className="h-4 w-4" />
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 font-bold text-xl">
+                              🧰
+                            </div>
+                          )}
+
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-foreground text-sm leading-tight uppercase group-hover:text-primary transition-colors">
+                              {caixa.nome}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              {caixa.codigo && (
+                                <span className="font-mono text-[11px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                                  {caixa.codigo}
+                                </span>
+                              )}
+                              {caixa.localizacao && (
+                                <span className="text-[10px] text-secondary font-medium">
+                                  📍 {caixa.localizacao}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Status Badge */}
+                        <div>
+                          {caixa.status === 'disponivel' && (
+                            <Badge tone="success" className="text-[10px] font-bold">
+                              DISPONÍVEL
+                            </Badge>
+                          )}
+                          {caixa.status === 'em_uso' && (
+                            <Badge tone="warning" className="text-[10px] font-bold">
+                              EM USO
+                            </Badge>
+                          )}
+                          {caixa.status === 'manutencao' && (
+                            <Badge tone="danger" className="text-[10px] font-bold">
+                              MANUTENÇÃO
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Informações de Uso (Se estiver em uso) */}
+                      {caixa.status === 'em_uso' && (
+                        <div className="mb-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-secondary font-semibold">CAMINHÃO / PLACA:</span>
+                            <span className="font-mono font-bold text-primary">{caixa.placa || 'NÃO INFORMADA'}</span>
+                          </div>
+                          {caixa.responsavel && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-secondary font-semibold">RESPONSÁVEL:</span>
+                              <span className="font-bold text-foreground">{caixa.responsavel}</span>
+                            </div>
+                          )}
+                          {caixa.data_retirada && (
+                            <div className="flex items-center justify-between text-[11px] text-secondary pt-0.5">
+                              <span>RETIRADA EM:</span>
+                              <span>{format(new Date(caixa.data_retirada), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Lista de Ferramentas dentro da Caixa */}
+                      <div className="mt-3 border-t border-border/10 pt-3">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[11px] font-bold text-secondary uppercase">
+                            FERRAMENTAS INCLUSAS ({totalItensNaCaixa} ITENS):
+                          </span>
+                        </div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                          {caixa.itens.map((it) => (
+                            <div
+                              key={it.id}
+                              className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-background/60 border border-border/5"
+                            >
+                              <span className="text-foreground font-medium truncate pr-2">
+                                • {it.nome}
+                              </span>
+                              <span className="font-bold text-primary shrink-0 text-[11px]">
+                                {it.quantidade}x
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {caixa.observacoes && (
+                        <p className="mt-2 text-[11px] text-secondary italic line-clamp-2">
+                          "{caixa.observacoes}"
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Botões de Ação do Card */}
+                    <div className="mt-4 pt-3 border-t border-border/10 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setCaixaEditando(caixa)
+                            setModalCaixaAberto(true)
+                          }}
+                          className="h-8 w-8 text-secondary hover:text-foreground"
+                          title="Editar Caixa"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            if (confirm(`Excluir a caixa "${caixa.nome}"?`)) {
+                              salvarCaixas(caixas.filter((c) => c.id !== caixa.id))
+                            }
+                          }}
+                          className="h-8 w-8 text-secondary hover:text-status-danger"
+                          title="Excluir Caixa"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {caixa.status === 'disponivel' ? (
+                          <Button
+                            type="button"
+                            size="md"
+                            onClick={() => {
+                              setCaixaParaRetirar(caixa)
+                              setModalRetiradaCaixaAberto(true)
+                            }}
+                            className="!h-8 px-3 text-xs uppercase font-bold gap-1.5 shadow-sm"
+                          >
+                            <ArrowUpRight className="h-3.5 w-3.5" />
+                            RETIRAR CAIXA
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="md"
+                            onClick={() => {
+                              salvarCaixas(
+                                caixas.map((c) =>
+                                  c.id === caixa.id
+                                    ? { ...c, status: 'disponivel', placa: undefined, responsavel: undefined, data_retirada: undefined }
+                                    : c,
+                                ),
+                              )
+                            }}
+                            className="!h-8 px-3 text-xs uppercase font-bold gap-1.5 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            DEVOLVER
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ==================== MODAL: NOVA / EDITAR FERRAMENTA ==================== */}
       {modalFerramentaAberto && (
         <ModalFerramenta
@@ -917,6 +1292,48 @@ export function InventarioFerramentas() {
           onSucesso={async () => {
             setModalDevolucaoAberto(false)
             await recarregarDados()
+          }}
+        />
+      )}
+
+      {/* ==================== MODAL: NOVA / EDITAR CAIXA DE FERRAMENTAS ==================== */}
+      {modalCaixaAberto && (
+        <ModalCaixaFerramenta
+          caixa={caixaEditando}
+          ferramentasDisponiveis={ferramentas}
+          onClose={() => setModalCaixaAberto(false)}
+          onSalvo={async (novaCaixa) => {
+            if (caixaEditando) {
+              salvarCaixas(caixas.map((c) => (c.id === novaCaixa.id ? novaCaixa : c)))
+            } else {
+              salvarCaixas([novaCaixa, ...caixas])
+            }
+            setModalCaixaAberto(false)
+          }}
+        />
+      )}
+
+      {/* ==================== MODAL: RETIRAR CAIXA DE FERRAMENTAS ==================== */}
+      {modalRetiradaCaixaAberto && caixaParaRetirar && (
+        <ModalRetiradaCaixa
+          caixa={caixaParaRetirar}
+          veiculos={veiculosLista}
+          onClose={() => setModalRetiradaCaixaAberto(false)}
+          onSucesso={async (dadosRetirada) => {
+            salvarCaixas(
+              caixas.map((c) =>
+                c.id === caixaParaRetirar.id
+                  ? {
+                      ...c,
+                      status: 'em_uso',
+                      placa: dadosRetirada.placa,
+                      responsavel: dadosRetirada.responsavel,
+                      data_retirada: new Date().toISOString(),
+                    }
+                  : c,
+              ),
+            )
+            setModalRetiradaCaixaAberto(false)
           }}
         />
       )}
@@ -1694,6 +2111,644 @@ function ModalDevolucao({
             </Button>
             <Button type="submit" disabled={salvando} className="bg-emerald-600 hover:bg-emerald-500 uppercase font-bold">
               {salvando ? 'SALVANDO...' : 'CONFIRMAR DEVOLUÇÃO'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Cadastro / Edição de Caixa de Ferramentas
+// ----------------------------------------------------------------------------------
+function ModalCaixaFerramenta({
+  caixa,
+  ferramentasDisponiveis,
+  onClose,
+  onSalvo,
+}: {
+  caixa: CaixaFerramenta | null
+  ferramentasDisponiveis: Ferramenta[]
+  onClose: () => void
+  onSalvo: (caixa: CaixaFerramenta) => Promise<void>
+}) {
+  const [nome, setNome] = useState(caixa?.nome || '')
+  const [codigo, setCodigo] = useState(caixa?.codigo || '')
+  const [localizacao, setLocalizacao] = useState(caixa?.localizacao || '')
+  const [status, setStatus] = useState<'disponivel' | 'em_uso' | 'manutencao'>(caixa?.status || 'disponivel')
+  const [observacoes, setObservacoes] = useState(caixa?.observacoes || '')
+  const [itens, setItens] = useState<ItemCaixa[]>(
+    caixa?.itens || [
+      { id: '1', nome: 'Jogo de Chaves Combinadas', quantidade: 1 },
+      { id: '2', nome: 'Alicate de Pressão', quantidade: 1 },
+    ],
+  )
+
+  // Novo item para adicionar
+  const [novoItemNome, setNovoItemNome] = useState('')
+  const [novoItemQtd, setNovoItemQtd] = useState('1')
+
+  // Foto da Caixa
+  const [fotoUrl, setFotoUrl] = useState(caixa?.foto_url || '')
+  const [fotoFile, setFotoFile] = useState<File | null>(null)
+  const [processandoFoto, setProcessandoFoto] = useState(false)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galeriaInputRef = useRef<HTMLInputElement>(null)
+
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const handleFotoSelecionada = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    setProcessandoFoto(true)
+    setErro(null)
+    try {
+      const comprimida = await comprimirImagem(file)
+      setFotoFile(comprimida)
+      setFotoUrl(URL.createObjectURL(comprimida))
+    } catch (err) {
+      console.error('Erro ao processar imagem:', err)
+      setErro('Não foi possível processar a foto.')
+    } finally {
+      setProcessandoFoto(false)
+    }
+  }
+
+  function adicionarItemNaCaixa() {
+    if (!novoItemNome.trim()) return
+    const novoItem: ItemCaixa = {
+      id: String(Date.now()),
+      nome: novoItemNome.trim().toUpperCase(),
+      quantidade: Math.max(1, Number(novoItemQtd) || 1),
+    }
+    setItens((prev) => [...prev, novoItem])
+    setNovoItemNome('')
+    setNovoItemQtd('1')
+  }
+
+  function removerItemDaCaixa(id: string) {
+    setItens((prev) => prev.filter((it) => it.id !== id))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!nome.trim()) {
+      setErro('Informe o nome da caixa de ferramentas.')
+      return
+    }
+
+    setSalvando(true)
+    setErro(null)
+
+    try {
+      let finalFotoUrl: string | null = fotoUrl || null
+      if (fotoFile) {
+        finalFotoUrl = await uploadFotoFerramenta(fotoFile)
+      }
+
+      const dadosSalvar: CaixaFerramenta = {
+        id: caixa?.id || `caixa_${Date.now()}`,
+        nome: nome.trim().toUpperCase(),
+        codigo: codigo.trim().toUpperCase() || undefined,
+        localizacao: localizacao.trim().toUpperCase() || undefined,
+        status: status,
+        foto_url: finalFotoUrl,
+        itens: itens,
+        observacoes: observacoes.trim() || undefined,
+        responsavel: caixa?.responsavel,
+        placa: caixa?.placa,
+        data_retirada: caixa?.data_retirada,
+        created_at: caixa?.created_at || new Date().toISOString(),
+      }
+
+      await onSalvo(dadosSalvar)
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao salvar caixa de ferramentas.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-border/30 bg-surface p-6 shadow-2xl animate-scale-in">
+        {/* Cabeçalho */}
+        <div className="mb-4 flex items-center justify-between border-b border-border/20 pb-3 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/20 text-xl">
+              🧰
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-foreground">
+                {caixa ? 'Editar Caixa de Ferramentas' : 'Nova Caixa de Ferramentas'}
+              </h2>
+              <p className="text-xs text-secondary">Monte e organize kits e caixas completas da oficina</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:bg-background hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {erro && (
+          <div className="mb-3 rounded-xl bg-status-danger/10 border border-status-danger/30 p-3 text-xs font-semibold text-status-danger shrink-0">
+            {erro}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto pr-1 flex-1">
+          {/* Nome e Código */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label htmlFor="nomeCaixa" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1">
+                Nome da Caixa / Kit *
+              </label>
+              <Input
+                id="nomeCaixa"
+                value={nome}
+                onChange={(e) => setNome(e.target.value.toUpperCase())}
+                placeholder="Ex: CAIXA 01 - MECÂNICA PESADA"
+                required
+                className="uppercase"
+              />
+            </div>
+            <div>
+              <label htmlFor="codCaixa" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1">
+                Código / Tag
+              </label>
+              <Input
+                id="codCaixa"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                placeholder="Ex: CX-001"
+                className="uppercase font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Localização e Status */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="locCaixa" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1">
+                Localização na Oficina
+              </label>
+              <Input
+                id="locCaixa"
+                value={localizacao}
+                onChange={(e) => setLocalizacao(e.target.value.toUpperCase())}
+                placeholder="Ex: ARMÁRIO A1 / BANCADA 02"
+                className="uppercase"
+              />
+            </div>
+            <div>
+              <label htmlFor="stCaixa" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1">
+                Status Inicial
+              </label>
+              <select
+                id="stCaixa"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as 'disponivel' | 'em_uso' | 'manutencao')}
+                className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="disponivel">🟢 DISPONÍVEL NA OFICINA</option>
+                <option value="em_uso">🟡 EM USO NO CAMINHÃO</option>
+                <option value="manutencao">🔴 EM MANUTENÇÃO / REVISÃO</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Foto da Caixa */}
+          <div>
+            <label className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1.5">
+              Foto da Caixa de Ferramentas
+            </label>
+
+            <input
+              type="file"
+              ref={cameraInputRef}
+              accept="image/*"
+              capture="environment"
+              onChange={handleFotoSelecionada}
+              className="hidden"
+            />
+            <input
+              type="file"
+              ref={galeriaInputRef}
+              accept="image/*"
+              onChange={handleFotoSelecionada}
+              className="hidden"
+            />
+
+            <div className="flex items-center gap-3">
+              {fotoUrl ? (
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-primary/40 bg-background group">
+                  <img src={fotoUrl} alt="Preview" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFotoUrl('')
+                      setFotoFile(null)
+                    }}
+                    className="absolute inset-0 bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-border/40 bg-background/50 text-secondary">
+                  <ImageIcon className="h-6 w-6 opacity-40" />
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={processandoFoto}
+                  className="!h-9 text-xs font-bold gap-1.5 uppercase"
+                >
+                  <Camera className="h-4 w-4 text-primary" />
+                  Câmera
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  onClick={() => galeriaInputRef.current?.click()}
+                  disabled={processandoFoto}
+                  className="!h-9 text-xs font-bold gap-1.5 uppercase"
+                >
+                  <ImageIcon className="h-4 w-4 text-primary" />
+                  Galeria
+                </Button>
+                {processandoFoto && <span className="text-xs text-secondary flex items-center gap-1"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Otimizando...</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* Gerenciador de Ferramentas Inclusas */}
+          <div className="border-t border-border/20 pt-3">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-foreground uppercase tracking-wide">
+                Ferramentas Inclusas na Caixa ({itens.length})
+              </label>
+              <span className="text-[11px] text-secondary">monte o inventário deste kit</span>
+            </div>
+
+            {/* Input para adicionar nova ferramenta */}
+            <div className="flex gap-2 mb-2">
+              <div className="flex-1">
+                <Input
+                  list="sugestoes-itens-caixa"
+                  value={novoItemNome}
+                  onChange={(e) => setNovoItemNome(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      adicionarItemNaCaixa()
+                    }
+                  }}
+                  placeholder="Nome do item (ex: Alicate Universal Gedore)..."
+                  className="text-xs uppercase"
+                />
+                <datalist id="sugestoes-itens-caixa">
+                  {ferramentasDisponiveis.map((f) => (
+                    <option key={f.id} value={f.nome} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="w-20 shrink-0">
+                <Input
+                  type="number"
+                  min="1"
+                  value={novoItemQtd}
+                  onChange={(e) => setNovoItemQtd(e.target.value)}
+                  placeholder="Qtd"
+                  className="text-xs text-center font-bold"
+                />
+              </div>
+
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={adicionarItemNaCaixa}
+                disabled={!novoItemNome.trim()}
+                className="shrink-0 !h-10 px-3 text-xs font-bold uppercase"
+              >
+                + Adicionar
+              </Button>
+            </div>
+
+            {/* Lista dos Itens Já Adicionados */}
+            <div className="max-h-36 overflow-y-auto space-y-1 rounded-xl bg-background/50 border border-border/20 p-2">
+              {itens.length === 0 ? (
+                <p className="text-xs text-secondary text-center py-2">Nenhum item adicionado à caixa ainda.</p>
+              ) : (
+                itens.map((it) => (
+                  <div
+                    key={it.id}
+                    className="flex items-center justify-between py-1 px-2.5 rounded-lg bg-surface border border-border/10 text-xs"
+                  >
+                    <span className="text-foreground font-medium truncate pr-2">• {it.nome}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-bold text-primary text-[11px] bg-primary/10 px-2 py-0.5 rounded">
+                        {it.quantidade} un.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removerItemDaCaixa(it.id)}
+                        className="text-secondary hover:text-status-danger transition-colors p-0.5 rounded"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Observações */}
+          <div>
+            <label htmlFor="obsCaixa" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1">
+              Observações / Instruções
+            </label>
+            <Input
+              id="obsCaixa"
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Ex: Verificar calibragem do torquímetro mensalmente..."
+              className="text-xs"
+            />
+          </div>
+
+          {/* Rodapé do Modal */}
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/20 shrink-0">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={salvando}
+              className="!h-10 px-5 rounded-xl text-xs font-semibold"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={salvando}
+              className="!h-10 px-6 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
+            >
+              {salvando ? 'Salvando...' : 'Salvar Caixa de Ferramentas'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Retirada de Caixa de Ferramentas (Vinculação ao Caminhão)
+// ----------------------------------------------------------------------------------
+function ModalRetiradaCaixa({
+  caixa,
+  veiculos,
+  onClose,
+  onSucesso,
+}: {
+  caixa: CaixaFerramenta
+  veiculos: { id: string; placa: string }[]
+  onClose: () => void
+  onSucesso: (dados: { placa: string; responsavel: string; observacoes?: string }) => Promise<void>
+}) {
+  const [placasSelecionadas, setPlacasSelecionadas] = useState<string[]>([])
+  const [placaInput, setPlacaInput] = useState('')
+  const [responsavel, setResponsavel] = useState('')
+  const [observacoes, setObservacoes] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  function adicionarPlaca(p: string) {
+    const limpa = p.trim().toUpperCase()
+    if (!limpa) return
+    const partes = limpa.split(/[,;/ ]+/).map((s) => s.trim().toUpperCase()).filter(Boolean)
+    setPlacasSelecionadas((prev) => Array.from(new Set([...prev, ...partes])))
+    setPlacaInput('')
+  }
+
+  function removerPlaca(p: string) {
+    setPlacasSelecionadas((prev) => prev.filter((item) => item !== p))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    let listaFinalPlacas = [...placasSelecionadas]
+    if (placaInput.trim()) {
+      const partes = placaInput.split(/[,;/ ]+/).map((s) => s.trim().toUpperCase()).filter(Boolean)
+      listaFinalPlacas = Array.from(new Set([...listaFinalPlacas, ...partes]))
+    }
+
+    if (listaFinalPlacas.length === 0) {
+      setErro('Informe ao menos uma placa de caminhão.')
+      return
+    }
+    if (!responsavel.trim()) {
+      setErro('Informe o nome do responsável.')
+      return
+    }
+
+    setSalvando(true)
+    setErro(null)
+
+    try {
+      await onSucesso({
+        placa: listaFinalPlacas.join(' / '),
+        responsavel: responsavel.trim().toUpperCase(),
+        observacoes: observacoes.trim() || undefined,
+      })
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao registrar retirada.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-border/30 bg-surface p-6 shadow-2xl animate-scale-in">
+        {/* Cabeçalho */}
+        <div className="mb-4 flex items-center justify-between border-b border-border/20 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/20">
+              <ArrowUpRight className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-foreground">Retirar Caixa de Ferramentas</h2>
+              <p className="text-xs text-secondary">{caixa.nome}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:bg-background hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {erro && (
+          <div className="mb-4 rounded-xl bg-status-danger/10 border border-status-danger/30 p-3 text-xs font-semibold text-status-danger">
+            {erro}
+          </div>
+        )}
+
+        {/* Resumo dos Itens na Caixa */}
+        <div className="mb-4 rounded-xl border border-border/20 bg-background/60 p-3 text-xs space-y-1">
+          <span className="font-bold text-secondary uppercase block mb-1">
+            📦 Itens Inclusos nesta Caixa ({caixa.itens.length}):
+          </span>
+          <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+            {caixa.itens.map((it) => (
+              <span key={it.id} className="text-[11px] bg-surface px-2 py-0.5 rounded border border-border/10 text-foreground">
+                {it.nome} ({it.quantidade}x)
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Placa(s) do Caminhão */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label htmlFor="placaCaixa" className="text-xs font-bold text-foreground uppercase tracking-wide">
+                Placa(s) do Caminhão *
+              </label>
+              <span className="text-[11px] text-secondary">pode adicionar mais de uma</span>
+            </div>
+
+            {placasSelecionadas.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {placasSelecionadas.map((p) => (
+                  <span
+                    key={p}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/30 text-primary font-mono text-xs font-bold"
+                  >
+                    🚛 {p}
+                    <button type="button" onClick={() => removerPlaca(p)} className="hover:text-status-danger">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Input
+                id="placaCaixa"
+                list="placas-sugestoes-caixa"
+                value={placaInput}
+                onChange={(e) => setPlacaInput(e.target.value.toUpperCase())}
+                placeholder="Digite a placa (ex: ABC1D23)..."
+                className="flex-1 font-mono uppercase text-sm"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={() => adicionarPlaca(placaInput)}
+                disabled={!placaInput.trim()}
+                className="shrink-0 !h-10 px-3.5 text-xs font-bold uppercase"
+              >
+                + Adicionar
+              </Button>
+            </div>
+            <datalist id="placas-sugestoes-caixa">
+              {veiculos.map((v) => (
+                <option key={v.id} value={v.placa} />
+              ))}
+            </datalist>
+
+            {veiculos.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] uppercase font-bold text-secondary mr-1">Rápidos:</span>
+                {veiculos.slice(0, 6).map((v) => {
+                  const jaAdd = placasSelecionadas.includes(v.placa.toUpperCase())
+                  return (
+                    <button
+                      type="button"
+                      key={v.id}
+                      onClick={() => (jaAdd ? removerPlaca(v.placa.toUpperCase()) : adicionarPlaca(v.placa.toUpperCase()))}
+                      className={`text-[11px] px-2.5 py-0.5 rounded-full font-mono font-medium border transition-all ${
+                        jaAdd
+                          ? 'bg-primary/20 border-primary text-primary'
+                          : 'bg-background/60 border-border/30 text-secondary hover:text-foreground hover:border-primary/50'
+                      }`}
+                    >
+                      {jaAdd ? `✓ ${v.placa}` : `+ ${v.placa}`}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Responsável */}
+          <div>
+            <label htmlFor="respCaixa" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1.5">
+              Responsável (Mecânico / Motorista) *
+            </label>
+            <Input
+              id="respCaixa"
+              value={responsavel}
+              onChange={(e) => setResponsavel(e.target.value)}
+              placeholder="Nome de quem está retirando a caixa..."
+              required
+              className="text-sm"
+            />
+          </div>
+
+          {/* Observações */}
+          <div>
+            <label htmlFor="obsRetCaixa" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1.5">
+              Observações / Motivo <span className="text-secondary font-normal lowercase">(opcional)</span>
+            </label>
+            <Input
+              id="obsRetCaixa"
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Ex: Atendimento de socorro, manutenção na estrada..."
+              className="text-sm"
+            />
+          </div>
+
+          {/* Rodapé */}
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/20">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={salvando}
+              className="!h-10 px-5 rounded-xl text-xs font-semibold"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={salvando}
+              className="!h-10 px-6 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
+            >
+              {salvando ? 'Registrando...' : 'Confirmar Retirada'}
             </Button>
           </div>
         </form>
