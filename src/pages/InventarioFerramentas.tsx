@@ -249,6 +249,79 @@ const CATEGORIAS_SUGERIDAS = [
   'GERAL',
 ]
 
+function DragScrollContainer({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isDownRef = useRef(false)
+  const startXRef = useRef(0)
+  const scrollLeftRef = useRef(0)
+  const hasMovedRef = useRef(false)
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return
+    isDownRef.current = true
+    hasMovedRef.current = false
+    startXRef.current = e.pageX - containerRef.current.offsetLeft
+    scrollLeftRef.current = containerRef.current.scrollLeft
+  }
+
+  const handleMouseLeave = () => {
+    isDownRef.current = false
+  }
+
+  const handleMouseUp = () => {
+    isDownRef.current = false
+    setTimeout(() => {
+      hasMovedRef.current = false
+    }, 60)
+  }
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDownRef.current || !containerRef.current) return
+    e.preventDefault()
+    const x = e.pageX - containerRef.current.offsetLeft
+    const walk = (x - startXRef.current) * 1.6
+    if (Math.abs(walk) > 4) {
+      hasMovedRef.current = true
+    }
+    containerRef.current.scrollLeft = scrollLeftRef.current - walk
+  }
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return
+    if (e.deltaY !== 0) {
+      containerRef.current.scrollLeft += e.deltaY * 0.9
+    }
+  }
+
+  const handleClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (hasMovedRef.current) {
+      e.stopPropagation()
+      e.preventDefault()
+    }
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      onMouseDown={handleMouseDown}
+      onMouseLeave={handleMouseLeave}
+      onMouseUp={handleMouseUp}
+      onMouseMove={handleMouseMove}
+      onWheel={handleWheel}
+      onClickCapture={handleClickCapture}
+      className={`overflow-x-auto select-none cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${className}`}
+    >
+      {children}
+    </div>
+  )
+}
+
 export function InventarioFerramentas() {
   const [abaAtiva, setAbaAtiva] = useState<'estoque' | 'em_uso' | 'historico' | 'caixas' | 'consumo'>('estoque')
   const [busca, setBusca] = useState('')
@@ -572,12 +645,12 @@ export function InventarioFerramentas() {
         </div>
       </div>
 
-      {/* Barra de Abas Principal (Estilo Tabs Segmentadas Modernas) */}
-      <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md">
+      {/* Barra de Abas Principal (Estilo Tabs Segmentadas com Drag-to-Scroll) */}
+      <DragScrollContainer className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md">
         <button
           type="button"
           onClick={() => setAbaAtiva('estoque')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             abaAtiva === 'estoque'
               ? 'bg-primary text-white shadow-md shadow-primary/20'
               : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
@@ -595,7 +668,7 @@ export function InventarioFerramentas() {
         <button
           type="button"
           onClick={() => setAbaAtiva('em_uso')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             abaAtiva === 'em_uso'
               ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
               : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
@@ -615,7 +688,7 @@ export function InventarioFerramentas() {
         <button
           type="button"
           onClick={() => setAbaAtiva('historico')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             abaAtiva === 'historico'
               ? 'bg-primary text-white shadow-md shadow-primary/20'
               : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
@@ -628,7 +701,7 @@ export function InventarioFerramentas() {
         <button
           type="button"
           onClick={() => setAbaAtiva('caixas')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             abaAtiva === 'caixas'
               ? 'bg-primary text-white shadow-md shadow-primary/20'
               : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
@@ -651,7 +724,7 @@ export function InventarioFerramentas() {
         <button
           type="button"
           onClick={() => setAbaAtiva('consumo')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             abaAtiva === 'consumo'
               ? 'bg-primary text-white shadow-md shadow-primary/20'
               : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
@@ -670,7 +743,7 @@ export function InventarioFerramentas() {
             </span>
           )}
         </button>
-      </div>
+      </DragScrollContainer>
 
       {/* ==================== ABA 1: ESTOQUE DE FERRAMENTAS ==================== */}
       {abaAtiva === 'estoque' && (
@@ -728,14 +801,14 @@ export function InventarioFerramentas() {
               </div>
             </div>
 
-            {/* Categorias sem barra de rolagem cinza feia */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {/* Categorias com suporte a arrastar com o mouse / touch */}
+            <DragScrollContainer className="flex items-center gap-1.5 pb-1 max-w-full">
               {CATEGORIAS_SUGERIDAS.map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setCategoriaFiltro(cat)}
-                  className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap uppercase cursor-pointer border ${
+                  className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap uppercase cursor-pointer border shrink-0 ${
                     categoriaFiltro === cat
                       ? 'bg-primary/15 border-primary/50 text-primary shadow-sm'
                       : 'bg-surface/80 border-border/20 text-secondary hover:border-border/60 hover:text-foreground'
@@ -744,7 +817,7 @@ export function InventarioFerramentas() {
                   {cat}
                 </button>
               ))}
-            </div>
+            </DragScrollContainer>
           </div>
 
           {/* Lista do Estoque */}

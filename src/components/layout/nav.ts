@@ -33,8 +33,10 @@ export const navItems = [
     children: [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/movimentacoes', label: 'Movimentações', icon: ArrowLeftRight },
+      { to: '/frotas', label: 'Gestão de Frotas', icon: Truck },
     ],
   },
+  { to: '/frotas', label: 'Frotas', icon: Truck },
   { to: '/inventario-ferramentas', label: 'Inventário de Ferramentas', icon: Hammer },
   { to: '/financeiro', label: 'Financeiro', icon: DollarSign },
   { to: '/rh', label: 'RH', icon: UserCheck },
@@ -45,6 +47,7 @@ export const navItems = [
     icon: Settings,
     children: [
       { to: '/clientes', label: 'Clientes', icon: Users },
+      { to: '/frotas', label: 'Frotas', icon: Truck },
       { to: '/relatorios', label: 'Relatórios', icon: FileBarChart },
     ],
   },

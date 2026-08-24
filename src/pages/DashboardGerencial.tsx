@@ -63,12 +63,18 @@ export function DashboardGerencial() {
     const finalizadas = movimentacoes.filter((m) => m.status === 'saiu').length
     const totalClientes = clientes.length
     const totalUsuarios = usuarios.length
+    let totalFrotas = 0
+    try {
+      const salvo = localStorage.getItem('gvel_frotas_cadastradas_v1')
+      if (salvo) totalFrotas = JSON.parse(salvo).length
+    } catch {}
 
     return {
       noPatio,
       finalizadas,
       totalClientes,
       totalUsuarios,
+      totalFrotas,
       totalMovimentacoes: movimentacoes.length,
     }
   }, [movimentacoes, clientes, usuarios])
@@ -112,6 +118,14 @@ export function DashboardGerencial() {
       icon: Truck,
       tone: 'from-blue-500/20 to-blue-500/5 text-blue-500 border-blue-500/20',
       badge: `${metricas.noPatio} NO PÁTIO`,
+    },
+    {
+      to: '/frotas',
+      title: 'GESTÃO DE FROTAS',
+      desc: 'CADASTRO DE CAMINHÕES, CARRETAS E CLIENTES',
+      icon: Truck,
+      tone: 'from-indigo-500/20 to-indigo-500/5 text-indigo-400 border-indigo-500/20',
+      badge: `${metricas.totalFrotas} VEÍCULOS`,
     },
     {
       to: '/movimentacoes',
