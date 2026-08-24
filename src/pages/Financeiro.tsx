@@ -768,7 +768,7 @@ export function Financeiro() {
                 <LabelList
                   dataKey="Faturamento"
                   position="top"
-                  formatter={(v: number) => fmtCompact(v)}
+                  formatter={(v: any) => fmtCompact(Number(v) || 0)}
                   style={{ fill: '#93c5fd', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
                 />
               </Bar>
@@ -776,7 +776,7 @@ export function Financeiro() {
                 <LabelList
                   dataKey="Receitas"
                   position="top"
-                  formatter={(v: number) => fmtCompact(v)}
+                  formatter={(v: any) => fmtCompact(Number(v) || 0)}
                   style={{ fill: '#6ee7b7', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
                 />
               </Bar>
@@ -784,7 +784,7 @@ export function Financeiro() {
                 <LabelList
                   dataKey="Despesas"
                   position="top"
-                  formatter={(v: number) => fmtCompact(v)}
+                  formatter={(v: any) => fmtCompact(Number(v) || 0)}
                   style={{ fill: '#fca5a5', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
                 />
               </Bar>

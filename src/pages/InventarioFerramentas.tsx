@@ -1820,13 +1820,6 @@ function ModalRetirada({
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleNext = () => {
-    if (step === 1 && itensSelecionados.length === 0) return setErro('Selecione ao menos uma ferramenta.')
-    if (step === 2 && placasSelecionadas.length === 0) return setErro('Selecione ao menos um caminhão.')
-    setErro(null)
-    setStep((s) => s + 1)
-  }
-
   const handleSubmit = async () => {
     if (itensSelecionados.length === 0) {
       setErro('Selecione ao menos uma ferramenta.')
