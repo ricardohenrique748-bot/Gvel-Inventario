@@ -19,7 +19,6 @@ import {
   ClipboardCheck,
   Gauge,
   User,
-  ShieldCheck,
   Eye,
   Camera,
   Wrench,
@@ -147,29 +146,14 @@ export interface RegistroChecklist {
 }
 
 const ITENS_PADRAO_CHECKLIST = [
-  // Pneus & Rodas
-  { id: '1', categoria: 'PNEUS & RODAS', nome: 'Calibragem e estado dos pneus', status: 'conforme' },
-  { id: '2', categoria: 'PNEUS & RODAS', nome: 'Pneu estepe e ferramentas', status: 'conforme' },
-  { id: '3', categoria: 'PNEUS & RODAS', nome: 'Aperto das porcas das rodas', status: 'conforme' },
-
-  // Iluminação
-  { id: '4', categoria: 'ILUMINAÇÃO & ELÉTRICA', nome: 'Faróis alto e baixo', status: 'conforme' },
-  { id: '5', categoria: 'ILUMINAÇÃO & ELÉTRICA', nome: 'Lanternas e luzes de freio', status: 'conforme' },
-  { id: '6', categoria: 'ILUMINAÇÃO & ELÉTRICA', nome: 'Setas e pisca-alerta', status: 'conforme' },
-  { id: '7', categoria: 'ILUMINAÇÃO & ELÉTRICA', nome: 'Luz de ré e alarme sonoro', status: 'conforme' },
-
-  // Fluidos & Mecânica
-  { id: '8', categoria: 'FLUIDOS & MOTOR', nome: 'Nível de óleo do motor', status: 'conforme' },
-  { id: '9', categoria: 'FLUIDOS & MOTOR', nome: 'Nível da água / líquido do radiador', status: 'conforme' },
-  { id: '10', categoria: 'FLUIDOS & MOTOR', nome: 'Freios e freio de estacionamento', status: 'conforme' },
-  { id: '11', categoria: 'FLUIDOS & MOTOR', nome: 'Inexistência de vazamentos visíveis', status: 'conforme' },
-
-  // Segurança & Cabine
-  { id: '12', categoria: 'SEGURANÇA & CABINE', nome: 'Cintos de segurança operantes', status: 'conforme' },
-  { id: '13', categoria: 'SEGURANÇA & CABINE', nome: 'Extintor de incêndio na validade', status: 'conforme' },
-  { id: '14', categoria: 'SEGURANÇA & CABINE', nome: 'Limpadores de para-brisa e esguicho', status: 'conforme' },
-  { id: '15', categoria: 'SEGURANÇA & CABINE', nome: 'Retrovisores e vidros íntegros', status: 'conforme' },
-  { id: '16', categoria: 'SEGURANÇA & CABINE', nome: 'Documentação de bordo e CRLV', status: 'conforme' },
+  { id: '1', categoria: 'ILUMINAÇÃO & SINALIZAÇÃO', nome: 'Farol Dianteiro', status: 'conforme' },
+  { id: '2', categoria: 'ILUMINAÇÃO & SINALIZAÇÃO', nome: 'Farol Traseiro', status: 'conforme' },
+  { id: '3', categoria: 'ILUMINAÇÃO & SINALIZAÇÃO', nome: 'Pisca Alerta Dianteiro', status: 'conforme' },
+  { id: '4', categoria: 'ILUMINAÇÃO & SINALIZAÇÃO', nome: 'Pisca Alerta Traseiro', status: 'conforme' },
+  { id: '5', categoria: 'SEGURANÇA & CABINE', nome: 'Cinto de Segurança', status: 'conforme' },
+  { id: '6', categoria: 'SEGURANÇA & CABINE', nome: 'Buzina', status: 'conforme' },
+  { id: '7', categoria: 'PNEUS & RODAS', nome: 'Estepe', status: 'conforme' },
+  { id: '8', categoria: 'FLUIDOS & MOTOR', nome: 'Nível do Óleo', status: 'conforme' },
 ] as const
 
 const STORAGE_FROTAS_KEY = 'gvel_frotas_cadastradas_v1'
@@ -2556,79 +2540,127 @@ export function Frotas() {
                 </div>
               </div>
 
-              {/* SEÇÃO 3: ITENS DE VERIFICAÇÃO VEICULAR */}
+              {/* SEÇÃO 3: ITENS DE INSPEÇÃO (8 ITENS) */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b border-border/10 pb-2">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    3. ITENS DE VERIFICAÇÃO VEICULAR
-                  </h3>
-                  <span className="text-[10px] text-secondary font-bold">SELECIONE O STATUS</span>
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                      <ClipboardCheck className="h-4 w-4 text-primary" />
+                      3. ITENS DE INSPEÇÃO ({itensChecklistForm.length} ITENS)
+                    </h3>
+                    <span className="text-[10px] text-secondary font-medium">Verificação dos componentes obrigatórios</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItensChecklistForm(
+                        ITENS_PADRAO_CHECKLIST.map((it) => ({
+                          id: it.id,
+                          categoria: it.categoria,
+                          nome: it.nome,
+                          status: 'conforme',
+                        }))
+                      )
+                    }}
+                    className="text-[10px] font-black uppercase text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1 rounded-lg border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <Check className="h-3 w-3" />
+                    Marcar Todos Conforme
+                  </button>
                 </div>
 
-                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
-                  {itensChecklistForm.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl border border-border/15 bg-overlay/5 hover:border-border/30 transition-colors"
-                    >
-                      <div>
-                        <span className="text-[9px] font-black text-secondary uppercase tracking-wider">
-                          {item.categoria}
-                        </span>
-                        <p className="text-xs font-bold text-foreground">{item.nome}</p>
-                      </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {itensChecklistForm.map((item, index) => {
+                    const iconeItem =
+                      item.nome.includes('Farol Dianteiro')
+                        ? '💡'
+                        : item.nome.includes('Farol Traseiro')
+                        ? '🔴'
+                        : item.nome.includes('Pisca')
+                        ? '⚠️'
+                        : item.nome.includes('Cinto')
+                        ? '🔒'
+                        : item.nome.includes('Buzina')
+                        ? '📢'
+                        : item.nome.includes('Estepe')
+                        ? '🛞'
+                        : item.nome.includes('Óleo')
+                        ? '🛢️'
+                        : '📋'
 
-                      {/* Alternador de Status */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const novos = [...itensChecklistForm]
-                            novos[index].status = 'conforme'
-                            setItensChecklistForm(novos)
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
-                            item.status === 'conforme'
-                              ? 'bg-emerald-500 text-white shadow-sm'
-                              : 'bg-surface text-secondary hover:text-foreground border border-border/20'
-                          }`}
-                        >
-                          CONFORME
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const novos = [...itensChecklistForm]
-                            novos[index].status = 'nao_conforme'
-                            setItensChecklistForm(novos)
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
-                            item.status === 'nao_conforme'
-                              ? 'bg-rose-600 text-white shadow-sm'
-                              : 'bg-surface text-secondary hover:text-foreground border border-border/20'
-                          }`}
-                        >
-                          AVARIA / NÃO
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const novos = [...itensChecklistForm]
-                            novos[index].status = 'nao_se_aplica'
-                            setItensChecklistForm(novos)
-                          }}
-                          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                            item.status === 'nao_se_aplica'
-                              ? 'bg-overlay/20 text-foreground border border-border/40'
-                              : 'bg-surface text-secondary/60 hover:text-secondary border border-border/10'
-                          }`}
-                        >
-                          N/A
-                        </button>
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                          item.status === 'conforme'
+                            ? 'border-emerald-500/30 bg-emerald-500/5'
+                            : item.status === 'nao_conforme'
+                            ? 'border-red-500/40 bg-red-500/10'
+                            : 'border-border/15 bg-overlay/5'
+                        }`}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <span className="text-[8px] font-black text-secondary uppercase tracking-wider block truncate">
+                            {item.categoria}
+                          </span>
+                          <p className="text-xs font-bold text-foreground flex items-center gap-1 mt-0.5 truncate">
+                            <span>{iconeItem}</span>
+                            <span className="truncate">{item.nome}</span>
+                          </p>
+                        </div>
+
+                        {/* Alternador de Status */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const novos = [...itensChecklistForm]
+                              novos[index].status = 'conforme'
+                              setItensChecklistForm(novos)
+                            }}
+                            className={`px-2 py-1 rounded-lg text-[9px] font-black transition-all cursor-pointer ${
+                              item.status === 'conforme'
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'bg-surface text-secondary hover:text-foreground border border-border/20'
+                            }`}
+                          >
+                            CONFORME
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const novos = [...itensChecklistForm]
+                              novos[index].status = 'nao_conforme'
+                              setItensChecklistForm(novos)
+                            }}
+                            className={`px-2 py-1 rounded-lg text-[9px] font-black transition-all cursor-pointer ${
+                              item.status === 'nao_conforme'
+                                ? 'bg-rose-600 text-white shadow-sm'
+                                : 'bg-surface text-secondary hover:text-foreground border border-border/20'
+                            }`}
+                          >
+                            AVARIA
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const novos = [...itensChecklistForm]
+                              novos[index].status = 'nao_se_aplica'
+                              setItensChecklistForm(novos)
+                            }}
+                            className={`px-1.5 py-1 rounded-lg text-[9px] font-bold transition-all cursor-pointer ${
+                              item.status === 'nao_se_aplica'
+                                ? 'bg-overlay/20 text-foreground border border-border/40'
+                                : 'bg-surface text-secondary/60 hover:text-secondary border border-border/10'
+                            }`}
+                          >
+                            N/A
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
 
@@ -2882,39 +2914,41 @@ export function Frotas() {
                 </div>
               )}
 
-              {/* Lista dos Itens */}
-              <div className="space-y-2">
-                <span className="text-[11px] font-black text-secondary uppercase tracking-wider">
-                  ITENS AUDITADOS
-                </span>
-                <div className="divide-y divide-border/10 rounded-xl border border-border/15 bg-surface overflow-hidden">
-                  {checklistVisualizando.itens.map((it) => (
-                    <div key={it.id} className="flex items-center justify-between p-3 text-xs">
-                      <div>
-                        <span className="text-[9px] text-secondary font-bold uppercase">{it.categoria}</span>
-                        <p className="font-bold text-foreground">{it.nome}</p>
+              {/* Lista dos Itens (se houver no histórico) */}
+              {checklistVisualizando.itens && checklistVisualizando.itens.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[11px] font-black text-secondary uppercase tracking-wider">
+                    ITENS AUDITADOS
+                  </span>
+                  <div className="divide-y divide-border/10 rounded-xl border border-border/15 bg-surface overflow-hidden">
+                    {checklistVisualizando.itens.map((it) => (
+                      <div key={it.id} className="flex items-center justify-between p-3 text-xs">
+                        <div>
+                          <span className="text-[9px] text-secondary font-bold uppercase">{it.categoria}</span>
+                          <p className="font-bold text-foreground">{it.nome}</p>
+                        </div>
+                        <div>
+                          {it.status === 'conforme' && (
+                            <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                              CONFORME
+                            </span>
+                          )}
+                          {it.status === 'nao_conforme' && (
+                            <span className="text-[10px] font-black text-rose-500 bg-rose-600/10 px-2 py-0.5 rounded-md border border-rose-600/20">
+                              NÃO CONFORME
+                            </span>
+                          )}
+                          {it.status === 'nao_se_aplica' && (
+                            <span className="text-[10px] font-bold text-secondary bg-overlay/10 px-2 py-0.5 rounded-md">
+                              N/A
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        {it.status === 'conforme' && (
-                          <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                            CONFORME
-                          </span>
-                        )}
-                        {it.status === 'nao_conforme' && (
-                          <span className="text-[10px] font-black text-rose-500 bg-rose-600/10 px-2 py-0.5 rounded-md border border-rose-600/20">
-                            NÃO CONFORME
-                          </span>
-                        )}
-                        {it.status === 'nao_se_aplica' && (
-                          <span className="text-[10px] font-bold text-secondary bg-overlay/10 px-2 py-0.5 rounded-md">
-                            N/A
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {checklistVisualizando.observacoesGerais && (
                 <div className="p-3.5 rounded-xl border border-border/15 bg-overlay/5">
