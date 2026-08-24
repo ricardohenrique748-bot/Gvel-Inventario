@@ -41,7 +41,8 @@ export const navItems = [
     label: 'Gestão de Frotas',
     icon: Truck,
     children: [
-      { to: '/frotas', label: 'Veículos', icon: Truck, end: true },
+      { to: '/frotas', label: 'Dashboard', icon: LayoutDashboard, end: true },
+      { to: '/frotas?aba=veiculos', label: 'Veículos', icon: Truck },
       { to: '/frotas?aba=checklist', label: 'Checklist', icon: ClipboardCheck },
     ],
   },

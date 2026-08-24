@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -17,7 +17,6 @@ import {
   Calendar,
   CheckCircle2,
   ClipboardCheck,
-  Fuel,
   Gauge,
   User,
   ShieldCheck,
@@ -26,7 +25,21 @@ import {
   Wrench,
   Check,
   Disc,
+  MapPin,
+  Users,
+  AlertTriangle,
 } from 'lucide-react'
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Cell,
+  LabelList,
+} from 'recharts'
 import { differenceInDays, parseISO, isBefore, startOfDay, format } from 'date-fns'
 import { PageHeader } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
@@ -60,7 +73,9 @@ const schemaVeiculo = z.object({
   marcaId: z.string().min(1, 'Selecione a marca'),
   modeloId: z.string().min(1, 'Selecione o modelo'),
   vencimentoDocumento: z.string().optional(),
-  vencimentoPreventiva: z.string().optional(),
+  dataUltimaPreventiva: z.string().optional(),
+  kmUltimaPreventiva: z.number().optional(),
+  intervaloPreventivaKm: z.number().optional(),
   observacoes: z.string().optional(),
 })
 
@@ -79,7 +94,11 @@ export interface ItemFrotaCadastrada {
   chassi?: string
   situacao: 'operante' | 'inoperante'
   vencimentoDocumento?: string // YYYY-MM-DD
-  vencimentoPreventiva?: string // YYYY-MM-DD
+  dataUltimaPreventiva?: string // Data da última preventiva
+  kmUltimaPreventiva?: number // KM registrado na última preventiva
+  intervaloPreventivaKm?: number // A cada quantos KM faz preventiva (ex: 10000)
+  vencimentoPreventiva?: string // compatibilidade anterior
+  kmProximaPreventiva?: number // compatibilidade anterior
   observacoes?: string
   createdAt: string
 }
@@ -93,9 +112,21 @@ export interface ItemChecagem {
 }
 
 export interface FotosVistoria {
-  painel?: string // Foto do Painel / Hodômetro / Combustível
-  capo?: string   // Foto do Capô aberto / Motor
-  pneus?: string  // Foto dos Pneus e Rodas
+  painel?: string            // Foto do Painel / Hodômetro
+  capo?: string              // Foto do Capô aberto / Motor
+  pneuDiantEsq?: string      // Foto do Pneu Dianteiro Esquerdo
+  pneuDiantDir?: string      // Foto do Pneu Dianteiro Direito
+  pneuTrasEsq?: string       // Foto do Pneu Traseiro Esquerdo
+  pneuTrasDir?: string       // Foto do Pneu Traseiro Direito
+}
+
+export interface StatusPreventivaChecklist {
+  status: 'em_dia' | 'proxima' | 'vencida' | 'sem_dados'
+  kmUltima?: number
+  kmLimite?: number
+  kmRestante?: number
+  kmRodados?: number
+  mensagem: string
 }
 
 export interface RegistroChecklist {
@@ -107,8 +138,8 @@ export interface RegistroChecklist {
   motoristaNome: string
   inspetorNome: string
   kmAtual: number
-  nivelCombustivel: string
   resultado: 'aprovado' | 'aprovado_com_ressalvas' | 'reprovado'
+  statusPreventiva?: StatusPreventivaChecklist
   itens: ItemChecagem[]
   fotos?: FotosVistoria
   observacoesGerais?: string
@@ -144,7 +175,6 @@ const ITENS_PADRAO_CHECKLIST = [
 const STORAGE_FROTAS_KEY = 'gvel_frotas_cadastradas_v1'
 const STORAGE_CHECKLISTS_KEY = 'gvel_frotas_checklists_v1'
 
-// Helper de compressão de foto para otimização de storage
 function comprimirFoto(file: File, maxWidth = 1000, quality = 0.72): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -178,9 +208,12 @@ export function Frotas() {
   const { clientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
   const { movimentacoes } = useMovimentacoes()
+  const navigate = useNavigate()
 
   const [searchParams] = useSearchParams()
-  const abaPrincipal = searchParams.get('aba') === 'checklist' ? 'checklist' : 'veiculos'
+  const abaParam = searchParams.get('aba')
+  const abaPrincipal: 'dashboard' | 'veiculos' | 'checklist' =
+    abaParam === 'checklist' ? 'checklist' : abaParam === 'veiculos' ? 'veiculos' : 'dashboard'
 
   // Lista de veículos de frotas
   const [frotas, setFrotas] = useState<ItemFrotaCadastrada[]>(() => {
@@ -235,7 +268,6 @@ export function Frotas() {
   const [veiculoChecklistId, setVeiculoChecklistId] = useState('')
   const [motoristaChecklist, setMotoristaChecklist] = useState('')
   const [kmChecklist, setKmChecklist] = useState<number>(0)
-  const [combustivelChecklist, setCombustivelChecklist] = useState('1/2')
   const [resultadoChecklist, setResultadoChecklist] = useState<'aprovado' | 'aprovado_com_ressalvas' | 'reprovado'>('aprovado')
   const [obsChecklist, setObsChecklist] = useState('')
   const [fotosChecklist, setFotosChecklist] = useState<FotosVistoria>({})
@@ -251,7 +283,10 @@ export function Frotas() {
   // Refs de inputs de arquivo para disparar a câmera
   const inputFotoPainelRef = useRef<HTMLInputElement>(null)
   const inputFotoCapoRef = useRef<HTMLInputElement>(null)
-  const inputFotoPneusRef = useRef<HTMLInputElement>(null)
+  const inputFotoPneuDiantEsqRef = useRef<HTMLInputElement>(null)
+  const inputFotoPneuDiantDirRef = useRef<HTMLInputElement>(null)
+  const inputFotoPneuTrasEsqRef = useRef<HTMLInputElement>(null)
+  const inputFotoPneuTrasDirRef = useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -263,7 +298,7 @@ export function Frotas() {
     formState: { errors, isSubmitting },
   } = useForm<FormVeiculoValues>({
     resolver: zodResolver(schemaVeiculo),
-    defaultValues: { clienteId: '', tipo: 'pesado', situacao: 'operante', ano: anoAtual },
+    defaultValues: { clienteId: '', tipo: 'pesado', situacao: 'operante', ano: anoAtual, intervaloPreventivaKm: 10000 },
   })
 
   const marcaIdWatch = watch('marcaId')
@@ -300,41 +335,194 @@ export function Frotas() {
     }
   }
 
-  // Helper para status de preventiva
-  function getStatusPreventiva(dataStr?: string) {
-    if (!dataStr) return { status: 'nao_informado', label: 'NÃO INFORMADA', atrasada: false }
-    try {
-      const dataPrev = parseISO(dataStr)
-      const hoje = startOfDay(new Date())
-      const atrasada = isBefore(dataPrev, hoje)
-      const dias = differenceInDays(dataPrev, hoje)
-
-      if (atrasada) {
-        return {
-          status: 'atrasada',
-          label: `ATRASADA (${Math.abs(dias)}D ATRÁS)`,
-          atrasada: true,
-        }
+  // Mapeamento da última KM de cada placa registrada nos checklists
+  const ultimasKmsPorPlaca = useMemo(() => {
+    const map = new Map<string, number>()
+    const ordenados = [...checklists].sort((a, b) => new Date(a.dataHora).getTime() - new Date(b.dataHora).getTime())
+    ordenados.forEach((chk) => {
+      if (chk.placa && chk.kmAtual > 0) {
+        map.set(chk.placa.toUpperCase().trim(), chk.kmAtual)
       }
+    })
+    return map
+  }, [checklists])
+
+  // Helper para status de preventiva (calculado por KM e Data)
+  function getStatusPreventiva(v: ItemFrotaCadastrada) {
+    const kmAtual = ultimasKmsPorPlaca.get(v.placa.toUpperCase().trim()) || 0
+    const kmUltima = v.kmUltimaPreventiva || 0
+    const intervalo = v.intervaloPreventivaKm || 10000
+
+    let atrasadaPorKm = false
+    let kmRestante = 0
+    let kmLimite = 0
+
+    if (kmUltima > 0 && kmAtual > 0) {
+      kmLimite = kmUltima + intervalo
+      kmRestante = kmLimite - kmAtual
+      if (kmRestante < 0) {
+        atrasadaPorKm = true
+      }
+    } else if (v.kmProximaPreventiva && kmAtual > 0) {
+      kmLimite = v.kmProximaPreventiva
+      kmRestante = kmLimite - kmAtual
+      if (kmRestante < 0) {
+        atrasadaPorKm = true
+      }
+    }
+
+    // Checagem por Data
+    const dataPrevStr = v.dataUltimaPreventiva || v.vencimentoPreventiva
+    let atrasadaPorData = false
+    let dataFormatada = ''
+    if (dataPrevStr) {
+      try {
+        const dataPrev = parseISO(dataPrevStr)
+        const hoje = startOfDay(new Date())
+        atrasadaPorData = isBefore(dataPrev, hoje)
+        dataFormatada = format(dataPrev, 'dd/MM/yyyy')
+      } catch {}
+    }
+
+    if (atrasadaPorKm) {
       return {
-        status: 'em_dia',
-        label: `PROGRAMADA (${format(dataPrev, 'dd/MM/yyyy')})`,
+        status: 'atrasada',
+        label: `VENCIDA (-${Math.abs(kmRestante).toLocaleString('pt-BR')} KM)`,
+        kmRestante,
+        kmLimite,
+        atrasada: true,
+      }
+    }
+
+    if (atrasadaPorData) {
+      return {
+        status: 'atrasada',
+        label: `ATRASADA (${dataFormatada})`,
+        kmRestante,
+        kmLimite,
+        atrasada: true,
+      }
+    }
+
+    if (kmLimite > 0 && kmRestante <= 1000) {
+      return {
+        status: 'proxima',
+        label: `PRÓXIMA (${kmRestante.toLocaleString('pt-BR')} KM REST.)`,
+        kmRestante,
+        kmLimite,
         atrasada: false,
       }
-    } catch {
-      return { status: 'nao_informado', label: 'DATA INVÁLIDA', atrasada: false }
     }
+
+    if (kmLimite > 0) {
+      return {
+        status: 'em_dia',
+        label: `EM DIA (${kmRestante.toLocaleString('pt-BR')} KM REST.)`,
+        kmRestante,
+        kmLimite,
+        atrasada: false,
+      }
+    }
+
+    if (dataFormatada) {
+      return {
+        status: 'em_dia',
+        label: `PROGRAMADA (${dataFormatada})`,
+        kmRestante: 0,
+        kmLimite: 0,
+        atrasada: false,
+      }
+    }
+
+    return { status: 'nao_informado', label: 'NÃO INFORMADA', kmRestante: 0, kmLimite: 0, atrasada: false }
   }
+
+  // 1. DADOS DO GRÁFICO 1: KM Restante para Preventiva por Placa
+  const dadosGraficoKmPreventiva = useMemo(() => {
+    return frotas.map((v) => {
+      const placa = v.placa.toUpperCase().trim()
+      const kmAtual = ultimasKmsPorPlaca.get(placa) || 0
+      const kmUltima = v.kmUltimaPreventiva || 0
+      const intervalo = v.intervaloPreventivaKm || 10000
+      const kmMeta = kmUltima > 0 ? kmUltima + intervalo : (v.kmProximaPreventiva || (kmAtual > 0 ? kmAtual + 10000 : 10000))
+      const kmFaltante = kmMeta - kmAtual
+
+      return {
+        placa,
+        modelo: v.modeloNome || v.marcaNome || 'VEÍCULO',
+        kmAtual,
+        kmUltima,
+        kmMeta,
+        kmFaltante,
+        status: kmFaltante < 0 ? 'atrasado' : kmFaltante <= 1500 ? 'proximo' : 'em_dia',
+      }
+    }).sort((a, b) => a.kmFaltante - b.kmFaltante)
+  }, [frotas, ultimasKmsPorPlaca])
+
+  // 2. DADOS DO GRÁFICO 2: Checklists Realizados por Pessoa (Motorista / Condutor)
+  const dadosGraficoChecklistPessoa = useMemo(() => {
+    const contagem = new Map<string, { total: number; aprovados: number; ressalvas: number; reprovados: number }>()
+
+    checklists.forEach((chk) => {
+      const pessoa = (chk.motoristaNome || chk.inspetorNome || 'NÃO IDENTIFICADO').toUpperCase().trim()
+      const atual = contagem.get(pessoa) || { total: 0, aprovados: 0, ressalvas: 0, reprovados: 0 }
+      atual.total++
+      if (chk.resultado === 'aprovado') atual.aprovados++
+      else if (chk.resultado === 'aprovado_com_ressalvas') atual.ressalvas++
+      else if (chk.resultado === 'reprovado') atual.reprovados++
+      contagem.set(pessoa, atual)
+    })
+
+    return Array.from(contagem.entries())
+      .map(([nome, dados]) => ({
+        nome,
+        total: dados.total,
+        aprovados: dados.aprovados,
+        ressalvas: dados.ressalvas,
+        reprovados: dados.reprovados,
+      }))
+      .sort((a, b) => b.total - a.total)
+  }, [checklists])
+
+  // 3. DADOS DO GRÁFICO 3: Dias Restantes para Vencimento do CRLV por Placa
+  const dadosGraficoVencimentoDoc = useMemo(() => {
+    const hoje = startOfDay(new Date())
+
+    return frotas
+      .filter((v) => Boolean(v.vencimentoDocumento))
+      .map((v) => {
+        const placa = v.placa.toUpperCase().trim()
+        const dataDoc = parseISO(v.vencimentoDocumento!)
+        const dias = differenceInDays(dataDoc, hoje)
+
+        return {
+          placa,
+          modelo: v.modeloNome || v.marcaNome || 'VEÍCULO',
+          dias,
+          vencimento: format(dataDoc, 'dd/MM/yyyy'),
+          status: dias < 0 ? 'vencido' : dias <= 30 ? 'a_vencer' : 'em_dia',
+        }
+      })
+      .sort((a, b) => a.dias - b.dias)
+  }, [frotas])
 
   // Métricas da Frota
   const metricasFrota = useMemo(() => {
     const total = frotas.length
+    let operantes = 0
+    let inoperantes = 0
+    let noPatio = 0
     let preventivaAtrasada = 0
     let docAVencer = 0
     let docVencido = 0
 
     frotas.forEach((v) => {
-      const statusPrev = getStatusPreventiva(v.vencimentoPreventiva)
+      if (v.situacao === 'operante') operantes++
+      else inoperantes++
+
+      if (placasNoPatio.has(v.placa.toUpperCase().trim())) noPatio++
+
+      const statusPrev = getStatusPreventiva(v)
       if (statusPrev.status === 'atrasada') preventivaAtrasada++
 
       const statusDoc = getStatusDocumento(v.vencimentoDocumento)
@@ -342,8 +530,19 @@ export function Frotas() {
       else if (statusDoc.status === 'a_vencer') docAVencer++
     })
 
-    return { total, preventivaAtrasada, docAVencer, docVencido }
-  }, [frotas])
+    const foraDoPatio = total - noPatio
+
+    return {
+      total,
+      operantes,
+      inoperantes,
+      noPatio,
+      foraDoPatio,
+      preventivaAtrasada,
+      docAVencer,
+      docVencido,
+    }
+  }, [frotas, placasNoPatio, ultimasKmsPorPlaca])
 
   // Métricas do Checklist
   const metricasChecklist = useMemo(() => {
@@ -351,9 +550,78 @@ export function Frotas() {
     const aprovados = checklists.filter((c) => c.resultado === 'aprovado').length
     const comRessalvas = checklists.filter((c) => c.resultado === 'aprovado_com_ressalvas').length
     const reprovados = checklists.filter((c) => c.resultado === 'reprovado').length
+    const taxaAprovacao = total > 0 ? Math.round((aprovados / total) * 100) : 100
 
-    return { total, aprovados, comRessalvas, reprovados }
+    return { total, aprovados, comRessalvas, reprovados, taxaAprovacao }
   }, [checklists])
+
+  // Veículo Selecionado no Novo Checklist para Comparação de KM
+  const veiculoChecklistSelecionado = useMemo(() => {
+    return frotas.find((f) => f.id === veiculoChecklistId)
+  }, [frotas, veiculoChecklistId])
+
+  // Cálculo da Comparação de KM da Preventiva em Tempo Real no Checklist
+  const comparacaoPreventivaChecklist = useMemo((): StatusPreventivaChecklist => {
+    if (!veiculoChecklistSelecionado) {
+      return { status: 'sem_dados', mensagem: 'Selecione um veículo para comparar a preventiva.' }
+    }
+
+    const kmUltima = veiculoChecklistSelecionado.kmUltimaPreventiva || 0
+    const intervalo = veiculoChecklistSelecionado.intervaloPreventivaKm || 10000
+
+    if (!kmUltima && !veiculoChecklistSelecionado.kmProximaPreventiva) {
+      return {
+        status: 'sem_dados',
+        mensagem: 'Veículo sem KM de última preventiva cadastrado.',
+      }
+    }
+
+    const kmLimite = kmUltima > 0 ? kmUltima + intervalo : (veiculoChecklistSelecionado.kmProximaPreventiva || 0)
+    const kmDigitada = Number(kmChecklist) || 0
+
+    if (kmDigitada <= 0) {
+      return {
+        status: 'sem_dados',
+        kmUltima,
+        kmLimite,
+        mensagem: `Digite o KM atual para comparar com o limite de preventiva (${kmLimite.toLocaleString('pt-BR')} KM).`,
+      }
+    }
+
+    const kmRodados = kmUltima > 0 ? kmDigitada - kmUltima : 0
+    const kmRestante = kmLimite - kmDigitada
+
+    if (kmRestante < 0) {
+      return {
+        status: 'vencida',
+        kmUltima,
+        kmLimite,
+        kmRestante,
+        kmRodados,
+        mensagem: `🛑 PREVENTIVA VENCIDA POR KM! Ultrapassou o limite de ${kmLimite.toLocaleString('pt-BR')} KM em ${Math.abs(kmRestante).toLocaleString('pt-BR')} KM (Rodou ${kmRodados.toLocaleString('pt-BR')} KM desde a última revisão).`,
+      }
+    }
+
+    if (kmRestante <= 1000) {
+      return {
+        status: 'proxima',
+        kmUltima,
+        kmLimite,
+        kmRestante,
+        kmRodados,
+        mensagem: `⚠️ ATENÇÃO: PREVENTIVA PRÓXIMA! Faltam apenas ${kmRestante.toLocaleString('pt-BR')} KM para atingir a quilometragem de revisão (${kmLimite.toLocaleString('pt-BR')} KM).`,
+      }
+    }
+
+    return {
+      status: 'em_dia',
+      kmUltima,
+      kmLimite,
+      kmRestante,
+      kmRodados,
+      mensagem: `✅ PREVENTIVA EM DIA: Faltam ${kmRestante.toLocaleString('pt-BR')} KM para a próxima preventiva (Limite: ${kmLimite.toLocaleString('pt-BR')} KM).`,
+    }
+  }, [veiculoChecklistSelecionado, kmChecklist])
 
   // Filtro de Veículos
   const veiculosFiltrados = useMemo(() => {
@@ -362,7 +630,7 @@ export function Frotas() {
       if (clienteFiltro !== 'todos' && v.clienteId !== clienteFiltro) return false
 
       if (alertaFiltro === 'preventiva_atrasada') {
-        const st = getStatusPreventiva(v.vencimentoPreventiva)
+        const st = getStatusPreventiva(v)
         if (st.status !== 'atrasada') return false
       } else if (alertaFiltro === 'doc_a_vencer') {
         const st = getStatusDocumento(v.vencimentoDocumento)
@@ -390,7 +658,7 @@ export function Frotas() {
         cor.includes(termo)
       )
     })
-  }, [frotas, tipoFiltro, clienteFiltro, alertaFiltro, busca])
+  }, [frotas, tipoFiltro, clienteFiltro, alertaFiltro, busca, ultimasKmsPorPlaca])
 
   // Filtro de Checklists
   const checklistsFiltrados = useMemo(() => {
@@ -421,7 +689,9 @@ export function Frotas() {
       marcaId: '',
       modeloId: '',
       vencimentoDocumento: '',
-      vencimentoPreventiva: '',
+      dataUltimaPreventiva: '',
+      kmUltimaPreventiva: undefined,
+      intervaloPreventivaKm: 10000,
       observacoes: '',
     })
     setMostrarModalVeiculo(true)
@@ -440,7 +710,9 @@ export function Frotas() {
       marcaId: '',
       modeloId: '',
       vencimentoDocumento: v.vencimentoDocumento || '',
-      vencimentoPreventiva: v.vencimentoPreventiva || '',
+      dataUltimaPreventiva: v.dataUltimaPreventiva || v.vencimentoPreventiva || '',
+      kmUltimaPreventiva: v.kmUltimaPreventiva,
+      intervaloPreventivaKm: v.intervaloPreventivaKm || 10000,
       observacoes: v.observacoes || '',
     })
     setMostrarModalVeiculo(true)
@@ -465,7 +737,9 @@ export function Frotas() {
       marcaNome: marcaObj?.nome || '',
       modeloNome: modeloObj?.nome || '',
       vencimentoDocumento: values.vencimentoDocumento || undefined,
-      vencimentoPreventiva: values.vencimentoPreventiva || undefined,
+      dataUltimaPreventiva: values.dataUltimaPreventiva || undefined,
+      kmUltimaPreventiva: values.kmUltimaPreventiva || undefined,
+      intervaloPreventivaKm: values.intervaloPreventivaKm || 10000,
       observacoes: values.observacoes?.trim() || undefined,
       createdAt: new Date().toISOString(),
     }
@@ -486,10 +760,10 @@ export function Frotas() {
 
   // Handlers de Checklist
   function iniciarNovoChecklist() {
-    setVeiculoChecklistId(frotas[0]?.id || '')
+    const primeiro = frotas[0]?.id || ''
+    setVeiculoChecklistId(primeiro)
     setMotoristaChecklist('')
     setKmChecklist(0)
-    setCombustivelChecklist('1/2')
     setResultadoChecklist('aprovado')
     setObsChecklist('')
     setFotosChecklist({})
@@ -530,10 +804,14 @@ export function Frotas() {
     const veiculo = frotas.find((f) => f.id === veiculoChecklistId)
     const inspetor = perfil?.nome || user?.email || 'INSPETOR'
 
-    // Determina o resultado baseado nos itens caso haja não conformidades
     const temNaoConforme = itensChecklistForm.some((it) => it.status === 'nao_conforme')
     let resFinal = resultadoChecklist
     if (temNaoConforme && resultadoChecklist === 'aprovado') {
+      resFinal = 'aprovado_com_ressalvas'
+    }
+
+    // Se a preventiva estiver vencida por KM, sugerir ressalva caso esteja como aprovado direto
+    if (comparacaoPreventivaChecklist.status === 'vencida' && resFinal === 'aprovado') {
       resFinal = 'aprovado_com_ressalvas'
     }
 
@@ -546,8 +824,8 @@ export function Frotas() {
       motoristaNome: motoristaChecklist.toUpperCase().trim(),
       inspetorNome: inspetor.toUpperCase(),
       kmAtual: Number(kmChecklist) || 0,
-      nivelCombustivel: combustivelChecklist,
       resultado: resFinal,
+      statusPreventiva: comparacaoPreventivaChecklist,
       itens: itensChecklistForm,
       fotos: fotosChecklist,
       observacoesGerais: obsChecklist.trim() || undefined,
@@ -563,43 +841,77 @@ export function Frotas() {
     salvarChecklists(checklists.filter((c) => c.id !== id))
   }
 
-  // Contagem de fotos preenchidas
   const totalFotosTiradas = [
     fotosChecklist.painel,
     fotosChecklist.capo,
-    fotosChecklist.pneus,
+    fotosChecklist.pneuDiantEsq,
+    fotosChecklist.pneuDiantDir,
+    fotosChecklist.pneuTrasEsq,
+    fotosChecklist.pneuTrasDir,
   ].filter(Boolean).length
 
   return (
     <div className="space-y-6 animate-fade-in uppercase pb-12">
-      {/* Cabeçalho */}
+      {/* Cabeçalho Dinâmico */}
       <PageHeader
-        title={abaPrincipal === 'checklist' ? 'CHECKLIST DA FROTA' : 'GESTÃO DE FROTAS'}
+        title={
+          abaPrincipal === 'dashboard'
+            ? 'DASHBOARD DA FROTA'
+            : abaPrincipal === 'checklist'
+            ? 'CHECKLIST DA FROTA'
+            : 'VEÍCULOS DA FROTA'
+        }
         subtitle={
-          abaPrincipal === 'checklist'
+          abaPrincipal === 'dashboard'
+            ? 'KM RESTANTE PARA PREVENTIVA, AUDITORIA DE CHECKLISTS E VENCIMENTO DE DOCUMENTOS'
+            : abaPrincipal === 'checklist'
             ? 'INSPEÇÕES VEICULARES, VISTORIAS OPERACIONAIS E LAUDOS DE CONFORMIDADE'
             : 'CONTROLE DE CAMINHÕES, PREVENTIVAS E VENCIMENTO DE DOCUMENTOS (CRLV)'
         }
         actions={
-          abaPrincipal === 'veiculos' ? (
-            <Button
-              type="button"
-              onClick={iniciarCriacaoVeiculo}
-              className="gap-2 shadow-md shadow-primary/20 uppercase font-bold"
-            >
-              <Plus className="h-4 w-4" />
-              NOVO VEÍCULO
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              onClick={iniciarNovoChecklist}
-              className="gap-2 shadow-md shadow-primary/20 uppercase font-bold"
-            >
-              <Plus className="h-4 w-4" />
-              NOVO CHECKLIST
-            </Button>
-          )
+          <div className="flex items-center gap-2">
+            {abaPrincipal === 'dashboard' && (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={iniciarNovoChecklist}
+                  className="gap-1.5 shadow-sm font-bold text-xs"
+                >
+                  <ClipboardCheck className="h-4 w-4" />
+                  NOVO CHECKLIST
+                </Button>
+                <Button
+                  type="button"
+                  onClick={iniciarCriacaoVeiculo}
+                  className="gap-1.5 shadow-md shadow-primary/20 font-bold text-xs"
+                >
+                  <Plus className="h-4 w-4" />
+                  NOVO VEÍCULO
+                </Button>
+              </>
+            )}
+            {abaPrincipal === 'veiculos' && (
+              <Button
+                type="button"
+                onClick={iniciarCriacaoVeiculo}
+                className="gap-2 shadow-md shadow-primary/20 uppercase font-bold"
+              >
+                <Plus className="h-4 w-4" />
+                NOVO VEÍCULO
+              </Button>
+            )}
+            {abaPrincipal === 'checklist' && (
+              <Button
+                type="button"
+                onClick={iniciarNovoChecklist}
+                className="gap-2 shadow-md shadow-primary/20 uppercase font-bold"
+              >
+                <Plus className="h-4 w-4" />
+                NOVO CHECKLIST
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -609,6 +921,348 @@ export function Frotas() {
           <button onClick={() => setErroLista(null)} className="text-status-danger hover:opacity-70 p-1">
             <X className="h-4 w-4" />
           </button>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ABA 0: DASHBOARD GERENCIAL DA FROTA (COM OS 3 GRÁFICOS SOLICITADOS) */}
+      {/* ========================================================================= */}
+      {abaPrincipal === 'dashboard' && (
+        <div className="space-y-6">
+          {/* Indicadores Principais em Cards */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <Card className="p-4 sm:p-5 border-border/30 bg-surface/90">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[11px] font-black uppercase tracking-wider">TOTAL DA FROTA</span>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+                  <Truck className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-3 text-3xl font-black font-mono text-foreground">{metricasFrota.total}</p>
+              <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-secondary">
+                <span className="text-emerald-400 font-black">● {metricasFrota.operantes} OPERANTES</span>
+                <span className="text-amber-400 font-black">● {metricasFrota.inoperantes} INOP.</span>
+              </div>
+            </Card>
+
+            <Card className="p-4 sm:p-5 border-blue-500/20 bg-surface/90">
+              <div className="flex items-center justify-between text-blue-400">
+                <span className="text-[11px] font-black uppercase tracking-wider">STATUS NO PÁTIO</span>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <MapPin className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-3 text-3xl font-black font-mono text-blue-400">{metricasFrota.noPatio}</p>
+              <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-secondary">
+                <span className="text-blue-300">NO PÁTIO AGORA</span>
+                <span className="text-foreground/70">{metricasFrota.foraDoPatio} EM ROTA</span>
+              </div>
+            </Card>
+
+            <Card
+              onClick={() => {
+                setAlertaFiltro('preventiva_atrasada')
+                navigate('/frotas?aba=veiculos')
+              }}
+              className="p-4 sm:p-5 border-red-500/30 bg-surface/90 cursor-pointer hover:border-red-500/60 transition-colors"
+            >
+              <div className="flex items-center justify-between text-red-400">
+                <span className="text-[11px] font-black uppercase tracking-wider">PREVENTIVAS ATRASADAS</span>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 text-red-400 border border-red-500/20">
+                  <AlertOctagon className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-3 text-3xl font-black font-mono text-red-400">{metricasFrota.preventivaAtrasada}</p>
+              <p className="mt-1 text-xs text-red-300/80 font-medium">REVISÕES EXPIRADAS ➔</p>
+            </Card>
+
+            <Card
+              onClick={() => {
+                setAlertaFiltro('doc_vencido')
+                navigate('/frotas?aba=veiculos')
+              }}
+              className="p-4 sm:p-5 border-rose-600/30 bg-surface/90 cursor-pointer hover:border-rose-600/60 transition-colors"
+            >
+              <div className="flex items-center justify-between text-rose-500">
+                <span className="text-[11px] font-black uppercase tracking-wider">CRLV VENCIDO / VENCENDO</span>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600/10 text-rose-500 border border-rose-600/20">
+                  <FileX className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-3 text-3xl font-black font-mono text-rose-500">
+                {metricasFrota.docVencido + metricasFrota.docAVencer}
+              </p>
+              <div className="mt-1 text-[10px] text-secondary font-bold flex justify-between">
+                <span className="text-rose-400">{metricasFrota.docVencido} VENCIDOS</span>
+                <span className="text-amber-400">{metricasFrota.docAVencer} A VENCER</span>
+              </div>
+            </Card>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* GRÁFICO 1: QUANTOS KM FALTAM PARA FAZER PREVENTIVA POR PLACA */}
+          {/* ========================================================================= */}
+          <Card className="p-5 border-border/25 bg-surface/90 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/10 pb-3">
+              <div className="flex items-center gap-2">
+                <Gauge className="h-5 w-5 text-primary" />
+                <div>
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-wide">
+                    QUILOMETRAGEM (KM) RESTANTE PARA PRÓXIMA PREVENTIVA POR VEÍCULO
+                  </h3>
+                  <p className="text-[11px] text-secondary normal-case">
+                    Comparação de KM atual dos checklists vs KM da última preventiva + intervalo de revisão
+                  </p>
+                </div>
+              </div>
+              <Badge tone="neutral" className="text-[10px] font-black self-start sm:self-auto">
+                {dadosGraficoKmPreventiva.length} VEÍCULOS AUDITADOS
+              </Badge>
+            </div>
+
+            {dadosGraficoKmPreventiva.length === 0 ? (
+              <div className="py-12 text-center text-secondary">
+                <Truck className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-xs font-bold text-foreground">NENHUM VEÍCULO CADASTRADO NA FROTA</p>
+              </div>
+            ) : (
+              <div className="h-80 w-full pt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={dadosGraficoKmPreventiva}
+                    margin={{ top: 20, right: 30, left: 10, bottom: 25 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <XAxis
+                      dataKey="placa"
+                      tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 11, fontWeight: 'bold' }}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontFamily: 'monospace' }}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                      tickLine={false}
+                      unit=" KM"
+                    />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload || !payload.length) return null
+                        const d = payload[0].payload
+                        return (
+                          <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
+                            <p className="font-mono font-black text-primary text-sm flex items-center gap-1">
+                              🚛 {d.placa} · {d.modelo}
+                            </p>
+                            <div className="mt-1.5 space-y-1 text-[11px] text-foreground font-mono">
+                              <p>KM Atual (Checklist): <span className="font-bold text-white">{d.kmAtual.toLocaleString('pt-BR')} KM</span></p>
+                              {d.kmUltima > 0 && <p>Última Preventiva: <span className="font-bold text-secondary">{d.kmUltima.toLocaleString('pt-BR')} KM</span></p>}
+                              <p>Limite da Preventiva: <span className="font-bold text-white">{d.kmMeta.toLocaleString('pt-BR')} KM</span></p>
+                              <p className={`font-black ${d.kmFaltante < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                {d.kmFaltante < 0
+                                  ? `🛑 ATRASADA EM ${Math.abs(d.kmFaltante).toLocaleString('pt-BR')} KM`
+                                  : `✅ FALTAM ${d.kmFaltante.toLocaleString('pt-BR')} KM`}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      }}
+                    />
+                    <Bar dataKey="kmFaltante" radius={[6, 6, 0, 0]}>
+                      <LabelList
+                        dataKey="kmFaltante"
+                        position="top"
+                        formatter={(val: any) => `${Number(val).toLocaleString('pt-BR')} KM`}
+                        style={{ fill: '#cbd5e1', fontSize: '9px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                      />
+                      {dadosGraficoKmPreventiva.map((entry, index) => {
+                        let cor = '#10b981' // Verde (em dia)
+                        if (entry.kmFaltante < 0) cor = '#ef4444' // Vermelho (atrasado)
+                        else if (entry.kmFaltante <= 1500) cor = '#f59e0b' // Amarelo (próximo de vencer)
+                        return <Cell key={`cell-km-${index}`} fill={cor} />
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </Card>
+
+          {/* ========================================================================= */}
+          {/* LINHA DE DOIS GRÁFICOS: CHECKLIST POR PESSOA & DIAS PARA VENCIMENTO DO CRLV */}
+          {/* ========================================================================= */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* GRÁFICO 2: QUANTOS CHECKLISTS ESTÃO SENDO FEITOS POR PESSOA */}
+            <Card className="p-5 border-border/25 bg-surface/90 space-y-4">
+              <div className="flex items-center justify-between border-b border-border/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  <div>
+                    <h3 className="text-sm font-black text-foreground uppercase tracking-wide">
+                      CHECKLISTS REALIZADOS POR PESSOA
+                    </h3>
+                    <p className="text-[11px] text-secondary normal-case">
+                      Volume de inspeções veiculares por motorista / condutor
+                    </p>
+                  </div>
+                </div>
+                <Badge tone="neutral" className="text-[10px] font-black">
+                  {dadosGraficoChecklistPessoa.length} CONDUTORES
+                </Badge>
+              </div>
+
+              {dadosGraficoChecklistPessoa.length === 0 ? (
+                <div className="py-12 text-center text-secondary">
+                  <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-xs font-bold text-foreground">NENHUM CHECKLIST REGISTRADO AINDA</p>
+                </div>
+              ) : (
+                <div className="h-72 w-full pt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={dadosGraficoChecklistPessoa.slice(0, 8)}
+                      layout="vertical"
+                      margin={{ top: 10, right: 30, left: 30, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                      <XAxis
+                        type="number"
+                        tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontFamily: 'monospace' }}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="nome"
+                        tick={{ fill: 'var(--text-foreground, #f8fafc)', fontSize: 11, fontWeight: 'bold' }}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        tickLine={false}
+                        width={130}
+                      />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload || !payload.length) return null
+                          const d = payload[0].payload
+                          return (
+                            <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
+                              <p className="font-black text-primary text-sm flex items-center gap-1.5">
+                                <User className="h-3.5 w-3.5" /> {d.nome}
+                              </p>
+                              <div className="mt-1.5 space-y-1 text-[11px] font-mono">
+                                <p className="text-white font-black">TOTAL: {d.total} VISTORIAS</p>
+                                <p className="text-emerald-400">● Aprovados: {d.aprovados}</p>
+                                <p className="text-amber-400">● Com Ressalvas: {d.ressalvas}</p>
+                                <p className="text-rose-500">● Reprovados: {d.reprovados}</p>
+                              </div>
+                            </div>
+                          )
+                        }}
+                      />
+                      <Bar dataKey="total" fill="#6366f1" radius={[0, 6, 6, 0]}>
+                        <LabelList
+                          dataKey="total"
+                          position="right"
+                          formatter={(val: any) => `${val} vistorias`}
+                          style={{ fill: '#cbd5e1', fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                        />
+                        {dadosGraficoChecklistPessoa.slice(0, 8).map((_, index) => {
+                          const cores = ['#6366f1', '#3b82f6', '#0ea5e9', '#06b6d4', '#10b981', '#8b5cf6']
+                          return <Cell key={`cell-pes-${index}`} fill={cores[index % cores.length]} />
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </Card>
+
+            {/* GRÁFICO 3: QUANTOS DIAS FALTAM PARA O VENCIMENTO DO DOCUMENTO (CRLV) */}
+            <Card className="p-5 border-border/25 bg-surface/90 space-y-4">
+              <div className="flex items-center justify-between border-b border-border/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-amber-400" />
+                  <div>
+                    <h3 className="text-sm font-black text-foreground uppercase tracking-wide">
+                      DIAS RESTANTES PARA VENCIMENTO DO CRLV
+                    </h3>
+                    <p className="text-[11px] text-secondary normal-case">
+                      Contagem regressiva de validade da documentação por placa
+                    </p>
+                  </div>
+                </div>
+                <Badge tone="warning" className="text-[10px] font-black">
+                  {dadosGraficoVencimentoDoc.length} VEÍCULOS COM CRLV
+                </Badge>
+              </div>
+
+              {dadosGraficoVencimentoDoc.length === 0 ? (
+                <div className="py-12 text-center text-secondary">
+                  <FileX className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-xs font-bold text-foreground">NENHUM DOCUMENTO CADASTRADO</p>
+                </div>
+              ) : (
+                <div className="h-72 w-full pt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={dadosGraficoVencimentoDoc}
+                      margin={{ top: 20, right: 30, left: 10, bottom: 25 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis
+                        dataKey="placa"
+                        tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 11, fontWeight: 'bold' }}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontFamily: 'monospace' }}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        tickLine={false}
+                        unit=" D"
+                      />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload || !payload.length) return null
+                          const d = payload[0].payload
+                          return (
+                            <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
+                              <p className="font-mono font-black text-primary text-sm">
+                                🚛 {d.placa} · {d.modelo}
+                              </p>
+                              <div className="mt-1.5 space-y-1 text-[11px] font-mono">
+                                <p className="text-secondary">Data de Vencimento: <span className="font-bold text-white">{d.vencimento}</span></p>
+                                <p className={`font-black ${d.dias < 0 ? 'text-rose-500' : d.dias <= 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                  {d.dias < 0
+                                    ? `🛑 VENCIDO HÁ ${Math.abs(d.dias)} DIAS`
+                                    : d.dias === 0
+                                    ? '⚠️ VENCE HOJE!'
+                                    : `✅ VENCE EM ${d.dias} DIAS`}
+                                </p>
+                              </div>
+                            </div>
+                          )
+                        }}
+                      />
+                      <Bar dataKey="dias" radius={[6, 6, 0, 0]}>
+                        <LabelList
+                          dataKey="dias"
+                          position="top"
+                          formatter={(val: any) => `${val}D`}
+                          style={{ fill: '#cbd5e1', fontSize: '9px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                        />
+                        {dadosGraficoVencimentoDoc.map((entry, index) => {
+                          let cor = '#10b981' // Verde (em dia)
+                          if (entry.dias < 0) cor = '#e11d48' // Vermelho escuro (vencido)
+                          else if (entry.dias <= 30) cor = '#f59e0b' // Laranja / Âmbar (a vencer)
+                          return <Cell key={`cell-doc-${index}`} fill={cor} />
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </Card>
+          </div>
         </div>
       )}
 
@@ -781,7 +1435,8 @@ export function Frotas() {
                       <th className="px-4 py-3.5">PLACA</th>
                       <th className="px-4 py-3.5">MODELO / MARCA</th>
                       <th className="px-4 py-3.5">CLIENTE</th>
-                      <th className="px-4 py-3.5">PREVENTIVA</th>
+                      <th className="px-4 py-3.5">ÚLTIMA PREVENTIVA (KM / DATA)</th>
+                      <th className="px-4 py-3.5">STATUS PREVENTIVA</th>
                       <th className="px-4 py-3.5">DOCUMENTO / CRLV</th>
                       <th className="px-4 py-3.5">SITUAÇÃO</th>
                       <th className="px-4 py-3.5 text-right">AÇÕES</th>
@@ -790,7 +1445,7 @@ export function Frotas() {
                   <tbody className="divide-y divide-border/10 font-medium">
                     {veiculosFiltrados.map((v) => {
                       const estaNoPatio = placasNoPatio.has(v.placa.toUpperCase().trim())
-                      const statusPrev = getStatusPreventiva(v.vencimentoPreventiva)
+                      const statusPrev = getStatusPreventiva(v)
                       const statusDoc = getStatusDocumento(v.vencimentoDocumento)
 
                       return (
@@ -828,11 +1483,26 @@ export function Frotas() {
                             </div>
                           </td>
 
-                          {/* Preventiva */}
+                          {/* Dados da Última Preventiva */}
+                          <td className="px-4 py-3.5">
+                            <div className="text-xs font-mono font-bold text-foreground">
+                              {v.kmUltimaPreventiva ? `${v.kmUltimaPreventiva.toLocaleString('pt-BR')} KM` : '—'}
+                            </div>
+                            <div className="text-[10px] text-secondary font-semibold">
+                              {v.dataUltimaPreventiva ? format(parseISO(v.dataUltimaPreventiva), 'dd/MM/yyyy') : 'DATA NÃO INFORMADA'}
+                            </div>
+                          </td>
+
+                          {/* Status da Preventiva */}
                           <td className="px-4 py-3.5">
                             {statusPrev.status === 'atrasada' ? (
                               <span className="inline-flex items-center gap-1 rounded-md bg-red-500/15 border border-red-500/30 px-2 py-0.5 text-[10px] font-black text-red-400">
                                 <AlertOctagon className="h-3 w-3" />
+                                {statusPrev.label}
+                              </span>
+                            ) : statusPrev.status === 'proxima' ? (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-black text-amber-400">
+                                <AlertTriangle className="h-3 w-3" />
                                 {statusPrev.label}
                               </span>
                             ) : statusPrev.status === 'em_dia' ? (
@@ -1019,7 +1689,8 @@ export function Frotas() {
                       <th className="px-4 py-3.5">DATA / HORA</th>
                       <th className="px-4 py-3.5">VEÍCULO / PLACA</th>
                       <th className="px-4 py-3.5">MOTORISTA</th>
-                      <th className="px-4 py-3.5">KM / COMBUSTÍVEL</th>
+                      <th className="px-4 py-3.5">KM VISTORIA</th>
+                      <th className="px-4 py-3.5">PREVENTIVA</th>
                       <th className="px-4 py-3.5">FOTOS</th>
                       <th className="px-4 py-3.5">STATUS</th>
                       <th className="px-4 py-3.5 text-right">AÇÕES</th>
@@ -1028,7 +1699,14 @@ export function Frotas() {
                   <tbody className="divide-y divide-border/10 font-medium">
                     {checklistsFiltrados.map((chk) => {
                       const dataFormatada = format(parseISO(chk.dataHora), "dd/MM/yyyy 'às' HH:mm")
-                      const fotosQtd = [chk.fotos?.painel, chk.fotos?.capo, chk.fotos?.pneus].filter(Boolean).length
+                      const fotosQtd = [
+                        chk.fotos?.painel,
+                        chk.fotos?.capo,
+                        chk.fotos?.pneuDiantEsq,
+                        chk.fotos?.pneuDiantDir,
+                        chk.fotos?.pneuTrasEsq,
+                        chk.fotos?.pneuTrasDir,
+                      ].filter(Boolean).length
 
                       return (
                         <tr key={chk.id} className="hover:bg-surface-hover/40 transition-colors group">
@@ -1053,9 +1731,28 @@ export function Frotas() {
                             {chk.motoristaNome}
                           </td>
 
-                          {/* KM / Combustível */}
-                          <td className="px-4 py-3.5 text-xs text-secondary font-mono">
-                            <span>{chk.kmAtual.toLocaleString('pt-BR')} KM</span> · <span>TANQUE {chk.nivelCombustivel}</span>
+                          {/* KM */}
+                          <td className="px-4 py-3.5 text-xs font-mono font-bold text-foreground">
+                            {chk.kmAtual.toLocaleString('pt-BR')} KM
+                          </td>
+
+                          {/* Diagnóstico da Preventiva */}
+                          <td className="px-4 py-3.5">
+                            {chk.statusPreventiva?.status === 'vencida' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">
+                                🛑 VENCIDA
+                              </span>
+                            ) : chk.statusPreventiva?.status === 'proxima' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                ⚠️ PRÓXIMA
+                              </span>
+                            ) : chk.statusPreventiva?.status === 'em_dia' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                ✅ EM DIA
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-secondary/50 font-semibold">—</span>
+                            )}
                           </td>
 
                           {/* Fotos */}
@@ -1063,7 +1760,7 @@ export function Frotas() {
                             {fotosQtd > 0 ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                                 <Camera className="h-3 w-3" />
-                                {fotosQtd}/3 FOTOS
+                                {fotosQtd}/6 FOTOS
                               </span>
                             ) : (
                               <span className="text-[10px] text-secondary/50 font-semibold">— SEM FOTOS</span>
@@ -1136,7 +1833,7 @@ export function Frotas() {
                   <h2 className="text-base font-black text-foreground uppercase">
                     {editandoId ? 'EDITAR VEÍCULO DA FROTA' : 'NOVO VEÍCULO DA FROTA'}
                   </h2>
-                  <p className="text-[11px] text-secondary">Dados do caminhão, vencimento de preventiva e documentos</p>
+                  <p className="text-[11px] text-secondary">Dados do caminhão, KM da última preventiva e CRLV</p>
                 </div>
               </div>
               <button
@@ -1277,33 +1974,58 @@ export function Frotas() {
                 </div>
               </div>
 
-              {/* Seção de Controle de Datas */}
+              {/* SEÇÃO: CONTROLE DE PREVENTIVA (KM DA ÚLTIMA, DATA E INTERVALO) */}
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-3">
                 <div className="flex items-center gap-2 text-primary font-black text-xs">
-                  <Calendar className="h-4 w-4" />
-                  <span>MANUTENÇÃO PREVENTIVA & VENCIMENTO DE DOCUMENTO</span>
+                  <Gauge className="h-4 w-4" />
+                  <span>DADOS DA ÚLTIMA PREVENTIVA & REVISÃO PERIÓDICA</span>
+                </div>
+                <p className="text-[10px] text-secondary normal-case">
+                  Ao realizar vistorias de checklist, a quilometragem informada será comparada com estes dados para alertar vencimentos.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label htmlFor="kmUltimaPreventiva">KM da Última Preventiva</Label>
+                    <Input
+                      id="kmUltimaPreventiva"
+                      type="number"
+                      placeholder="Ex: 150000"
+                      {...register('kmUltimaPreventiva', { valueAsNumber: true })}
+                      className="mt-1 text-xs font-mono font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="intervaloPreventivaKm">Intervalo Preventiva (KM)</Label>
+                    <Input
+                      id="intervaloPreventivaKm"
+                      type="number"
+                      placeholder="Ex: 10000"
+                      {...register('intervaloPreventivaKm', { valueAsNumber: true })}
+                      className="mt-1 text-xs font-mono font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="dataUltimaPreventiva">Data da Última Preventiva</Label>
+                    <Input
+                      id="dataUltimaPreventiva"
+                      type="date"
+                      {...register('dataUltimaPreventiva')}
+                      className="mt-1 text-xs font-mono"
+                    />
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="vencimentoPreventiva">Próxima Preventiva</Label>
-                    <Input
-                      id="vencimentoPreventiva"
-                      type="date"
-                      {...register('vencimentoPreventiva')}
-                      className="mt-1 text-xs font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="vencimentoDocumento">Vencimento do Documento (CRLV)</Label>
-                    <Input
-                      id="vencimentoDocumento"
-                      type="date"
-                      {...register('vencimentoDocumento')}
-                      className="mt-1 text-xs font-mono"
-                    />
-                  </div>
+                <div className="pt-1">
+                  <Label htmlFor="vencimentoDocumento">Vencimento do Documento (CRLV)</Label>
+                  <Input
+                    id="vencimentoDocumento"
+                    type="date"
+                    {...register('vencimentoDocumento')}
+                    className="mt-1 text-xs font-mono"
+                  />
                 </div>
               </div>
 
@@ -1341,7 +2063,7 @@ export function Frotas() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: NOVO CHECKLIST DE INSPEÇÃO COM FOTOS OBRIGATÓRIAS */}
+      {/* MODAL 2: NOVO CHECKLIST DE INSPEÇÃO COM COMPARADOR DE PREVENTIVA */}
       {/* ========================================================================= */}
       {mostrarModalNovoChecklist && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4 animate-fade-in">
@@ -1354,7 +2076,7 @@ export function Frotas() {
                 </div>
                 <div>
                   <h2 className="text-sm sm:text-base font-black text-foreground uppercase">NOVO CHECKLIST DA FROTA</h2>
-                  <p className="text-[10px] sm:text-[11px] text-secondary">Vistoria fotográfica e inspeção operacional</p>
+                  <p className="text-[10px] sm:text-[11px] text-secondary">Vistoria fotográfica, KM e diagnóstico de preventiva</p>
                 </div>
               </div>
               <button
@@ -1368,211 +2090,385 @@ export function Frotas() {
 
             <form onSubmit={handleSalvarChecklist} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
               {/* SEÇÃO 1: FOTOS OBRIGATÓRIAS DE VISTORIA (INÍCIO DO CHECKLIST) */}
-              <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-3.5">
+              <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Camera className="h-4 w-4 text-primary animate-pulse" />
                     <span className="text-xs font-black text-foreground uppercase tracking-wide">
-                      1. FOTOS DA VISTORIA (INÍCIO OBRIGATÓRIO)
+                      1. FOTOS DA VISTORIA (PAINEL, CAPÔ E OS 4 PNEUS)
                     </span>
                   </div>
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-                    totalFotosTiradas === 3
+                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-md ${
+                    totalFotosTiradas === 6
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                       : 'bg-primary/20 text-primary'
                   }`}>
-                    {totalFotosTiradas}/3 CAPTURADAS
+                    {totalFotosTiradas}/6 CAPTURADAS
                   </span>
                 </div>
                 <p className="text-[11px] text-secondary normal-case leading-relaxed">
-                  Tire as fotos do painel (KM e combustível), capô aberto (motor/fluidos) e dos pneus para comprovação do estado do veículo:
+                  Tire as fotos obrigatórias do painel, motor com capô aberto e o estado individual de cada um dos 4 pneus:
                 </p>
 
-                {/* 3 Cards de Captura Fotográfica */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Foto 1: Painel */}
-                  <div className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
-                    fotosChecklist.painel
-                      ? 'border-emerald-500/40 bg-emerald-500/5'
-                      : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                  }`}>
-                    <input
-                      ref={inputFotoPainelRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => handleUploadFoto('painel', e)}
-                    />
-                    <div className="flex items-center justify-between w-full mb-2">
-                      <span className="text-[10px] font-black text-foreground flex items-center gap-1">
-                        <Gauge className="h-3 w-3 text-primary" /> PAINEL
-                      </span>
+                {/* Subseção A: Veículo (Painel & Capô) */}
+                <div>
+                  <span className="text-[10px] font-black text-secondary uppercase tracking-wider block mb-2">
+                    A. COMPARTIMENTO & INSTRUMENTOS
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Foto 1: Painel */}
+                    <div className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.painel
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoPainelRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('painel', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-2">
+                        <span className="text-[10px] font-black text-foreground flex items-center gap-1">
+                          <Gauge className="h-3 w-3 text-primary" /> PAINEL / KM
+                        </span>
+                        {fotosChecklist.painel ? (
+                          <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
+                            <Check className="h-2.5 w-2.5" /> OK
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold text-secondary">PENDENTE</span>
+                        )}
+                      </div>
+
                       {fotosChecklist.painel ? (
-                        <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
-                          <Check className="h-2.5 w-2.5" /> OK
-                        </span>
+                        <div className="relative w-full h-24 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.painel} alt="Painel" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoPainelRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[9px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, painel: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[9px] font-bold"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
                       ) : (
-                        <span className="text-[9px] font-bold text-secondary">PENDENTE</span>
+                        <button
+                          type="button"
+                          onClick={() => inputFotoPainelRef.current?.click()}
+                          className="w-full h-24 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-5 w-5" />
+                          <span className="text-[10px] font-bold">FOTO PAINEL</span>
+                        </button>
                       )}
                     </div>
 
-                    {fotosChecklist.painel ? (
-                      <div className="relative w-full h-24 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                        <img src={fotosChecklist.painel} alt="Painel" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() => inputFotoPainelRef.current?.click()}
-                            className="p-1 rounded bg-white text-black text-[9px] font-bold"
-                          >
-                            Trocar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setFotosChecklist((prev) => ({ ...prev, painel: undefined }))}
-                            className="p-1 rounded bg-red-600 text-white text-[9px] font-bold"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
+                    {/* Foto 2: Capô Aberto */}
+                    <div className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.capo
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoCapoRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('capo', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-2">
+                        <span className="text-[10px] font-black text-foreground flex items-center gap-1">
+                          <Wrench className="h-3 w-3 text-amber-400" /> CAPÔ ABERTO / MOTOR
+                        </span>
+                        {fotosChecklist.capo ? (
+                          <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
+                            <Check className="h-2.5 w-2.5" /> OK
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold text-secondary">PENDENTE</span>
+                        )}
                       </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => inputFotoPainelRef.current?.click()}
-                        className="w-full h-24 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                      >
-                        <Camera className="h-5 w-5" />
-                        <span className="text-[10px] font-bold">FOTO PAINEL</span>
-                      </button>
-                    )}
-                  </div>
 
-                  {/* Foto 2: Capô Aberto */}
-                  <div className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
-                    fotosChecklist.capo
-                      ? 'border-emerald-500/40 bg-emerald-500/5'
-                      : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                  }`}>
-                    <input
-                      ref={inputFotoCapoRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => handleUploadFoto('capo', e)}
-                    />
-                    <div className="flex items-center justify-between w-full mb-2">
-                      <span className="text-[10px] font-black text-foreground flex items-center gap-1">
-                        <Wrench className="h-3 w-3 text-amber-400" /> CAPÔ ABERTO
-                      </span>
                       {fotosChecklist.capo ? (
-                        <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
-                          <Check className="h-2.5 w-2.5" /> OK
-                        </span>
+                        <div className="relative w-full h-24 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.capo} alt="Capô Aberto" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoCapoRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[9px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, capo: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[9px] font-bold"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
                       ) : (
-                        <span className="text-[9px] font-bold text-secondary">PENDENTE</span>
+                        <button
+                          type="button"
+                          onClick={() => inputFotoCapoRef.current?.click()}
+                          className="w-full h-24 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-5 w-5" />
+                          <span className="text-[10px] font-bold">FOTO CAPÔ</span>
+                        </button>
                       )}
                     </div>
-
-                    {fotosChecklist.capo ? (
-                      <div className="relative w-full h-24 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                        <img src={fotosChecklist.capo} alt="Capô Aberto" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() => inputFotoCapoRef.current?.click()}
-                            className="p-1 rounded bg-white text-black text-[9px] font-bold"
-                          >
-                            Trocar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setFotosChecklist((prev) => ({ ...prev, capo: undefined }))}
-                            className="p-1 rounded bg-red-600 text-white text-[9px] font-bold"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => inputFotoCapoRef.current?.click()}
-                        className="w-full h-24 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                      >
-                        <Camera className="h-5 w-5" />
-                        <span className="text-[10px] font-bold">FOTO CAPÔ</span>
-                      </button>
-                    )}
                   </div>
+                </div>
 
-                  {/* Foto 3: Pneus */}
-                  <div className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
-                    fotosChecklist.pneus
-                      ? 'border-emerald-500/40 bg-emerald-500/5'
-                      : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                  }`}>
-                    <input
-                      ref={inputFotoPneusRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => handleUploadFoto('pneus', e)}
-                    />
-                    <div className="flex items-center justify-between w-full mb-2">
-                      <span className="text-[10px] font-black text-foreground flex items-center gap-1">
-                        <Disc className="h-3 w-3 text-blue-400" /> PNEUS & RODAS
-                      </span>
-                      {fotosChecklist.pneus ? (
-                        <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
-                          <Check className="h-2.5 w-2.5" /> OK
+                {/* Subseção B: Os 4 Pneus do Veículo */}
+                <div>
+                  <span className="text-[10px] font-black text-secondary uppercase tracking-wider block mb-2">
+                    B. FOTOS DOS 4 PNEUS (DIANTEIROS E TRASEIROS)
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {/* Pneu 1: Dianteiro Esquerdo */}
+                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.pneuDiantEsq
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoPneuDiantEsqRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('pneuDiantEsq', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                          <Disc className="h-2.5 w-2.5 text-blue-400" /> DIANT. ESQ.
                         </span>
+                        {fotosChecklist.pneuDiantEsq && (
+                          <span className="text-[8px] font-black text-emerald-400">✓</span>
+                        )}
+                      </div>
+
+                      {fotosChecklist.pneuDiantEsq ? (
+                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.pneuDiantEsq} alt="Pneu DE" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoPneuDiantEsqRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, pneuDiantEsq: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
                       ) : (
-                        <span className="text-[9px] font-bold text-secondary">PENDENTE</span>
+                        <button
+                          type="button"
+                          onClick={() => inputFotoPneuDiantEsqRef.current?.click()}
+                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[9px] font-bold">DIANT. ESQ.</span>
+                        </button>
                       )}
                     </div>
 
-                    {fotosChecklist.pneus ? (
-                      <div className="relative w-full h-24 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                        <img src={fotosChecklist.pneus} alt="Pneus" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() => inputFotoPneusRef.current?.click()}
-                            className="p-1 rounded bg-white text-black text-[9px] font-bold"
-                          >
-                            Trocar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setFotosChecklist((prev) => ({ ...prev, pneus: undefined }))}
-                            className="p-1 rounded bg-red-600 text-white text-[9px] font-bold"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
+                    {/* Pneu 2: Dianteiro Direito */}
+                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.pneuDiantDir
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoPneuDiantDirRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('pneuDiantDir', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                          <Disc className="h-2.5 w-2.5 text-blue-400" /> DIANT. DIR.
+                        </span>
+                        {fotosChecklist.pneuDiantDir && (
+                          <span className="text-[8px] font-black text-emerald-400">✓</span>
+                        )}
                       </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => inputFotoPneusRef.current?.click()}
-                        className="w-full h-24 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                      >
-                        <Camera className="h-5 w-5" />
-                        <span className="text-[10px] font-bold">FOTO PNEUS</span>
-                      </button>
-                    )}
+
+                      {fotosChecklist.pneuDiantDir ? (
+                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.pneuDiantDir} alt="Pneu DD" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoPneuDiantDirRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, pneuDiantDir: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => inputFotoPneuDiantDirRef.current?.click()}
+                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[9px] font-bold">DIANT. DIR.</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Pneu 3: Traseiro Esquerdo */}
+                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.pneuTrasEsq
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoPneuTrasEsqRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('pneuTrasEsq', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                          <Disc className="h-2.5 w-2.5 text-blue-400" /> TRAS. ESQ.
+                        </span>
+                        {fotosChecklist.pneuTrasEsq && (
+                          <span className="text-[8px] font-black text-emerald-400">✓</span>
+                        )}
+                      </div>
+
+                      {fotosChecklist.pneuTrasEsq ? (
+                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.pneuTrasEsq} alt="Pneu TE" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoPneuTrasEsqRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, pneuTrasEsq: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => inputFotoPneuTrasEsqRef.current?.click()}
+                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[9px] font-bold">TRAS. ESQ.</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Pneu 4: Traseiro Direito */}
+                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.pneuTrasDir
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoPneuTrasDirRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('pneuTrasDir', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                          <Disc className="h-2.5 w-2.5 text-blue-400" /> TRAS. DIR.
+                        </span>
+                        {fotosChecklist.pneuTrasDir && (
+                          <span className="text-[8px] font-black text-emerald-400">✓</span>
+                        )}
+                      </div>
+
+                      {fotosChecklist.pneuTrasDir ? (
+                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.pneuTrasDir} alt="Pneu TD" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoPneuTrasDirRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, pneuTrasDir: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => inputFotoPneuTrasDirRef.current?.click()}
+                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[9px] font-bold">TRAS. DIR.</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* SEÇÃO 2: DADOS DO VEÍCULO E CONDUTOR */}
+              {/* SEÇÃO 2: DADOS DO VEÍCULO, CONDUTOR E COMPARADOR DE PREVENTIVA */}
               <div className="space-y-3">
                 <span className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
-                  <Truck className="h-4 w-4 text-primary" /> 2. DADOS DA OPERAÇÃO
+                  <Truck className="h-4 w-4 text-primary" /> 2. DADOS DA OPERAÇÃO & KM
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1610,41 +2506,53 @@ export function Frotas() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="chkKm">Quilometragem Atual (KM) *</Label>
-                    <div className="relative mt-1">
-                      <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
-                      <Input
-                        id="chkKm"
-                        type="number"
-                        placeholder="Ex: 154200"
-                        value={kmChecklist || ''}
-                        onChange={(e) => setKmChecklist(Number(e.target.value))}
-                        className="pl-9 font-mono text-xs font-bold"
-                        required
-                      />
-                    </div>
+                <div>
+                  <Label htmlFor="chkKm">Quilometragem Atual do Veículo (KM) *</Label>
+                  <div className="relative mt-1">
+                    <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+                    <Input
+                      id="chkKm"
+                      type="number"
+                      placeholder="Ex: 154200"
+                      value={kmChecklist || ''}
+                      onChange={(e) => setKmChecklist(Number(e.target.value))}
+                      className="pl-9 font-mono text-xs font-bold"
+                      required
+                    />
                   </div>
+                </div>
 
-                  <div>
-                    <Label htmlFor="chkCombustivel">Nível de Combustível *</Label>
-                    <div className="relative mt-1">
-                      <Fuel className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
-                      <Select
-                        id="chkCombustivel"
-                        value={combustivelChecklist}
-                        onChange={(e) => setCombustivelChecklist(e.target.value)}
-                        className="pl-9 text-xs uppercase font-bold"
-                      >
-                        <option value="RESERVA">RESERVA</option>
-                        <option value="1/4">1/4 DE TANQUE</option>
-                        <option value="1/2">1/2 TANQUE (MEIO)</option>
-                        <option value="3/4">3/4 DE TANQUE</option>
-                        <option value="CHEIO">CHEIO / COMPLETO</option>
-                      </Select>
-                    </div>
+                {/* CARD DE COMPARAÇÃO DE PREVENTIVA EM TEMPO REAL */}
+                <div className={`p-3.5 rounded-xl border text-xs transition-all ${
+                  comparacaoPreventivaChecklist.status === 'vencida'
+                    ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                    : comparacaoPreventivaChecklist.status === 'proxima'
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                    : comparacaoPreventivaChecklist.status === 'em_dia'
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                    : 'border-border/20 bg-overlay/5 text-secondary'
+                }`}>
+                  <div className="flex items-center gap-2 font-black uppercase text-[11px] mb-1">
+                    {comparacaoPreventivaChecklist.status === 'vencida' && <AlertOctagon className="h-4 w-4 text-red-400" />}
+                    {comparacaoPreventivaChecklist.status === 'proxima' && <AlertTriangle className="h-4 w-4 text-amber-400" />}
+                    {comparacaoPreventivaChecklist.status === 'em_dia' && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
+                    {comparacaoPreventivaChecklist.status === 'sem_dados' && <Gauge className="h-4 w-4 text-secondary" />}
+                    <span>DIAGNÓSTICO AUTOMÁTICO DE PREVENTIVA</span>
                   </div>
+                  <p className="normal-case leading-relaxed font-medium">
+                    {comparacaoPreventivaChecklist.mensagem}
+                  </p>
+                  {comparacaoPreventivaChecklist.kmLimite && comparacaoPreventivaChecklist.kmLimite > 0 && (
+                    <div className="mt-2 pt-2 border-t border-border/10 flex flex-wrap items-center justify-between text-[10px] font-mono font-bold">
+                      {comparacaoPreventivaChecklist.kmUltima && comparacaoPreventivaChecklist.kmUltima > 0 && (
+                        <span>Última Rev.: {comparacaoPreventivaChecklist.kmUltima.toLocaleString('pt-BR')} KM</span>
+                      )}
+                      <span>Limite Rev.: {comparacaoPreventivaChecklist.kmLimite.toLocaleString('pt-BR')} KM</span>
+                      {Number(kmChecklist) > 0 && (
+                        <span>KM Atual: {Number(kmChecklist).toLocaleString('pt-BR')} KM</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1816,9 +2724,9 @@ export function Frotas() {
                   <p className="text-xs font-bold text-foreground">{checklistVisualizando.motoristaNome}</p>
                 </div>
                 <div>
-                  <span className="text-[9px] font-black text-secondary uppercase">KM / COMBUSTÍVEL</span>
+                  <span className="text-[9px] font-black text-secondary uppercase">QUILOMETRAGEM</span>
                   <p className="text-xs font-mono font-bold text-foreground">
-                    {checklistVisualizando.kmAtual.toLocaleString('pt-BR')} KM · {checklistVisualizando.nivelCombustivel}
+                    {checklistVisualizando.kmAtual.toLocaleString('pt-BR')} KM
                   </p>
                 </div>
                 <div>
@@ -1843,6 +2751,24 @@ export function Frotas() {
                 </div>
               </div>
 
+              {/* Status de Preventiva Gravado */}
+              {checklistVisualizando.statusPreventiva && (
+                <div className={`p-3 rounded-xl border text-xs font-mono ${
+                  checklistVisualizando.statusPreventiva.status === 'vencida'
+                    ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                    : checklistVisualizando.statusPreventiva.status === 'proxima'
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                    : checklistVisualizando.statusPreventiva.status === 'em_dia'
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                    : 'border-border/15 bg-overlay/5 text-secondary'
+                }`}>
+                  <span className="font-sans font-black text-[10px] uppercase block mb-0.5">
+                    DIAGNÓSTICO DA PREVENTIVA NA INSPEÇÃO:
+                  </span>
+                  <p className="text-[11px]">{checklistVisualizando.statusPreventiva.mensagem}</p>
+                </div>
+              )}
+
               {/* FOTOS DA VISTORIA */}
               {checklistVisualizando.fotos && (
                 <div className="space-y-2">
@@ -1850,7 +2776,8 @@ export function Frotas() {
                     <Camera className="h-3.5 w-3.5 text-primary" /> FOTOS REGISTRADAS DA VISTORIA
                   </span>
 
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {/* Painel */}
                     {checklistVisualizando.fotos.painel ? (
                       <div
                         onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.painel!, titulo: 'FOTO DO PAINEL / KM' })}
@@ -1858,15 +2785,16 @@ export function Frotas() {
                       >
                         <img src={checklistVisualizando.fotos.painel} alt="Painel" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                         <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
-                          PAINEL
+                          PAINEL / KM
                         </span>
                       </div>
                     ) : (
-                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[9px] font-bold">
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
                         SEM FOTO DO PAINEL
                       </div>
                     )}
 
+                    {/* Capô */}
                     {checklistVisualizando.fotos.capo ? (
                       <div
                         onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.capo!, titulo: 'FOTO DO CAPÔ ABERTO / MOTOR' })}
@@ -1874,28 +2802,80 @@ export function Frotas() {
                       >
                         <img src={checklistVisualizando.fotos.capo} alt="Capô" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                         <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
-                          CAPÔ ABERTO
+                          CAPÔ / MOTOR
                         </span>
                       </div>
                     ) : (
-                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[9px] font-bold">
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
                         SEM FOTO DO CAPÔ
                       </div>
                     )}
 
-                    {checklistVisualizando.fotos.pneus ? (
+                    {/* Pneu Diant. Esq. */}
+                    {checklistVisualizando.fotos.pneuDiantEsq ? (
                       <div
-                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.pneus!, titulo: 'FOTO DOS PNEUS & RODAS' })}
+                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.pneuDiantEsq!, titulo: 'FOTO DO PNEU DIANTEIRO ESQUERDO' })}
                         className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
                       >
-                        <img src={checklistVisualizando.fotos.pneus} alt="Pneus" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <img src={checklistVisualizando.fotos.pneuDiantEsq} alt="Pneu DE" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                         <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
-                          PNEUS
+                          PNEU DIANT. ESQ.
                         </span>
                       </div>
                     ) : (
-                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[9px] font-bold">
-                        SEM FOTO DOS PNEUS
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
+                        SEM PNEU DIANT. ESQ.
+                      </div>
+                    )}
+
+                    {/* Pneu Diant. Dir. */}
+                    {checklistVisualizando.fotos.pneuDiantDir ? (
+                      <div
+                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.pneuDiantDir!, titulo: 'FOTO DO PNEU DIANTEIRO DIREITO' })}
+                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
+                      >
+                        <img src={checklistVisualizando.fotos.pneuDiantDir} alt="Pneu DD" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
+                          PNEU DIANT. DIR.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
+                        SEM PNEU DIANT. DIR.
+                      </div>
+                    )}
+
+                    {/* Pneu Tras. Esq. */}
+                    {checklistVisualizando.fotos.pneuTrasEsq ? (
+                      <div
+                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.pneuTrasEsq!, titulo: 'FOTO DO PNEU TRASEIRO ESQUERDO' })}
+                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
+                      >
+                        <img src={checklistVisualizando.fotos.pneuTrasEsq} alt="Pneu TE" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
+                          PNEU TRAS. ESQ.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
+                        SEM PNEU TRAS. ESQ.
+                      </div>
+                    )}
+
+                    {/* Pneu Tras. Dir. */}
+                    {checklistVisualizando.fotos.pneuTrasDir ? (
+                      <div
+                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.pneuTrasDir!, titulo: 'FOTO DO PNEU TRASEIRO DIREITO' })}
+                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
+                      >
+                        <img src={checklistVisualizando.fotos.pneuTrasDir} alt="Pneu TD" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
+                          PNEU TRAS. DIR.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
+                        SEM PNEU TRAS. DIR.
                       </div>
                     )}
                   </div>
