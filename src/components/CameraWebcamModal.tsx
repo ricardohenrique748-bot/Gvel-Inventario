@@ -10,8 +10,8 @@ interface CameraWebcamModalProps {
 }
 
 export function CameraWebcamModal({
-  titulo = 'Câmera do Notebook / Dispositivo',
-  subtitulo = 'Posicione a pessoa ou o item no centro da tela e clique em Capturar',
+  titulo = 'Câmera',
+  subtitulo = 'Posicione a pessoa ou item no centro e clique em Capturar Foto',
   onCapture,
   onClose,
 }: CameraWebcamModalProps) {
@@ -20,12 +20,27 @@ export function CameraWebcamModal({
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [iniciando, setIniciando] = useState(true)
+  const [dispositivos, setDispositivos] = useState<MediaDeviceInfo[]>([])
+  const [dispositivoIdAtual, setDispositivoIdAtual] = useState<string>('')
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
   const [previewCapturado, setPreviewCapturado] = useState<string | null>(null)
   const [blobCapturado, setBlobCapturado] = useState<Blob | null>(null)
 
+  // Lista todos os dispositivos de vídeo conectados
+  const carregarDispositivos = async () => {
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        const devs = await navigator.mediaDevices.enumerateDevices()
+        const videoDevs = devs.filter((d) => d.kind === 'videoinput')
+        setDispositivos(videoDevs)
+      }
+    } catch (e) {
+      console.warn('Erro ao enumerar câmeras:', e)
+    }
+  }
+
   // Inicia o stream da câmera
-  const iniciarCamera = async (modo: 'user' | 'environment') => {
+  const iniciarCamera = async (deviceId?: string, modo: 'user' | 'environment' = facingMode) => {
     setIniciando(true)
     setErro(null)
 
@@ -40,18 +55,22 @@ export function CameraWebcamModal({
         throw new Error('Câmera não suportada neste navegador.')
       }
 
+      const constraints: MediaStreamConstraints = {
+        video: deviceId
+          ? { deviceId: { exact: deviceId } }
+          : {
+              facingMode: modo,
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+        audio: false,
+      }
+
       let mediaStream: MediaStream
       try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: modo,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-          audio: false,
-        })
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
       } catch {
-        // Fallback básico
+        // Fallback genérico
         mediaStream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: false,
@@ -63,16 +82,19 @@ export function CameraWebcamModal({
         videoRef.current.srcObject = mediaStream
         await videoRef.current.play()
       }
+
+      // Atualiza lista de câmeras após permissão concedida
+      await carregarDispositivos()
     } catch (err: any) {
-      console.error('Erro ao acessar webcam/câmera:', err)
+      console.error('Erro ao acessar câmera:', err)
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setErro('Permissão de acesso à câmera negada. Por favor, libere o acesso no seu navegador.')
+        setErro('Permissão de acesso à câmera negada. Por favor, autorize o uso da câmera no navegador.')
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setErro('Nenhuma câmera ou webcam foi encontrada conectada neste notebook/dispositivo.')
+        setErro('Nenhuma câmera foi encontrada conectada neste dispositivo.')
       } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        setErro('A câmera já está sendo usada por outro programa ou aplicativo.')
+        setErro('A câmera já está sendo usada por outro aplicativo.')
       } else {
-        setErro('Não foi possível iniciar a câmera do notebook. Tente usar o botão de arquivo.')
+        setErro('Não foi possível iniciar a câmera. Verifique as permissões.')
       }
     } finally {
       setIniciando(false)
@@ -80,14 +102,14 @@ export function CameraWebcamModal({
   }
 
   useEffect(() => {
-    iniciarCamera(facingMode)
+    iniciarCamera(dispositivoIdAtual || undefined, facingMode)
 
     return () => {
       if (stream) {
         stream.getTracks().forEach((track) => track.stop())
       }
     }
-  }, [facingMode])
+  }, [dispositivoIdAtual, facingMode])
 
   // Desliga tracks ao desmontar
   useEffect(() => {
@@ -99,7 +121,15 @@ export function CameraWebcamModal({
   }, [stream])
 
   const alternarCamera = () => {
-    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'))
+    if (dispositivos.length > 1) {
+      // Alterna ciclicamente entre todos os dispositivos encontrados
+      const currentIndex = dispositivos.findIndex((d) => d.deviceId === dispositivoIdAtual)
+      const nextIndex = (currentIndex + 1) % dispositivos.length
+      setDispositivoIdAtual(dispositivos[nextIndex].deviceId)
+    } else {
+      // Alterna entre frontal e traseira no celular
+      setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'))
+    }
   }
 
   const tirarFoto = () => {

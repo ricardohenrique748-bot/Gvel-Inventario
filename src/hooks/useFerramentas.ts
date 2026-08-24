@@ -239,6 +239,8 @@ export interface RegistrarRetiradaInput {
   placa: string
   responsavel: string
   quantidade: number
+  tipo_saida?: 'temporaria' | 'definitiva'
+  motivo_baixa?: string
   observacoes_retirada?: string
   foto_responsavel_url?: string | null
   foto_url?: string | null
@@ -247,6 +249,7 @@ export interface RegistrarRetiradaInput {
 export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput): Promise<FerramentaRetirada> {
   const qtd = Number(input.quantidade) || 1
   const foto = input.foto_responsavel_url || input.foto_url || null
+  const isDefinitiva = input.tipo_saida === 'definitiva'
 
   // 1. Busca a ferramenta e valida disponibilidade
   const { data: ferramenta, error: buscaError } = await supabase
@@ -265,16 +268,25 @@ export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput)
     )
   }
 
-  // 2. Insere a retirada com suporte a foto
+  // Prepara o texto descritivo se for saída definitiva
+  let obsFinal = input.observacoes_retirada?.trim() || ''
+  if (isDefinitiva) {
+    const motivoTag = input.motivo_baixa ? `MOTIVO: ${input.motivo_baixa.toUpperCase()}` : 'NÃO VOLTA'
+    obsFinal = `[SAÍDA DEFINITIVA · ${motivoTag}] ${obsFinal}`.trim()
+  }
+
+  // 2. Insere a retirada
+  // Para compatibilidade com o enum do banco, saída definitiva pode usar 'avaria_perda' com tag explícita ou 'baixa_definitiva'
   const payload: Record<string, unknown> = {
     ferramenta_id: input.ferramenta_id,
     veiculo_id: input.veiculo_id || null,
     placa: up(input.placa),
     responsavel: up(input.responsavel),
     quantidade: qtd,
-    status: 'em_uso',
-    observacoes_retirada: input.observacoes_retirada?.trim() || null,
+    status: isDefinitiva ? 'avaria_perda' : 'em_uso',
+    observacoes_retirada: obsFinal || null,
     data_hora_retirada: new Date().toISOString(),
+    data_hora_devolucao: isDefinitiva ? new Date().toISOString() : null,
   }
 
   if (foto) {
@@ -288,7 +300,7 @@ export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput)
     .select('*, ferramenta:ferramentas(*)')
     .single()
 
-  // Se der erro de coluna inexistente (ex: foto_responsavel_url ainda não migrada), tenta inserir sem os campos de foto
+  // Fallback se colunas extras não existirem
   if (insertError && foto) {
     const payloadSemFoto = { ...payload }
     delete payloadSemFoto.foto_responsavel_url
@@ -306,16 +318,32 @@ export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput)
 
   if (insertError) throw new Error(insertError.message)
 
-  // 3. Atualiza o estoque disponível
-  const { error: updateError } = await supabase
-    .from('ferramentas')
-    .update({
-      quantidade_disponivel: ferramenta.quantidade_disponivel - qtd,
-    })
-    .eq('id', input.ferramenta_id)
+  // 3. Atualiza o estoque da ferramenta
+  if (isDefinitiva) {
+    // SAÍDA DEFINITIVA: Baixa total do estoque (diminui disponível e diminui total!)
+    const { error: updateError } = await supabase
+      .from('ferramentas')
+      .update({
+        quantidade_disponivel: Math.max(0, ferramenta.quantidade_disponivel - qtd),
+        quantidade_total: Math.max(0, ferramenta.quantidade_total - qtd),
+      })
+      .eq('id', input.ferramenta_id)
 
-  if (updateError) {
-    console.error('Erro ao atualizar estoque da ferramenta:', updateError)
+    if (updateError) {
+      console.error('Erro ao atualizar estoque total da ferramenta:', updateError)
+    }
+  } else {
+    // SAÍDA TEMPORÁRIA: Diminui apenas o disponível (permanece no total)
+    const { error: updateError } = await supabase
+      .from('ferramentas')
+      .update({
+        quantidade_disponivel: Math.max(0, ferramenta.quantidade_disponivel - qtd),
+      })
+      .eq('id', input.ferramenta_id)
+
+    if (updateError) {
+      console.error('Erro ao atualizar estoque disponível da ferramenta:', updateError)
+    }
   }
 
   return retirada as unknown as FerramentaRetirada

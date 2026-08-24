@@ -162,7 +162,7 @@ export interface InspecaoItem {
   foto_url: string | null
 }
 
-export type StatusRetiradaFerramenta = 'em_uso' | 'devolvido' | 'avaria_perda'
+export type StatusRetiradaFerramenta = 'em_uso' | 'devolvido' | 'avaria_perda' | 'baixa_definitiva'
 
 export interface Ferramenta {
   id: string
@@ -187,6 +187,8 @@ export interface FerramentaRetirada {
   data_hora_retirada: string
   data_hora_devolucao: string | null
   status: StatusRetiradaFerramenta
+  tipo_saida?: 'temporaria' | 'definitiva'
+  motivo_baixa?: string | null
   observacoes_retirada: string | null
   observacoes_devolucao: string | null
   foto_responsavel_url?: string | null

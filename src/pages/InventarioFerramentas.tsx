@@ -1379,17 +1379,22 @@ export function InventarioFerramentas() {
                         <td className="px-4 py-3 text-xs text-secondary font-medium">{dataDev}</td>
                         <td className="px-4 py-3">
                           {r.status === 'em_uso' && (
-                            <Badge tone="warning" className="text-[11px] uppercase font-bold">
-                              EM USO
+                            <Badge tone="warning" className="text-[10px] uppercase font-black tracking-wide">
+                              🔄 EM USO (VAI E VOLTA)
                             </Badge>
                           )}
                           {r.status === 'devolvido' && (
-                            <Badge tone="success" className="text-[11px] uppercase font-bold">
-                              DEVOLVIDO
+                            <Badge tone="success" className="text-[10px] uppercase font-black tracking-wide">
+                              ✓ DEVOLVIDO
                             </Badge>
                           )}
-                          {r.status === 'avaria_perda' && (
-                            <Badge tone="danger" className="text-[11px] uppercase font-bold">
+                          {(r.observacoes_retirada?.includes('[SAÍDA DEFINITIVA') || r.status === 'baixa_definitiva') && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
+                              🛑 NÃO VOLTA (BAIXA TOTAL)
+                            </span>
+                          )}
+                          {r.status === 'avaria_perda' && !r.observacoes_retirada?.includes('[SAÍDA DEFINITIVA') && (
+                            <Badge tone="danger" className="text-[10px] uppercase font-black tracking-wide">
                               AVARIA / PERDA
                             </Badge>
                           )}
@@ -2618,6 +2623,10 @@ function ModalRetirada({
   const [erro, setErro] = useState<string | null>(null)
   const [abrirWebcamModal, setAbrirWebcamModal] = useState(false)
 
+  const [tipoSaida, setTipoSaida] = useState<'temporaria' | 'definitiva'>('temporaria')
+  const [motivoBaixa, setMotivoBaixa] = useState('INSTALAÇÃO DEFINITIVA NO CAMINHÃO')
+  const [motivoBaixaOutro, setMotivoBaixaOutro] = useState('')
+
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -2754,6 +2763,13 @@ function ModalRetirada({
       const respUpper = responsavel.toUpperCase().trim()
       const obsUpper = observacoes ? observacoes.toUpperCase() : undefined
 
+      const motivoFinal =
+        tipoSaida === 'definitiva'
+          ? motivoBaixa === 'OUTRO'
+            ? motivoBaixaOutro.trim() || 'OUTRO MOTIVO'
+            : motivoBaixa
+          : undefined
+
       await Promise.all(
         itensSelecionados.map((item) =>
           registrarRetiradaFerramenta({
@@ -2762,6 +2778,8 @@ function ModalRetirada({
             placa: placaString,
             responsavel: respUpper,
             quantidade: item.quantidade,
+            tipo_saida: tipoSaida,
+            motivo_baixa: motivoFinal,
             observacoes_retirada: obsUpper,
             foto_responsavel_url: finalFotoUrl,
             foto_url: finalFotoUrl,
@@ -3208,6 +3226,113 @@ function ModalRetirada({
                 </div>
               </div>
 
+              {/* TIPO DE SAÍDA: VAI E VOLTA (EMPRÉSTIMO) OU NÃO VOLTA (SAÍDA TOTAL / BAIXA DEFINITIVA) */}
+              <div className="space-y-2">
+                <label className="block text-[11px] font-black text-secondary uppercase tracking-widest">
+                  Tipo de Saída da Ferramenta *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTipoSaida('temporaria')}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                      tipoSaida === 'temporaria'
+                        ? 'border-amber-500/80 bg-amber-500/10 shadow-sm'
+                        : 'border-border/20 bg-background/50 hover:border-border/50'
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                      tipoSaida === 'temporaria' ? 'bg-amber-500 text-black' : 'bg-surface text-secondary'
+                    }`}>
+                      <RotateCcw className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-foreground uppercase">
+                          Vai e Volta (Empréstimo)
+                        </span>
+                        {tipoSaida === 'temporaria' && (
+                          <span className="text-[9px] font-black text-amber-400">✓</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-secondary mt-0.5 leading-snug">
+                        Uso temporário. A ferramenta sairá e retornará para a oficina após o serviço.
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTipoSaida('definitiva')}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                      tipoSaida === 'definitiva'
+                        ? 'border-rose-500/80 bg-rose-500/10 shadow-sm'
+                        : 'border-border/20 bg-background/50 hover:border-border/50'
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                      tipoSaida === 'definitiva' ? 'bg-rose-600 text-white' : 'bg-surface text-secondary'
+                    }`}>
+                      <Trash2 className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-foreground uppercase">
+                          Não Volta (Saída Total / Baixa)
+                        </span>
+                        {tipoSaida === 'definitiva' && (
+                          <span className="text-[9px] font-black text-rose-400">✓</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-secondary mt-0.5 leading-snug">
+                        Baixa definitiva. A ferramenta não retorna e é descontada do estoque total.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Se for saída definitiva (não volta), seleciona o motivo da baixa */}
+                {tipoSaida === 'definitiva' && (
+                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/5 space-y-2 animate-fade-in">
+                    <label className="block text-[10px] font-black text-rose-400 uppercase tracking-widest">
+                      Motivo da Saída Definitiva / Baixa *
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {[
+                        'INSTALAÇÃO DEFINITIVA NO CAMINHÃO',
+                        'ENTREGA AO CLIENTE / MOTORISTA',
+                        'DESCARTE / SUCATA / AVARIADA',
+                        'PERDA / EXTRAVIO',
+                        'OUTRO',
+                      ].map((mot) => (
+                        <button
+                          key={mot}
+                          type="button"
+                          onClick={() => setMotivoBaixa(mot)}
+                          className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold border transition-all cursor-pointer ${
+                            motivoBaixa === mot
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                              : 'bg-surface text-secondary hover:text-foreground border-border/20'
+                          }`}
+                        >
+                          {mot === 'OUTRO' ? '✏️ OUTRO MOTIVO' : mot}
+                        </button>
+                      ))}
+                    </div>
+
+                    {motivoBaixa === 'OUTRO' && (
+                      <Input
+                        placeholder="Especifique o motivo da baixa..."
+                        value={motivoBaixaOutro}
+                        onChange={(e) => setMotivoBaixaOutro(e.target.value.toUpperCase())}
+                        className="text-xs uppercase mt-2"
+                        autoFocus
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Responsável */}
               <div>
                 <label htmlFor="resp" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1.5">
@@ -3326,15 +3451,15 @@ function ModalRetirada({
                           onClick={() => setAbrirWebcamModal(true)}
                           className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1"
                         >
-                          <Laptop className="h-3 w-3" /> Câmera Notebook
+                          <Camera className="h-3 w-3" /> Abrir Câmera
                         </button>
                         <span className="text-secondary">·</span>
                         <button
                           type="button"
-                          onClick={() => cameraInputRef.current?.click()}
+                          onClick={() => fileInputRef.current?.click()}
                           className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1"
                         >
-                          <Camera className="h-3 w-3" /> Arquivo / Celular
+                          <ImageIcon className="h-3 w-3" /> Trocar por Arquivo
                         </button>
                         <span className="text-secondary">·</span>
                         <button
@@ -3348,32 +3473,23 @@ function ModalRetirada({
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <button
                       type="button"
                       onClick={() => setAbrirWebcamModal(true)}
-                      className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary transition-all group active:scale-98"
+                      className="flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border border-primary/50 bg-primary/10 hover:bg-primary/20 text-primary transition-all group active:scale-98 shadow-sm cursor-pointer"
                     >
-                      <Laptop className="h-4 w-4 shrink-0 group-hover:scale-110 transition-transform" />
-                      <span className="text-xs font-bold">Câmera Notebook</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-surface hover:border-primary/50 text-foreground transition-all group active:scale-98"
-                    >
-                      <Camera className="h-4 w-4 text-primary group-hover:scale-110 transition-transform shrink-0" />
-                      <span className="text-xs font-bold">Câmera Celular</span>
+                      <Camera className="h-4 w-4 shrink-0 group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-black uppercase">Câmera</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-surface hover:border-primary/50 text-foreground transition-all group active:scale-98"
+                      className="flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border border-dashed border-border/40 bg-background/60 hover:bg-surface hover:border-primary/50 text-foreground transition-all group active:scale-98 cursor-pointer"
                     >
                       <ImageIcon className="h-4 w-4 text-secondary group-hover:text-primary transition-colors shrink-0" />
-                      <span className="text-xs font-bold">Galeria / Arquivo</span>
+                      <span className="text-xs font-bold uppercase">Galeria / Arquivo</span>
                     </button>
                   </div>
                 )}
@@ -3430,12 +3546,25 @@ function ModalRetirada({
               type="button"
               onClick={handleSubmit}
               disabled={salvando || !responsavel.trim() || itensSelecionados.length === 0}
-              className="flex-1 h-11 rounded-xl bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
+              className={`flex-1 h-11 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${
+                tipoSaida === 'definitiva'
+                  ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
+                  : 'bg-primary hover:bg-primary/90 shadow-primary/20'
+              }`}
             >
-              {salvando
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Registrando...</>
-                : <><ArrowUpRight className="h-4 w-4" /> Confirmar Retirada ({itensSelecionados.length})</>
-              }
+              {salvando ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Registrando...
+                </>
+              ) : tipoSaida === 'definitiva' ? (
+                <>
+                  <Trash2 className="h-4 w-4" /> Confirmar Baixa Total (Não Volta) ({itensSelecionados.length})
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-4 w-4" /> Confirmar Saída (Vai e Volta) ({itensSelecionados.length})
+                </>
+              )}
             </button>
           )}
         </div>
