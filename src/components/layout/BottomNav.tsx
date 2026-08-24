@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Home, ArrowLeftRight, Settings, Wrench } from 'lucide-react'
+import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer } from 'lucide-react'
 import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized } from './nav'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
@@ -20,6 +20,7 @@ export function BottomNav() {
     const apkItems = [
       { to: '/', label: 'HOME', icon: Home, end: true },
       { to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench },
+      { to: '/inventario-ferramentas', label: 'FERRAMENTAS', icon: Hammer },
       { to: '/movimentacoes', label: 'MOVIMENTAÇÃO', icon: ArrowLeftRight },
       ...(isAdmin ? [{ to: '/configuracoes', label: 'AJUSTES', icon: Settings }] : []),
     ]
