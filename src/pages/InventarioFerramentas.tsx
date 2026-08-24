@@ -893,9 +893,37 @@ export function InventarioFerramentas() {
                         {r.ferramenta?.nome || 'FERRAMENTA'}
                       </h3>
 
-                      <p className="mt-1 text-xs text-secondary uppercase font-medium">
-                        RESPONSÁVEL: <strong className="text-foreground font-bold">{r.responsavel}</strong>
-                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        {(r.foto_responsavel_url || r.foto_url) ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFotoModalUrl({
+                                url: r.foto_responsavel_url || r.foto_url || '',
+                                titulo: `Foto do Responsável: ${r.responsavel}`,
+                              })
+                            }
+                            className="relative group shrink-0"
+                            title="Clique para ver a foto ampliada"
+                          >
+                            <img
+                              src={r.foto_responsavel_url || r.foto_url || ''}
+                              alt={r.responsavel}
+                              className="h-9 w-9 rounded-full object-cover border-2 border-primary/40 group-hover:border-primary transition-all shadow-sm"
+                            />
+                            <div className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                              <Eye className="h-3.5 w-3.5 text-white" />
+                            </div>
+                          </button>
+                        ) : (
+                          <div className="h-9 w-9 rounded-full bg-surface border border-border/30 flex items-center justify-center text-xs font-black text-secondary shrink-0">
+                            {r.responsavel.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <p className="text-xs text-secondary uppercase font-medium">
+                          RESPONSÁVEL: <strong className="text-foreground font-bold">{r.responsavel}</strong>
+                        </p>
+                      </div>
 
                       {r.observacoes_retirada && (
                         <p className="mt-2 text-xs text-secondary italic bg-background/50 p-2 rounded-lg uppercase">
@@ -967,7 +995,30 @@ export function InventarioFerramentas() {
                         <td className="px-4 py-3">
                           <span className="font-mono font-bold text-primary">{r.placa}</span>
                         </td>
-                        <td className="px-4 py-3 text-secondary font-medium">{r.responsavel}</td>
+                        <td className="px-4 py-3 text-secondary font-medium">
+                          <div className="flex items-center gap-2">
+                            {(r.foto_responsavel_url || r.foto_url) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setFotoModalUrl({
+                                    url: r.foto_responsavel_url || r.foto_url || '',
+                                    titulo: `Foto do Responsável: ${r.responsavel}`,
+                                  })
+                                }
+                                className="shrink-0"
+                                title="Ver foto do responsável"
+                              >
+                                <img
+                                  src={r.foto_responsavel_url || r.foto_url || ''}
+                                  alt={r.responsavel}
+                                  className="h-6 w-6 rounded-full object-cover border border-primary/40 hover:scale-110 transition-transform"
+                                />
+                              </button>
+                            )}
+                            <span>{r.responsavel}</span>
+                          </div>
+                        </td>
                         <td className="px-4 py-3 font-bold text-foreground">{r.quantidade}</td>
                         <td className="px-4 py-3 text-xs text-secondary font-medium">{dataRet}</td>
                         <td className="px-4 py-3 text-xs text-secondary font-medium">{dataDev}</td>
@@ -1675,8 +1726,13 @@ function ModalFerramenta({
 }
 
 // ----------------------------------------------------------------------------------
-// Subcomponente: Modal de Retirada de Ferramenta (Vinculação com Placa(s) do Caminhão)
+// Subcomponente: Modal de Retirada de Ferramenta (Wizard 3 Passos com Múltiplas Ferramentas)
 // ----------------------------------------------------------------------------------
+interface ItemRetirada {
+  ferramenta: Ferramenta
+  quantidade: number
+}
+
 function ModalRetirada({
   ferramentaPreSelecionada,
   ferramentasDisponiveis,
@@ -1690,27 +1746,139 @@ function ModalRetirada({
   onClose: () => void
   onSucesso: () => Promise<void>
 }) {
-  const [ferramentaId, setFerramentaId] = useState(ferramentaPreSelecionada?.id || ferramentasDisponiveis[0]?.id || '')
+  const [step, setStep] = useState(1)
+  const [itensSelecionados, setItensSelecionados] = useState<ItemRetirada[]>(() => {
+    if (ferramentaPreSelecionada) {
+      return [{ ferramenta: ferramentaPreSelecionada, quantidade: 1 }]
+    }
+    return []
+  })
   const [placasSelecionadas, setPlacasSelecionadas] = useState<string[]>([])
-  const [placaInput, setPlacaInput] = useState('')
   const [responsavel, setResponsavel] = useState('')
-  const [quantidade, setQuantidade] = useState('1')
   const [observacoes, setObservacoes] = useState('')
+  const [fotoFile, setFotoFile] = useState<File | null>(null)
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null)
+  const [processandoFoto, setProcessandoFoto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
-  const ferramentaAtual = useMemo(() => {
-    return ferramentasDisponiveis.find((f) => f.id === ferramentaId) || ferramentaPreSelecionada
-  }, [ferramentasDisponiveis, ferramentaId, ferramentaPreSelecionada])
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function adicionarItem(f: Ferramenta) {
+    setItensSelecionados((prev) => {
+      const jaExiste = prev.find((item) => item.ferramenta.id === f.id)
+      if (jaExiste) {
+        return prev.map((item) =>
+          item.ferramenta.id === f.id
+            ? { ...item, quantidade: Math.min(f.quantidade_disponivel, item.quantidade + 1) }
+            : item
+        )
+      }
+      return [...prev, { ferramenta: f, quantidade: 1 }]
+    })
+    setErro(null)
+  }
+
+  function removerItem(ferramentaId: string) {
+    setItensSelecionados((prev) => prev.filter((item) => item.ferramenta.id !== ferramentaId))
+  }
+
+  function ajustarQtdItem(ferramentaId: string, delta: number) {
+    setItensSelecionados((prev) =>
+      prev.map((item) => {
+        if (item.ferramenta.id === ferramentaId) {
+          const maxQtd = item.ferramenta.quantidade_disponivel || 1
+          return { ...item, quantidade: Math.max(1, Math.min(maxQtd, item.quantidade + delta)) }
+        }
+        return item
+      })
+    )
+  }
+
+  async function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setProcessandoFoto(true)
+    setErro(null)
+    try {
+      const comprimida = await comprimirImagem(file)
+      setFotoFile(comprimida)
+      setFotoUrl(URL.createObjectURL(comprimida))
+    } catch (err) {
+      console.error('Erro ao processar foto:', err)
+      setErro('Não foi possível processar a foto.')
+    } finally {
+      setProcessandoFoto(false)
+    }
+  }
+
+  function removerFoto() {
+    setFotoFile(null)
+    setFotoUrl(null)
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleNext = () => {
+    if (step === 1 && itensSelecionados.length === 0) return setErro('Selecione ao menos uma ferramenta.')
+    if (step === 2 && placasSelecionadas.length === 0) return setErro('Selecione ao menos um caminhão.')
+    setErro(null)
+    setStep((s) => s + 1)
+  }
+
+  const handleSubmit = async () => {
+    if (itensSelecionados.length === 0) {
+      setErro('Selecione ao menos uma ferramenta.')
+      return
+    }
+    if (!responsavel.trim()) {
+      setErro('Informe o nome do responsável.')
+      return
+    }
+    setSalvando(true)
+    setErro(null)
+    try {
+      let finalFotoUrl: string | null = null
+      if (fotoFile) {
+        finalFotoUrl = await uploadFotoFerramenta(fotoFile)
+      }
+
+      const veiculoEncontrado = veiculos.find((v) => placasSelecionadas.includes(v.placa.toUpperCase()))
+      const placaString = placasSelecionadas.join(' / ')
+      const respUpper = responsavel.toUpperCase()
+      const obsUpper = observacoes ? observacoes.toUpperCase() : undefined
+
+      await Promise.all(
+        itensSelecionados.map((item) =>
+          registrarRetiradaFerramenta({
+            ferramenta_id: item.ferramenta.id,
+            veiculo_id: veiculoEncontrado?.id || null,
+            placa: placaString,
+            responsavel: respUpper,
+            quantidade: item.quantidade,
+            observacoes_retirada: obsUpper,
+            foto_responsavel_url: finalFotoUrl,
+            foto_url: finalFotoUrl,
+          })
+        )
+      )
+      await onSucesso()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao registrar retirada.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  // estados para campo de placa manual
+  const [placaInput, setPlacaInput] = useState('')
 
   function adicionarPlaca(p: string) {
     const limpa = p.trim().toUpperCase()
     if (!limpa) return
     const partes = limpa.split(/[,;/ ]+/).map((s) => s.trim().toUpperCase()).filter(Boolean)
-    setPlacasSelecionadas((prev) => {
-      const set = new Set([...prev, ...partes])
-      return Array.from(set)
-    })
+    setPlacasSelecionadas((prev) => Array.from(new Set([...prev, ...partes])))
     setPlacaInput('')
   }
 
@@ -1725,287 +1893,573 @@ function ModalRetirada({
     }
   }
 
-  const maxQtd = ferramentaAtual?.quantidade_disponivel || 1
+  // Etapa inicial
+  const stepInicial = 1
 
-  function ajustarQtd(delta: number) {
-    const atual = Number(quantidade) || 1
-    const nova = Math.max(1, Math.min(maxQtd, atual + delta))
-    setQuantidade(String(nova))
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!ferramentaId) {
-      setErro('Selecione uma ferramenta.')
-      return
-    }
-
-    let listaFinalPlacas = [...placasSelecionadas]
-    if (placaInput.trim()) {
-      const partes = placaInput.split(/[,;/ ]+/).map((s) => s.trim().toUpperCase()).filter(Boolean)
-      listaFinalPlacas = Array.from(new Set([...listaFinalPlacas, ...partes]))
-    }
-
-    if (listaFinalPlacas.length === 0) {
-      setErro('Informe ao menos uma placa de caminhão.')
-      return
-    }
-    if (!responsavel.trim()) {
-      setErro('Informe o nome do responsável.')
-      return
-    }
-
-    const qtdNum = Number(quantidade) || 1
-    if (ferramentaAtual && qtdNum > ferramentaAtual.quantidade_disponivel) {
-      setErro(`Quantidade máxima disponível: ${ferramentaAtual.quantidade_disponivel}`)
-      return
-    }
-
-    setSalvando(true)
+  function avancar() {
     setErro(null)
-
-    try {
-      const placaFinalFormatada = listaFinalPlacas.join(' / ')
-      const veiculoEncontrado = veiculos.find((v) => listaFinalPlacas.includes(v.placa.toUpperCase()))
-
-      await registrarRetiradaFerramenta({
-        ferramenta_id: ferramentaId,
-        veiculo_id: veiculoEncontrado?.id || null,
-        placa: placaFinalFormatada,
-        responsavel: responsavel.toUpperCase(),
-        quantidade: qtdNum,
-        observacoes_retirada: observacoes.toUpperCase(),
-      })
-
-      await onSucesso()
-    } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro ao registrar retirada.')
-    } finally {
-      setSalvando(false)
+    if (step === 1 && itensSelecionados.length === 0) {
+      setErro('Selecione ao menos uma ferramenta.')
+      return
     }
+    if (step === 2) {
+      const finalPlacas = [...placasSelecionadas]
+      if (placaInput.trim()) adicionarPlaca(placaInput)
+      if (finalPlacas.length === 0 && !placaInput.trim()) {
+        setErro('Selecione ao menos um caminhão.')
+        return
+      }
+    }
+    setStep((s) => s + 1)
   }
+
+  const [buscaFerramenta, setBuscaFerramenta] = useState('')
+
+  const ferramentasFiltradas = useMemo(() => {
+    if (!buscaFerramenta.trim()) return []
+    const termo = buscaFerramenta.trim().toLowerCase()
+    return ferramentasDisponiveis.filter(
+      (f) =>
+        f.nome.toLowerCase().includes(termo) ||
+        (f.codigo && f.codigo.toLowerCase().includes(termo))
+    )
+  }, [ferramentasDisponiveis, buscaFerramenta])
+
+  const STEP_LABELS = ['Ferramentas', 'Caminhão', 'Finalizar']
+  const stepLabel = (i: number) => i + 1
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-border/30 bg-surface p-6 shadow-2xl animate-scale-in">
-        {/* Cabeçalho Clean */}
-        <div className="mb-5 flex items-center justify-between border-b border-border/20 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/20">
-              <ArrowUpRight className="h-5 w-5" />
-            </div>
+      <div className="w-full max-w-md rounded-2xl border border-border/15 bg-surface shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
+
+        {/* ── Cabeçalho + barra de progresso ── */}
+        <div className="px-6 pt-5 pb-4 border-b border-border/10 shrink-0">
+          <div className="flex items-start justify-between mb-4">
             <div>
-              <h2 className="text-base font-bold text-foreground">Retirar Ferramenta</h2>
-              <p className="text-xs text-secondary">Vincule a ferramenta ao caminhão e ao responsável</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-secondary mb-0.5">
+                Etapa {step} de {STEP_LABELS.length}
+              </p>
+              <h2 className="text-xl font-black text-foreground leading-tight">
+                {step === 1 && 'Quais ferramentas?'}
+                {step === 2 && 'Para qual caminhão?'}
+                {step === 3 && 'Quem está retirando?'}
+              </h2>
             </div>
+            <button
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-secondary hover:bg-background hover:text-foreground transition-colors shrink-0 mt-0.5"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:bg-background hover:text-foreground transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
+
+          {/* Barra de progresso segmentada */}
+          <div className="flex gap-1.5">
+            {STEP_LABELS.map((label, i) => {
+              const s = stepLabel(i)
+              return (
+                <div key={label} className="flex-1 space-y-1">
+                  <div className={`h-1 rounded-full transition-all duration-500 ${
+                    step > s ? 'bg-primary' : step === s ? 'bg-primary/50' : 'bg-border/25'
+                  }`} />
+                  <p className={`text-[9px] font-bold uppercase tracking-wider leading-none ${
+                    step === s ? 'text-primary' : step > s ? 'text-secondary/60' : 'text-secondary/30'
+                  }`}>{label}</p>
+                </div>
+              )
+            })}
+          </div>
         </div>
 
-        {erro && (
-          <div className="mb-4 rounded-xl bg-status-danger/10 border border-status-danger/30 p-3 text-xs font-semibold text-status-danger">
-            {erro}
-          </div>
-        )}
+        {/* ── Conteúdo da etapa ── */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Campo: Ferramenta */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="ferramenta" className="text-xs font-bold text-foreground uppercase tracking-wide">
-                Ferramenta *
-              </label>
-              {ferramentaAtual && (
-                <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
-                  {ferramentaAtual.quantidade_disponivel} disponível(is)
-                </span>
+          {erro && (
+            <div className="mb-4 rounded-xl bg-red-500/10 border border-red-500/30 px-3 py-2.5 text-xs font-semibold text-red-400 flex items-center gap-2">
+              <X className="h-3.5 w-3.5 shrink-0" />{erro}
+            </div>
+          )}
+
+          {/* ETAPA 1 — Múltiplas Ferramentas com busca */}
+          {step === 1 && (
+            <div className="space-y-4">
+              {/* Campo de Busca */}
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary pointer-events-none" />
+                <Input
+                  value={buscaFerramenta}
+                  onChange={(e) => setBuscaFerramenta(e.target.value)}
+                  placeholder="Buscar ferramenta para adicionar..."
+                  className="pl-10 pr-9 py-2.5 text-sm bg-background border-border/30 rounded-xl"
+                  autoFocus
+                />
+                {buscaFerramenta && (
+                  <button
+                    type="button"
+                    onClick={() => setBuscaFerramenta('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-foreground p-1"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Ferramentas Selecionadas */}
+              {itensSelecionados.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
+                      Selecionadas ({itensSelecionados.length})
+                    </p>
+                    <span className="text-[10px] font-bold text-primary">
+                      {itensSelecionados.reduce((acc, it) => acc + it.quantidade, 0)} unidade(s) total
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {itensSelecionados.map(({ ferramenta, quantidade }) => (
+                      <div
+                        key={ferramenta.id}
+                        className="rounded-xl border border-primary/40 bg-primary/10 p-3 flex items-center justify-between gap-3 shadow-sm"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">{ferramenta.nome}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {ferramenta.codigo && (
+                              <span className="text-[10px] text-secondary font-mono">[{ferramenta.codigo}]</span>
+                            )}
+                            <span className="text-[10px] text-secondary">
+                              · máx: {ferramenta.quantidade_disponivel} disp.
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Stepper de Quantidade individual */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => ajustarQtdItem(ferramenta.id, -1)}
+                            disabled={quantidade <= 1}
+                            className="h-7 w-7 rounded-lg bg-surface border border-border/30 flex items-center justify-center text-sm font-bold text-foreground hover:bg-surface/80 disabled:opacity-30 transition-all"
+                          >
+                            −
+                          </button>
+                          <span className="w-6 text-center font-mono text-sm font-black text-foreground">
+                            {quantidade}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => ajustarQtdItem(ferramenta.id, 1)}
+                            disabled={quantidade >= (ferramenta.quantidade_disponivel || 1)}
+                            className="h-7 w-7 rounded-lg bg-surface border border-border/30 flex items-center justify-center text-sm font-bold text-foreground hover:bg-surface/80 disabled:opacity-30 transition-all"
+                          >
+                            +
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => removerItem(ferramenta.id)}
+                            className="h-7 w-7 ml-1 rounded-lg text-secondary hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-all"
+                            title="Remover ferramenta"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resultados da busca */}
+              {buscaFerramenta.trim() !== '' && (
+                <div className="space-y-2 pt-1 border-t border-border/10">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
+                    Resultados ({ferramentasFiltradas.length})
+                  </p>
+                  {ferramentasFiltradas.length > 0 ? (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {ferramentasFiltradas.map((f) => {
+                        const jaSelecionada = itensSelecionados.some((it) => it.ferramenta.id === f.id)
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => {
+                              adicionarItem(f)
+                              setBuscaFerramenta('')
+                            }}
+                            className={`w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition-all border ${
+                              jaSelecionada
+                                ? 'bg-primary/15 border-primary/50 text-foreground'
+                                : 'bg-background/60 border-border/20 text-secondary hover:border-border/50 hover:text-foreground'
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate">{f.nome}</p>
+                              {f.codigo && <p className="text-[10px] text-secondary font-mono mt-0.5">[{f.codigo}]</p>}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs font-black font-mono text-secondary">
+                                {f.quantidade_disponivel}x disp.
+                              </span>
+                              <span className="text-[10px] font-bold uppercase bg-primary/20 text-primary px-2 py-0.5 rounded-md">
+                                {jaSelecionada ? '+ Mais 1' : '+ Adicionar'}
+                              </span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center text-xs text-secondary bg-background/30 rounded-xl border border-dashed border-border/20">
+                      Nenhuma ferramenta encontrada com esse termo.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Mensagem quando nenhuma ferramenta foi selecionada e nada foi buscado */}
+              {buscaFerramenta.trim() === '' && itensSelecionados.length === 0 && (
+                <div className="py-8 text-center text-xs text-secondary bg-background/20 rounded-xl border border-dashed border-border/20 px-4">
+                  🔍 Digite no campo acima para pesquisar e adicionar as ferramentas que deseja retirar.
+                </div>
               )}
             </div>
-            <select
-              id="ferramenta"
-              value={ferramentaId}
-              onChange={(e) => setFerramentaId(e.target.value)}
-              className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
-              required
-            >
-              {ferramentasDisponiveis.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.nome} ({f.quantidade_disponivel} disp.) {f.codigo ? `— [${f.codigo}]` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+          )}
 
-          {/* Campo: Placas dos Caminhões */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="placa" className="text-xs font-bold text-foreground uppercase tracking-wide">
-                Placa(s) do Caminhão *
-              </label>
-              <span className="text-[11px] text-secondary">pode adicionar mais de uma</span>
-            </div>
-
-            {/* Tags de Placas Selecionadas */}
-            {placasSelecionadas.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {placasSelecionadas.map((p) => (
-                  <span
-                    key={p}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/30 text-primary font-mono text-xs font-bold shadow-sm"
+          {/* ETAPA 2 — Caminhão */}
+          {step === 2 && (
+            <div className="space-y-4">
+              {/* Campo de Busca / Digitação de Placa */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-secondary">
+                  Buscar ou Digitar Placa *
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary pointer-events-none" />
+                    <Input
+                      value={placaInput}
+                      onChange={(e) => setPlacaInput(e.target.value.toUpperCase())}
+                      onKeyDown={handleKeyDownPlaca}
+                      placeholder="Digite a placa (ex: ABC1D23)..."
+                      className="pl-10 pr-9 py-2.5 font-mono text-sm uppercase bg-background border-border/30 rounded-xl"
+                      autoFocus
+                    />
+                    {placaInput && (
+                      <button
+                        type="button"
+                        onClick={() => setPlacaInput('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-foreground p-1"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    onClick={() => adicionarPlaca(placaInput)}
+                    disabled={!placaInput.trim()}
+                    className="shrink-0 !h-10 px-4 text-xs font-bold"
                   >
-                    🚛 {p}
-                    <button
-                      type="button"
-                      onClick={() => removerPlaca(p)}
-                      className="hover:text-status-danger transition-colors p-0.5 rounded"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                    + Adicionar
+                  </Button>
+                </div>
+              </div>
+
+              {/* Placas Selecionadas */}
+              {placasSelecionadas.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
+                    Placa(s) Selecionada(s) ({placasSelecionadas.length})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {placasSelecionadas.map((p) => (
+                      <span
+                        key={p}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/15 border border-primary/40 text-primary font-mono text-xs font-bold shadow-sm"
+                      >
+                        🚛 {p}
+                        <button
+                          type="button"
+                          onClick={() => removerPlaca(p)}
+                          className="hover:text-red-400 p-0.5 rounded transition-colors"
+                          title="Remover placa"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Sugestões baseadas na digitação */}
+              {placaInput.trim() !== '' && (
+                <div className="space-y-2 pt-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
+                    Sugestões encontradas
+                  </p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {veiculos
+                      .filter((v) => v.placa.toUpperCase().includes(placaInput.trim()))
+                      .map((v) => {
+                        const sel = placasSelecionadas.includes(v.placa.toUpperCase())
+                        return (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => {
+                              if (sel) {
+                                removerPlaca(v.placa.toUpperCase())
+                              } else {
+                                adicionarPlaca(v.placa.toUpperCase())
+                              }
+                            }}
+                            className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border transition-all text-left ${
+                              sel
+                                ? 'bg-primary/15 border-primary/50 text-primary'
+                                : 'bg-background/60 border-border/20 text-secondary hover:border-border/50 hover:text-foreground'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Truck className={`h-4 w-4 shrink-0 ${sel ? 'text-primary' : 'text-secondary/50'}`} />
+                              <span className="font-mono text-xs font-bold">{v.placa}</span>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase">
+                              {sel ? '✓ Selecionado' : '+ Selecionar'}
+                            </span>
+                          </button>
+                        )
+                      })}
+
+                    {/* Opção de adicionar como nova placa se não for correspondência exata */}
+                    {!veiculos.some((v) => v.placa.toUpperCase() === placaInput.trim()) && (
+                      <button
+                        type="button"
+                        onClick={() => adicionarPlaca(placaInput)}
+                        className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-dashed border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 transition-all text-left"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-xs">➕</span>
+                          <span className="font-mono text-xs font-bold">Usar placa: {placaInput.trim()}</span>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase">+ Adicionar</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Mensagem quando não digitou nada e ainda não selecionou */}
+              {placaInput.trim() === '' && placasSelecionadas.length === 0 && (
+                <div className="py-8 text-center text-xs text-secondary bg-background/20 rounded-xl border border-dashed border-border/20 px-4">
+                  🚛 Digite a placa do caminhão no campo acima para pesquisar ou adicionar.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ETAPA 3 — Responsável + Foto + Resumo de Múltiplos Itens + Observações */}
+          {step === 3 && (
+            <div className="space-y-4">
+              {/* Resumo compacto de Itens e Caminhões */}
+              <div className="rounded-xl bg-background/50 border border-border/20 px-4 py-3 space-y-2.5">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-secondary">
+                      Ferramentas a retirar ({itensSelecionados.length})
+                    </span>
+                    <span className="text-[10px] font-bold text-primary">
+                      Total: {itensSelecionados.reduce((acc, it) => acc + it.quantidade, 0)} un.
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                    {itensSelecionados.map(({ ferramenta, quantidade }) => (
+                      <span
+                        key={ferramenta.id}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-lg border border-primary/30"
+                      >
+                        🔧 {ferramenta.nome} ({quantidade}x)
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border/10">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-secondary block mb-1">
+                    Caminhão(ões)
                   </span>
-                ))}
+                  <div className="flex flex-wrap gap-1.5">
+                    {placasSelecionadas.map((p) => (
+                      <span key={p} className="font-mono text-[11px] font-bold text-foreground bg-surface px-2 py-0.5 rounded border border-border/20">
+                        🚛 {p}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
-            )}
 
-            <div className="flex gap-2">
-              <Input
-                id="placa"
-                list="placas-sugestoes"
-                value={placaInput}
-                onChange={(e) => setPlacaInput(e.target.value.toUpperCase())}
-                onKeyDown={handleKeyDownPlaca}
-                placeholder="Digite a placa (ex: ABC1D23)..."
-                className="flex-1 font-mono uppercase text-sm"
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                size="md"
-                onClick={() => adicionarPlaca(placaInput)}
-                disabled={!placaInput.trim()}
-                className="shrink-0 !h-10 px-3.5 text-xs font-bold uppercase"
-              >
-                + Adicionar
-              </Button>
-            </div>
-            <datalist id="placas-sugestoes">
-              {veiculos.map((v) => (
-                <option key={v.id} value={v.placa} />
-              ))}
-            </datalist>
+              {/* Responsável */}
+              <div>
+                <label htmlFor="resp" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1.5">
+                  Nome do Responsável *
+                </label>
+                <Input
+                  id="resp"
+                  value={responsavel}
+                  onChange={(e) => setResponsavel(e.target.value)}
+                  placeholder="Mecânico ou motorista que está retirando..."
+                  autoFocus
+                  className="text-sm"
+                />
+              </div>
 
-            {/* Sugestões rápidas e limpas */}
-            {veiculos.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] uppercase font-bold text-secondary mr-1">Rápidos:</span>
-                {veiculos.slice(0, 6).map((v) => {
-                  const jaAdd = placasSelecionadas.includes(v.placa.toUpperCase())
-                  return (
+              {/* Foto da Pessoa / Responsável */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-black text-secondary uppercase tracking-widest">
+                  Foto da Pessoa / Responsável
+                </label>
+
+                {/* Inputs de arquivo ocultos */}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  onChange={handleFotoChange}
+                  className="hidden"
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFotoChange}
+                  className="hidden"
+                />
+
+                {processandoFoto ? (
+                  <div className="flex items-center justify-center gap-2 p-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 text-primary text-xs font-semibold">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processando foto...
+                  </div>
+                ) : fotoUrl ? (
+                  <div className="relative flex items-center gap-3 p-3 rounded-xl border border-primary/40 bg-primary/10">
+                    <img
+                      src={fotoUrl}
+                      alt="Responsável"
+                      className="h-16 w-16 rounded-xl object-cover border border-primary/30 shadow-sm shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] font-black uppercase text-primary tracking-wider bg-primary/20 px-2 py-0.5 rounded">
+                        FOTO ANEXADA ✓
+                      </span>
+                      <p className="text-xs text-secondary truncate mt-1">Foto capturada com sucesso</p>
+                      <div className="flex gap-2 mt-1.5">
+                        <button
+                          type="button"
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="text-[11px] text-primary hover:underline font-semibold"
+                        >
+                          Tirar outra
+                        </button>
+                        <span className="text-secondary">·</span>
+                        <button
+                          type="button"
+                          onClick={removerFoto}
+                          className="text-[11px] text-red-400 hover:underline font-semibold"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      key={v.id}
-                      onClick={() => jaAdd ? removerPlaca(v.placa.toUpperCase()) : adicionarPlaca(v.placa.toUpperCase())}
-                      className={`text-[11px] px-2.5 py-0.5 rounded-full font-mono font-medium border transition-all ${
-                        jaAdd
-                          ? 'bg-primary/20 border-primary text-primary shadow-sm'
-                          : 'bg-background/60 border-border/30 text-secondary hover:text-foreground hover:border-primary/50'
-                      }`}
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-primary/10 hover:border-primary/50 text-foreground transition-all group active:scale-98"
                     >
-                      {jaAdd ? `✓ ${v.placa}` : `+ ${v.placa}`}
+                      <Camera className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-bold">Tirar Foto</span>
                     </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
 
-          {/* Grid de 2 Colunas: Quantidade & Responsável */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="qtd" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1.5">
-                Quantidade *
-              </label>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => ajustarQtd(-1)}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground hover:bg-surface font-bold text-base transition-colors"
-                >
-                  -
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-primary/10 hover:border-primary/50 text-foreground transition-all group active:scale-98"
+                    >
+                      <ImageIcon className="h-4 w-4 text-secondary group-hover:text-primary transition-colors" />
+                      <span className="text-xs font-bold">Galeria</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label htmlFor="obs" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1.5">
+                  Observações <span className="font-normal normal-case text-secondary/40">(opcional)</span>
+                </label>
                 <Input
-                  id="qtd"
-                  type="number"
-                  min="1"
-                  max={maxQtd}
-                  value={quantidade}
-                  onChange={(e) => setQuantidade(e.target.value)}
-                  required
-                  className="text-center font-bold text-sm"
+                  id="obs"
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  placeholder="Ex: manutenção preventiva, troca de pneu..."
+                  className="text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={() => ajustarQtd(1)}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground hover:bg-surface font-bold text-base transition-colors"
-                >
-                  +
-                </button>
               </div>
             </div>
+          )}
+        </div>
 
-            <div>
-              <label htmlFor="resp" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1.5">
-                Responsável *
-              </label>
-              <Input
-                id="resp"
-                value={responsavel}
-                onChange={(e) => setResponsavel(e.target.value)}
-                placeholder="Nome do mecânico ou motorista..."
-                required
-                className="text-sm"
-              />
-            </div>
-          </div>
-
-          {/* Campo: Observações */}
-          <div>
-            <label htmlFor="obs" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1.5">
-              Observações / Motivo <span className="text-secondary font-normal lowercase">(opcional)</span>
-            </label>
-            <Input
-              id="obs"
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Ex: Manutenção preventiva no freio, troca de óleo..."
-              className="text-sm"
-            />
-          </div>
-
-          {/* Ações do Rodapé */}
-          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/20">
-            <Button
+        {/* ── Rodapé com navegação ── */}
+        <div className="shrink-0 px-6 py-4 border-t border-border/10 flex gap-3">
+          {step > stepInicial ? (
+            <button
               type="button"
-              variant="secondary"
-              onClick={onClose}
+              onClick={() => { setErro(null); setStep((s) => s - 1) }}
               disabled={salvando}
-              className="!h-10 px-5 rounded-xl text-xs font-semibold"
+              className="h-11 px-5 rounded-xl border border-border/30 bg-background text-sm font-semibold text-secondary hover:text-foreground hover:border-border/60 disabled:opacity-40 transition-all"
+            >
+              ← Voltar
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-11 px-5 rounded-xl border border-border/30 bg-background text-sm font-semibold text-secondary hover:text-foreground hover:border-border/60 transition-all"
             >
               Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={salvando}
-              className="!h-10 px-6 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
+            </button>
+          )}
+
+          {step < 3 ? (
+            <button
+              type="button"
+              onClick={avancar}
+              className="flex-1 h-11 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold text-sm transition-all"
             >
-              {salvando ? 'Registrando...' : 'Confirmar Retirada'}
-            </Button>
-          </div>
-        </form>
+              Próximo →
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={salvando || !responsavel.trim() || itensSelecionados.length === 0}
+              className="flex-1 h-11 rounded-xl bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm transition-all flex items-center justify-center gap-2"
+            >
+              {salvando
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Registrando...</>
+                : <><ArrowUpRight className="h-4 w-4" /> Confirmar Retirada ({itensSelecionados.length})</>
+              }
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -2571,16 +3025,14 @@ function ModalRetiradaCaixa({
 
     setSalvando(true)
     setErro(null)
-
     try {
       await onSucesso({
-        placa: listaFinalPlacas.join(' / '),
+        placa: placasSelecionadas.join(' / '),
         responsavel: responsavel.trim().toUpperCase(),
         observacoes: observacoes.trim() || undefined,
       })
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro ao registrar retirada.')
-    } finally {
       setSalvando(false)
     }
   }

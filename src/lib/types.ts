@@ -189,6 +189,8 @@ export interface FerramentaRetirada {
   status: StatusRetiradaFerramenta
   observacoes_retirada: string | null
   observacoes_devolucao: string | null
+  foto_responsavel_url?: string | null
+  foto_url?: string | null
   created_at: string
   ferramenta?: Ferramenta
   veiculo?: VeiculoComRelacoes

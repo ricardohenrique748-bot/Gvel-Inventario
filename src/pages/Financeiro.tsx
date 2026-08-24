@@ -27,6 +27,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  LabelList,
 } from 'recharts'
 import { PageHeader } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
@@ -684,7 +685,7 @@ export function Financeiro() {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={chartData}
-              margin={{ top: 20, right: 20, left: 10, bottom: 10 }}
+              margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
               barGap={6}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
@@ -763,9 +764,30 @@ export function Financeiro() {
                   )
                 }}
               />
-              <Bar dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={48} />
-              <Bar dataKey="Receitas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={48} />
-              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={48} />
+              <Bar dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                <LabelList
+                  dataKey="Faturamento"
+                  position="top"
+                  formatter={(v: number) => fmtCompact(v)}
+                  style={{ fill: '#93c5fd', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
+                />
+              </Bar>
+              <Bar dataKey="Receitas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                <LabelList
+                  dataKey="Receitas"
+                  position="top"
+                  formatter={(v: number) => fmtCompact(v)}
+                  style={{ fill: '#6ee7b7', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
+                />
+              </Bar>
+              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                <LabelList
+                  dataKey="Despesas"
+                  position="top"
+                  formatter={(v: number) => fmtCompact(v)}
+                  style={{ fill: '#fca5a5', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>

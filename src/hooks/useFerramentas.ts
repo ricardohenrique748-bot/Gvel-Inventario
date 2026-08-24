@@ -240,10 +240,13 @@ export interface RegistrarRetiradaInput {
   responsavel: string
   quantidade: number
   observacoes_retirada?: string
+  foto_responsavel_url?: string | null
+  foto_url?: string | null
 }
 
 export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput): Promise<FerramentaRetirada> {
   const qtd = Number(input.quantidade) || 1
+  const foto = input.foto_responsavel_url || input.foto_url || null
 
   // 1. Busca a ferramenta e valida disponibilidade
   const { data: ferramenta, error: buscaError } = await supabase
@@ -262,21 +265,44 @@ export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput)
     )
   }
 
-  // 2. Insere a retirada
-  const { data: retirada, error: insertError } = await supabase
+  // 2. Insere a retirada com suporte a foto
+  const payload: Record<string, unknown> = {
+    ferramenta_id: input.ferramenta_id,
+    veiculo_id: input.veiculo_id || null,
+    placa: up(input.placa),
+    responsavel: up(input.responsavel),
+    quantidade: qtd,
+    status: 'em_uso',
+    observacoes_retirada: input.observacoes_retirada?.trim() || null,
+    data_hora_retirada: new Date().toISOString(),
+  }
+
+  if (foto) {
+    payload.foto_responsavel_url = foto
+    payload.foto_url = foto
+  }
+
+  let { data: retirada, error: insertError } = await supabase
     .from('ferramentas_retiradas')
-    .insert({
-      ferramenta_id: input.ferramenta_id,
-      veiculo_id: input.veiculo_id || null,
-      placa: up(input.placa),
-      responsavel: up(input.responsavel),
-      quantidade: qtd,
-      status: 'em_uso',
-      observacoes_retirada: input.observacoes_retirada?.trim() || null,
-      data_hora_retirada: new Date().toISOString(),
-    })
+    .insert(payload)
     .select('*, ferramenta:ferramentas(*)')
     .single()
+
+  // Se der erro de coluna inexistente (ex: foto_responsavel_url ainda não migrada), tenta inserir sem os campos de foto
+  if (insertError && foto) {
+    const payloadSemFoto = { ...payload }
+    delete payloadSemFoto.foto_responsavel_url
+    delete payloadSemFoto.foto_url
+
+    const retry = await supabase
+      .from('ferramentas_retiradas')
+      .insert(payloadSemFoto)
+      .select('*, ferramenta:ferramentas(*)')
+      .single()
+
+    retirada = retry.data
+    insertError = retry.error
+  }
 
   if (insertError) throw new Error(insertError.message)
 
