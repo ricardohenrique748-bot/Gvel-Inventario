@@ -4,7 +4,7 @@ import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench } f
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
-import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized } from './nav'
+import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized, isRelatoriosAuthorized } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/cn'
 import { isNativeApp } from '@/lib/isNativeApp'
@@ -25,6 +25,7 @@ export function Sidebar() {
   const canAccessKanban = isKanbanAuthorized(user?.email)
   const canAccessDashboardGerencial = isDashboardGerencialAuthorized(user?.email)
   const canAccessFinanceiro = isFinanceiroAuthorized(user?.email)
+  const canAccessRelatorios = isRelatoriosAuthorized(user?.email)
   const location = useLocation()
 
   // Track which parent groups are open
@@ -59,12 +60,21 @@ export function Sidebar() {
       })
       .map((item) => {
         if (!isAdmin && item.to === '/configuracoes') {
+          // Usuário com acesso a relatórios mas não admin: mostrar Configurações só com Relatórios
+          if (canAccessRelatorios && 'children' in item && (item as any).children) {
+            const relatoriosChild = ((item as any).children as { to: string }[]).filter(
+              (c) => c.to === '/relatorios',
+            )
+            if (relatoriosChild.length > 0) {
+              return { ...item, children: relatoriosChild }
+            }
+          }
           const { children: _children, ...rest } = item as any
           return rest
         }
         return item
       })
-  }, [native, isAdmin, canAccessKanban, canAccessDashboardGerencial, canAccessFinanceiro])
+  }, [native, isAdmin, canAccessKanban, canAccessDashboardGerencial, canAccessFinanceiro, canAccessRelatorios])
 
   // For search: flatten all items (including children) to find matches
   const filteredNavItems = useMemo(() => {

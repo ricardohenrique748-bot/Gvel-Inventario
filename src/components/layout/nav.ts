@@ -95,3 +95,14 @@ export function isFinanceiroAuthorized(email?: string | null): boolean {
   return FINANCEIRO_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
 }
 
+export const RELATORIOS_ALLOWED_EMAILS = [
+  'victor@gveldiesel.com',
+  'ricardo_h.16@hotmail.com',
+  'inventario@gveldiesel.com',
+] as const
+
+export function isRelatoriosAuthorized(email?: string | null): boolean {
+  if (!email) return false
+  return RELATORIOS_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
+}
+
