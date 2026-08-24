@@ -6,12 +6,13 @@ import {
   CheckCheck,
   Trash2,
   X,
-  ExternalLink,
   Clock,
   Wrench,
   Car,
   AlertTriangle,
   CheckCircle2,
+  Truck,
+  ExternalLink,
   SlidersHorizontal,
 } from 'lucide-react'
 import { useNotificacoes, type NotificacaoItem } from '@/contexts/NotificacoesContext'
@@ -20,7 +21,7 @@ import { ptBR } from 'date-fns/locale'
 
 export function NotificacoesDropdown() {
   const [isOpen, setIsOpen] = useState(false)
-  const [filtro, setFiltro] = useState<'todas' | 'os' | 'patio'>('todas')
+  const [filtro, setFiltro] = useState<'todas' | 'os' | 'patio' | 'frotas'>('todas')
   const navigate = useNavigate()
 
   const {
@@ -46,6 +47,7 @@ export function NotificacoesDropdown() {
   const listaFiltrada = notificacoes.filter((n) => {
     if (filtro === 'os') return n.tipo.startsWith('os_')
     if (filtro === 'patio') return n.tipo === 'entrada' || n.tipo === 'saida' || n.tipo === 'patio_tempo'
+    if (filtro === 'frotas') return n.tipo.startsWith('frota_')
     return true
   })
 
@@ -58,6 +60,12 @@ export function NotificacoesDropdown() {
   }
 
   function renderIcon(tipo: string, prioridade?: string) {
+    if (tipo === 'frota_preventiva' || tipo === 'frota_doc_vencido') {
+      return <Truck className="h-4 w-4 text-red-400" />
+    }
+    if (tipo === 'frota_doc_avencer') {
+      return <Truck className="h-4 w-4 text-amber-400" />
+    }
     if (prioridade === 'urgente' || tipo === 'patio_tempo') {
       return <AlertTriangle className="h-4 w-4 text-red-400" />
     }
@@ -179,13 +187,24 @@ export function NotificacoesDropdown() {
                 <button
                   type="button"
                   onClick={() => setFiltro('patio')}
-                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     filtro === 'patio'
                       ? 'bg-blue-500/15 text-blue-300 border border-blue-500/25'
                       : 'text-secondary hover:text-white hover:bg-white/5'
                   }`}
                 >
                   Pátio
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltro('frotas')}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    filtro === 'frotas'
+                      ? 'bg-red-500/15 text-red-300 border border-red-500/25'
+                      : 'text-secondary hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Frotas
                 </button>
               </div>
 

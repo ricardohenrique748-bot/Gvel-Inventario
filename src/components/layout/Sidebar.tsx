@@ -91,13 +91,16 @@ export function Sidebar() {
 
   const initials = (user?.email ?? '?').slice(0, 2).toUpperCase()
 
-  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    cn(
-      'flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-3 pr-3 text-sm font-medium transition-colors',
-      isActive
-        ? 'border-primary text-foreground font-semibold'
-        : 'border-transparent text-secondary hover:bg-overlay/5 hover:text-foreground',
-    )
+  const isLinkActive = (to: string, isDefaultActive: boolean) => {
+    const currentFull = location.pathname + location.search
+    if (to.includes('?')) {
+      return currentFull === to
+    }
+    if (location.search && location.search.length > 0) {
+      if (to === location.pathname) return false
+    }
+    return isDefaultActive
+  }
 
   return (
     <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-60 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl md:border md:border-border/[0.06] bg-surface shadow-2xl shadow-black/50">
@@ -139,7 +142,14 @@ export function Sidebar() {
                     <NavLink
                       to={item.to}
                       end={'end' in item ? (item as any).end : false}
-                      className={navLinkClass}
+                      className={({ isActive }) =>
+                        cn(
+                          'flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-3 pr-3 text-sm font-medium transition-colors',
+                          isLinkActive(item.to, isActive)
+                            ? 'border-primary text-foreground font-semibold'
+                            : 'border-transparent text-secondary hover:bg-overlay/5 hover:text-foreground',
+                        )
+                      }
                       style={{ flex: 1 }}
                     >
                       <item.icon className="h-5 w-5 shrink-0" />
@@ -169,7 +179,15 @@ export function Sidebar() {
                           <NavLink
                             key={child.to}
                             to={child.to}
-                            className={navLinkClass}
+                            end={'end' in child ? (child as any).end : false}
+                            className={({ isActive }) =>
+                              cn(
+                                'flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-3 pr-3 text-sm font-medium transition-colors',
+                                isLinkActive(child.to, isActive)
+                                  ? 'border-primary text-foreground font-semibold'
+                                  : 'border-transparent text-secondary hover:bg-overlay/5 hover:text-foreground',
+                              )
+                            }
                           >
                             <child.icon className="h-4 w-4 shrink-0" />
                             <span className="uppercase">{child.label}</span>
@@ -186,7 +204,14 @@ export function Sidebar() {
                 key={item.to}
                 to={item.to}
                 end={'end' in item ? (item as any).end : false}
-                className={navLinkClass}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-3 pr-3 text-sm font-medium transition-colors',
+                    isLinkActive(item.to, isActive)
+                      ? 'border-primary text-foreground font-semibold'
+                      : 'border-transparent text-secondary hover:bg-overlay/5 hover:text-foreground',
+                  )
+                }
               >
                 <item.icon className="h-5 w-5 shrink-0" />
                 <span className="uppercase">{item.label}</span>

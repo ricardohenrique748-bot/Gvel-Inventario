@@ -399,7 +399,54 @@ export function NotificacoesTab() {
         </div>
       </Card>
 
-      {/* 4. Disparar Comunicado Geral para Todos os Usuários (Apenas Administradores) */}
+      {/* 4. Alertas de Gestão de Frotas */}
+      <Card className={`p-5 space-y-0 transition-opacity ${!formConfig.pushAtivo ? 'opacity-50 pointer-events-none' : ''}`}>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-primary/10 border-primary/30 text-primary">
+            <Car className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="font-bold text-foreground text-sm">Alertas de Gestão de Frotas</p>
+            <p className="text-xs text-secondary mt-0.5 normal-case">
+              Notificações críticas de vencimento de preventiva e regularização de documentos (CRLV)
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2.5 border-t border-border/20 pt-4">
+          {/* Preventiva Atrasada */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">⚠️ PREVENTIVA ATRASADA</p>
+              <p className="text-[10px] text-secondary mt-0.5 normal-case">
+                Alerta urgente quando a data limite de revisão preventiva do veículo estiver vencida
+              </p>
+            </div>
+            <Toggle
+              checked={formConfig.alertaFrotaPreventivaAtivo}
+              onChange={(v) => update('alertaFrotaPreventivaAtivo', v)}
+              disabled={!formConfig.pushAtivo}
+            />
+          </div>
+
+          {/* Vencimento de Documentos / CRLV */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">📑 DOCUMENTO A VENCER / VENCIDO (CRLV)</p>
+              <p className="text-[10px] text-secondary mt-0.5 normal-case">
+                Avisa quando o documento do veículo estiver a 30 dias de vencer ou expirado
+              </p>
+            </div>
+            <Toggle
+              checked={formConfig.alertaFrotaDocAtivo}
+              onChange={(v) => update('alertaFrotaDocAtivo', v)}
+              disabled={!formConfig.pushAtivo}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* 5. Disparar Comunicado Geral para Todos os Usuários (Apenas Administradores) */}
       {isAdmin && (
         <Card className="p-5">
           <div className="flex items-center gap-3 mb-4">

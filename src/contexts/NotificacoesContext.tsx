@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { differenceInDays, parseISO, isBefore, startOfDay, format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { notificationSound } from '@/lib/notificationSound'
 import { dispararPushLocal, solicitarPermissaoNotificacoes } from '@/lib/pushNotifications'
 
 export interface NotificacaoItem {
   id: string
-  tipo: 'entrada' | 'saida' | 'patio_tempo' | 'os_status' | 'os_finalizada' | 'sistema'
+  tipo: 'entrada' | 'saida' | 'patio_tempo' | 'os_status' | 'os_finalizada' | 'sistema' | 'frota_preventiva' | 'frota_doc_vencido' | 'frota_doc_avencer'
   titulo: string
   mensagem: string
   dataHora: string
@@ -28,6 +29,8 @@ export interface ConfigNotificacoes {
   alertaOsMultilixoAtivo: boolean
   alertaOsClienteAtivo: boolean
   alertaOsFinalizadaAtivo: boolean
+  alertaFrotaPreventivaAtivo: boolean
+  alertaFrotaDocAtivo: boolean
   somAtivo: boolean
 }
 
@@ -44,6 +47,8 @@ export const CONFIG_NOTIF_DEFAULT: ConfigNotificacoes = {
   alertaOsMultilixoAtivo: false,
   alertaOsClienteAtivo: false,
   alertaOsFinalizadaAtivo: false,
+  alertaFrotaPreventivaAtivo: true,
+  alertaFrotaDocAtivo: true,
   somAtivo: false,
 }
 
@@ -350,6 +355,87 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
         }
       }
 
+      // 4. Alertas de Gestão de Frotas (Preventivas & Documentos)
+      try {
+        const rawFrotas = localStorage.getItem('gvel_frotas_cadastradas_v1')
+        if (rawFrotas) {
+          const frotas: Array<{
+            id: string
+            placa: string
+            modeloNome?: string
+            clienteNome?: string
+            vencimentoPreventiva?: string
+            vencimentoDocumento?: string
+          }> = JSON.parse(rawFrotas)
+
+          const hoje = startOfDay(new Date())
+
+          for (const v of frotas) {
+            const placa = v.placa ? v.placa.toUpperCase() : 'VEÍCULO'
+            const modelo = v.modeloNome || 'Frota'
+
+            // A) Preventiva Atrasada
+            if (config.alertaFrotaPreventivaAtivo && v.vencimentoPreventiva) {
+              try {
+                const dataPrev = parseISO(v.vencimentoPreventiva)
+                if (isBefore(dataPrev, hoje)) {
+                  const diasAtraso = Math.abs(differenceInDays(dataPrev, hoje))
+                  lista.push({
+                    id: `frota_prev_${v.id}_${v.vencimentoPreventiva}`,
+                    tipo: 'frota_preventiva',
+                    titulo: `⚠️ PREVENTIVA ATRASADA: ${placa}`,
+                    mensagem: `A revisão preventiva do veículo (${modelo}) venceu em ${format(dataPrev, 'dd/MM/yyyy')} (${diasAtraso} dias atrás).`,
+                    dataHora: `${v.vencimentoPreventiva}T08:00:00.000Z`,
+                    link: '/frotas',
+                    lida: false,
+                    prioridade: 'urgente',
+                    icone: '⚠️',
+                  })
+                }
+              } catch {}
+            }
+
+            // B) Documento Vencido ou a Vencer (CRLV)
+            if (config.alertaFrotaDocAtivo && v.vencimentoDocumento) {
+              try {
+                const dataDoc = parseISO(v.vencimentoDocumento)
+                const diasDoc = differenceInDays(dataDoc, hoje)
+
+                if (diasDoc < 0) {
+                  // Vencido
+                  lista.push({
+                    id: `frota_doc_venc_${v.id}_${v.vencimentoDocumento}`,
+                    tipo: 'frota_doc_vencido',
+                    titulo: `🛑 CRLV/DOC VENCIDO: ${placa}`,
+                    mensagem: `O documento do veículo (${modelo}) expirou em ${format(dataDoc, 'dd/MM/yyyy')} (${Math.abs(diasDoc)} dias atrás).`,
+                    dataHora: `${v.vencimentoDocumento}T08:00:00.000Z`,
+                    link: '/frotas',
+                    lida: false,
+                    prioridade: 'urgente',
+                    icone: '🛑',
+                  })
+                } else if (diasDoc <= 30) {
+                  // A Vencer (até 30 dias)
+                  lista.push({
+                    id: `frota_doc_avencer_${v.id}_${v.vencimentoDocumento}`,
+                    tipo: 'frota_doc_avencer',
+                    titulo: `⏳ CRLV A VENCER (${diasDoc === 0 ? 'HOJE' : `${diasDoc}D`}): ${placa}`,
+                    mensagem: `O documento do veículo (${modelo}) vencerá em ${format(dataDoc, 'dd/MM/yyyy')}.`,
+                    dataHora: agora.toISOString(),
+                    link: '/frotas',
+                    lida: false,
+                    prioridade: 'alerta',
+                    icone: '⏳',
+                  })
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[useNotificacoes] Erro ao verificar alertas de frotas:', e)
+      }
+
       // Gerenciamento de disparo de push nativo e som
       if (!inicializadoRef.current) {
         // Na primeira carga, memoriza os itens já existentes para não disparar histórico de uma vez
@@ -407,11 +493,13 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
 
     const onChecklistUpdated = () => carregarEventos()
     window.addEventListener('checklist_updated', onChecklistUpdated)
+    window.addEventListener('frota_updated', onChecklistUpdated)
 
     return () => {
       clearInterval(timer)
       supabase.removeChannel(channel)
       window.removeEventListener('checklist_updated', onChecklistUpdated)
+      window.removeEventListener('frota_updated', onChecklistUpdated)
     }
   }, [carregarEventos])
 
