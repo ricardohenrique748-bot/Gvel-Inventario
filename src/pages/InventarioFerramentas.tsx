@@ -25,7 +25,9 @@ import {
   ClipboardList,
   PackagePlus,
   TrendingDown,
+  Laptop,
 } from 'lucide-react'
+import { CameraWebcamModal } from '@/components/CameraWebcamModal'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PageHeader } from '@/components/layout/Header'
@@ -2614,6 +2616,7 @@ function ModalRetirada({
   const [processandoFoto, setProcessandoFoto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [abrirWebcamModal, setAbrirWebcamModal] = useState(false)
 
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -3257,16 +3260,32 @@ function ModalRetirada({
 
               {/* Foto da Pessoa / Responsável */}
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-black text-secondary uppercase tracking-widest">
-                  Foto da Pessoa / Responsável
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-black text-secondary uppercase tracking-widest">
+                    Foto da Pessoa / Responsável
+                  </label>
+                  <span className="text-[10px] text-secondary font-medium">opcional</span>
+                </div>
+
+                {/* Modal de Câmera do Notebook / Webcam Ao Vivo */}
+                {abrirWebcamModal && (
+                  <CameraWebcamModal
+                    titulo="Câmera do Notebook / Webcam"
+                    subtitulo="Posicione a pessoa no centro e clique em Capturar Foto"
+                    onCapture={(file, url) => {
+                      setFotoFile(file)
+                      setFotoUrl(url)
+                      setFotoOrigem('nova')
+                    }}
+                    onClose={() => setAbrirWebcamModal(false)}
+                  />
+                )}
 
                 {/* Inputs de arquivo ocultos */}
                 <input
                   ref={cameraInputRef}
                   type="file"
                   accept="image/*"
-                  capture="user"
                   onChange={handleFotoChange}
                   className="hidden"
                 />
@@ -3301,13 +3320,21 @@ function ModalRetirada({
                           ? 'Foto recuperada automaticamente deste mecânico'
                           : 'Foto capturada com sucesso'}
                       </p>
-                      <div className="flex gap-2 mt-1.5">
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setAbrirWebcamModal(true)}
+                          className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1"
+                        >
+                          <Laptop className="h-3 w-3" /> Câmera Notebook
+                        </button>
+                        <span className="text-secondary">·</span>
                         <button
                           type="button"
                           onClick={() => cameraInputRef.current?.click()}
-                          className="text-[11px] text-primary hover:underline font-semibold"
+                          className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1"
                         >
-                          Tirar outra
+                          <Camera className="h-3 w-3" /> Arquivo / Celular
                         </button>
                         <span className="text-secondary">·</span>
                         <button
@@ -3321,23 +3348,32 @@ function ModalRetirada({
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAbrirWebcamModal(true)}
+                      className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary transition-all group active:scale-98"
+                    >
+                      <Laptop className="h-4 w-4 shrink-0 group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-bold">Câmera Notebook</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => cameraInputRef.current?.click()}
-                      className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-primary/10 hover:border-primary/50 text-foreground transition-all group active:scale-98"
+                      className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-surface hover:border-primary/50 text-foreground transition-all group active:scale-98"
                     >
-                      <Camera className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                      <span className="text-xs font-bold">Tirar Foto</span>
+                      <Camera className="h-4 w-4 text-primary group-hover:scale-110 transition-transform shrink-0" />
+                      <span className="text-xs font-bold">Câmera Celular</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-primary/10 hover:border-primary/50 text-foreground transition-all group active:scale-98"
+                      className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-surface hover:border-primary/50 text-foreground transition-all group active:scale-98"
                     >
-                      <ImageIcon className="h-4 w-4 text-secondary group-hover:text-primary transition-colors" />
-                      <span className="text-xs font-bold">Galeria</span>
+                      <ImageIcon className="h-4 w-4 text-secondary group-hover:text-primary transition-colors shrink-0" />
+                      <span className="text-xs font-bold">Galeria / Arquivo</span>
                     </button>
                   </div>
                 )}
@@ -3550,6 +3586,7 @@ function ModalCaixaFerramenta({
   const [fotoUrl, setFotoUrl] = useState(caixa?.foto_url || '')
   const [fotoFile, setFotoFile] = useState<File | null>(null)
   const [processandoFoto, setProcessandoFoto] = useState(false)
+  const [abrirWebcamModal, setAbrirWebcamModal] = useState(false)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galeriaInputRef = useRef<HTMLInputElement>(null)
 
@@ -3727,11 +3764,22 @@ function ModalCaixaFerramenta({
               Foto da Caixa de Ferramentas
             </label>
 
+            {abrirWebcamModal && (
+              <CameraWebcamModal
+                titulo="Câmera do Notebook / Webcam"
+                subtitulo="Fotografar caixa ou kit de ferramentas"
+                onCapture={(file, url) => {
+                  setFotoFile(file)
+                  setFotoUrl(url)
+                }}
+                onClose={() => setAbrirWebcamModal(false)}
+              />
+            )}
+
             <input
               type="file"
               ref={cameraInputRef}
               accept="image/*"
-              capture="environment"
               onChange={handleFotoSelecionada}
               className="hidden"
             />
@@ -3765,6 +3813,17 @@ function ModalCaixaFerramenta({
               )}
 
               <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  onClick={() => setAbrirWebcamModal(true)}
+                  disabled={processandoFoto}
+                  className="!h-9 text-xs font-bold gap-1.5 uppercase text-primary border-primary/30 hover:bg-primary/10"
+                >
+                  <Laptop className="h-4 w-4" />
+                  Notebook
+                </Button>
                 <Button
                   type="button"
                   variant="secondary"

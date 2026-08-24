@@ -228,6 +228,11 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
     .single()
 
   if (error) throw error
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('movimentacao_updated'))
+  }
+
   return data
 }
 
@@ -279,12 +284,21 @@ export async function atualizarMovimentacao(id: string, input: AtualizarMoviment
     .select()
     .single()
   if (error) throw new Error(error.message)
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('movimentacao_updated'))
+  }
+
   return data
 }
 
 export async function excluirMovimentacao(id: string) {
   const { error } = await supabase.from('movimentacoes').delete().eq('id', id)
   if (error) throw new Error(error.message)
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('movimentacao_updated'))
+  }
 }
 
 export async function atualizarStatusMovimentacao(id: string, statusId: string | null) {
@@ -293,6 +307,10 @@ export async function atualizarStatusMovimentacao(id: string, statusId: string |
     .update({ status_id: statusId || null })
     .eq('id', id)
   if (error) throw new Error(error.message)
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('movimentacao_updated'))
+  }
 }
 
 export async function atualizarPatioMovimentacao(id: string, patioId: string) {
@@ -301,6 +319,10 @@ export async function atualizarPatioMovimentacao(id: string, patioId: string) {
     .update({ patio_id: patioId })
     .eq('id', id)
   if (error) throw new Error(error.message)
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('movimentacao_updated'))
+  }
 }
 
 interface RegistrarSaidaInput {
@@ -326,5 +348,10 @@ export async function registrarSaida(movimentacaoId: string, input?: RegistrarSa
     .select()
     .single()
   if (error) throw error
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('movimentacao_updated'))
+  }
+
   return data
 }

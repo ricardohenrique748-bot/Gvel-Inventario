@@ -35,27 +35,27 @@ export interface ConfigNotificacoes {
 }
 
 export const CONFIG_NOTIF_DEFAULT: ConfigNotificacoes = {
-  pushAtivo: false,
-  alertaEntradaAtivo: false,
-  alertaSaidaAtivo: false,
-  alertaPatioAtivo: false,
+  pushAtivo: true,
+  alertaEntradaAtivo: true,
+  alertaSaidaAtivo: true,
+  alertaPatioAtivo: true,
   alertaPatioHoras: 24,
-  alertaOsAbertaAtivo: false,
-  alertaOsPecasAtivo: false,
-  alertaOsOrcamentoAtivo: false,
-  alertaOsAutorizacaoAtivo: false,
-  alertaOsMultilixoAtivo: false,
-  alertaOsClienteAtivo: false,
-  alertaOsFinalizadaAtivo: false,
+  alertaOsAbertaAtivo: true,
+  alertaOsPecasAtivo: true,
+  alertaOsOrcamentoAtivo: true,
+  alertaOsAutorizacaoAtivo: true,
+  alertaOsMultilixoAtivo: true,
+  alertaOsClienteAtivo: true,
+  alertaOsFinalizadaAtivo: true,
   alertaFrotaPreventivaAtivo: true,
   alertaFrotaDocAtivo: true,
-  somAtivo: false,
+  somAtivo: true,
 }
 
-const STORAGE_CONFIG_KEY = 'config_notificacoes'
-const STORAGE_LIDAS_KEY = 'notificacoes_lidas_ids'
-const STORAGE_MANUAIS_KEY = 'notificacoes_manuais_broadcast'
-const STORAGE_DISPARADAS_KEY = 'notificacoes_disparadas_push_ids'
+const STORAGE_CONFIG_KEY = 'config_notificacoes_v2'
+const STORAGE_LIDAS_KEY = 'notificacoes_lidas_ids_v2'
+const STORAGE_MANUAIS_KEY = 'notificacoes_manuais_broadcast_v2'
+const STORAGE_DISPARADAS_KEY = 'notificacoes_disparadas_push_ids_v2'
 
 interface NotificacoesContextType {
   notificacoes: NotificacaoItem[]
@@ -82,11 +82,24 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     try {
       const raw = localStorage.getItem(STORAGE_CONFIG_KEY)
       if (raw) return { ...CONFIG_NOTIF_DEFAULT, ...JSON.parse(raw) }
+      // Migração de chave antiga se houver
+      const rawOld = localStorage.getItem('config_notificacoes')
+      if (rawOld) {
+        const parsedOld = JSON.parse(rawOld)
+        return {
+          ...CONFIG_NOTIF_DEFAULT,
+          ...parsedOld,
+          pushAtivo: true,
+          somAtivo: true,
+          alertaFrotaPreventivaAtivo: true,
+          alertaFrotaDocAtivo: true,
+        }
+      }
     } catch {}
     return CONFIG_NOTIF_DEFAULT
   })
 
-  // Inicializa canal e permissões no Android/APK logo na inicialização
+  // Inicializa canal e permissões no Android/APK e Web logo na inicialização
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_DISPARADAS_KEY)
@@ -96,6 +109,19 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     } catch {}
 
     solicitarPermissaoNotificacoes()
+
+    const onUserInteract = () => {
+      solicitarPermissaoNotificacoes()
+      window.removeEventListener('click', onUserInteract)
+      window.removeEventListener('touchstart', onUserInteract)
+    }
+    window.addEventListener('click', onUserInteract, { passive: true })
+    window.addEventListener('touchstart', onUserInteract, { passive: true })
+
+    return () => {
+      window.removeEventListener('click', onUserInteract)
+      window.removeEventListener('touchstart', onUserInteract)
+    }
   }, [])
 
   const [lidas, setLidas] = useState<Set<string>>(() => {
@@ -169,15 +195,9 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
   }, [notificacoesDinamicas, manuais])
 
   const carregarEventos = useCallback(async () => {
-    if (!config.pushAtivo) {
-      setNotificacoesDinamicas([])
-      return
-    }
-
     try {
       const lista: NotificacaoItem[] = []
       const agora = new Date()
-      // Início do dia de hoje (00:00) para entradas/saídas
       const inicioHoje = new Date()
       inicioHoje.setHours(0, 0, 0, 0)
       const inicioHojeISO = inicioHoje.toISOString()
@@ -223,22 +243,22 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
       const movs = movsRes.data ?? []
       const osList = osRes.data ?? []
 
-      // Alertas de Pátio
+      // 1. Alertas de Pátio, Entradas e Saídas
       for (const m of movs) {
         const veic = m.veiculo as { placa?: string } | null
-        const placa = veic?.placa || 'VEÍCULO'
+        const placa = veic?.placa ? veic.placa.toUpperCase().trim() : 'VEÍCULO'
         const patioNome = (m.patio as { nome?: string } | null)?.nome || 'PÁTIO'
 
-        // 1. Alerta Crítico: Tempo no Pátio Excedido
+        // A) Tempo no Pátio Excedido
         if (config.alertaPatioAtivo && m.status === 'no_patio' && m.data_hora_entrada) {
           const dEntrada = new Date(m.data_hora_entrada)
           const horasNoPatio = Math.floor((agora.getTime() - dEntrada.getTime()) / (1000 * 3600))
-          if (horasNoPatio >= config.alertaPatioHoras) {
+          if (horasNoPatio >= (config.alertaPatioHoras || 24)) {
             lista.push({
               id: `patio_${m.id}`,
               tipo: 'patio_tempo',
               titulo: `⏰ TEMPO NO PÁTIO EXCEDIDO (${horasNoPatio}H): ${placa}`,
-              mensagem: `Veículo ultrapassou o limite de ${config.alertaPatioHoras}h no pátio ${patioNome}.`,
+              mensagem: `Veículo ultrapassou o limite de ${config.alertaPatioHoras || 24}h no pátio ${patioNome}.`,
               dataHora: m.data_hora_entrada,
               link: `/movimentacoes`,
               lida: false,
@@ -248,15 +268,15 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
           }
         }
 
-        // 2. Entradas do dia
+        // B) Entradas de hoje
         if (config.alertaEntradaAtivo && m.data_hora_entrada) {
           const dEntrada = new Date(m.data_hora_entrada)
           if (dEntrada >= inicioHoje) {
             lista.push({
               id: `entrada_${m.id}`,
               tipo: 'entrada',
-              titulo: `🚗 ENTRADA: ${placa}`,
-              mensagem: `Entrou no pátio ${patioNome}${m.motorista ? ` · Motorista: ${m.motorista}` : ''}.`,
+              titulo: `🚗 ENTRADA REGISTRADA: ${placa}`,
+              mensagem: `Veículo entrou no pátio ${patioNome}${m.motorista ? ` · Motorista: ${m.motorista}` : ''}.`,
               dataHora: m.data_hora_entrada,
               link: `/movimentacoes`,
               lida: false,
@@ -266,14 +286,14 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
           }
         }
 
-        // 3. Saídas do dia
+        // C) Saídas de hoje
         if (config.alertaSaidaAtivo && m.data_hora_saida) {
           const dSaida = new Date(m.data_hora_saida)
           if (dSaida >= inicioHoje) {
             lista.push({
               id: `saida_${m.id}`,
               tipo: 'saida',
-              titulo: `🏁 SAÍDA: ${placa}`,
+              titulo: `🏁 SAÍDA REGISTRADA: ${placa}`,
               mensagem: `Veículo liberado do pátio ${patioNome}.`,
               dataHora: m.data_hora_saida,
               link: `/movimentacoes`,
@@ -285,10 +305,10 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
         }
       }
 
-      // Alertas de O.S e Oficinas
+      // 2. Alertas de O.S e Oficinas
       for (const os of osList) {
         const mov = os.movimentacao as { veiculo?: { placa?: string } } | null
-        const placa = mov?.veiculo?.placa || 'VEÍCULO'
+        const placa = mov?.veiculo?.placa ? mov.veiculo.placa.toUpperCase().trim() : 'VEÍCULO'
         const mec = os.mecanico ? ` · Mecânico: ${os.mecanico}` : ''
         const st = (os.status_os || 'EM ANDAMENTO').toUpperCase()
 
@@ -355,37 +375,90 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
         }
       }
 
-      // 4. Alertas de Gestão de Frotas (Preventivas & Documentos)
+      // 3. Alertas de Gestão de Frotas (KM da Preventiva, Data e Documentos CRLV)
       try {
         const rawFrotas = localStorage.getItem('gvel_frotas_cadastradas_v1')
+        const rawChecklists = localStorage.getItem('gvel_frotas_checklists_v1')
+
         if (rawFrotas) {
           const frotas: Array<{
             id: string
             placa: string
             modeloNome?: string
             clienteNome?: string
+            kmUltimaPreventiva?: number
+            intervaloPreventivaKm?: number
+            dataUltimaPreventiva?: string
             vencimentoPreventiva?: string
             vencimentoDocumento?: string
           }> = JSON.parse(rawFrotas)
 
+          // Mapeia última KM informada nos checklists para cada placa
+          const ultimasKms = new Map<string, number>()
+          if (rawChecklists) {
+            const chks: Array<{ placa: string; kmAtual: number; dataHora: string }> = JSON.parse(rawChecklists)
+            chks.forEach((chk) => {
+              if (chk.placa && chk.kmAtual > 0) {
+                const p = chk.placa.toUpperCase().trim()
+                const atual = ultimasKms.get(p) || 0
+                if (chk.kmAtual > atual) ultimasKms.set(p, chk.kmAtual)
+              }
+            })
+          }
+
           const hoje = startOfDay(new Date())
 
           for (const v of frotas) {
-            const placa = v.placa ? v.placa.toUpperCase() : 'VEÍCULO'
+            const placa = v.placa ? v.placa.toUpperCase().trim() : 'VEÍCULO'
             const modelo = v.modeloNome || 'Frota'
+            const kmAtual = ultimasKms.get(placa) || 0
+            const kmUltima = v.kmUltimaPreventiva || 0
+            const intervalo = v.intervaloPreventivaKm || 10000
 
-            // A) Preventiva Atrasada
-            if (config.alertaFrotaPreventivaAtivo && v.vencimentoPreventiva) {
+            // A) Alerta Preventiva por KM
+            if (config.alertaFrotaPreventivaAtivo && kmUltima > 0 && kmAtual > 0) {
+              const kmLimite = kmUltima + intervalo
+              const kmRestante = kmLimite - kmAtual
+              if (kmRestante < 0) {
+                lista.push({
+                  id: `frota_prev_km_${v.id}_${kmLimite}`,
+                  tipo: 'frota_preventiva',
+                  titulo: `🛑 PREVENTIVA VENCIDA POR KM: ${placa}`,
+                  mensagem: `Veículo atingiu ${kmAtual.toLocaleString('pt-BR')} KM (ultrapassou o limite de revisão de ${kmLimite.toLocaleString('pt-BR')} KM em ${Math.abs(kmRestante).toLocaleString('pt-BR')} KM).`,
+                  dataHora: agora.toISOString(),
+                  link: '/frotas',
+                  lida: false,
+                  prioridade: 'urgente',
+                  icone: '🛑',
+                })
+              } else if (kmRestante <= 1000) {
+                lista.push({
+                  id: `frota_prev_km_prox_${v.id}_${kmLimite}`,
+                  tipo: 'frota_preventiva',
+                  titulo: `⚠️ PREVENTIVA PRÓXIMA: ${placa}`,
+                  mensagem: `Faltam apenas ${kmRestante.toLocaleString('pt-BR')} KM para a próxima revisão preventiva (${kmLimite.toLocaleString('pt-BR')} KM).`,
+                  dataHora: agora.toISOString(),
+                  link: '/frotas',
+                  lida: false,
+                  prioridade: 'alerta',
+                  icone: '⚠️',
+                })
+              }
+            }
+
+            // B) Preventiva por Data
+            const dataPrevStr = v.dataUltimaPreventiva || v.vencimentoPreventiva
+            if (config.alertaFrotaPreventivaAtivo && dataPrevStr) {
               try {
-                const dataPrev = parseISO(v.vencimentoPreventiva)
+                const dataPrev = parseISO(dataPrevStr)
                 if (isBefore(dataPrev, hoje)) {
                   const diasAtraso = Math.abs(differenceInDays(dataPrev, hoje))
                   lista.push({
-                    id: `frota_prev_${v.id}_${v.vencimentoPreventiva}`,
+                    id: `frota_prev_data_${v.id}_${dataPrevStr}`,
                     tipo: 'frota_preventiva',
-                    titulo: `⚠️ PREVENTIVA ATRASADA: ${placa}`,
-                    mensagem: `A revisão preventiva do veículo (${modelo}) venceu em ${format(dataPrev, 'dd/MM/yyyy')} (${diasAtraso} dias atrás).`,
-                    dataHora: `${v.vencimentoPreventiva}T08:00:00.000Z`,
+                    titulo: `⚠️ PREVENTIVA ATRASADA (DATA): ${placa}`,
+                    mensagem: `A revisão periódica do veículo (${modelo}) venceu em ${format(dataPrev, 'dd/MM/yyyy')} (${diasAtraso} dias atrás).`,
+                    dataHora: `${dataPrevStr}T08:00:00.000Z`,
                     link: '/frotas',
                     lida: false,
                     prioridade: 'urgente',
@@ -395,18 +468,17 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
               } catch {}
             }
 
-            // B) Documento Vencido ou a Vencer (CRLV)
+            // C) Documento Vencido ou a Vencer (CRLV)
             if (config.alertaFrotaDocAtivo && v.vencimentoDocumento) {
               try {
                 const dataDoc = parseISO(v.vencimentoDocumento)
                 const diasDoc = differenceInDays(dataDoc, hoje)
 
                 if (diasDoc < 0) {
-                  // Vencido
                   lista.push({
                     id: `frota_doc_venc_${v.id}_${v.vencimentoDocumento}`,
                     tipo: 'frota_doc_vencido',
-                    titulo: `🛑 CRLV/DOC VENCIDO: ${placa}`,
+                    titulo: `🛑 CRLV VENCIDO: ${placa}`,
                     mensagem: `O documento do veículo (${modelo}) expirou em ${format(dataDoc, 'dd/MM/yyyy')} (${Math.abs(diasDoc)} dias atrás).`,
                     dataHora: `${v.vencimentoDocumento}T08:00:00.000Z`,
                     link: '/frotas',
@@ -415,7 +487,6 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
                     icone: '🛑',
                   })
                 } else if (diasDoc <= 30) {
-                  // A Vencer (até 30 dias)
                   lista.push({
                     id: `frota_doc_avencer_${v.id}_${v.vencimentoDocumento}`,
                     tipo: 'frota_doc_avencer',
@@ -436,16 +507,16 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
         console.error('[useNotificacoes] Erro ao verificar alertas de frotas:', e)
       }
 
-      // Gerenciamento de disparo de push nativo e som
+      // Gerenciamento de disparo de push nativo e som para NOVOS eventos
       if (!inicializadoRef.current) {
-        // Na primeira carga, memoriza os itens já existentes para não disparar histórico de uma vez
+        // Na primeira carga, memoriza os itens já existentes no snapshot inicial
         lista.forEach((item) => disparadasRef.current.add(item.id))
         try {
           localStorage.setItem(STORAGE_DISPARADAS_KEY, JSON.stringify(Array.from(disparadasRef.current)))
         } catch {}
         inicializadoRef.current = true
       } else {
-        // Pega somente os novos eventos que acabaram de acontecer
+        // Dispara som e push para eventos novos que acabaram de acontecer
         const novos = lista.filter((item) => !disparadasRef.current.has(item.id))
         if (novos.length > 0) {
           novos.forEach((item) => {
@@ -473,10 +544,11 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     carregarEventos()
-    const timer = setInterval(carregarEventos, 15000)
+    const timer = setInterval(carregarEventos, 10000)
 
+    // Realtime do Supabase
     const channel = supabase
-      .channel('notificacoes_realtime')
+      .channel('notificacoes_realtime_v2')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'movimentacoes' }, () => {
         carregarEventos()
       })
@@ -491,15 +563,20 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
       })
       .subscribe()
 
-    const onChecklistUpdated = () => carregarEventos()
-    window.addEventListener('checklist_updated', onChecklistUpdated)
-    window.addEventListener('frota_updated', onChecklistUpdated)
+    // Eventos customizados locais
+    const onLocalUpdate = () => carregarEventos()
+    window.addEventListener('checklist_updated', onLocalUpdate)
+    window.addEventListener('frota_updated', onLocalUpdate)
+    window.addEventListener('movimentacao_cadastrada', onLocalUpdate)
+    window.addEventListener('movimentacao_updated', onLocalUpdate)
 
     return () => {
       clearInterval(timer)
       supabase.removeChannel(channel)
-      window.removeEventListener('checklist_updated', onChecklistUpdated)
-      window.removeEventListener('frota_updated', onChecklistUpdated)
+      window.removeEventListener('checklist_updated', onLocalUpdate)
+      window.removeEventListener('frota_updated', onLocalUpdate)
+      window.removeEventListener('movimentacao_cadastrada', onLocalUpdate)
+      window.removeEventListener('movimentacao_updated', onLocalUpdate)
     }
   }, [carregarEventos])
 
@@ -509,7 +586,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
 
   const criarNotificacaoManual = useCallback((titulo: string, mensagem: string, prioridade: 'normal' | 'alerta' | 'urgente' = 'normal') => {
     const item: NotificacaoItem = {
-      id: `manual_${Date.now()}`,
+      id: `manual_${Date.now()}_${Math.random()}`,
       tipo: 'sistema',
       titulo: titulo.toUpperCase(),
       mensagem,
@@ -540,24 +617,28 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     notificationSound.playChime()
     dispararPushLocal(
       '🔔 TESTE DE NOTIFICAÇÃO',
-      'As notificações no celular e no sistema estão funcionando perfeitamente!'
+      'Notificações no celular e sistema ativas e funcionando perfeitamente!'
     )
     criarNotificacaoManual(
       '🔔 NOTIFICAÇÃO DE TESTE DO SISTEMA',
-      'As notificações sonoras, push e visuais do sistema estão ativas e funcionando!',
+      'As notificações sonoras, push no celular e avisos do sistema estão ativas e funcionando!',
       'alerta'
     )
   }, [criarNotificacaoManual])
 
   const todasNotificacoes = useMemo(() => {
-    const unificadas = [...manuais, ...notificacoesDinamicas].map((n) => ({
-      ...n,
-      lida: lidas.has(n.id),
-    }))
+    const combinadas = [...notificacoesDinamicas, ...manuais]
+    const unicos = new Map<string, NotificacaoItem>()
+    combinadas.forEach((n) => {
+      unicos.set(n.id, {
+        ...n,
+        lida: lidas.has(n.id),
+      })
+    })
 
-    // Ordena mais recentes primeiro
-    unificadas.sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
-    return unificadas
+    return Array.from(unicos.values()).sort(
+      (a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()
+    )
   }, [notificacoesDinamicas, manuais, lidas])
 
   const naoLidasCount = useMemo(() => {
@@ -589,7 +670,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
 export function useNotificacoes() {
   const ctx = useContext(NotificacoesContext)
   if (!ctx) {
-    throw new Error('useNotificacoes must be used within NotificacoesProvider')
+    throw new Error('useNotificacoes deve ser usado dentro de um NotificacoesProvider')
   }
   return ctx
 }

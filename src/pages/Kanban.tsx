@@ -179,7 +179,17 @@ export function Kanban() {
       ? 'RICARDO'
       : user?.email?.split('@')[0]?.toUpperCase() || 'USUÁRIO')
 
-  const { items, historico, loading, error, lastSync, fetchSheet } = useKanbanSheet(nomeUsuario)
+  const {
+    items,
+    historico,
+    loading,
+    isAutoSyncing,
+    autoSyncEnabled,
+    setAutoSyncEnabled,
+    error,
+    lastSync,
+    fetchSheet,
+  } = useKanbanSheet(nomeUsuario)
 
   // Bloqueio no APK mobile
   if (isNativeApp()) {
@@ -338,8 +348,8 @@ export function Kanban() {
               disabled={loading}
               className="gap-2 font-bold shadow-lg shadow-primary/20"
             >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>{loading ? 'SINCRONIZANDO…' : 'ATUALIZAR PLANILHA'}</span>
+              <RefreshCw className={`h-4 w-4 ${loading || isAutoSyncing ? 'animate-spin' : ''}`} />
+              <span>{loading ? 'SINCRONIZANDO…' : isAutoSyncing ? 'ATUALIZANDO AUTO…' : 'ATUALIZAR PLANILHA'}</span>
             </Button>
           </div>
         }
@@ -347,10 +357,25 @@ export function Kanban() {
 
       {/* Banner de Sincronização & Informações */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/10 bg-surface/80 px-4 py-3 text-xs font-medium text-secondary backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className={`flex h-2.5 w-2.5 rounded-full ${autoSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
           <span className="font-bold text-foreground">GOOGLE SHEETS:</span>
           <span>{lastSync ? `ÚLTIMA SINCRONIZAÇÃO EM ${lastSync}` : 'PLANILHA CONECTADA'}</span>
+          
+          <span className="text-border/40">|</span>
+          <button
+            type="button"
+            onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-bold text-[10px] uppercase transition-all cursor-pointer ${
+              autoSyncEnabled
+                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                : 'bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
+            }`}
+            title={autoSyncEnabled ? 'Clique para pausar atualização automática' : 'Clique para ativar atualização automática'}
+          >
+            <RefreshCw className={`h-3 w-3 ${autoSyncEnabled && isAutoSyncing ? 'animate-spin' : ''}`} />
+            <span>{autoSyncEnabled ? 'AUTO-ATUALIZAÇÃO ATIVA (30S)' : 'AUTO-ATUALIZAÇÃO PAUSADA'}</span>
+          </button>
         </div>
 
         <a

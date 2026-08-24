@@ -1,7 +1,7 @@
 import { LocalNotifications } from '@capacitor/local-notifications'
 import { Capacitor } from '@capacitor/core'
 
-export const GVEL_NOTIFICATION_CHANNEL_ID = 'gvel_alertas_channel'
+export const GVEL_NOTIFICATION_CHANNEL_ID = 'gvel_alertas_channel_v2'
 
 /**
  * Cria o canal de notificações de alta prioridade no Android (necessário no Android 8+)
@@ -12,8 +12,8 @@ export async function criarCanalNotificacoesAndroid() {
       await LocalNotifications.createChannel({
         id: GVEL_NOTIFICATION_CHANNEL_ID,
         name: 'Alertas e Avisos Gvel',
-        description: 'Notificações de entrada, saída, pátio e manutenção de veículos',
-        importance: 5, // 5 = HIGH / MAX (mostra banner e vibra)
+        description: 'Notificações de entrada, saída, pátio, O.S e manutenção de frota',
+        importance: 5, // 5 = HIGH / MAX (mostra banner popup e vibra)
         visibility: 1, // 1 = PUBLIC
         sound: undefined,
         vibration: true,
@@ -34,12 +34,15 @@ export async function solicitarPermissaoNotificacoes(): Promise<boolean> {
   try {
     if (Capacitor.isNativePlatform()) {
       await criarCanalNotificacoesAndroid()
-      const status = await LocalNotifications.requestPermissions()
-      return status.display === 'granted'
+      const status = await LocalNotifications.checkPermissions()
+      if (status.display === 'granted') return true
+      const req = await LocalNotifications.requestPermissions()
+      return req.display === 'granted'
     }
 
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'granted') return true
+      if (Notification.permission === 'denied') return false
       const permission = await Notification.requestPermission()
       return permission === 'granted'
     }
@@ -54,10 +57,9 @@ export async function dispararPushLocal(titulo: string, mensagem: string, linkUr
     // 1. No Android / iOS nativo (APK)
     if (Capacitor.isNativePlatform()) {
       await criarCanalNotificacoesAndroid()
-      const status = await LocalNotifications.checkPermissions()
+      let status = await LocalNotifications.checkPermissions()
       if (status.display !== 'granted') {
-        const req = await LocalNotifications.requestPermissions()
-        if (req.display !== 'granted') return
+        status = await LocalNotifications.requestPermissions()
       }
 
       await LocalNotifications.schedule({
@@ -66,7 +68,7 @@ export async function dispararPushLocal(titulo: string, mensagem: string, linkUr
             id: Math.floor(Math.random() * 900000) + 100000,
             title: titulo,
             body: mensagem,
-            schedule: { at: new Date(Date.now() + 100) },
+            schedule: { at: new Date(Date.now() + 50) },
             smallIcon: 'ic_stat_notification',
             iconColor: '#C7301F',
             channelId: GVEL_NOTIFICATION_CHANNEL_ID,
@@ -80,22 +82,20 @@ export async function dispararPushLocal(titulo: string, mensagem: string, linkUr
 
     // 2. No Navegador Web (Desktop / Mobile Browser / PWA)
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      // Se a permissão estiver pendente, tenta solicitar
       if (Notification.permission === 'default') {
         await Notification.requestPermission()
       }
 
       if (Notification.permission === 'granted') {
-        const notifOptions: any = {
+        const notifOptions: NotificationOptions = {
           body: mensagem,
           icon: '/favicon.ico',
           badge: '/favicon.ico',
-          tag: `gvel_${Date.now()}`,
-          vibrate: [200, 100, 200],
+          tag: `gvel_${Date.now()}_${Math.random()}`,
           data: { url: linkUrl || window.location.href },
         }
 
-        // Tenta exibir pelo Service Worker (funciona mesmo com a aba em segundo plano ou minimizada)
+        // Tenta exibir pelo Service Worker ativo se disponível
         if ('serviceWorker' in navigator) {
           try {
             const reg = await navigator.serviceWorker.ready

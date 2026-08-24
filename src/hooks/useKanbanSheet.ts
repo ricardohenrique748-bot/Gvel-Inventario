@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 export interface KanbanItem {
   id: string
@@ -31,6 +31,7 @@ const STORAGE_KEY = 'gvel_kanban_data'
 const LAST_SYNC_KEY = 'gvel_kanban_last_sync'
 const LAST_USER_KEY = 'gvel_kanban_last_user'
 const HISTORY_KEY = 'gvel_kanban_history'
+const AUTO_SYNC_INTERVAL_MS = 30000 // 30 segundos
 
 const HISTORICO_INICIAL: KanbanHistoryEntry[] = [
   {
@@ -135,6 +136,8 @@ export function useKanbanSheet(defaultUser?: string) {
   })
 
   const [loading, setLoading] = useState(false)
+  const [isAutoSyncing, setIsAutoSyncing] = useState(false)
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastSync, setLastSync] = useState<string | null>(() => {
     return localStorage.getItem(LAST_SYNC_KEY)
@@ -143,9 +146,19 @@ export function useKanbanSheet(defaultUser?: string) {
     return localStorage.getItem(LAST_USER_KEY) || defaultUser || 'ALCIR ROBERTO GONÇALVES JUNIOR'
   })
 
-  const fetchSheet = useCallback(async (usuario?: string) => {
-    setLoading(true)
+  const isFetchingRef = useRef(false)
+
+  const fetchSheet = useCallback(async (usuario?: string, silent: boolean = false) => {
+    if (isFetchingRef.current) return
+    isFetchingRef.current = true
+
+    if (silent) {
+      setIsAutoSyncing(true)
+    } else {
+      setLoading(true)
+    }
     setError(null)
+
     try {
       // Add timestamp to bypass caching
       const res = await fetch(`${SHEET_CSV_URL}&t=${Date.now()}`)
@@ -194,43 +207,75 @@ export function useKanbanSheet(defaultUser?: string) {
       setLastSyncUser(userToSave)
       localStorage.setItem(LAST_USER_KEY, userToSave)
 
-      // Registrar no histórico
-      setHistorico((prev) => {
-        const novaEntrada: KanbanHistoryEntry = {
-          id: `hist-${Date.now()}`,
-          dataHora: dataStr,
-          usuario: userToSave,
-          detalhes: diffs.length > 0 ? diffs.slice(0, 4).join('; ') : 'Sincronização e validação das 98 linhas de dados',
-          versaoAtual: true,
-        }
+      // Registrar no histórico se houver alterações ou na sincronização explícita
+      if (!silent || diffs.length > 0) {
+        setHistorico((prev) => {
+          const novaEntrada: KanbanHistoryEntry = {
+            id: `hist-${Date.now()}`,
+            dataHora: dataStr,
+            usuario: userToSave,
+            detalhes: diffs.length > 0 ? diffs.slice(0, 4).join('; ') : 'Sincronização e validação dos dados da planilha',
+            versaoAtual: true,
+          }
 
-        const atualizado = [
-          novaEntrada,
-          ...prev.map((h) => ({ ...h, versaoAtual: false })),
-        ].slice(0, 25)
+          const atualizado = [
+            novaEntrada,
+            ...prev.map((h) => ({ ...h, versaoAtual: false })),
+          ].slice(0, 25)
 
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(atualizado))
-        return atualizado
-      })
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(atualizado))
+          return atualizado
+        })
+      }
     } catch (err: any) {
       console.error('Erro ao sincronizar planilha Kanban:', err)
-      setError(err?.message || 'Não foi possível conectar com o Google Sheets.')
+      if (!silent) {
+        setError(err?.message || 'Não foi possível conectar com o Google Sheets.')
+      }
     } finally {
       setLoading(false)
+      setIsAutoSyncing(false)
+      isFetchingRef.current = false
     }
   }, [defaultUser])
 
+  // Carga inicial
   useEffect(() => {
-    // If no data cached or if mounted, fetch live
-    if (items.length === 0) {
-      fetchSheet(defaultUser)
+    fetchSheet(defaultUser, items.length > 0)
+  }, [])
+
+  // Auto-atualização periódica (polling a cada 30 segundos) e quando a aba/janela ganha foco
+  useEffect(() => {
+    if (!autoSyncEnabled) return
+
+    const timer = setInterval(() => {
+      // Se a aba estiver visível, atualiza silenciosamente
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchSheet(defaultUser, true)
+      }
+    }, AUTO_SYNC_INTERVAL_MS)
+
+    const onFocus = () => {
+      fetchSheet(defaultUser, true)
     }
-  }, [fetchSheet, items.length, defaultUser])
+
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+  }, [autoSyncEnabled, fetchSheet, defaultUser])
 
   return {
     items,
     historico,
     loading,
+    isAutoSyncing,
+    autoSyncEnabled,
+    setAutoSyncEnabled,
     error,
     lastSync,
     lastSyncUser,
