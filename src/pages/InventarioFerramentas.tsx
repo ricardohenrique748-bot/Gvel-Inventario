@@ -26,6 +26,7 @@ import {
   PackagePlus,
   TrendingDown,
   Laptop,
+  Sparkles,
 } from 'lucide-react'
 import { CameraWebcamModal } from '@/components/CameraWebcamModal'
 import { format } from 'date-fns'
@@ -470,6 +471,12 @@ export function InventarioFerramentas() {
     }
   }, [ferramentas, retiradas])
 
+  const [limiteExibicao, setLimiteExibicao] = useState(30)
+
+  useEffect(() => {
+    setLimiteExibicao(30)
+  }, [busca, categoriaFiltro])
+
   // Filtragem de estoque
   const ferramentasFiltradas = useMemo(() => {
     return ferramentas.filter((f) => {
@@ -525,13 +532,13 @@ export function InventarioFerramentas() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in pb-12 uppercase">
+    <div className="space-y-5 animate-fade-in pb-12 uppercase max-w-full overflow-x-hidden">
       {/* Cabeçalho */}
       <PageHeader
         title="INVENTÁRIO DE FERRAMENTAS"
         subtitle="CONTROLE DE ESTOQUE, EMPRÉSTIMO E VINCULAÇÃO COM CAMINHÕES"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
             <Button
               type="button"
               variant="secondary"
@@ -539,10 +546,10 @@ export function InventarioFerramentas() {
                 setFerramentaSelecionadaParaRetirada(null)
                 setModalRetiradaAberto(true)
               }}
-              className="gap-2 border-primary/30 text-foreground hover:border-primary uppercase font-bold"
+              className="w-full !px-3 !py-2 border-primary/30 text-foreground hover:border-primary uppercase font-bold text-[11px] sm:text-xs gap-1.5"
             >
-              <ArrowUpRight className="h-4 w-4 text-primary" />
-              RETIRAR FERRAMENTA
+              <ArrowUpRight className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="truncate">RETIRAR</span>
             </Button>
             <Button
               type="button"
@@ -550,10 +557,10 @@ export function InventarioFerramentas() {
                 setFerramentaEditando(null)
                 setModalFerramentaAberto(true)
               }}
-              className="gap-2 uppercase font-bold"
+              className="w-full !px-3 !py-2 uppercase font-bold text-[11px] sm:text-xs gap-1.5"
             >
-              <Plus className="h-4 w-4" />
-              NOVA FERRAMENTA
+              <Plus className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">NOVA FERRAMENTA</span>
             </Button>
           </div>
         }
@@ -569,80 +576,80 @@ export function InventarioFerramentas() {
       )}
 
       {/* Cards de Métricas Superiores */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
         {/* Catálogo */}
-        <div className="relative overflow-hidden rounded-2xl border border-border/30 bg-surface/90 p-4 sm:p-5 shadow-sm hover:border-primary/40 hover:shadow-md transition-all group backdrop-blur-sm">
+        <div className="relative overflow-hidden rounded-2xl border border-border/30 bg-surface/90 p-3 sm:p-5 shadow-sm hover:border-primary/40 transition-all backdrop-blur-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-secondary">
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-secondary truncate">
               Catálogo Geral
             </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 group-hover:scale-105 transition-transform">
-              <Hammer className="h-4 w-4" />
+            <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+              <Hammer className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <p className="mt-3 text-3xl font-black font-mono tracking-tight text-foreground">
+          <p className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-foreground">
             {loadingFerramentas ? '—' : metricas.totalTipos}
           </p>
-          <div className="mt-1 flex items-center justify-between text-xs text-secondary font-medium">
-            <span>{metricas.totalItens} UNIDADES TOTAIS</span>
-            <span className="text-[10px] text-primary/80 font-bold uppercase">ATIVO</span>
+          <div className="mt-1 flex items-center justify-between text-[10px] sm:text-xs text-secondary font-medium truncate">
+            <span className="truncate">{metricas.totalItens} UNID. TOTAIS</span>
+            <span className="text-[9px] sm:text-[10px] text-primary/80 font-bold uppercase shrink-0">ATIVO</span>
           </div>
         </div>
 
         {/* Disponíveis */}
-        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-surface/90 p-4 sm:p-5 shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all group backdrop-blur-sm">
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-surface/90 p-3 sm:p-5 shadow-sm hover:border-emerald-500/40 transition-all backdrop-blur-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-500">
-              Prontas no Estoque
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-500 truncate">
+              No Estoque
             </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 group-hover:scale-105 transition-transform">
-              <CheckCircle2 className="h-4 w-4" />
+            <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
+              <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <p className="mt-3 text-3xl font-black font-mono tracking-tight text-emerald-500">
+          <p className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-emerald-500">
             {loadingFerramentas ? '—' : metricas.disponiveis}
           </p>
-          <div className="mt-1 flex items-center justify-between text-xs text-secondary font-medium">
-            <span>DISPONÍVEIS PARA RETIRADA</span>
-            <span className="text-[10px] text-emerald-500 font-bold uppercase">LIVRES</span>
+          <div className="mt-1 flex items-center justify-between text-[10px] sm:text-xs text-secondary font-medium truncate">
+            <span className="truncate">PARA RETIRADA</span>
+            <span className="text-[9px] sm:text-[10px] text-emerald-500 font-bold uppercase shrink-0">LIVRES</span>
           </div>
         </div>
 
         {/* Em Uso */}
-        <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-surface/90 p-4 sm:p-5 shadow-sm hover:border-amber-500/40 hover:shadow-md transition-all group backdrop-blur-sm">
+        <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-surface/90 p-3 sm:p-5 shadow-sm hover:border-amber-500/40 transition-all backdrop-blur-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-amber-500">
-              Em Uso nos Caminhões
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-500 truncate">
+              Em Uso
             </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 group-hover:scale-105 transition-transform">
-              <Truck className="h-4 w-4" />
+            <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
+              <Truck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <p className="mt-3 text-3xl font-black font-mono tracking-tight text-amber-500">
+          <p className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-amber-500">
             {loadingRetiradas ? '—' : metricas.emUso}
           </p>
-          <div className="mt-1 flex items-center justify-between text-xs text-secondary font-medium">
-            <span>{metricas.retiradasAtivasCount} RETIRADA(S) ATIVA(S)</span>
-            <span className="text-[10px] text-amber-500 font-bold uppercase">EM CAMPO</span>
+          <div className="mt-1 flex items-center justify-between text-[10px] sm:text-xs text-secondary font-medium truncate">
+            <span className="truncate">{metricas.retiradasAtivasCount} ATIVAS</span>
+            <span className="text-[9px] sm:text-[10px] text-amber-500 font-bold uppercase shrink-0">CAMPO</span>
           </div>
         </div>
 
         {/* Histórico */}
-        <div className="relative overflow-hidden rounded-2xl border border-border/30 bg-surface/90 p-4 sm:p-5 shadow-sm hover:border-border/60 hover:shadow-md transition-all group backdrop-blur-sm">
+        <div className="relative overflow-hidden rounded-2xl border border-border/30 bg-surface/90 p-3 sm:p-5 shadow-sm hover:border-border/60 transition-all backdrop-blur-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-secondary">
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-secondary truncate">
               Movimentações
             </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-overlay/10 text-secondary border border-border/20 group-hover:scale-105 transition-transform">
-              <Clock className="h-4 w-4" />
+            <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-overlay/10 text-secondary border border-border/20 shrink-0">
+              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <p className="mt-3 text-3xl font-black font-mono tracking-tight text-foreground">
+          <p className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-foreground">
             {loadingRetiradas ? '—' : metricas.totalHistorico}
           </p>
-          <div className="mt-1 flex items-center justify-between text-xs text-secondary font-medium">
-            <span>HISTÓRICO COMPLETO</span>
-            <span className="text-[10px] text-secondary font-bold uppercase">REGISTROS</span>
+          <div className="mt-1 flex items-center justify-between text-[10px] sm:text-xs text-secondary font-medium truncate">
+            <span className="truncate">HISTÓRICO</span>
+            <span className="text-[9px] sm:text-[10px] text-secondary font-bold uppercase shrink-0">TOTAL</span>
           </div>
         </div>
       </div>
@@ -851,7 +858,7 @@ export function InventarioFerramentas() {
                 </div>
 
                 <div className="divide-y divide-border/10">
-                  {ferramentasFiltradas.map((f) => {
+                  {ferramentasFiltradas.slice(0, limiteExibicao).map((f) => {
                     const total = f.quantidade_total || 1
                     const disp = f.quantidade_disponivel || 0
                     const emUsoQtd = total - disp
@@ -989,7 +996,7 @@ export function InventarioFerramentas() {
 
               {/* Mobile: Lista Compacta e Fluida */}
               <div className="md:hidden space-y-2.5">
-                {ferramentasFiltradas.map((f) => {
+                {ferramentasFiltradas.slice(0, limiteExibicao).map((f) => {
                   const total = f.quantidade_total || 1
                   const disp = f.quantidade_disponivel || 0
                   const emUsoQtd = total - disp
@@ -1087,119 +1094,151 @@ export function InventarioFerramentas() {
                   )
                 })}
               </div>
+
+              {/* Botão Carregar Mais no Modo Lista */}
+              {ferramentasFiltradas.length > limiteExibicao && (
+                <div className="pt-3 text-center">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setLimiteExibicao((prev) => prev + 40)}
+                    className="!py-2.5 !px-5 text-xs font-black uppercase tracking-wider gap-2 border-primary/30 text-primary hover:border-primary w-full sm:w-auto"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    CARREGAR MAIS (+40 DE {ferramentasFiltradas.length - limiteExibicao} RESTANTES)
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             /* Modo Grade (Grid) */
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {ferramentasFiltradas.map((f) => {
-                const total = f.quantidade_total || 1
-                const disp = f.quantidade_disponivel || 0
-                const emUsoQtd = total - disp
-                const semEstoque = disp <= 0
-                const percentualDisp = Math.max(0, Math.min(100, Math.round((disp / total) * 100)))
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {ferramentasFiltradas.slice(0, limiteExibicao).map((f) => {
+                  const total = f.quantidade_total || 1
+                  const disp = f.quantidade_disponivel || 0
+                  const emUsoQtd = total - disp
+                  const semEstoque = disp <= 0
+                  const percentualDisp = Math.max(0, Math.min(100, Math.round((disp / total) * 100)))
 
-                return (
-                  <Card
-                    key={f.id}
-                    className="p-4 flex flex-col justify-between border border-border/25 bg-surface/80 hover:border-primary/40 transition-all shadow-sm group relative overflow-hidden"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2 mb-2.5">
-                        <span className="rounded-lg bg-background border border-border/30 px-2 py-0.5 text-[11px] font-mono font-bold text-foreground">
-                          {f.codigo || 'S/ CÓD'}
-                        </span>
-                        <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[10px] font-black text-secondary tracking-wider">
-                          {f.categoria || 'GERAL'}
-                        </span>
-                      </div>
+                  return (
+                    <Card
+                      key={f.id}
+                      className="p-4 flex flex-col justify-between border border-border/25 bg-surface/80 hover:border-primary/40 transition-all shadow-sm group relative overflow-hidden"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2.5">
+                          <span className="rounded-lg bg-background border border-border/30 px-2 py-0.5 text-[11px] font-mono font-bold text-foreground">
+                            {f.codigo || 'S/ CÓD'}
+                          </span>
+                          <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[10px] font-black text-secondary tracking-wider">
+                            {f.categoria || 'GERAL'}
+                          </span>
+                        </div>
 
-                      <div className="flex items-center gap-3 my-2">
-                        {f.foto_url ? (
-                          <button
-                            type="button"
-                            onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
-                            className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-primary/30 shadow-sm"
-                          >
-                            <img src={f.foto_url} alt={f.nome} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
-                          </button>
-                        ) : (
-                          <div className="h-14 w-14 shrink-0 flex items-center justify-center rounded-xl bg-background border border-border/20 text-secondary/40 text-2xl">
-                            🔧
+                        <div className="flex items-center gap-3 my-2">
+                          {f.foto_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
+                              className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-primary/30 shadow-sm"
+                            >
+                              <img src={f.foto_url} alt={f.nome} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
+                            </button>
+                          ) : (
+                            <div className="h-14 w-14 shrink-0 flex items-center justify-center rounded-xl bg-background border border-border/20 text-secondary/40 text-2xl">
+                              🔧
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold text-xs text-foreground uppercase truncate group-hover:text-primary transition-colors">
+                              {f.nome}
+                            </h4>
+                            {f.localizacao && (
+                              <p className="text-[11px] text-secondary font-medium truncate mt-0.5">
+                                📍 {f.localizacao}
+                              </p>
+                            )}
                           </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <h4 className="font-bold text-xs text-foreground uppercase truncate group-hover:text-primary transition-colors">
-                            {f.nome}
-                          </h4>
-                          {f.localizacao && (
-                            <p className="text-[11px] text-secondary font-medium truncate mt-0.5">
-                              📍 {f.localizacao}
+                        </div>
+
+                        {/* Barra de Estoque */}
+                        <div className="my-2.5 rounded-xl bg-background/60 border border-border/15 p-2.5 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[10px] font-bold text-secondary uppercase">Disponibilidade</span>
+                            <span className="font-mono font-black text-foreground">
+                              {disp} <span className="text-secondary font-normal">/ {total}</span>
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-border/20 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-300 ${
+                                semEstoque ? 'bg-status-danger w-0' : disp === total ? 'bg-emerald-500' : 'bg-amber-500'
+                              }`}
+                              style={{ width: `${percentualDisp}%` }}
+                            />
+                          </div>
+                          {emUsoQtd > 0 && (
+                            <p className="text-[10px] font-black text-amber-500 text-right">
+                              {emUsoQtd} em uso agora
                             </p>
                           )}
                         </div>
                       </div>
 
-                      {/* Barra de Estoque */}
-                      <div className="my-2.5 rounded-xl bg-background/60 border border-border/15 p-2.5 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-[10px] font-bold text-secondary uppercase">Disponibilidade</span>
-                          <span className="font-mono font-black text-foreground">
-                            {disp} <span className="text-secondary font-normal">/ {total}</span>
-                          </span>
-                        </div>
-                        <div className="w-full h-1.5 bg-border/20 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full transition-all duration-300 ${
-                              semEstoque ? 'bg-status-danger w-0' : disp === total ? 'bg-emerald-500' : 'bg-amber-500'
-                            }`}
-                            style={{ width: `${percentualDisp}%` }}
-                          />
-                        </div>
-                        {emUsoQtd > 0 && (
-                          <p className="text-[10px] font-black text-amber-500 text-right">
-                            {emUsoQtd} em uso agora
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-border/10 flex items-center justify-between">
-                      <Button
-                        type="button"
-                        size="md"
-                        disabled={semEstoque}
-                        onClick={() => {
-                          setFerramentaSelecionadaParaRetirada(f)
-                          setModalRetiradaAberto(true)
-                        }}
-                        className="!h-8 !px-3 !text-xs gap-1 uppercase font-bold flex-1 mr-2"
-                      >
-                        <ArrowUpRight className="h-3.5 w-3.5" />
-                        RETIRAR
-                      </Button>
-                      <div className="flex items-center">
-                        <button
+                      <div className="pt-2 border-t border-border/10 flex items-center justify-between">
+                        <Button
                           type="button"
+                          size="md"
+                          disabled={semEstoque}
                           onClick={() => {
-                            setFerramentaEditando(f)
-                            setModalFerramentaAberto(true)
+                            setFerramentaSelecionadaParaRetirada(f)
+                            setModalRetiradaAberto(true)
                           }}
-                          className="p-1.5 rounded-lg text-secondary hover:text-foreground"
+                          className="!h-8 !px-3 !text-xs gap-1 uppercase font-bold flex-1 mr-2"
                         >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleExcluirFerramenta(f)}
-                          className="p-1.5 rounded-lg text-secondary hover:text-red-400"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                          <ArrowUpRight className="h-3.5 w-3.5" />
+                          RETIRAR
+                        </Button>
+                        <div className="flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFerramentaEditando(f)
+                              setModalFerramentaAberto(true)
+                            }}
+                            className="p-1.5 rounded-lg text-secondary hover:text-foreground"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleExcluirFerramenta(f)}
+                            className="p-1.5 rounded-lg text-secondary hover:text-red-400"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </Card>
-                )
-              })}
+                    </Card>
+                  )
+                })}
+              </div>
+
+              {/* Botão Carregar Mais no Modo Grade */}
+              {ferramentasFiltradas.length > limiteExibicao && (
+                <div className="pt-3 text-center">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setLimiteExibicao((prev) => prev + 40)}
+                    className="!py-2.5 !px-5 text-xs font-black uppercase tracking-wider gap-2 border-primary/30 text-primary hover:border-primary w-full sm:w-auto"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    CARREGAR MAIS (+40 DE {ferramentasFiltradas.length - limiteExibicao} RESTANTES)
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>

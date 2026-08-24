@@ -1,115 +1,82 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer } from 'lucide-react'
-import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized } from './nav'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, Truck, LayoutGrid } from 'lucide-react'
+import { isKanbanAuthorized } from './nav'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
-import { isNativeApp } from '@/lib/isNativeApp'
-import { Dock, DockIcon, DockItem, DockLabel } from '@/components/ui/dock'
 
 export function BottomNav() {
   const { signOut, user, perfil, perfilLoading } = useAuth()
-  const native = isNativeApp()
   const location = useLocation()
   const navigate = useNavigate()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
   const canAccessKanban = isKanbanAuthorized(user?.email)
-  const canAccessDashboardGerencial = isDashboardGerencialAuthorized(user?.email)
-  const canAccessFinanceiro = isFinanceiroAuthorized(user?.email)
 
-  if (native) {
-    const apkItems = [
-      { to: '/', label: 'HOME', icon: Home, end: true },
-      { to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench },
-      { to: '/inventario-ferramentas', label: 'FERRAMENTAS', icon: Hammer },
-      { to: '/movimentacoes', label: 'MOVIMENTAÇÃO', icon: ArrowLeftRight },
-      ...(isAdmin ? [{ to: '/configuracoes', label: 'AJUSTES', icon: Settings }] : []),
-    ]
-
-    return (
-      <div className="fixed bottom-3 inset-x-0 z-40 flex justify-center pointer-events-none pb-[env(safe-area-inset-bottom)] animate-fade-in">
-        <div className="pointer-events-auto">
-          <Dock
-            magnification={68}
-            distance={110}
-            panelHeight={58}
-            className="items-center bg-surface/90 border border-border/30 backdrop-blur-2xl shadow-2xl rounded-3xl py-2 px-3.5 gap-2.5"
-          >
-            {apkItems.map((item) => {
-              const isActive = item.end
-                ? location.pathname === item.to
-                : location.pathname.startsWith(item.to)
-              const Icon = item.icon
-
-              return (
-                <DockItem
-                  key={item.to}
-                  onClick={() => navigate(item.to)}
-                  className={cn(
-                    'aspect-square rounded-2xl transition-all',
-                    isActive
-                      ? 'bg-primary/20 text-primary border border-primary/40 shadow-lg shadow-primary/20'
-                      : 'bg-surface-hover/50 text-secondary hover:text-foreground hover:bg-surface-hover',
-                  )}
-                >
-                  <DockLabel>{item.label}</DockLabel>
-                  <DockIcon>
-                    <div className="flex flex-col items-center justify-center">
-                      <Icon className="h-5 w-5" />
-                      {isActive && (
-                        <span className="h-1 w-1 rounded-full bg-primary mt-0.5 shadow-sm" />
-                      )}
-                    </div>
-                  </DockIcon>
-                </DockItem>
-              )
-            })}
-
-            {/* Botão Sair */}
-            <DockItem
-              onClick={() => signOut()}
-              className="aspect-square rounded-2xl bg-surface-hover/50 text-secondary hover:text-red-400 hover:bg-red-500/15 transition-all"
-            >
-              <DockLabel>SAIR</DockLabel>
-              <DockIcon>
-                <LogOut className="h-5 w-5" />
-              </DockIcon>
-            </DockItem>
-          </Dock>
-        </div>
-      </div>
-    )
-  }
+  const items = [
+    { to: '/', label: 'INÍCIO', icon: Home, end: true },
+    { to: '/inventario-ferramentas', label: 'FERRAMENTAS', icon: Hammer },
+    { to: '/frotas', label: 'FROTAS', icon: Truck },
+    { to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench },
+    { to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight },
+    ...(canAccessKanban ? [{ to: '/kanban', label: 'KANBAN', icon: LayoutGrid }] : []),
+    ...(isAdmin ? [{ to: '/configuracoes', label: 'AJUSTES', icon: Settings }] : []),
+  ]
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-border/10 bg-surface/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] uppercase">
-      {navItems
-        .filter((item) => !('children' in item))
-        .filter((item) => {
-          if (item.to === '/kanban') return canAccessKanban
-          if (item.to === '/dashboard-gerencial') {
-            return isAdmin || canAccessDashboardGerencial
-          }
-          if (item.to === '/financeiro') {
-            return canAccessFinanceiro
-          }
-          return isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number])
-        })
-        .map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={('end' in item ? item.end : false) as boolean}
-          className={({ isActive }) =>
-            cn(
-              'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-bold uppercase',
-              isActive ? 'text-primary' : 'text-secondary',
-            )
-          }
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border/15 bg-surface/95 backdrop-blur-xl shadow-2xl pb-[calc(env(safe-area-inset-bottom,0px)+0.25rem)] pt-1 px-1">
+      <div className="flex items-center justify-around max-w-lg mx-auto">
+        {items.slice(0, 5).map((item) => {
+          const isActive = item.end
+            ? location.pathname === item.to
+            : location.pathname.startsWith(item.to)
+          const Icon = item.icon
+
+          return (
+            <button
+              key={item.to}
+              type="button"
+              onClick={() => navigate(item.to)}
+              className={cn(
+                'flex flex-1 flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer min-w-0',
+                isActive
+                  ? 'text-primary font-black'
+                  : 'text-secondary/70 hover:text-foreground font-semibold',
+              )}
+            >
+              <div className={cn(
+                'relative flex items-center justify-center p-1 rounded-xl transition-all',
+                isActive && 'bg-primary/15 text-primary',
+              )}>
+                <Icon className="h-5 w-5 shrink-0" />
+                {isActive && (
+                  <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-primary" />
+                )}
+              </div>
+              <span className="text-[9px] uppercase tracking-tight truncate max-w-full mt-0.5">
+                {item.label}
+              </span>
+            </button>
+          )
+        })}
+
+        {/* Botão Sair / Mais */}
+        <button
+          type="button"
+          onClick={() => {
+            if (confirm('Deseja sair da sua conta?')) {
+              signOut()
+            }
+          }}
+          className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-secondary/60 hover:text-red-400 active:scale-90 transition-all duration-150 cursor-pointer min-w-0"
+          title="Sair da conta"
         >
-          <item.icon className="h-5 w-5" />
-          <span className="truncate px-1 uppercase">{item.label}</span>
-        </NavLink>
-      ))}
+          <div className="flex items-center justify-center p-1 rounded-xl hover:bg-red-500/10 transition-all">
+            <LogOut className="h-5 w-5 shrink-0" />
+          </div>
+          <span className="text-[9px] uppercase tracking-tight truncate max-w-full mt-0.5 font-semibold">
+            SAIR
+          </span>
+        </button>
+      </div>
     </nav>
   )
 }

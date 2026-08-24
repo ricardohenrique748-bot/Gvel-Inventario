@@ -16,8 +16,8 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
   const navigate = useNavigate()
 
   return (
-    <div className="mb-6 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3 min-w-0">
+    <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-w-full">
+      <div className="flex items-center gap-3 min-w-0 max-w-full">
         {back && (
           <button
             onClick={() => navigate(-1)}
@@ -27,12 +27,16 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
             <ArrowLeft className="h-5 w-5" />
           </button>
         )}
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-foreground truncate uppercase">{title}</h1>
-          {subtitle && <p className="text-sm text-secondary truncate uppercase">{subtitle}</p>}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg sm:text-xl font-black text-foreground truncate uppercase tracking-tight">{title}</h1>
+          {subtitle && <p className="text-xs text-secondary truncate uppercase font-medium mt-0.5">{subtitle}</p>}
         </div>
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+          {actions}
+        </div>
+      )}
     </div>
   )
 }
