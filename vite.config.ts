@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Gvel Diesel — Center Truck',
-        short_name: 'Gvel Diesel',
+        name: 'Estrutura - GV',
+        short_name: 'Estrutura - GV',
         description: 'Checklist de vistoria e controle de entrada/saída de veículos.',
         theme_color: '#121212',
         background_color: '#121212',
