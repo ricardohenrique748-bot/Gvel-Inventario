@@ -20,6 +20,11 @@ import {
   Eye,
   Loader2,
   Briefcase,
+  Boxes,
+  AlertTriangle,
+  ClipboardList,
+  PackagePlus,
+  TrendingDown,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -63,7 +68,138 @@ export interface CaixaFerramenta {
   created_at: string
 }
 
-const STORAGE_CAIXAS_KEY = 'gvel_caixas_ferramentas_v1'
+export interface ItemConsumo {
+  id: string
+  codigo?: string | null
+  nome: string
+  categoria: string
+  unidade: string
+  quantidade_atual: number
+  quantidade_minima: number
+  localizacao?: string | null
+  observacoes?: string | null
+  foto_url?: string | null
+  created_at: string
+}
+
+export interface RegistroBaixaConsumo {
+  id: string
+  item_id: string
+  item_nome: string
+  unidade: string
+  quantidade: number
+  responsavel: string
+  foto_responsavel_url?: string | null
+  placa?: string | null
+  motivo?: string | null
+  data_hora: string
+}
+
+const STORAGE_CAIXAS_KEY = 'gvel_inventario_caixas_v1'
+const STORAGE_CONSUMO_KEY = 'gvel_inventario_consumo_v1'
+const STORAGE_BAIXAS_CONSUMO_KEY = 'gvel_inventario_baixas_consumo_v1'
+
+const ITENS_CONSUMO_INICIAIS: ItemConsumo[] = [
+  {
+    id: 'c1',
+    codigo: 'INS-001',
+    nome: 'LUVAS NITRÍLICAS REFORÇADAS (TAM G)',
+    categoria: 'EPI & PROTEÇÃO',
+    unidade: 'CX',
+    quantidade_atual: 12,
+    quantidade_minima: 3,
+    localizacao: 'ARMÁRIO A - PRATELEIRA 1',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'c2',
+    codigo: 'INS-002',
+    nome: 'DESENGRIPANTE WD-40 300ML',
+    categoria: 'LUBRIFICANTES & QUÍMICOS',
+    unidade: 'LT',
+    quantidade_atual: 18,
+    quantidade_minima: 5,
+    localizacao: 'PRATELEIRA QUÍMICOS',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'c3',
+    codigo: 'INS-003',
+    nome: 'FITA ISOLANTE 3M TEMFLEX 20M',
+    categoria: 'ELÉTRICA & FITAS',
+    unidade: 'RL',
+    quantidade_atual: 24,
+    quantidade_minima: 6,
+    localizacao: 'GAVETA ELÉTRICA',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'c4',
+    codigo: 'INS-004',
+    nome: 'DISCO DE CORTE FINO INOX 4.1/2"',
+    categoria: 'DISCOS & CORTE',
+    unidade: 'UN',
+    quantidade_atual: 35,
+    quantidade_minima: 10,
+    localizacao: 'PRATELEIRA DE CORTE',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'c5',
+    codigo: 'INS-005',
+    nome: 'SILICONE PU 40 PRETO (TUBO)',
+    categoria: 'LUBRIFICANTES & QUÍMICOS',
+    unidade: 'UN',
+    quantidade_atual: 8,
+    quantidade_minima: 4,
+    localizacao: 'ARMÁRIO B',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'c6',
+    codigo: 'INS-006',
+    nome: 'ESTOPA BRANCA ESPECIAL 1KG',
+    categoria: 'LIMPEZA & ESTOPAS',
+    unidade: 'PCT',
+    quantidade_atual: 15,
+    quantidade_minima: 5,
+    localizacao: 'SETOR LIMPEZA',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'c7',
+    codigo: 'INS-007',
+    nome: 'SPRAY LIMPA CONTATO ELÉTRICO 300ML',
+    categoria: 'ELÉTRICA & FITAS',
+    unidade: 'LT',
+    quantidade_atual: 6,
+    quantidade_minima: 3,
+    localizacao: 'GAVETA ELÉTRICA',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'c8',
+    codigo: 'INS-008',
+    nome: 'ABRAÇADEIRAS DE NYLON 200MM (PCT C/ 100)',
+    categoria: 'FIXAÇÃO & PARAFUSOS',
+    unidade: 'PCT',
+    quantidade_atual: 9,
+    quantidade_minima: 3,
+    localizacao: 'GAVETEIRO 2',
+    created_at: new Date().toISOString(),
+  },
+]
+
+const CATEGORIAS_CONSUMO = [
+  'TODAS',
+  'FIXAÇÃO & PARAFUSOS',
+  'LUBRIFICANTES & QUÍMICOS',
+  'ELÉTRICA & FITAS',
+  'LIMPEZA & ESTOPAS',
+  'EPI & PROTEÇÃO',
+  'DISCOS & CORTE',
+  'OUTROS',
+]
 
 const CAIXAS_INICIAIS: CaixaFerramenta[] = [
   {
@@ -114,7 +250,7 @@ const CATEGORIAS_SUGERIDAS = [
 ]
 
 export function InventarioFerramentas() {
-  const [abaAtiva, setAbaAtiva] = useState<'estoque' | 'em_uso' | 'historico' | 'caixas'>('estoque')
+  const [abaAtiva, setAbaAtiva] = useState<'estoque' | 'em_uso' | 'historico' | 'caixas' | 'consumo'>('estoque')
   const [busca, setBusca] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState('TODAS')
   const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'grid'>('lista')
@@ -140,6 +276,76 @@ export function InventarioFerramentas() {
       localStorage.setItem(STORAGE_CAIXAS_KEY, JSON.stringify(novasCaixas))
     } catch {}
   }
+
+  // Uso e Consumo State
+  const [itensConsumo, setItensConsumo] = useState<ItemConsumo[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_CONSUMO_KEY)
+      if (raw) return JSON.parse(raw)
+    } catch {}
+    return ITENS_CONSUMO_INICIAIS
+  })
+
+  function salvarItensConsumo(novosItens: ItemConsumo[]) {
+    setItensConsumo(novosItens)
+    try {
+      localStorage.setItem(STORAGE_CONSUMO_KEY, JSON.stringify(novosItens))
+    } catch {}
+  }
+
+  const [baixasConsumo, setBaixasConsumo] = useState<RegistroBaixaConsumo[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_BAIXAS_CONSUMO_KEY)
+      if (raw) return JSON.parse(raw)
+    } catch {}
+    return []
+  })
+
+  function salvarBaixasConsumo(novasBaixas: RegistroBaixaConsumo[]) {
+    setBaixasConsumo(novasBaixas)
+    try {
+      localStorage.setItem(STORAGE_BAIXAS_CONSUMO_KEY, JSON.stringify(novasBaixas))
+    } catch {}
+  }
+
+  const [buscaConsumo, setBuscaConsumo] = useState('')
+  const [categoriaConsumoFiltro, setCategoriaConsumoFiltro] = useState('TODAS')
+  const [subAbaConsumo, setSubAbaConsumo] = useState<'estoque' | 'historico'>('estoque')
+  const [modalItemConsumoAberto, setModalItemConsumoAberto] = useState(false)
+  const [itemConsumoEditando, setItemConsumoEditando] = useState<ItemConsumo | null>(null)
+  const [modalBaixaConsumoAberto, setModalBaixaConsumoAberto] = useState(false)
+  const [itemConsumoParaBaixa, setItemConsumoParaBaixa] = useState<ItemConsumo | null>(null)
+  const [modalEntradaConsumoAberto, setModalEntradaConsumoAberto] = useState(false)
+  const [itemConsumoParaEntrada, setItemConsumoParaEntrada] = useState<ItemConsumo | null>(null)
+
+  const itensConsumoFiltrados = useMemo(() => {
+    return itensConsumo.filter((item) => {
+      const termo = buscaConsumo.trim().toLowerCase()
+      const matchBusca =
+        !termo ||
+        item.nome.toLowerCase().includes(termo) ||
+        (item.codigo && item.codigo.toLowerCase().includes(termo)) ||
+        (item.localizacao && item.localizacao.toLowerCase().includes(termo))
+
+      const matchCat =
+        categoriaConsumoFiltro === 'TODAS' ||
+        item.categoria.toUpperCase() === categoriaConsumoFiltro.toUpperCase()
+
+      return matchBusca && matchCat
+    })
+  }, [itensConsumo, buscaConsumo, categoriaConsumoFiltro])
+
+  const alertasEstoqueBaixoCount = useMemo(() => {
+    return itensConsumo.filter((item) => item.quantidade_atual <= item.quantidade_minima).length
+  }, [itensConsumo])
+
+  const metricasConsumo = useMemo(() => {
+    const totalItens = itensConsumo.length
+    const totalUnidades = itensConsumo.reduce((acc, it) => acc + (it.quantidade_atual || 0), 0)
+    const emAlerta = itensConsumo.filter((it) => it.quantidade_atual <= it.quantidade_minima).length
+    const totalBaixas = baixasConsumo.length
+    return { totalItens, totalUnidades, emAlerta, totalBaixas }
+  }, [itensConsumo, baixasConsumo])
 
   // Hooks de ferramentas e retiradas
   const { ferramentas, loading: loadingFerramentas, refetch: refetchFerramentas } = useFerramentas()
@@ -287,89 +493,120 @@ export function InventarioFerramentas() {
         </div>
       )}
 
-      {/* Cards de Métricas */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 uppercase">
-        <Card className="p-4 sm:p-5">
-          <div className="flex items-center justify-between text-secondary">
-            <span className="text-xs font-semibold uppercase tracking-wider">CATÁLOGO</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      {/* Cards de Métricas Superiores */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        {/* Catálogo */}
+        <div className="relative overflow-hidden rounded-2xl border border-border/30 bg-surface/90 p-4 sm:p-5 shadow-sm hover:border-primary/40 hover:shadow-md transition-all group backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase tracking-wider text-secondary">
+              Catálogo Geral
+            </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 group-hover:scale-105 transition-transform">
               <Hammer className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
+          <p className="mt-3 text-3xl font-black font-mono tracking-tight text-foreground">
             {loadingFerramentas ? '—' : metricas.totalTipos}
           </p>
-          <p className="mt-1 text-xs text-secondary font-medium">{metricas.totalItens} UNIDADES TOTAIS</p>
-        </Card>
+          <div className="mt-1 flex items-center justify-between text-xs text-secondary font-medium">
+            <span>{metricas.totalItens} UNIDADES TOTAIS</span>
+            <span className="text-[10px] text-primary/80 font-bold uppercase">ATIVO</span>
+          </div>
+        </div>
 
-        <Card className="p-4 sm:p-5 border-emerald-500/20 uppercase">
-          <div className="flex items-center justify-between text-secondary">
-            <span className="text-xs font-semibold uppercase tracking-wider text-emerald-500">DISPONÍVEIS</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+        {/* Disponíveis */}
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-surface/90 p-4 sm:p-5 shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all group backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-500">
+              Prontas no Estoque
+            </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 group-hover:scale-105 transition-transform">
               <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
+          <p className="mt-3 text-3xl font-black font-mono tracking-tight text-emerald-500">
             {loadingFerramentas ? '—' : metricas.disponiveis}
           </p>
-          <p className="mt-1 text-xs text-secondary font-medium">PRONTAS NO ESTOQUE</p>
-        </Card>
+          <div className="mt-1 flex items-center justify-between text-xs text-secondary font-medium">
+            <span>DISPONÍVEIS PARA RETIRADA</span>
+            <span className="text-[10px] text-emerald-500 font-bold uppercase">LIVRES</span>
+          </div>
+        </div>
 
-        <Card className="p-4 sm:p-5 border-amber-500/20 uppercase">
-          <div className="flex items-center justify-between text-secondary">
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-500">EM USO</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+        {/* Em Uso */}
+        <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-surface/90 p-4 sm:p-5 shadow-sm hover:border-amber-500/40 hover:shadow-md transition-all group backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase tracking-wider text-amber-500">
+              Em Uso nos Caminhões
+            </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 group-hover:scale-105 transition-transform">
               <Truck className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
+          <p className="mt-3 text-3xl font-black font-mono tracking-tight text-amber-500">
             {loadingRetiradas ? '—' : metricas.emUso}
           </p>
-          <p className="mt-1 text-xs text-secondary font-medium">{metricas.retiradasAtivasCount} RETIRADA(S) EM ABERTO</p>
-        </Card>
+          <div className="mt-1 flex items-center justify-between text-xs text-secondary font-medium">
+            <span>{metricas.retiradasAtivasCount} RETIRADA(S) ATIVA(S)</span>
+            <span className="text-[10px] text-amber-500 font-bold uppercase">EM CAMPO</span>
+          </div>
+        </div>
 
-        <Card className="p-4 sm:p-5 uppercase">
-          <div className="flex items-center justify-between text-secondary">
-            <span className="text-xs font-semibold uppercase tracking-wider">HISTÓRICO</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-overlay/10 text-secondary">
+        {/* Histórico */}
+        <div className="relative overflow-hidden rounded-2xl border border-border/30 bg-surface/90 p-4 sm:p-5 shadow-sm hover:border-border/60 hover:shadow-md transition-all group backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase tracking-wider text-secondary">
+              Movimentações
+            </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-overlay/10 text-secondary border border-border/20 group-hover:scale-105 transition-transform">
               <Clock className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
+          <p className="mt-3 text-3xl font-black font-mono tracking-tight text-foreground">
             {loadingRetiradas ? '—' : metricas.totalHistorico}
           </p>
-          <p className="mt-1 text-xs text-secondary font-medium">MOVIMENTAÇÕES TOTAIS</p>
-        </Card>
+          <div className="mt-1 flex items-center justify-between text-xs text-secondary font-medium">
+            <span>HISTÓRICO COMPLETO</span>
+            <span className="text-[10px] text-secondary font-bold uppercase">REGISTROS</span>
+          </div>
+        </div>
       </div>
 
-      {/* Abas de Navegação */}
-      <div className="flex border-b border-border/10 uppercase">
+      {/* Barra de Abas Principal (Estilo Tabs Segmentadas Modernas) */}
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md">
         <button
           type="button"
           onClick={() => setAbaAtiva('estoque')}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors uppercase ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
             abaAtiva === 'estoque'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-secondary hover:text-foreground'
+              ? 'bg-primary text-white shadow-md shadow-primary/20'
+              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
           }`}
         >
           <Package className="h-4 w-4" />
-          ESTOQUE DE FERRAMENTAS ({ferramentas.length})
+          ESTOQUE DE FERRAMENTAS
+          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+            abaAtiva === 'estoque' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+          }`}>
+            {ferramentas.length}
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setAbaAtiva('em_uso')}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors uppercase ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
             abaAtiva === 'em_uso'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-secondary hover:text-foreground'
+              ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
           }`}
         >
           <Truck className="h-4 w-4" />
           EM USO NO MOMENTO
           {metricas.retiradasAtivasCount > 0 && (
-            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-bold text-amber-500">
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+              abaAtiva === 'em_uso' ? 'bg-white/25 text-white' : 'bg-amber-500/20 text-amber-500'
+            }`}>
               {metricas.retiradasAtivasCount}
             </span>
           )}
@@ -378,10 +615,10 @@ export function InventarioFerramentas() {
         <button
           type="button"
           onClick={() => setAbaAtiva('historico')}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors uppercase ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
             abaAtiva === 'historico'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-secondary hover:text-foreground'
+              ? 'bg-primary text-white shadow-md shadow-primary/20'
+              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
           }`}
         >
           <Clock className="h-4 w-4" />
@@ -391,17 +628,45 @@ export function InventarioFerramentas() {
         <button
           type="button"
           onClick={() => setAbaAtiva('caixas')}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors uppercase ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
             abaAtiva === 'caixas'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-secondary hover:text-foreground'
+              ? 'bg-primary text-white shadow-md shadow-primary/20'
+              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
           }`}
         >
           <Briefcase className="h-4 w-4" />
-          CAIXAS DE FERRAMENTAS ({caixas.length})
+          CAIXAS DE FERRAMENTAS
+          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+            abaAtiva === 'caixas' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+          }`}>
+            {caixas.length}
+          </span>
           {caixas.filter((c) => c.status === 'em_uso').length > 0 && (
-            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-bold text-amber-500">
-              {caixas.filter((c) => c.status === 'em_uso').length}
+            <span className="rounded-full bg-amber-500/20 px-1.5 py-0.2 text-[10px] font-black text-amber-500">
+              {caixas.filter((c) => c.status === 'em_uso').length} em uso
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('consumo')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            abaAtiva === 'consumo'
+              ? 'bg-primary text-white shadow-md shadow-primary/20'
+              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+          }`}
+        >
+          <Boxes className="h-4 w-4" />
+          USO E CONSUMO
+          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+            abaAtiva === 'consumo' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+          }`}>
+            {itensConsumo.length}
+          </span>
+          {alertasEstoqueBaixoCount > 0 && (
+            <span className="rounded-full bg-red-500/20 px-1.5 py-0.2 text-[10px] font-black text-red-400">
+              {alertasEstoqueBaixoCount} alerta
             </span>
           )}
         </button>
@@ -409,62 +674,71 @@ export function InventarioFerramentas() {
 
       {/* ==================== ABA 1: ESTOQUE DE FERRAMENTAS ==================== */}
       {abaAtiva === 'estoque' && (
-        <div className="space-y-4 uppercase">
+        <div className="space-y-4">
           {/* Filtros, Busca e Alternador de Visualização */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-1 items-center gap-2 max-w-lg">
               <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
                 <input
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  placeholder="BUSCAR POR NOME, CÓDIGO OU LOCALIZAÇÃO..."
-                  className="h-10 w-full rounded-xl border border-border/10 bg-surface pl-9 pr-4 text-sm text-foreground placeholder:text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+                  placeholder="Buscar por nome, código ou localização..."
+                  className="h-11 w-full rounded-2xl border border-border/25 bg-surface/90 pl-10 pr-9 text-xs text-foreground placeholder:text-secondary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase shadow-sm transition-all"
                 />
+                {busca && (
+                  <button
+                    type="button"
+                    onClick={() => setBusca('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-foreground p-1"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
 
               {/* Botões de Alternância Lista / Grade */}
-              <div className="flex items-center rounded-xl border border-border/20 bg-surface p-1 shrink-0">
+              <div className="flex items-center rounded-2xl border border-border/25 bg-surface/90 p-1 shrink-0 shadow-sm">
                 <button
                   type="button"
                   onClick={() => setModoVisualizacao('lista')}
-                  className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                  className={`rounded-xl p-2 transition-colors cursor-pointer ${
                     modoVisualizacao === 'lista'
                       ? 'bg-primary text-white shadow-sm'
                       : 'text-secondary hover:text-foreground'
                   }`}
-                  title="VISUALIZAÇÃO EM LISTA"
-                  aria-label="VISUALIZAÇÃO EM LISTA"
+                  title="Visualização em Lista"
+                  aria-label="Visualização em Lista"
                 >
                   <LayoutList className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setModoVisualizacao('grid')}
-                  className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                  className={`rounded-xl p-2 transition-colors cursor-pointer ${
                     modoVisualizacao === 'grid'
                       ? 'bg-primary text-white shadow-sm'
                       : 'text-secondary hover:text-foreground'
                   }`}
-                  title="VISUALIZAÇÃO EM GRADE"
-                  aria-label="VISUALIZAÇÃO EM GRADE"
+                  title="Visualização em Grade"
+                  aria-label="Visualização em Grade"
                 >
                   <LayoutGrid className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            {/* Categorias */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            {/* Categorias sem barra de rolagem cinza feia */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {CATEGORIAS_SUGERIDAS.map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setCategoriaFiltro(cat)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors whitespace-nowrap uppercase cursor-pointer ${
+                  className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap uppercase cursor-pointer border ${
                     categoriaFiltro === cat
-                      ? 'bg-primary text-white'
-                      : 'bg-overlay/5 text-secondary hover:bg-overlay/10 hover:text-foreground'
+                      ? 'bg-primary/15 border-primary/50 text-primary shadow-sm'
+                      : 'bg-surface/80 border-border/20 text-secondary hover:border-border/60 hover:text-foreground'
                   }`}
                 >
                   {cat}
@@ -480,36 +754,39 @@ export function InventarioFerramentas() {
             </div>
           ) : ferramentasFiltradas.length === 0 ? (
             <Card className="p-12 text-center uppercase">
-              <Hammer className="mx-auto mb-3 h-10 w-10 text-secondary" />
-              <p className="text-base font-bold text-foreground">NENHUMA FERRAMENTA ENCONTRADA</p>
-              <p className="mt-1 text-sm text-secondary">
+              <Hammer className="mx-auto mb-3 h-10 w-10 text-secondary/40" />
+              <p className="text-base font-bold text-foreground">Nenhuma ferramenta encontrada</p>
+              <p className="mt-1 text-xs text-secondary">
                 {busca || categoriaFiltro !== 'TODAS'
-                  ? 'TENTE ALTERAR OS FILTROS DE BUSCA.'
-                  : 'CADASTRE SUA PRIMEIRA FERRAMENTA CLICANDO NO BOTÃO "NOVA FERRAMENTA".'}
+                  ? 'Tente alterar os filtros de busca.'
+                  : 'Cadastre sua primeira ferramenta clicando no botão "Nova Ferramenta".'}
               </p>
             </Card>
           ) : modoVisualizacao === 'lista' ? (
             <div className="space-y-2">
               {/* Desktop: Lista / Tabela de Estoque em Grid */}
-              <div className="hidden md:block overflow-hidden rounded-2xl border border-border/30 bg-surface/60 shadow-sm backdrop-blur-sm">
-                <div className="grid grid-cols-[130px_minmax(220px,1fr)_160px_160px_110px_160px] items-center gap-3 border-b border-border/15 bg-surface/80 px-4 py-3 text-[11px] font-black text-secondary tracking-wider">
+              <div className="hidden md:block overflow-hidden rounded-2xl border border-border/25 bg-surface/70 shadow-sm backdrop-blur-sm">
+                <div className="grid grid-cols-[130px_minmax(220px,1fr)_160px_160px_130px_140px] items-center gap-3 border-b border-border/15 bg-surface/90 px-4 py-3 text-[11px] font-black text-secondary uppercase tracking-wider">
                   <div>CÓDIGO</div>
                   <div>FERRAMENTA / DESCRIÇÃO</div>
                   <div>CATEGORIA</div>
                   <div>LOCALIZAÇÃO</div>
-                  <div className="text-center">ESTOQUE DISP.</div>
+                  <div className="text-center">ESTOQUE</div>
                   <div className="text-right">AÇÕES</div>
                 </div>
 
                 <div className="divide-y divide-border/10">
                   {ferramentasFiltradas.map((f) => {
-                    const emUsoQtd = (f.quantidade_total || 0) - (f.quantidade_disponivel || 0)
-                    const semEstoque = (f.quantidade_disponivel || 0) <= 0
+                    const total = f.quantidade_total || 1
+                    const disp = f.quantidade_disponivel || 0
+                    const emUsoQtd = total - disp
+                    const semEstoque = disp <= 0
+                    const percentualDisp = Math.max(0, Math.min(100, Math.round((disp / total) * 100)))
 
                     return (
                       <div
                         key={f.id}
-                        className="grid grid-cols-[130px_minmax(220px,1fr)_160px_160px_110px_160px] items-center gap-3 px-4 py-3 transition-colors hover:bg-overlay/5"
+                        className="grid grid-cols-[130px_minmax(220px,1fr)_160px_160px_130px_140px] items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover/30 group"
                       >
                         {/* CÓDIGO & FOTO */}
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -517,7 +794,7 @@ export function InventarioFerramentas() {
                             <button
                               type="button"
                               onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
-                              className="relative group/thumb h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-primary/30 bg-surface shadow-sm cursor-pointer hover:border-primary transition-all"
+                              className="relative group/thumb h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-primary/30 bg-background shadow-sm cursor-pointer hover:border-primary transition-all"
                               title="Ver foto ampliada"
                             >
                               <img
@@ -530,22 +807,22 @@ export function InventarioFerramentas() {
                               </div>
                             </button>
                           ) : (
-                            <div className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-border/20 bg-surface text-secondary/50">
+                            <div className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-border/20 bg-background text-secondary/50">
                               <Hammer className="h-4 w-4" />
                             </div>
                           )}
-                          <span className="inline-flex rounded-lg bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs font-mono font-black text-primary truncate max-w-[85px]">
+                          <span className="inline-flex rounded-lg bg-background border border-border/30 px-2 py-0.5 text-xs font-mono font-bold text-foreground truncate max-w-[85px]">
                             {f.codigo || 'S/ CÓD'}
                           </span>
                         </div>
 
                         {/* FERRAMENTA / DESCRIÇÃO */}
                         <div className="min-w-0 pr-2">
-                          <div className="font-bold text-foreground leading-snug truncate">
+                          <div className="font-bold text-foreground text-xs leading-snug truncate group-hover:text-primary transition-colors">
                             {f.nome}
                           </div>
                           {f.observacoes && (
-                            <div className="text-[11px] text-secondary line-clamp-1 italic mt-0.5 truncate">
+                            <div className="text-[11px] text-secondary line-clamp-1 italic mt-0.5 truncate font-normal">
                               "{f.observacoes}"
                             </div>
                           )}
@@ -553,7 +830,7 @@ export function InventarioFerramentas() {
 
                         {/* CATEGORIA */}
                         <div className="truncate">
-                          <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[11px] font-bold text-secondary truncate inline-block max-w-full">
+                          <span className="rounded-lg bg-overlay/5 border border-border/20 px-2.5 py-1 text-[10px] font-black text-secondary tracking-wider truncate inline-block max-w-full">
                             {f.categoria || 'GERAL'}
                           </span>
                         </div>
@@ -561,32 +838,144 @@ export function InventarioFerramentas() {
                         {/* LOCALIZAÇÃO */}
                         <div className="truncate">
                           {f.localizacao ? (
-                            <span className="text-xs font-semibold text-foreground flex items-center gap-1 truncate">
+                            <span className="text-xs font-semibold text-foreground flex items-center gap-1.5 truncate">
                               <Layers className="h-3.5 w-3.5 text-secondary shrink-0" />
                               <span className="truncate">{f.localizacao}</span>
                             </span>
                           ) : (
-                            <span className="text-xs text-secondary">—</span>
+                            <span className="text-xs text-secondary/50">—</span>
                           )}
                         </div>
 
-                        {/* ESTOQUE DISP. */}
-                        <div className="text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <span className={`text-base font-black tabular-nums ${semEstoque ? 'text-status-danger' : 'text-emerald-500'}`}>
-                              {f.quantidade_disponivel}
+                        {/* ESTOQUE DISP. COM BARRA VISUAL */}
+                        <div className="flex flex-col items-center">
+                          <div className="flex items-center gap-1">
+                            <span className={`text-sm font-black font-mono tabular-nums ${semEstoque ? 'text-status-danger' : 'text-emerald-500'}`}>
+                              {disp}
                             </span>
-                            <span className="text-xs text-secondary font-semibold">/ {f.quantidade_total}</span>
+                            <span className="text-xs text-secondary font-mono">/ {total}</span>
+                          </div>
+                          {/* Mini barra de estoque */}
+                          <div className="w-16 h-1 bg-border/20 rounded-full overflow-hidden mt-1">
+                            <div
+                              className={`h-full transition-all duration-300 ${
+                                semEstoque ? 'bg-status-danger w-0' : disp === total ? 'bg-emerald-500' : 'bg-amber-500'
+                              }`}
+                              style={{ width: `${percentualDisp}%` }}
+                            />
                           </div>
                           {emUsoQtd > 0 && (
-                            <span className="inline-block mt-0.5 text-[10px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                              {emUsoQtd} EM USO
+                            <span className="text-[9px] font-black text-amber-500 mt-0.5">
+                              {emUsoQtd} em uso
                             </span>
                           )}
                         </div>
 
                         {/* AÇÕES */}
                         <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            type="button"
+                            size="md"
+                            disabled={semEstoque}
+                            onClick={() => {
+                              setFerramentaSelecionadaParaRetirada(f)
+                              setModalRetiradaAberto(true)
+                            }}
+                            className="!h-8 !px-3 !text-xs gap-1 uppercase font-bold bg-primary hover:bg-primary/90 text-white shadow-sm"
+                          >
+                            <ArrowUpRight className="h-3.5 w-3.5" />
+                            RETIRAR
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFerramentaEditando(f)
+                              setModalFerramentaAberto(true)
+                            }}
+                            className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
+                            title="Editar Ferramenta"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleExcluirFerramenta(f)}
+                            className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer"
+                            title="Excluir Ferramenta"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Mobile: Lista Compacta e Fluida */}
+              <div className="md:hidden space-y-2.5">
+                {ferramentasFiltradas.map((f) => {
+                  const total = f.quantidade_total || 1
+                  const disp = f.quantidade_disponivel || 0
+                  const emUsoQtd = total - disp
+                  const semEstoque = disp <= 0
+
+                  return (
+                    <div
+                      key={f.id}
+                      className="rounded-2xl border border-border/25 bg-surface/80 p-3.5 space-y-2.5 transition-all shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-lg bg-background border border-border/30 px-2 py-0.5 text-[11px] font-mono font-bold text-foreground">
+                            {f.codigo || 'S/ CÓD'}
+                          </span>
+                          <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[10px] font-black uppercase text-secondary tracking-wider">
+                            {f.categoria || 'GERAL'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className={`text-sm font-black font-mono tabular-nums ${semEstoque ? 'text-status-danger' : 'text-emerald-500'}`}>
+                            {disp}
+                          </span>
+                          <span className="text-xs text-secondary font-mono">/ {total}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {f.foto_url ? (
+                          <button
+                            type="button"
+                            onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
+                            className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-primary/30 shadow-sm"
+                          >
+                            <img src={f.foto_url} alt={f.nome} className="h-full w-full object-cover" />
+                          </button>
+                        ) : (
+                          <div className="h-11 w-11 shrink-0 flex items-center justify-center rounded-xl bg-background border border-border/20 text-secondary/50">
+                            <Hammer className="h-5 w-5" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-xs text-foreground truncate">{f.nome}</p>
+                          {f.localizacao && (
+                            <p className="text-[11px] text-secondary font-medium truncate mt-0.5">
+                              📍 {f.localizacao}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-border/10">
+                        {emUsoQtd > 0 ? (
+                          <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                            {emUsoQtd} em uso
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-emerald-500">Pronta no estoque</span>
+                        )}
+
+                        <div className="flex items-center gap-1">
                           <Button
                             type="button"
                             size="md"
@@ -606,124 +995,18 @@ export function InventarioFerramentas() {
                               setFerramentaEditando(f)
                               setModalFerramentaAberto(true)
                             }}
-                            className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
-                            title="EDITAR FERRAMENTA"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleExcluirFerramenta(f)}
-                            className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer"
-                            title="EXCLUIR FERRAMENTA"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Mobile: Lista Compacta e Fluida */}
-              <div className="md:hidden space-y-2.5">
-                {ferramentasFiltradas.map((f) => {
-                  const emUsoQtd = (f.quantidade_total || 0) - (f.quantidade_disponivel || 0)
-                  const semEstoque = (f.quantidade_disponivel || 0) <= 0
-
-                  return (
-                    <div
-                      key={f.id}
-                      className="rounded-2xl border border-border/30 bg-surface/70 p-3.5 space-y-2.5 transition-all shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="rounded-lg bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-mono font-black text-primary">
-                            {f.codigo || 'S/ CÓD'}
-                          </span>
-                          <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[11px] font-bold text-secondary">
-                            {f.categoria || 'GERAL'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFerramentaEditando(f)
-                              setModalFerramentaAberto(true)
-                            }}
-                            className="p-1.5 text-secondary hover:text-foreground cursor-pointer"
-                            title="EDITAR"
+                            className="p-1.5 rounded-lg text-secondary hover:text-foreground"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleExcluirFerramenta(f)}
-                            className="p-1.5 text-secondary hover:text-status-danger cursor-pointer"
-                            title="EXCLUIR"
+                            className="p-1.5 rounded-lg text-secondary hover:text-red-400"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                      </div>
-
-                      <div className="flex items-start gap-3">
-                        {f.foto_url ? (
-                          <button
-                            type="button"
-                            onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
-                            className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-primary/30 bg-surface shadow-sm cursor-pointer"
-                          >
-                            <img
-                              src={f.foto_url}
-                              alt={f.nome}
-                              className="h-full w-full object-cover"
-                            />
-                          </button>
-                        ) : null}
-
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-black text-foreground uppercase">{f.nome}</h4>
-                          {f.localizacao && (
-                            <p className="text-xs text-secondary font-medium mt-0.5">
-                              LOCAL: <strong className="text-foreground">{f.localizacao}</strong>
-                            </p>
-                          )}
-                          {f.observacoes && (
-                            <p className="text-[11px] text-secondary/80 italic mt-0.5 line-clamp-1">
-                              "{f.observacoes}"
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-border/10">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-base font-black ${semEstoque ? 'text-status-danger' : 'text-emerald-500'}`}>
-                            {f.quantidade_disponivel}
-                          </span>
-                          <span className="text-xs text-secondary font-semibold">/ {f.quantidade_total} DISP.</span>
-                          {emUsoQtd > 0 && (
-                            <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded ml-1 border border-amber-500/20">
-                              {emUsoQtd} EM USO
-                            </span>
-                          )}
-                        </div>
-                        <Button
-                          type="button"
-                          size="md"
-                          disabled={semEstoque}
-                          onClick={() => {
-                            setFerramentaSelecionadaParaRetirada(f)
-                            setModalRetiradaAberto(true)
-                          }}
-                          className="!h-8 !px-3 !text-xs gap-1 uppercase font-bold"
-                        >
-                          <ArrowUpRight className="h-3.5 w-3.5" />
-                          RETIRAR
-                        </Button>
                       </div>
                     </div>
                   )
@@ -731,103 +1014,81 @@ export function InventarioFerramentas() {
               </div>
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            /* Modo Grade (Grid) */
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {ferramentasFiltradas.map((f) => {
-                const emUsoQtd = (f.quantidade_total || 0) - (f.quantidade_disponivel || 0)
-                const semEstoque = (f.quantidade_disponivel || 0) <= 0
+                const total = f.quantidade_total || 1
+                const disp = f.quantidade_disponivel || 0
+                const emUsoQtd = total - disp
+                const semEstoque = disp <= 0
+                const percentualDisp = Math.max(0, Math.min(100, Math.round((disp / total) * 100)))
 
                 return (
                   <Card
                     key={f.id}
-                    className="group relative flex flex-col justify-between overflow-hidden p-5 transition-all duration-200 hover:border-primary/40 hover:shadow-xl uppercase"
+                    className="p-4 flex flex-col justify-between border border-border/25 bg-surface/80 hover:border-primary/40 transition-all shadow-sm group relative overflow-hidden"
                   >
                     <div>
-                      {/* Foto no Card Grid */}
-                      {f.foto_url && (
-                        <div
-                          onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
-                          className="group/img relative mb-3 h-36 w-full overflow-hidden rounded-2xl border border-border/20 bg-background/80 cursor-pointer"
-                        >
-                          <img
-                            src={f.foto_url}
-                            alt={f.nome}
-                            className="h-full w-full object-cover group-hover/img:scale-105 transition-transform duration-300"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center gap-1.5 text-white text-xs font-bold transition-opacity">
-                            <Eye className="h-4 w-4" />
-                            <span>AMPLIAR FOTO</span>
+                      <div className="flex items-start justify-between gap-2 mb-2.5">
+                        <span className="rounded-lg bg-background border border-border/30 px-2 py-0.5 text-[11px] font-mono font-bold text-foreground">
+                          {f.codigo || 'S/ CÓD'}
+                        </span>
+                        <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[10px] font-black text-secondary tracking-wider">
+                          {f.categoria || 'GERAL'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 my-2">
+                        {f.foto_url ? (
+                          <button
+                            type="button"
+                            onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
+                            className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-primary/30 shadow-sm"
+                          >
+                            <img src={f.foto_url} alt={f.nome} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
+                          </button>
+                        ) : (
+                          <div className="h-14 w-14 shrink-0 flex items-center justify-center rounded-xl bg-background border border-border/20 text-secondary/40 text-2xl">
+                            🔧
                           </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-[11px] font-mono font-bold text-primary">
-                            {f.codigo || 'S/ CÓD'}
-                          </span>
-                          <span className="rounded-lg bg-overlay/5 px-2 py-0.5 text-[11px] font-semibold text-secondary uppercase">
-                            {f.categoria || 'GERAL'}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFerramentaEditando(f)
-                              setModalFerramentaAberto(true)
-                            }}
-                            className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
-                            aria-label="EDITAR"
-                            title="EDITAR FERRAMENTA"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleExcluirFerramenta(f)}
-                            className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer"
-                            aria-label="EXCLUIR"
-                            title="EXCLUIR FERRAMENTA"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-xs text-foreground uppercase truncate group-hover:text-primary transition-colors">
+                            {f.nome}
+                          </h4>
+                          {f.localizacao && (
+                            <p className="text-[11px] text-secondary font-medium truncate mt-0.5">
+                              📍 {f.localizacao}
+                            </p>
+                          )}
                         </div>
                       </div>
 
-                      <h3 className="mt-2.5 text-base font-bold text-foreground leading-snug uppercase">
-                        {f.nome}
-                      </h3>
-
-                      {f.localizacao && (
-                        <p className="mt-1 flex items-center gap-1 text-xs text-secondary uppercase font-medium">
-                          <Layers className="h-3 w-3 text-secondary" />
-                          <span>LOCAL: <strong className="text-foreground">{f.localizacao}</strong></span>
-                        </p>
-                      )}
-
-                      {f.observacoes && (
-                        <p className="mt-2 text-xs text-secondary line-clamp-2 italic uppercase">
-                          "{f.observacoes}"
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="mt-4 pt-4 border-t border-border/10 flex items-center justify-between">
-                      <div>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className={`text-xl font-bold tabular-nums ${semEstoque ? 'text-status-danger' : 'text-emerald-500'}`}>
-                            {f.quantidade_disponivel}
+                      {/* Barra de Estoque */}
+                      <div className="my-2.5 rounded-xl bg-background/60 border border-border/15 p-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-[10px] font-bold text-secondary uppercase">Disponibilidade</span>
+                          <span className="font-mono font-black text-foreground">
+                            {disp} <span className="text-secondary font-normal">/ {total}</span>
                           </span>
-                          <span className="text-xs text-secondary uppercase font-medium">/ {f.quantidade_total} DISP.</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-border/20 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${
+                              semEstoque ? 'bg-status-danger w-0' : disp === total ? 'bg-emerald-500' : 'bg-amber-500'
+                            }`}
+                            style={{ width: `${percentualDisp}%` }}
+                          />
                         </div>
                         {emUsoQtd > 0 && (
-                          <p className="text-[11px] text-amber-500 font-bold uppercase">
-                            {emUsoQtd} EM USO
+                          <p className="text-[10px] font-black text-amber-500 text-right">
+                            {emUsoQtd} em uso agora
                           </p>
                         )}
                       </div>
+                    </div>
 
+                    <div className="pt-2 border-t border-border/10 flex items-center justify-between">
                       <Button
                         type="button"
                         size="md"
@@ -836,11 +1097,30 @@ export function InventarioFerramentas() {
                           setFerramentaSelecionadaParaRetirada(f)
                           setModalRetiradaAberto(true)
                         }}
-                        className="gap-1.5 text-xs h-9 px-3 uppercase font-bold"
+                        className="!h-8 !px-3 !text-xs gap-1 uppercase font-bold flex-1 mr-2"
                       >
                         <ArrowUpRight className="h-3.5 w-3.5" />
                         RETIRAR
                       </Button>
+                      <div className="flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFerramentaEditando(f)
+                            setModalFerramentaAberto(true)
+                          }}
+                          className="p-1.5 rounded-lg text-secondary hover:text-foreground"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExcluirFerramenta(f)}
+                          className="p-1.5 rounded-lg text-secondary hover:text-red-400"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </Card>
                 )
@@ -1309,7 +1589,471 @@ export function InventarioFerramentas() {
         </div>
       )}
 
-      {/* ==================== MODAL: NOVA / EDITAR FERRAMENTA ==================== */}
+      {/* ==================== ABA 5: USO E CONSUMO ==================== */}
+      {abaAtiva === 'consumo' && (
+        <div className="space-y-4 uppercase">
+          {/* Métricas rápidas de consumo */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Card className="p-3.5 sm:p-4 bg-surface/80">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[11px] font-bold uppercase tracking-wider">ITENS CADASTRADOS</span>
+                <Boxes className="h-4 w-4 text-primary" />
+              </div>
+              <p className="mt-2 text-xl sm:text-2xl font-black tabular-nums text-foreground">
+                {metricasConsumo.totalItens}
+              </p>
+              <p className="text-[10px] text-secondary font-semibold mt-0.5">VARIEDADES DE INSUMOS</p>
+            </Card>
+
+            <Card className="p-3.5 sm:p-4 bg-surface/80">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[11px] font-bold uppercase tracking-wider">TOTAL EM ESTOQUE</span>
+                <Package className="h-4 w-4 text-emerald-500" />
+              </div>
+              <p className="mt-2 text-xl sm:text-2xl font-black tabular-nums text-emerald-500">
+                {metricasConsumo.totalUnidades}
+              </p>
+              <p className="text-[10px] text-secondary font-semibold mt-0.5">UNIDADES DISPONÍVEIS</p>
+            </Card>
+
+            <Card className={`p-3.5 sm:p-4 ${metricasConsumo.emAlerta > 0 ? 'border-red-500/30 bg-red-500/5' : 'bg-surface/80'}`}>
+              <div className="flex items-center justify-between text-secondary">
+                <span className={`text-[11px] font-bold uppercase tracking-wider ${metricasConsumo.emAlerta > 0 ? 'text-red-400' : ''}`}>
+                  ESTOQUE BAIXO
+                </span>
+                <AlertTriangle className={`h-4 w-4 ${metricasConsumo.emAlerta > 0 ? 'text-red-400' : 'text-secondary'}`} />
+              </div>
+              <p className={`mt-2 text-xl sm:text-2xl font-black tabular-nums ${metricasConsumo.emAlerta > 0 ? 'text-red-400' : 'text-foreground'}`}>
+                {metricasConsumo.emAlerta}
+              </p>
+              <p className="text-[10px] text-secondary font-semibold mt-0.5">PREVISTO REPOSIÇÃO</p>
+            </Card>
+
+            <Card className="p-3.5 sm:p-4 bg-surface/80">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[11px] font-bold uppercase tracking-wider">BAIXAS REGISTRADAS</span>
+                <TrendingDown className="h-4 w-4 text-amber-500" />
+              </div>
+              <p className="mt-2 text-xl sm:text-2xl font-black tabular-nums text-amber-500">
+                {metricasConsumo.totalBaixas}
+              </p>
+              <p className="text-[10px] text-secondary font-semibold mt-0.5">SAÍDAS DE CONSUMO</p>
+            </Card>
+          </div>
+
+          {/* Barra de Filtros, Sub-abas e Ações */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-overlay/5 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setSubAbaConsumo('estoque')}
+                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-colors uppercase cursor-pointer flex items-center gap-1.5 ${
+                    subAbaConsumo === 'estoque'
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-secondary hover:text-foreground'
+                  }`}
+                >
+                  <Boxes className="h-3.5 w-3.5" />
+                  ESTOQUE DE INSUMOS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubAbaConsumo('historico')}
+                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-colors uppercase cursor-pointer flex items-center gap-1.5 ${
+                    subAbaConsumo === 'historico'
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-secondary hover:text-foreground'
+                  }`}
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  HISTÓRICO DE CONSUMOS ({baixasConsumo.length})
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setItemConsumoParaBaixa(null)
+                  setModalBaixaConsumoAberto(true)
+                }}
+                className="gap-2 text-xs font-bold uppercase border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+              >
+                <TrendingDown className="h-4 w-4" />
+                REGISTRAR CONSUMO
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setItemConsumoEditando(null)
+                  setModalItemConsumoAberto(true)
+                }}
+                className="gap-2 text-xs font-bold uppercase shadow-md shadow-primary/20"
+              >
+                <Plus className="h-4 w-4" />
+                NOVO INSUMO
+              </Button>
+            </div>
+          </div>
+
+          {/* Sub-Aba 1: Estoque de Insumos */}
+          {subAbaConsumo === 'estoque' && (
+            <div className="space-y-4">
+              {/* Barra de Busca e Categorias */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+                  <input
+                    value={buscaConsumo}
+                    onChange={(e) => setBuscaConsumo(e.target.value)}
+                    placeholder="BUSCAR INSUMO POR NOME, CÓDIGO OU LOCALIZAÇÃO..."
+                    className="h-10 w-full rounded-xl border border-border/10 bg-surface pl-9 pr-4 text-sm text-foreground placeholder:text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+                  />
+                </div>
+
+                {/* Filtro de Categorias */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-xl">
+                  {CATEGORIAS_CONSUMO.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategoriaConsumoFiltro(cat)}
+                      className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                        categoriaConsumoFiltro === cat
+                          ? 'bg-primary/20 border-primary text-primary shadow-sm'
+                          : 'bg-surface border-border/20 text-secondary hover:border-border/60 hover:text-foreground'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grid de Insumos */}
+              {itensConsumoFiltrados.length === 0 ? (
+                <Card className="p-8 text-center text-sm text-secondary font-medium">
+                  NENHUM ITEM DE CONSUMO ENCONTRADO.
+                </Card>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {itensConsumoFiltrados.map((item) => {
+                    const isAlerta = item.quantidade_atual <= item.quantidade_minima
+                    const isZerado = item.quantidade_atual === 0
+                    return (
+                      <Card
+                        key={item.id}
+                        className={`p-4 flex flex-col justify-between border transition-all shadow-md group relative overflow-hidden bg-surface ${
+                          isZerado
+                            ? 'border-red-500/40 bg-red-500/5'
+                            : isAlerta
+                            ? 'border-amber-500/40 bg-amber-500/5'
+                            : 'border-border/20 hover:border-primary/40'
+                        }`}
+                      >
+                        <div>
+                          {/* Topo do Card */}
+                          <div className="flex items-start justify-between gap-3 mb-2.5">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {item.foto_url ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setFotoModalUrl({ url: item.foto_url!, titulo: item.nome })}
+                                  className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-primary/20 hover:border-primary transition-all group/foto cursor-pointer"
+                                >
+                                  <img src={item.foto_url} alt={item.nome} className="h-full w-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/foto:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </div>
+                                </button>
+                              ) : (
+                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 font-bold text-lg">
+                                  📦
+                                </div>
+                              )}
+
+                              <div className="min-w-0">
+                                <span className="text-[9px] font-black uppercase text-secondary tracking-widest block truncate">
+                                  {item.categoria}
+                                </span>
+                                <h3 className="font-bold text-foreground text-xs leading-tight uppercase truncate mt-0.5">
+                                  {item.nome}
+                                </h3>
+                                {item.codigo && (
+                                  <span className="font-mono text-[10px] text-primary font-bold">[{item.codigo}]</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Badge de Alerta */}
+                            <div>
+                              {isZerado ? (
+                                <Badge tone="danger" className="text-[9px] font-black uppercase">
+                                  ZERADO
+                                </Badge>
+                              ) : isAlerta ? (
+                                <Badge tone="warning" className="text-[9px] font-black uppercase">
+                                  REPOSIÇÃO
+                                </Badge>
+                              ) : (
+                                <Badge tone="success" className="text-[9px] font-black uppercase">
+                                  NORMAL
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quantidade e Estoque Mínimo */}
+                          <div className="my-3 rounded-xl bg-background/50 border border-border/15 p-3 space-y-2">
+                            <div className="flex items-end justify-between">
+                              <div>
+                                <span className="text-[10px] font-bold text-secondary uppercase block">ESTOQUE ATUAL</span>
+                                <span className="text-2xl font-black font-mono text-foreground">
+                                  {item.quantidade_atual}{' '}
+                                  <span className="text-xs font-semibold text-secondary">{item.unidade}</span>
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[10px] font-bold text-secondary uppercase block">MÍNIMO</span>
+                                <span className="text-xs font-bold font-mono text-secondary">
+                                  {item.quantidade_minima} {item.unidade}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Barra de Progresso de Nível */}
+                            <div className="w-full h-1.5 bg-border/20 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  isZerado
+                                    ? 'w-0'
+                                    : isAlerta
+                                    ? 'bg-amber-500'
+                                    : 'bg-emerald-500'
+                                }`}
+                                style={{
+                                  width: `${Math.min(100, Math.max(8, (item.quantidade_atual / (item.quantidade_minima * 2.5 || 10)) * 100))}%`,
+                                }}
+                              />
+                            </div>
+
+                            {item.localizacao && (
+                              <p className="text-[10px] text-secondary font-medium truncate pt-1 border-t border-border/10">
+                                📍 {item.localizacao}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Ações do Insumo */}
+                        <div className="pt-2 border-t border-border/10 flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="md"
+                              onClick={() => {
+                                setItemConsumoParaBaixa(item)
+                                setModalBaixaConsumoAberto(true)
+                              }}
+                              disabled={item.quantidade_atual <= 0}
+                              className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-amber-500/30 text-amber-500 hover:bg-amber-500/10 disabled:opacity-30"
+                              title="Dar baixa de consumo"
+                            >
+                              <TrendingDown className="h-3.5 w-3.5" />
+                              BAIXAR
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="md"
+                              onClick={() => {
+                                setItemConsumoParaEntrada(item)
+                                setModalEntradaConsumoAberto(true)
+                              }}
+                              className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+                              title="Adicionar entrada ao estoque"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              REPOR
+                            </Button>
+                          </div>
+
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setItemConsumoEditando(item)
+                                setModalItemConsumoAberto(true)
+                              }}
+                              className="h-8 w-8 text-secondary hover:text-foreground"
+                              title="Editar Insumo"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                if (confirm(`Deseja excluir o insumo "${item.nome}"?`)) {
+                                  salvarItensConsumo(itensConsumo.filter((i) => i.id !== item.id))
+                                }
+                              }}
+                              className="h-8 w-8 text-secondary hover:text-red-400"
+                              title="Excluir Insumo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Sub-Aba 2: Histórico de Consumos */}
+          {subAbaConsumo === 'historico' && (
+            <Card className="overflow-hidden border-border/10 uppercase">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-border/10 bg-overlay/5 text-xs text-secondary font-semibold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3">ITEM DE CONSUMO</th>
+                      <th className="px-4 py-3">QTD CONSUMIDA</th>
+                      <th className="px-4 py-3">RESPONSÁVEL</th>
+                      <th className="px-4 py-3">CAMINHÃO / PLACA</th>
+                      <th className="px-4 py-3">MOTIVO / APLICAÇÃO</th>
+                      <th className="px-4 py-3">DATA E HORA</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/5 font-medium">
+                    {baixasConsumo.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-sm text-secondary font-medium">
+                          NENHUM REGISTRO DE CONSUMO REALIZADO ATÉ O MOMENTO.
+                        </td>
+                      </tr>
+                    ) : (
+                      baixasConsumo.map((bx) => (
+                        <tr key={bx.id} className="hover:bg-overlay/5 transition-colors">
+                          <td className="px-4 py-3 font-bold text-foreground">
+                            <div className="flex items-center gap-2">
+                              <span>📦</span>
+                              <span>{bx.item_nome}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-black font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
+                              −{bx.quantidade} {bx.unidade}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2 font-semibold text-foreground">
+                              {bx.foto_responsavel_url ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setFotoModalUrl({
+                                      url: bx.foto_responsavel_url!,
+                                      titulo: `Responsável: ${bx.responsavel}`,
+                                    })
+                                  }
+                                  className="h-6 w-6 rounded-full overflow-hidden border border-primary/40 hover:scale-110 transition-transform cursor-pointer"
+                                >
+                                  <img src={bx.foto_responsavel_url} alt={bx.responsavel} className="h-full w-full object-cover" />
+                                </button>
+                              ) : (
+                                <span className="text-xs">👤</span>
+                              )}
+                              <span>{bx.responsavel}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 font-mono font-bold text-primary">
+                            {bx.placa ? `🚛 ${bx.placa}` : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-secondary max-w-xs truncate">
+                            {bx.motivo || '—'}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-secondary font-mono">
+                            {format(new Date(bx.data_hora), "dd/MM/yyyy 'ÀS' HH:mm", { locale: ptBR })}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ==================== MODAL: NOVO / EDITAR ITEM DE CONSUMO ==================== */}
+      {modalItemConsumoAberto && (
+        <ModalItemConsumo
+          item={itemConsumoEditando}
+          onClose={() => setModalItemConsumoAberto(false)}
+          onSalvo={(salvo) => {
+            if (itemConsumoEditando) {
+              salvarItensConsumo(itensConsumo.map((it) => (it.id === salvo.id ? salvo : it)))
+            } else {
+              salvarItensConsumo([salvo, ...itensConsumo])
+            }
+            setModalItemConsumoAberto(false)
+          }}
+        />
+      )}
+
+      {/* ==================== MODAL: BAIXA / CONSUMO DE INSUMO ==================== */}
+      {modalBaixaConsumoAberto && (
+        <ModalBaixaConsumo
+          itemPreSelecionado={itemConsumoParaBaixa}
+          itensDisponiveis={itensConsumo.filter((it) => it.quantidade_atual > 0)}
+          veiculos={veiculosLista}
+          retiradas={retiradas}
+          onClose={() => setModalBaixaConsumoAberto(false)}
+          onSucesso={(novaBaixa) => {
+            // Atualiza o estoque decrementando a quantidade
+            salvarItensConsumo(
+              itensConsumo.map((it) =>
+                it.id === novaBaixa.item_id
+                  ? { ...it, quantidade_atual: Math.max(0, it.quantidade_atual - novaBaixa.quantidade) }
+                  : it
+              )
+            )
+            salvarBaixasConsumo([novaBaixa, ...baixasConsumo])
+            setModalBaixaConsumoAberto(false)
+          }}
+        />
+      )}
+
+      {/* ==================== MODAL: ENTRADA / REPOSIÇÃO DE ESTOQUE ==================== */}
+      {modalEntradaConsumoAberto && itemConsumoParaEntrada && (
+        <ModalEntradaConsumo
+          item={itemConsumoParaEntrada}
+          onClose={() => setModalEntradaConsumoAberto(false)}
+          onSucesso={(qtdAdicionada) => {
+            salvarItensConsumo(
+              itensConsumo.map((it) =>
+                it.id === itemConsumoParaEntrada.id
+                  ? { ...it, quantidade_atual: it.quantidade_atual + qtdAdicionada }
+                  : it
+              )
+            )
+            setModalEntradaConsumoAberto(false)
+          }}
+        />
+      )}
       {modalFerramentaAberto && (
         <ModalFerramenta
           ferramenta={ferramentaEditando}
@@ -1327,6 +2071,7 @@ export function InventarioFerramentas() {
           ferramentaPreSelecionada={ferramentaSelecionadaParaRetirada}
           ferramentasDisponiveis={ferramentas.filter((f) => f.quantidade_disponivel > 0)}
           veiculos={veiculosLista}
+          retiradas={retiradas}
           onClose={() => setModalRetiradaAberto(false)}
           onSucesso={async () => {
             setModalRetiradaAberto(false)
@@ -1733,16 +2478,50 @@ interface ItemRetirada {
   quantidade: number
 }
 
+function getFotoSalvaMecanico(nome: string, retiradas?: FerramentaRetirada[]): string | null {
+  if (!nome || !nome.trim()) return null
+  const limpo = nome.trim().toUpperCase()
+  try {
+    const storageMap = JSON.parse(localStorage.getItem('gvel_fotos_mecanicos') || '{}')
+    if (storageMap[limpo]) return storageMap[limpo]
+  } catch (e) {
+    // ignore
+  }
+  if (retiradas) {
+    const encontrada = retiradas.find(
+      (r) => r.responsavel?.toUpperCase().trim() === limpo && (r.foto_responsavel_url || r.foto_url)
+    )
+    if (encontrada) {
+      return encontrada.foto_responsavel_url || encontrada.foto_url || null
+    }
+  }
+  return null
+}
+
+function salvarFotoMecanico(nome: string, url: string) {
+  if (!nome || !nome.trim() || !url) return
+  try {
+    const limpo = nome.trim().toUpperCase()
+    const storageMap = JSON.parse(localStorage.getItem('gvel_fotos_mecanicos') || '{}')
+    storageMap[limpo] = url
+    localStorage.setItem('gvel_fotos_mecanicos', JSON.stringify(storageMap))
+  } catch (e) {
+    // ignore
+  }
+}
+
 function ModalRetirada({
   ferramentaPreSelecionada,
   ferramentasDisponiveis,
   veiculos,
+  retiradas,
   onClose,
   onSucesso,
 }: {
   ferramentaPreSelecionada: Ferramenta | null
   ferramentasDisponiveis: Ferramenta[]
   veiculos: { id: string; placa: string }[]
+  retiradas?: FerramentaRetirada[]
   onClose: () => void
   onSucesso: () => Promise<void>
 }) {
@@ -1758,12 +2537,62 @@ function ModalRetirada({
   const [observacoes, setObservacoes] = useState('')
   const [fotoFile, setFotoFile] = useState<File | null>(null)
   const [fotoUrl, setFotoUrl] = useState<string | null>(null)
+  const [fotoOrigem, setFotoOrigem] = useState<'nova' | 'salva' | null>(null)
   const [processandoFoto, setProcessandoFoto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Lista de mecânicos conhecidos com foto para sugestão rápida
+  const mecanicosConhecidos = useMemo(() => {
+    const mapa = new Map<string, string | null>()
+    try {
+      const storageMap = JSON.parse(localStorage.getItem('gvel_fotos_mecanicos') || '{}')
+      Object.entries(storageMap).forEach(([nome, url]) => {
+        if (typeof url === 'string') mapa.set(nome.toUpperCase().trim(), url)
+      })
+    } catch (e) {
+      // ignore
+    }
+    if (retiradas) {
+      retiradas.forEach((r) => {
+        const n = r.responsavel?.toUpperCase().trim()
+        if (n && !mapa.has(n)) {
+          mapa.set(n, r.foto_responsavel_url || r.foto_url || null)
+        } else if (n && !mapa.get(n) && (r.foto_responsavel_url || r.foto_url)) {
+          mapa.set(n, r.foto_responsavel_url || r.foto_url || null)
+        }
+      })
+    }
+    return Array.from(mapa.entries()).map(([nome, foto]) => ({ nome, foto }))
+  }, [retiradas])
+
+  function handleResponsavelChange(nome: string) {
+    setResponsavel(nome)
+    setErro(null)
+    // Se o usuário não tirou foto nesta sessão, busca foto salva automaticamente
+    if (!fotoFile) {
+      const salva = getFotoSalvaMecanico(nome, retiradas)
+      if (salva) {
+        setFotoUrl(salva)
+        setFotoOrigem('salva')
+      } else if (fotoOrigem === 'salva') {
+        setFotoUrl(null)
+        setFotoOrigem(null)
+      }
+    }
+  }
+
+  function selecionarMecanico(nome: string, foto: string | null) {
+    setResponsavel(nome)
+    setErro(null)
+    if (foto && !fotoFile) {
+      setFotoUrl(foto)
+      setFotoOrigem('salva')
+    }
+  }
 
   function adicionarItem(f: Ferramenta) {
     setItensSelecionados((prev) => {
@@ -1805,6 +2634,7 @@ function ModalRetirada({
       const comprimida = await comprimirImagem(file)
       setFotoFile(comprimida)
       setFotoUrl(URL.createObjectURL(comprimida))
+      setFotoOrigem('nova')
     } catch (err) {
       console.error('Erro ao processar foto:', err)
       setErro('Não foi possível processar a foto.')
@@ -1816,6 +2646,7 @@ function ModalRetirada({
   function removerFoto() {
     setFotoFile(null)
     setFotoUrl(null)
+    setFotoOrigem(null)
     if (cameraInputRef.current) cameraInputRef.current.value = ''
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -1832,14 +2663,19 @@ function ModalRetirada({
     setSalvando(true)
     setErro(null)
     try {
-      let finalFotoUrl: string | null = null
+      let finalFotoUrl: string | null = fotoUrl || null
       if (fotoFile) {
         finalFotoUrl = await uploadFotoFerramenta(fotoFile)
       }
 
+      // Salva no cadastro local para próximas retiradas
+      if (finalFotoUrl && responsavel.trim()) {
+        salvarFotoMecanico(responsavel.trim(), finalFotoUrl)
+      }
+
       const veiculoEncontrado = veiculos.find((v) => placasSelecionadas.includes(v.placa.toUpperCase()))
       const placaString = placasSelecionadas.join(' / ')
-      const respUpper = responsavel.toUpperCase()
+      const respUpper = responsavel.toUpperCase().trim()
       const obsUpper = observacoes ? observacoes.toUpperCase() : undefined
 
       await Promise.all(
@@ -2303,12 +3139,47 @@ function ModalRetirada({
                 </label>
                 <Input
                   id="resp"
+                  list="mecanicos-sugestoes-retirada"
                   value={responsavel}
-                  onChange={(e) => setResponsavel(e.target.value)}
+                  onChange={(e) => handleResponsavelChange(e.target.value)}
                   placeholder="Mecânico ou motorista que está retirando..."
                   autoFocus
                   className="text-sm"
                 />
+                <datalist id="mecanicos-sugestoes-retirada">
+                  {mecanicosConhecidos.map((m) => (
+                    <option key={m.nome} value={m.nome} />
+                  ))}
+                </datalist>
+
+                {/* Mecânicos Frequentes com Foto para seleção rápida */}
+                {mecanicosConhecidos.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[9px] uppercase font-black tracking-wider text-secondary mr-0.5">Mecânicos:</span>
+                    {mecanicosConhecidos.slice(0, 5).map((m) => {
+                      const isSel = responsavel.toUpperCase().trim() === m.nome
+                      return (
+                        <button
+                          type="button"
+                          key={m.nome}
+                          onClick={() => selecionarMecanico(m.nome, m.foto)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all ${
+                            isSel
+                              ? 'bg-primary/20 border-primary text-primary shadow-sm'
+                              : 'bg-background/60 border-border/20 text-secondary hover:border-primary/40 hover:text-foreground'
+                          }`}
+                        >
+                          {m.foto ? (
+                            <img src={m.foto} alt={m.nome} className="h-4 w-4 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <span className="text-[10px]">👤</span>
+                          )}
+                          <span>{m.nome}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Foto da Pessoa / Responsável */}
@@ -2347,10 +3218,16 @@ function ModalRetirada({
                       className="h-16 w-16 rounded-xl object-cover border border-primary/30 shadow-sm shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <span className="text-[10px] font-black uppercase text-primary tracking-wider bg-primary/20 px-2 py-0.5 rounded">
-                        FOTO ANEXADA ✓
-                      </span>
-                      <p className="text-xs text-secondary truncate mt-1">Foto capturada com sucesso</p>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-black uppercase text-primary tracking-wider bg-primary/20 px-2 py-0.5 rounded">
+                          {fotoOrigem === 'salva' ? 'FOTO DO CADASTRO ✓' : 'FOTO ANEXADA ✓'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-secondary truncate mt-1">
+                        {fotoOrigem === 'salva'
+                          ? 'Foto recuperada automaticamente deste mecânico'
+                          : 'Foto capturada com sucesso'}
+                      </p>
                       <div className="flex gap-2 mt-1.5">
                         <button
                           type="button"
@@ -3194,6 +4071,804 @@ function ModalRetiradaCaixa({
               className="!h-10 px-6 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
             >
               {salvando ? 'Registrando...' : 'Confirmar Retirada'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Cadastro / Edição de Item de Uso e Consumo
+// ----------------------------------------------------------------------------------
+function ModalItemConsumo({
+  item,
+  onClose,
+  onSalvo,
+}: {
+  item: ItemConsumo | null
+  onClose: () => void
+  onSalvo: (salvo: ItemConsumo) => void
+}) {
+  const [nome, setNome] = useState(item?.nome || '')
+  const [codigo, setCodigo] = useState(item?.codigo || '')
+  const [categoria, setCategoria] = useState(item?.categoria || 'LUBRIFICANTES & QUÍMICOS')
+  const [unidade, setUnidade] = useState(item?.unidade || 'UN')
+  const [quantidadeAtual, setQuantidadeAtual] = useState(item?.quantidade_atual ?? 10)
+  const [quantidadeMinima, setQuantidadeMinima] = useState(item?.quantidade_minima ?? 3)
+  const [localizacao, setLocalizacao] = useState(item?.localizacao || '')
+  const [observacoes, setObservacoes] = useState(item?.observacoes || '')
+  const [fotoFile, setFotoFile] = useState<File | null>(null)
+  const [fotoUrl, setFotoUrl] = useState<string | null>(item?.foto_url || null)
+  const [salvando, setSalvando] = useState(false)
+  const [processandoFoto, setProcessandoFoto] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setProcessandoFoto(true)
+    setErro(null)
+    try {
+      const comprimida = await comprimirImagem(file)
+      setFotoFile(comprimida)
+      setFotoUrl(URL.createObjectURL(comprimida))
+    } catch {
+      setErro('Não foi possível processar a foto.')
+    } finally {
+      setProcessandoFoto(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!nome.trim()) {
+      setErro('Informe o nome do insumo.')
+      return
+    }
+    setSalvando(true)
+    setErro(null)
+    try {
+      let finalFotoUrl: string | null = fotoUrl
+      if (fotoFile) {
+        finalFotoUrl = await uploadFotoFerramenta(fotoFile)
+      }
+
+      const itemPronto: ItemConsumo = {
+        id: item?.id || `insumo_${Date.now()}`,
+        codigo: codigo.trim() ? codigo.trim().toUpperCase() : null,
+        nome: nome.trim().toUpperCase(),
+        categoria: categoria.toUpperCase(),
+        unidade: unidade.trim().toUpperCase() || 'UN',
+        quantidade_atual: Number(quantidadeAtual) || 0,
+        quantidade_minima: Number(quantidadeMinima) || 0,
+        localizacao: localizacao.trim() ? localizacao.trim().toUpperCase() : null,
+        observacoes: observacoes.trim() ? observacoes.trim().toUpperCase() : null,
+        foto_url: finalFotoUrl,
+        created_at: item?.created_at || new Date().toISOString(),
+      }
+
+      onSalvo(itemPronto)
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao salvar item.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const UNIDADES_SUGERIDAS = ['UN', 'CX', 'RL', 'LT', 'KG', 'PAR', 'PCT', 'M']
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="w-full max-w-lg rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between border-b border-border/10 px-6 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Boxes className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-foreground uppercase">
+                {item ? 'EDITAR INSUMO DE CONSUMO' : 'NOVO INSUMO DE USO E CONSUMO'}
+              </h2>
+              <p className="text-[11px] text-secondary">Itens de desgaste, químicos, fixação e EPIs</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-1.5 text-secondary hover:bg-background hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {erro && (
+            <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3.5 py-2.5 text-xs font-semibold text-red-400">
+              {erro}
+            </div>
+          )}
+
+          {/* Nome e Código */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label htmlFor="nomeInsumo" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+                Nome do Insumo / Material *
+              </label>
+              <Input
+                id="nomeInsumo"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Ex: Luva Nitrílica, Desengripante WD-40..."
+                required
+                autoFocus
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="codInsumo" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+                Código / Ref.
+              </label>
+              <Input
+                id="codInsumo"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                placeholder="Ex: INS-012"
+                className="font-mono text-sm uppercase"
+              />
+            </div>
+          </div>
+
+          {/* Categoria e Unidade */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="catInsumo" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+                Categoria
+              </label>
+              <select
+                id="catInsumo"
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                className="h-10 w-full rounded-xl border border-border/20 bg-background px-3 text-xs font-bold text-foreground uppercase focus:border-primary focus:outline-none"
+              >
+                {CATEGORIAS_CONSUMO.filter((c) => c !== 'TODAS').map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+                Unidade de Medida
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {UNIDADES_SUGERIDAS.map((u) => (
+                  <button
+                    type="button"
+                    key={u}
+                    onClick={() => setUnidade(u)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                      unidade === u
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'bg-background border border-border/20 text-secondary hover:text-foreground'
+                    }`}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Quantidades: Atual e Mínima */}
+          <div className="grid grid-cols-2 gap-3 bg-background/50 border border-border/20 rounded-xl p-3">
+            <div>
+              <label htmlFor="qtdAtual" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+                Quantidade Inicial / Atual
+              </label>
+              <Input
+                id="qtdAtual"
+                type="number"
+                min="0"
+                value={quantidadeAtual}
+                onChange={(e) => setQuantidadeAtual(Number(e.target.value))}
+                className="font-mono text-base font-bold"
+              />
+            </div>
+            <div>
+              <label htmlFor="qtdMin" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+                Estoque Mínimo (Alerta)
+              </label>
+              <Input
+                id="qtdMin"
+                type="number"
+                min="0"
+                value={quantidadeMinima}
+                onChange={(e) => setQuantidadeMinima(Number(e.target.value))}
+                className="font-mono text-base font-bold"
+              />
+            </div>
+          </div>
+
+          {/* Localização */}
+          <div>
+            <label htmlFor="locInsumo" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+              Localização / Prateleira
+            </label>
+            <Input
+              id="locInsumo"
+              value={localizacao}
+              onChange={(e) => setLocalizacao(e.target.value)}
+              placeholder="Ex: Armário A, Prateleira 2, Gaveta Elétrica..."
+              className="text-sm"
+            />
+          </div>
+
+          {/* Foto do Insumo */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-black text-secondary uppercase tracking-widest">
+              Foto do Insumo <span className="font-normal lowercase text-secondary/50">(opcional)</span>
+            </label>
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFotoChange} className="hidden" />
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFotoChange} className="hidden" />
+
+            {processandoFoto ? (
+              <div className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-primary/40 text-primary text-xs font-semibold">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Processando imagem...
+              </div>
+            ) : fotoUrl ? (
+              <div className="flex items-center gap-3 p-2.5 rounded-xl border border-primary/30 bg-primary/10">
+                <img src={fotoUrl} alt="Insumo" className="h-12 w-12 rounded-lg object-cover border border-primary/30" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-foreground truncate">Foto anexada</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFotoFile(null)
+                      setFotoUrl(null)
+                    }}
+                    className="text-[11px] text-red-400 hover:underline font-semibold"
+                  >
+                    Remover Foto
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-primary/10 text-foreground text-xs font-bold transition-all"
+                >
+                  <Camera className="h-4 w-4 text-primary" />
+                  Câmera
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-primary/10 text-foreground text-xs font-bold transition-all"
+                >
+                  <ImageIcon className="h-4 w-4 text-secondary" />
+                  Galeria
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Observações */}
+          <div>
+            <label htmlFor="obsInsumo" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+              Observações
+            </label>
+            <Input
+              id="obsInsumo"
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Ex: Marca recomendada, especificações técnicas..."
+              className="text-sm"
+            />
+          </div>
+
+          {/* Rodapé */}
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/15">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="!h-10 px-5 text-xs font-semibold">
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={salvando || !nome.trim()} className="!h-10 px-6 text-xs font-bold bg-primary hover:bg-primary/90 text-white">
+              {salvando ? 'Salvando...' : item ? 'Salvar Alterações' : 'Cadastrar Insumo'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Baixa / Consumo de Insumo
+// ----------------------------------------------------------------------------------
+function ModalBaixaConsumo({
+  itemPreSelecionado,
+  itensDisponiveis,
+  veiculos,
+  retiradas,
+  onClose,
+  onSucesso,
+}: {
+  itemPreSelecionado: ItemConsumo | null
+  itensDisponiveis: ItemConsumo[]
+  veiculos: { id: string; placa: string }[]
+  retiradas?: FerramentaRetirada[]
+  onClose: () => void
+  onSucesso: (baixa: RegistroBaixaConsumo) => void
+}) {
+  const [itemId, setItemId] = useState(itemPreSelecionado?.id || itensDisponiveis[0]?.id || '')
+  const [quantidade, setQuantidade] = useState(1)
+  const [responsavel, setResponsavel] = useState('')
+  const [placa, setPlaca] = useState('')
+  const [motivo, setMotivo] = useState('')
+  const [fotoFile, setFotoFile] = useState<File | null>(null)
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null)
+  const [fotoOrigem, setFotoOrigem] = useState<'salva' | 'nova' | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  const [processandoFoto, setProcessandoFoto] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const itemAtual = itensDisponiveis.find((it) => it.id === itemId) ?? itemPreSelecionado
+  const maxQtd = itemAtual?.quantidade_atual || 1
+
+  // Mecânicos com foto para sugestão
+  const mecanicosConhecidos = useMemo(() => {
+    const mapa = new Map<string, string | null>()
+    try {
+      const storageMap = JSON.parse(localStorage.getItem('gvel_fotos_mecanicos') || '{}')
+      Object.entries(storageMap).forEach(([nome, url]) => {
+        if (typeof url === 'string') mapa.set(nome.toUpperCase().trim(), url)
+      })
+    } catch {}
+    if (retiradas) {
+      retiradas.forEach((r) => {
+        const n = r.responsavel?.toUpperCase().trim()
+        if (n && !mapa.has(n)) mapa.set(n, r.foto_responsavel_url || r.foto_url || null)
+      })
+    }
+    return Array.from(mapa.entries()).map(([nome, foto]) => ({ nome, foto }))
+  }, [retiradas])
+
+  function handleResponsavelChange(nome: string) {
+    setResponsavel(nome)
+    setErro(null)
+    if (!fotoFile) {
+      const salva = getFotoSalvaMecanico(nome, retiradas)
+      if (salva) {
+        setFotoUrl(salva)
+        setFotoOrigem('salva')
+      } else if (fotoOrigem === 'salva') {
+        setFotoUrl(null)
+        setFotoOrigem(null)
+      }
+    }
+  }
+
+  function selecionarMecanico(nome: string, foto: string | null) {
+    setResponsavel(nome)
+    setErro(null)
+    if (foto && !fotoFile) {
+      setFotoUrl(foto)
+      setFotoOrigem('salva')
+    }
+  }
+
+  async function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setProcessandoFoto(true)
+    setErro(null)
+    try {
+      const comprimida = await comprimirImagem(file)
+      setFotoFile(comprimida)
+      setFotoUrl(URL.createObjectURL(comprimida))
+      setFotoOrigem('nova')
+    } catch {
+      setErro('Não foi possível processar a foto.')
+    } finally {
+      setProcessandoFoto(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!itemAtual) {
+      setErro('Selecione o insumo.')
+      return
+    }
+    if (!responsavel.trim()) {
+      setErro('Informe o responsável.')
+      return
+    }
+    if (quantidade <= 0 || quantidade > itemAtual.quantidade_atual) {
+      setErro(`Quantidade inválida (máx: ${itemAtual.quantidade_atual}).`)
+      return
+    }
+
+    setSalvando(true)
+    setErro(null)
+    try {
+      let finalFotoUrl: string | null = fotoUrl
+      if (fotoFile) {
+        finalFotoUrl = await uploadFotoFerramenta(fotoFile)
+      }
+      if (finalFotoUrl && responsavel.trim()) {
+        salvarFotoMecanico(responsavel.trim(), finalFotoUrl)
+      }
+
+      const novaBaixa: RegistroBaixaConsumo = {
+        id: `baixa_${Date.now()}`,
+        item_id: itemAtual.id,
+        item_nome: itemAtual.nome,
+        unidade: itemAtual.unidade,
+        quantidade,
+        responsavel: responsavel.trim().toUpperCase(),
+        foto_responsavel_url: finalFotoUrl,
+        placa: placa.trim() ? placa.trim().toUpperCase() : null,
+        motivo: motivo.trim() ? motivo.trim().toUpperCase() : null,
+        data_hora: new Date().toISOString(),
+      }
+
+      onSucesso(novaBaixa)
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao registrar baixa de consumo.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="w-full max-w-md rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between border-b border-border/10 px-6 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+              <TrendingDown className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-foreground uppercase">REGISTRAR SAÍDA / CONSUMO</h2>
+              <p className="text-[11px] text-secondary">Baixa definitiva de insumo do estoque</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-1.5 text-secondary hover:bg-background hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {erro && (
+            <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3.5 py-2.5 text-xs font-semibold text-red-400">
+              {erro}
+            </div>
+          )}
+
+          {/* Seleção do Insumo */}
+          <div>
+            <label htmlFor="selItemConsumo" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+              Insumo / Material *
+            </label>
+            <select
+              id="selItemConsumo"
+              value={itemId}
+              onChange={(e) => {
+                setItemId(e.target.value)
+                setQuantidade(1)
+              }}
+              className="h-10 w-full rounded-xl border border-border/20 bg-background px-3 text-xs font-bold text-foreground uppercase focus:border-primary focus:outline-none"
+            >
+              {itensDisponiveis.map((it) => (
+                <option key={it.id} value={it.id}>
+                  {it.nome} ({it.quantidade_atual} {it.unidade} disp.)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Stepper de Quantidade */}
+          {itemAtual && (
+            <div className="rounded-xl bg-background/50 border border-border/20 p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-secondary uppercase tracking-widest">
+                  Quantidade a Consumir
+                </span>
+                <span className="text-[10px] text-secondary">
+                  Disp: {itemAtual.quantidade_atual} {itemAtual.unidade}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setQuantidade((q) => Math.max(1, q - 1))}
+                  disabled={quantidade <= 1}
+                  className="h-10 w-10 rounded-xl bg-surface border border-border/30 font-bold text-lg text-foreground hover:bg-surface/80 disabled:opacity-30 transition-all"
+                >
+                  −
+                </button>
+                <div className="flex-1 text-center font-mono text-2xl font-black text-foreground">
+                  {quantidade} <span className="text-xs font-semibold text-secondary">{itemAtual.unidade}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setQuantidade((q) => Math.min(maxQtd, q + 1))}
+                  disabled={quantidade >= maxQtd}
+                  className="h-10 w-10 rounded-xl bg-surface border border-border/30 font-bold text-lg text-foreground hover:bg-surface/80 disabled:opacity-30 transition-all"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Responsável */}
+          <div>
+            <label htmlFor="respConsumo" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+              Quem está retirando? *
+            </label>
+            <Input
+              id="respConsumo"
+              list="mecanicos-sugestoes-consumo"
+              value={responsavel}
+              onChange={(e) => handleResponsavelChange(e.target.value)}
+              placeholder="Mecânico ou motorista..."
+              required
+              className="text-sm"
+            />
+            <datalist id="mecanicos-sugestoes-consumo">
+              {mecanicosConhecidos.map((m) => (
+                <option key={m.nome} value={m.nome} />
+              ))}
+            </datalist>
+
+            {mecanicosConhecidos.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[9px] uppercase font-bold text-secondary mr-0.5">Rápidos:</span>
+                {mecanicosConhecidos.slice(0, 4).map((m) => (
+                  <button
+                    type="button"
+                    key={m.nome}
+                    onClick={() => selecionarMecanico(m.nome, m.foto)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border border-border/30 bg-background/60 hover:border-primary hover:text-primary transition-all"
+                  >
+                    {m.foto ? (
+                      <img src={m.foto} alt={m.nome} className="h-3.5 w-3.5 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <span>👤</span>
+                    )}
+                    <span>{m.nome}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Foto da Pessoa */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-black text-secondary uppercase tracking-widest">
+              Foto do Responsável
+            </label>
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="user" onChange={handleFotoChange} className="hidden" />
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFotoChange} className="hidden" />
+
+            {processandoFoto ? (
+              <div className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-primary/40 text-primary text-xs font-semibold">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Processando foto...
+              </div>
+            ) : fotoUrl ? (
+              <div className="flex items-center gap-3 p-2.5 rounded-xl border border-primary/30 bg-primary/10">
+                <img src={fotoUrl} alt="Responsável" className="h-12 w-12 rounded-xl object-cover border border-primary/30 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-[9px] font-black uppercase text-primary tracking-wider bg-primary/20 px-1.5 py-0.5 rounded">
+                    {fotoOrigem === 'salva' ? 'FOTO DO CADASTRO ✓' : 'FOTO ANEXADA ✓'}
+                  </span>
+                  <div className="flex gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="text-[11px] text-primary hover:underline font-semibold"
+                    >
+                      Tirar outra
+                    </button>
+                    <span className="text-secondary">·</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFotoFile(null)
+                        setFotoUrl(null)
+                        setFotoOrigem(null)
+                      }}
+                      className="text-[11px] text-red-400 hover:underline font-semibold"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-primary/10 text-foreground text-xs font-bold transition-all"
+                >
+                  <Camera className="h-3.5 w-3.5 text-primary" />
+                  Tirar Foto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-dashed border-border/30 bg-background/60 hover:bg-primary/10 text-foreground text-xs font-bold transition-all"
+                >
+                  <ImageIcon className="h-3.5 w-3.5 text-secondary" />
+                  Galeria
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Caminhão / Placa */}
+          <div>
+            <label htmlFor="placaConsumo" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+              Caminhão / Placa <span className="font-normal lowercase text-secondary/50">(opcional)</span>
+            </label>
+            <Input
+              id="placaConsumo"
+              list="placas-sugestoes-consumo"
+              value={placa}
+              onChange={(e) => setPlaca(e.target.value.toUpperCase())}
+              placeholder="Ex: ABC1D23"
+              className="font-mono text-sm uppercase"
+            />
+            <datalist id="placas-sugestoes-consumo">
+              {veiculos.map((v) => (
+                <option key={v.id} value={v.placa} />
+              ))}
+            </datalist>
+          </div>
+
+          {/* Motivo / Aplicação */}
+          <div>
+            <label htmlFor="motivoConsumo" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+              Motivo / Aplicação <span className="font-normal lowercase text-secondary/50">(opcional)</span>
+            </label>
+            <Input
+              id="motivoConsumo"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Ex: Troca de mangueira, vedação de carcaça..."
+              className="text-sm"
+            />
+          </div>
+
+          {/* Rodapé */}
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/15">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="!h-10 px-5 text-xs font-semibold">
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={salvando || !responsavel.trim()}
+              className="!h-10 px-6 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20"
+            >
+              {salvando ? 'Registrando...' : 'Confirmar Saída / Consumo'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Entrada / Reposição de Estoque de Insumo
+// ----------------------------------------------------------------------------------
+function ModalEntradaConsumo({
+  item,
+  onClose,
+  onSucesso,
+}: {
+  item: ItemConsumo
+  onClose: () => void
+  onSucesso: (qtd: number) => void
+}) {
+  const [quantidadeAdicionar, setQuantidadeAdicionar] = useState(10)
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (quantidadeAdicionar <= 0) return
+    onSucesso(quantidadeAdicionar)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="w-full max-w-sm rounded-2xl border border-border/20 bg-surface shadow-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border/10 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
+              <PackagePlus className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-foreground uppercase">REPOR ESTOQUE</h2>
+              <p className="text-[10px] text-secondary">Adicionar novas unidades</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="rounded-xl p-1 text-secondary hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="rounded-xl bg-background/50 border border-border/20 p-3 space-y-1">
+            <span className="text-[10px] font-bold text-secondary uppercase block">ITEM</span>
+            <p className="font-bold text-xs text-foreground uppercase">{item.nome}</p>
+            <p className="text-[11px] text-secondary font-mono">
+              Estoque Atual: <span className="font-bold text-foreground">{item.quantidade_atual} {item.unidade}</span>
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="qtdAdd" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1.5">
+              Quantidade a Adicionar ({item.unidade}) *
+            </label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="qtdAdd"
+                type="number"
+                min="1"
+                value={quantidadeAdicionar}
+                onChange={(e) => setQuantidadeAdicionar(Math.max(1, Number(e.target.value)))}
+                required
+                autoFocus
+                className="font-mono text-xl font-black text-center"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="text-[10px] uppercase font-bold text-secondary mr-1">Rápido:</span>
+              {[5, 10, 20, 50].map((v) => (
+                <button
+                  type="button"
+                  key={v}
+                  onClick={() => setQuantidadeAdicionar(v)}
+                  className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-background border border-border/30 hover:border-emerald-500 hover:text-emerald-500 transition-all"
+                >
+                  +{v}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-2.5 text-center">
+            <p className="text-xs text-emerald-500 font-bold">
+              Novo Estoque: <span className="font-mono text-sm">{item.quantidade_atual + quantidadeAdicionar} {item.unidade}</span>
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border/10">
+            <Button type="button" variant="secondary" onClick={onClose} className="!h-9 px-4 text-xs font-semibold">
+              Cancelar
+            </Button>
+            <Button type="submit" className="!h-9 px-5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white">
+              Confirmar Entrada
             </Button>
           </div>
         </form>
