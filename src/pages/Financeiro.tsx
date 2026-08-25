@@ -60,60 +60,103 @@ interface EmpresaData {
   despesas: number
 }
 
-const DADOS_EMPRESAS_JULHO: EmpresaData[] = [
-  {
-    id: 'gvel',
-    nome: 'GVel Diesel',
-    faturamento: 2155706.40,
-    receitas: 4103931.28,
-    despesas: 3604735.48,
-  },
-  {
-    id: 'distribuidora',
-    nome: 'GV Distribuidora',
-    faturamento: 368787.59,
-    receitas: 217332.55,
-    despesas: 196638.87,
-  },
-  {
-    id: 'transportes',
-    nome: 'GV Transportes',
-    faturamento: 974275.65,
-    receitas: 1102324.90,
-    despesas: 1003604.84,
-  },
-  {
-    id: 'investimento',
-    nome: 'Investimento',
-    faturamento: 0.00,
-    receitas: 0.00,
-    despesas: 819003.34,
-  },
-]
+interface MesFinanceiroData {
+  empresas: EmpresaData[]
+  topClientes: { rank: number; nome: string; faturamento: number }[]
+  topPlanosConta: { rank: number; nome: string; despesa: number }[]
+}
 
-const TOP_CLIENTES_BASE = [
-  { rank: 1, nome: 'LOCALIZA VEICULOS ESPECIAIS S.A', faturamento: 1749885.03 },
-  { rank: 2, nome: 'J D COCENZO E CIA LTDA', faturamento: 81139.26 },
-  { rank: 3, nome: 'PEPSICO DO BRASIL LTDA', faturamento: 49070.07 },
-  { rank: 4, nome: 'DBK DISTRIBUIDORA DE BEBIDAS LTDA', faturamento: 41574.64 },
-  { rank: 5, nome: 'VAMOS LOCACAO DE CAMINHOES, M', faturamento: 30397.02 },
-]
-
-const TOP_PLANOS_CONTA_BASE = [
-  { rank: 1, nome: 'Amortização de Contrato', despesa: 1466927.79 },
-  { rank: 2, nome: 'Compra de Peças', despesa: 651368.13 },
-  { rank: 3, nome: 'Serviços de Terceiros', despesa: 444814.41 },
-  { rank: 4, nome: 'Salário', despesa: 90370.41 },
-  { rank: 5, nome: 'Aluguel (Oficina / Pátio)', despesa: 69454.67 },
-  { rank: 6, nome: 'Aluguel (Administrativo)', despesa: 69454.67 },
-  { rank: 7, nome: 'Taxa de Ant. = Ticket/Localiza/Vamos', despesa: 59634.80 },
-  { rank: 8, nome: 'INSS (Previdência Social/GPS)', despesa: 56882.84 },
-  { rank: 9, nome: 'Funcionários Terceirizados', despesa: 54143.81 },
-  { rank: 10, nome: 'Uso e Consumo', despesa: 50194.30 },
-]
+const DADOS_MESES: Record<string, MesFinanceiroData> = {
+  julho: {
+    empresas: [
+      { id: 'gvel', nome: 'GVel Diesel', faturamento: 2099426.16, receitas: 4069695.34, despesas: 3490604.84 },
+      { id: 'leves', nome: 'GVel Leves', faturamento: 56280.24, receitas: 34235.94, despesas: 114130.64 },
+      { id: 'distribuidora', nome: 'GV Distribuidora', faturamento: 368787.59, receitas: 217332.55, despesas: 196638.87 },
+      { id: 'transportes', nome: 'GV Transportes', faturamento: 974275.65, receitas: 1102324.90, despesas: 1003604.84 },
+      { id: 'investimento', nome: 'Investimento', faturamento: 0.00, receitas: 0.00, despesas: 819003.34 },
+    ],
+    topClientes: [
+      { rank: 1, nome: 'LOCALIZA VEICULOS ESPECIAIS S.A', faturamento: 1749885.03 },
+      { rank: 2, nome: 'J D COCENZO E CIA LTDA', faturamento: 81139.26 },
+      { rank: 3, nome: 'PEPSICO DO BRASIL LTDA', faturamento: 49070.07 },
+      { rank: 4, nome: 'DBK DISTRIBUIDORA DE BEBIDAS LTDA', faturamento: 41574.64 },
+      { rank: 5, nome: 'VAMOS LOCACAO DE CAMINHOES, MAQUINAS E EQUIPAMENTOS S.A.', faturamento: 30397.02 },
+    ],
+    topPlanosConta: [
+      { rank: 1, nome: 'Amortização de Contrato', despesa: 1466927.79 },
+      { rank: 2, nome: 'Compra de Peças', despesa: 651368.13 },
+      { rank: 3, nome: 'Serviços de Terceiros', despesa: 444814.41 },
+      { rank: 4, nome: 'Salário', despesa: 90370.41 },
+      { rank: 5, nome: 'Aluguel (Oficina / Pátio)', despesa: 69454.67 },
+      { rank: 6, nome: 'Aluguel (Administrativo)', despesa: 69454.67 },
+      { rank: 7, nome: 'Taxa de Ant. = Ticket/Localiza/Vamos', despesa: 59634.80 },
+      { rank: 8, nome: 'INSS (Previdência Social/GPS)', despesa: 56882.84 },
+      { rank: 9, nome: 'Funcionários Terceirizados', despesa: 54143.81 },
+      { rank: 10, nome: 'Uso e Consumo', despesa: 50194.30 },
+    ],
+  },
+  junho: {
+    empresas: [
+      { id: 'gvel', nome: 'GVel Diesel', faturamento: 2750177.75, receitas: 3397587.86, despesas: 2232209.44 },
+      { id: 'leves', nome: 'GVel Leves', faturamento: 15985.79, receitas: 6026.81, despesas: 188373.53 },
+      { id: 'distribuidora', nome: 'GV Distribuidora', faturamento: 172180.50, receitas: 234617.30, despesas: 244728.16 },
+      { id: 'transportes', nome: 'GV Transportes', faturamento: 997385.12, receitas: 863363.64, despesas: 805135.82 },
+      { id: 'investimento', nome: 'Investimento', faturamento: 0.00, receitas: 0.00, despesas: 1086373.08 },
+    ],
+    topClientes: [
+      { rank: 1, nome: 'LOCALIZA VEICULOS ESPECIAIS S.A', faturamento: 2384308.18 },
+      { rank: 2, nome: 'J D COCENZO E CIA LTDA', faturamento: 51938.80 },
+      { rank: 3, nome: 'FJ LOCACAO COMERCIO VEICULOS EQUIPAMENTO', faturamento: 31414.81 },
+      { rank: 4, nome: 'LOCAL TRUCK LOCADORA DE VEICULOS LTDA', faturamento: 30156.18 },
+      { rank: 5, nome: 'PEPSICO DO BRASIL LTDA', faturamento: 24805.56 },
+    ],
+    topPlanosConta: [
+      { rank: 1, nome: 'Compra de Peças', despesa: 662315.12 },
+      { rank: 2, nome: '(-) Investimento da Empresa em Veículos', despesa: 588621.45 },
+      { rank: 3, nome: 'Serviços de Terceiros', despesa: 361540.65 },
+      { rank: 4, nome: 'Empréstimo Bancário', despesa: 262648.28 },
+      { rank: 5, nome: '(-) Investimento da Empresa em Implementos', despesa: 254649.22 },
+      { rank: 6, nome: 'Salário', despesa: 221172.56 },
+      { rank: 7, nome: '(-) Investimento de Sócios em Imóveis', despesa: 128477.27 },
+      { rank: 8, nome: 'COMPRA DE MERCADORIA', despesa: 115375.96 },
+      { rank: 9, nome: '(-) Investimento de Sócios em Veículos', despesa: 114625.14 },
+      { rank: 10, nome: 'Amortização de Contrato', despesa: 99998.00 },
+    ],
+  },
+  maio: {
+    empresas: [
+      { id: 'gvel', nome: 'GVel Diesel', faturamento: 2463810.02, receitas: 2647888.59, despesas: 1959991.52 },
+      { id: 'leves', nome: 'GVel Leves', faturamento: 25197.12, receitas: 6589.45, despesas: 180832.57 },
+      { id: 'distribuidora', nome: 'GV Distribuidora', faturamento: 172586.58, receitas: 44324.72, despesas: 243816.20 },
+      { id: 'transportes', nome: 'GV Transportes', faturamento: 395043.23, receitas: 0.00, despesas: 401745.01 },
+      { id: 'investimento', nome: 'Investimento', faturamento: 0.00, receitas: 0.00, despesas: 627705.22 },
+    ],
+    topClientes: [
+      { rank: 1, nome: 'LOCALIZA VEICULOS ESPECIAIS S.A', faturamento: 1995315.50 },
+      { rank: 2, nome: 'J D COCENZO E CIA LTDA', faturamento: 252981.19 },
+      { rank: 3, nome: 'LM TRANSPORTES INTERESTADUAIS SERVICOS E CO', faturamento: 28410.69 },
+      { rank: 4, nome: 'CPFL SERVICOS EQUIPAMENTOS INDUSTRIA', faturamento: 27389.25 },
+      { rank: 5, nome: 'PREFEITURA MUNICIPAL DE SAO JOSE DO RIO PRETO', faturamento: 24045.00 },
+    ],
+    topPlanosConta: [
+      { rank: 1, nome: 'Compra de Peças', despesa: 419669.98 },
+      { rank: 2, nome: '(-) Investimento da Empresa em Veículos', despesa: 398021.80 },
+      { rank: 3, nome: 'Serviços de Terceiros', despesa: 260494.91 },
+      { rank: 4, nome: 'Salário', despesa: 222958.53 },
+      { rank: 5, nome: 'Empréstimo Bancário', despesa: 196445.83 },
+      { rank: 6, nome: 'Sócio Retirada', despesa: 179766.89 },
+      { rank: 7, nome: '(-) Investimento de Sócios em Imóveis', despesa: 133931.92 },
+      { rank: 8, nome: 'Amortização de Contrato', despesa: 115876.29 },
+      { rank: 9, nome: 'COMPRA DE MERCADORIA', despesa: 99287.51 },
+      { rank: 10, nome: 'Combustível/Abastecimento', despesa: 99221.14 },
+    ],
+  },
+}
 
 const MESES_OPCOES = [
   { id: 'julho', label: 'Julho' },
+  { id: 'junho', label: 'Junho' },
+  { id: 'maio', label: 'Maio' },
 ]
 
 export function Financeiro() {
@@ -140,13 +183,18 @@ export function Financeiro() {
     }, 1200)
   }
 
+  // Mês Ativo da base de dados
+  const dadosMesAtivo = useMemo(() => {
+    return DADOS_MESES[mesFiltro] || DADOS_MESES.julho
+  }, [mesFiltro])
+
   // Empresas filtradas
   const empresasExibidas = useMemo(() => {
     if (empresaFiltro === 'TODAS') {
-      return DADOS_EMPRESAS_JULHO
+      return dadosMesAtivo.empresas
     }
-    return DADOS_EMPRESAS_JULHO.filter((e) => e.nome === empresaFiltro || e.id === empresaFiltro)
-  }, [empresaFiltro])
+    return dadosMesAtivo.empresas.filter((e) => e.nome === empresaFiltro || e.id === empresaFiltro)
+  }, [empresaFiltro, dadosMesAtivo])
 
   // Totais consolidados
   const totais = useMemo(() => {
@@ -167,21 +215,26 @@ export function Financeiro() {
 
   // Dados para o Gráfico Recharts
   const chartData = useMemo(() => {
-    return DADOS_EMPRESAS_JULHO.map((e) => ({
+    return dadosMesAtivo.empresas.map((e) => ({
       name: e.nome,
       Faturamento: e.faturamento,
       Receitas: e.receitas,
       Despesas: e.despesas,
     }))
-  }, [])
+  }, [dadosMesAtivo])
 
   // Top Planos de Conta Filtrados
   const topPlanosFiltrados = useMemo(() => {
-    if (planoContaFiltro === 'TODOS') return TOP_PLANOS_CONTA_BASE
-    return TOP_PLANOS_CONTA_BASE.filter((p) =>
+    if (planoContaFiltro === 'TODOS') return dadosMesAtivo.topPlanosConta
+    return dadosMesAtivo.topPlanosConta.filter((p) =>
       p.nome.toLowerCase().includes(planoContaFiltro.toLowerCase()),
     )
-  }, [planoContaFiltro])
+  }, [planoContaFiltro, dadosMesAtivo])
+
+  // Top Clientes
+  const topClientesFiltrados = useMemo(() => {
+    return dadosMesAtivo.topClientes
+  }, [dadosMesAtivo])
 
   if (!perfilLoading && !autorizado) {
     return (
@@ -273,6 +326,7 @@ export function Financeiro() {
             >
               <option value="TODAS">TODAS AS EMPRESAS (GRUPO VEL)</option>
               <option value="GVel Diesel">GVel Diesel</option>
+              <option value="GVel Leves">GVel Leves</option>
               <option value="GV Distribuidora">GV Distribuidora</option>
               <option value="GV Transportes">GV Transportes</option>
               <option value="Investimento">Investimento</option>
@@ -310,7 +364,7 @@ export function Financeiro() {
               className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors"
             >
               <option value="TODOS">TODOS OS PLANOS DE CONTA</option>
-              {TOP_PLANOS_CONTA_BASE.map((p) => (
+              {dadosMesAtivo.topPlanosConta.map((p) => (
                 <option key={p.nome} value={p.nome}>
                   {p.nome.toUpperCase()}
                 </option>
@@ -555,8 +609,8 @@ export function Financeiro() {
             </div>
 
             <div className="p-4 space-y-3">
-              {TOP_CLIENTES_BASE.map((cli) => {
-                const maxFat = TOP_CLIENTES_BASE[0].faturamento
+              {topClientesFiltrados.map((cli) => {
+                const maxFat = topClientesFiltrados[0]?.faturamento || 1
                 const pct = (cli.faturamento / maxFat) * 100
 
                 return (
@@ -609,7 +663,7 @@ export function Financeiro() {
 
             <div className="p-4 space-y-2 max-h-[420px] overflow-y-auto">
               {topPlanosFiltrados.map((plano) => {
-                const maxDesp = TOP_PLANOS_CONTA_BASE[0].despesa
+                const maxDesp = topPlanosFiltrados[0]?.despesa || 1
                 const pct = (plano.despesa / maxDesp) * 100
 
                 return (
@@ -795,8 +849,8 @@ export function Financeiro() {
         {/* ────────────────────────────────────────────────────────────────────────
             CARDS INDIVIDUAIS COM RESUMO DETALHADO POR EMPRESA
            ──────────────────────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-border/20">
-          {DADOS_EMPRESAS_JULHO.map((emp) => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-border/20">
+          {dadosMesAtivo.empresas.map((emp) => {
             const saldoCaixa = emp.receitas - emp.despesas
             const resultadoFat = emp.faturamento - emp.despesas
             const totalMax = Math.max(emp.faturamento, emp.receitas, emp.despesas, 1)
@@ -1007,7 +1061,7 @@ export function Financeiro() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/10">
-                    {DADOS_EMPRESAS_JULHO.map((e) => (
+                    {dadosMesAtivo.empresas.map((e) => (
                       <tr key={e.id} className="hover:bg-overlay/5">
                         <td className="py-3 px-4 font-sans font-bold text-foreground">{e.nome}</td>
                         <td className="py-3 px-4 text-right text-blue-400">{fmtBRL(e.faturamento)}</td>
@@ -1037,7 +1091,7 @@ export function Financeiro() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/10">
-                      {TOP_PLANOS_CONTA_BASE.map((p) => (
+                      {dadosMesAtivo.topPlanosConta.map((p) => (
                         <tr key={p.nome + p.rank} className="hover:bg-overlay/5">
                           <td className="py-2 px-4 text-secondary font-bold">{p.rank}º</td>
                           <td className="py-2 px-4 font-sans font-bold text-foreground">{p.nome}</td>
