@@ -339,17 +339,35 @@ export function Financeiro() {
               <Calendar className="h-4 w-4 text-primary" />
               MÊS DE APURAÇÃO
             </label>
-            <select
-              value={mesFiltro}
-              onChange={(e) => setMesFiltro(e.target.value)}
-              className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors"
-            >
-              {MESES_OPCOES.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label.toUpperCase()}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-1.5">
+              <select
+                value={mesFiltro}
+                onChange={(e) => setMesFiltro(e.target.value)}
+                className="h-10 w-full rounded-xl border border-primary/50 bg-background px-3 text-xs font-black text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase transition-colors shadow-sm"
+              >
+                <option value="julho">JULHO 2026</option>
+                <option value="junho">JUNHO 2026</option>
+                <option value="maio">MAIO 2026</option>
+              </select>
+
+              {/* Botões Rápidos de Mês */}
+              <div className="grid grid-cols-3 gap-1">
+                {MESES_OPCOES.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setMesFiltro(m.id)}
+                    className={`py-1 px-2 rounded-lg text-[10px] font-black transition-all ${
+                      mesFiltro === m.id
+                        ? 'bg-primary text-white shadow-sm shadow-primary/30 ring-1 ring-primary'
+                        : 'bg-background/80 text-secondary hover:text-foreground hover:bg-background border border-border/20'
+                    }`}
+                  >
+                    {m.label.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* 3. Filtro Plano de Conta */}
