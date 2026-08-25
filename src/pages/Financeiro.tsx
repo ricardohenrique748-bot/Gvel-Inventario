@@ -39,7 +39,8 @@ import { isFinanceiroAuthorized } from '@/components/layout/nav'
 
 // ─── Helpers de Formatação ──────────────────────────────────────────────────
 function fmtBRL(val: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
+  const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
+  return formatted.replace(/\s+/g, '\u00A0')
 }
 
 function fmtCompact(val: number) {
@@ -471,105 +472,119 @@ export function Financeiro() {
       {/* ──────────────────────────────────────────────────────────────────────────
           CARDS DE KPIS GERENCIAIS (Valores Consolidados)
          ────────────────────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         {/* Card 1: Faturamento */}
-        <Card className="p-4 border-blue-500/20 bg-blue-500/5 shadow-sm">
-          <div className="flex items-center justify-between text-secondary mb-1">
-            <span className="text-[10px] font-bold tracking-wider text-blue-400">FATURAMENTO</span>
+        <Card className="p-3 sm:p-4 border-blue-500/20 bg-blue-500/5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span className="text-[10px] font-black tracking-wider text-blue-400 uppercase">FATURAMENTO</span>
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
               <BarChart2 className="h-3.5 w-3.5" />
             </div>
           </div>
-          <p className="text-xl font-black text-blue-400 tabular-nums">{fmtBRL(totais.faturamento)}</p>
-          <span className="text-[10px] text-secondary font-medium">Regime Competência</span>
+          <p className="text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black text-blue-400 whitespace-nowrap tracking-tight leading-tight my-1">
+            {fmtBRL(totais.faturamento)}
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Regime Competência</span>
         </Card>
 
         {/* Card 2: Receitas */}
-        <Card className="p-4 border-emerald-500/20 bg-emerald-500/5 shadow-sm">
-          <div className="flex items-center justify-between text-secondary mb-1">
-            <span className="text-[10px] font-bold tracking-wider text-emerald-400">RECEITAS</span>
+        <Card className="p-3 sm:p-4 border-emerald-500/20 bg-emerald-500/5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span className="text-[10px] font-black tracking-wider text-emerald-400 uppercase">RECEITAS</span>
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
               <TrendingUp className="h-3.5 w-3.5" />
             </div>
           </div>
-          <p className="text-xl font-black text-emerald-400 tabular-nums">{fmtBRL(totais.receitas)}</p>
-          <span className="text-[10px] text-secondary font-medium">Regime de Caixa</span>
+          <p className="text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black text-emerald-400 whitespace-nowrap tracking-tight leading-tight my-1">
+            {fmtBRL(totais.receitas)}
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Regime de Caixa</span>
         </Card>
 
         {/* Card 3: Despesas */}
-        <Card className="p-4 border-red-500/20 bg-red-500/5 shadow-sm">
-          <div className="flex items-center justify-between text-secondary mb-1">
-            <span className="text-[10px] font-bold tracking-wider text-red-400">DESPESAS</span>
+        <Card className="p-3 sm:p-4 border-red-500/20 bg-red-500/5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span className="text-[10px] font-black tracking-wider text-red-400 uppercase">DESPESAS</span>
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
               <TrendingDown className="h-3.5 w-3.5" />
             </div>
           </div>
-          <p className="text-xl font-black text-red-400 tabular-nums">{fmtBRL(totais.despesas)}</p>
-          <span className="text-[10px] text-secondary font-medium">Regime de Caixa</span>
+          <p className="text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black text-red-400 whitespace-nowrap tracking-tight leading-tight my-1">
+            {fmtBRL(totais.despesas)}
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Regime de Caixa</span>
         </Card>
 
         {/* Card 4: Saldo Caixa */}
         <Card
-          className={`p-4 shadow-sm border ${totais.saldoCaixa >= 0
+          className={`p-3 sm:p-4 shadow-sm border flex flex-col justify-between ${
+            totais.saldoCaixa >= 0
               ? 'border-emerald-500/20 bg-emerald-500/5'
               : 'border-amber-500/20 bg-amber-500/5'
-            }`}
+          }`}
         >
-          <div className="flex items-center justify-between text-secondary mb-1">
+          <div className="flex items-center justify-between text-secondary mb-1.5">
             <span
-              className={`text-[10px] font-bold tracking-wider ${totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
-                }`}
+              className={`text-[10px] font-black tracking-wider uppercase ${
+                totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
+              }`}
             >
               SALDO DE CAIXA
             </span>
             <div
-              className={`flex h-7 w-7 items-center justify-center rounded-lg ${totais.saldoCaixa >= 0
+              className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                totais.saldoCaixa >= 0
                   ? 'bg-emerald-500/10 text-emerald-400'
                   : 'bg-amber-500/10 text-amber-400'
-                }`}
+              }`}
             >
               <Scale className="h-3.5 w-3.5" />
             </div>
           </div>
           <p
-            className={`text-xl font-black tabular-nums ${totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
-              }`}
+            className={`text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black whitespace-nowrap tracking-tight leading-tight my-1 ${
+              totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
+            }`}
           >
             {fmtBRL(totais.saldoCaixa)}
           </p>
-          <span className="text-[10px] text-secondary font-medium">Receitas - Despesas</span>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Receitas - Despesas</span>
         </Card>
 
         {/* Card 5: Resultado (Faturamento - Despesas) */}
         <Card
-          className={`p-4 shadow-sm border ${totais.resultadoFaturamento >= 0
+          className={`p-3 sm:p-4 shadow-sm border flex flex-col justify-between ${
+            totais.resultadoFaturamento >= 0
               ? 'border-emerald-500/20 bg-emerald-500/5'
               : 'border-red-500/30 bg-red-500/10'
-            }`}
+          }`}
         >
-          <div className="flex items-center justify-between text-secondary mb-1">
+          <div className="flex items-center justify-between text-secondary mb-1.5">
             <span
-              className={`text-[10px] font-bold tracking-wider ${totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
-                }`}
+              className={`text-[10px] font-black tracking-wider uppercase ${
+                totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
+              }`}
             >
               RESULTADO LÍQUIDO
             </span>
             <div
-              className={`flex h-7 w-7 items-center justify-center rounded-lg ${totais.resultadoFaturamento >= 0
+              className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                totais.resultadoFaturamento >= 0
                   ? 'bg-emerald-500/10 text-emerald-400'
                   : 'bg-red-500/20 text-red-400'
-                }`}
+              }`}
             >
               <DollarSign className="h-3.5 w-3.5" />
             </div>
           </div>
           <p
-            className={`text-xl font-black tabular-nums ${totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
-              }`}
+            className={`text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black whitespace-nowrap tracking-tight leading-tight my-1 ${
+              totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
+            }`}
           >
             {fmtBRL(totais.resultadoFaturamento)}
           </p>
-          <span className="text-[10px] text-secondary font-medium">Faturamento - Despesas</span>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Faturamento - Despesas</span>
         </Card>
       </div>
 
