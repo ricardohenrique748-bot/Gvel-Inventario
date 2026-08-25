@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useDeferredValue } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Hammer,
   Plus,
@@ -363,7 +364,37 @@ function ScrollContainer({
 }
 
 export function InventarioFerramentas() {
-  const [abaAtiva, setAbaAtiva] = useState<'estoque' | 'em_uso' | 'historico' | 'caixas' | 'consumo'>('estoque')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const abaParam = searchParams.get('aba')
+
+  const [abaAtiva, setAbaAtivaState] = useState<'estoque' | 'em_uso' | 'historico' | 'caixas' | 'consumo'>(() => {
+    if (abaParam && ['estoque', 'em_uso', 'historico', 'caixas', 'consumo'].includes(abaParam)) {
+      return abaParam as 'estoque' | 'em_uso' | 'historico' | 'caixas' | 'consumo'
+    }
+    return 'estoque'
+  })
+
+  useEffect(() => {
+    if (abaParam && ['estoque', 'em_uso', 'historico', 'caixas', 'consumo'].includes(abaParam)) {
+      setAbaAtivaState(abaParam as 'estoque' | 'em_uso' | 'historico' | 'caixas' | 'consumo')
+    } else if (!abaParam) {
+      setAbaAtivaState('estoque')
+    }
+  }, [abaParam])
+
+  const setAbaAtiva = (novaAba: 'estoque' | 'em_uso' | 'historico' | 'caixas' | 'consumo') => {
+    setAbaAtivaState(novaAba)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (novaAba === 'estoque') {
+        next.delete('aba')
+      } else {
+        next.set('aba', novaAba)
+      }
+      return next
+    })
+  }
+
   const [busca, setBusca] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState('TODAS')
   const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'grid'>('lista')
