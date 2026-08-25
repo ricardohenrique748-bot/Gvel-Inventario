@@ -1,7 +1,70 @@
 import { LocalNotifications } from '@capacitor/local-notifications'
+import {
+  PushNotifications,
+  type Token,
+  type PushNotificationSchema,
+  type ActionPerformed,
+} from '@capacitor/push-notifications'
 import { Capacitor } from '@capacitor/core'
+import { supabase } from '@/lib/supabase'
 
 export const GVEL_NOTIFICATION_CHANNEL_ID = 'gvel_alertas_channel_v2'
+
+/**
+ * Inicializa e registra o push remoto FCM (para receber notificações com o app fechado)
+ */
+export async function inicializarPushRemoto(usuarioId?: string | null) {
+  if (!Capacitor.isNativePlatform()) return
+
+  try {
+    await criarCanalNotificacoesAndroid()
+
+    let permStatus = await PushNotifications.checkPermissions()
+    if (permStatus.receive !== 'granted') {
+      permStatus = await PushNotifications.requestPermissions()
+    }
+
+    if (permStatus.receive === 'granted') {
+      await PushNotifications.register()
+
+      // Listeners
+      PushNotifications.addListener('registration', async (token: Token) => {
+        console.log('[FCM] Token de push registrado:', token.value)
+        localStorage.setItem('gvel_fcm_token', token.value)
+
+        // Se tiver usuario logado, tenta registrar na tabela usuarios
+        if (usuarioId) {
+          try {
+            await supabase
+              .from('usuarios')
+              .update({ fcm_token: token.value, updated_at: new Date().toISOString() })
+              .eq('id', usuarioId)
+          } catch (err) {
+            console.debug('[FCM] Info: fcm_token salvo localmente:', err)
+          }
+        }
+      })
+
+      PushNotifications.addListener('registrationError', (error: any) => {
+        console.warn('[FCM] Erro no registro de push:', error)
+      })
+
+      PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
+        console.log('[FCM] Push recebido em foreground:', notification)
+      })
+
+      PushNotifications.addListener('pushNotificationActionPerformed', (notification: ActionPerformed) => {
+        console.log('[FCM] Notificação clicada:', notification)
+        const url = notification.notification.data?.url
+        if (url && typeof window !== 'undefined') {
+          window.location.href = url
+        }
+      })
+    }
+  } catch (e) {
+    console.warn('[FCM] Erro ao inicializar push remoto:', e)
+  }
+}
 
 /**
  * Cria o canal de notificações de alta prioridade no Android (necessário no Android 8+)

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "702255621776",
+    "project_id": "gvel-sistema",
+    "storage_bucket": "gvel-sistema.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:702255621776:android:0337b015a324c90c9c1a15",
+        "android_client_info": {
+          "package_name": "com.gvel.entradaesaida"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBL3zVFpfpkAzIO6xLJBAsKcQW0bC97jrY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { differenceInDays, parseISO, isBefore, startOfDay, format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { notificationSound } from '@/lib/notificationSound'
-import { dispararPushLocal, solicitarPermissaoNotificacoes } from '@/lib/pushNotifications'
+import { dispararPushLocal, solicitarPermissaoNotificacoes, inicializarPushRemoto } from '@/lib/pushNotifications'
 
 export interface NotificacaoItem {
   id: string
@@ -109,9 +109,11 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     } catch {}
 
     solicitarPermissaoNotificacoes()
+    inicializarPushRemoto()
 
     const onUserInteract = () => {
       solicitarPermissaoNotificacoes()
+      inicializarPushRemoto()
       window.removeEventListener('click', onUserInteract)
       window.removeEventListener('touchstart', onUserInteract)
     }
