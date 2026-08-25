@@ -741,7 +741,7 @@ export function Financeiro() {
           </div>
         </Card>
 
-        {/* 2. TOP 10 PLANOS DE CONTA */}
+        {/* 2. TOP 5 PLANOS DE CONTA */}
         <Card className="overflow-hidden border-border/30 bg-surface/50 shadow-md flex flex-col justify-between">
           <div>
             <div className="border-b border-border/20 bg-surface/80 p-4 flex items-center justify-between">
@@ -751,27 +751,27 @@ export function Financeiro() {
                 </div>
                 <div>
                   <h3 className="text-xs font-black text-foreground uppercase">
-                    TOP 10 PLANOS DE CONTA (POR DESPESA)
+                    TOP 5 PLANOS DE CONTA (POR DESPESA)
                   </h3>
                   <p className="text-[10px] text-secondary font-medium">Maiores centros de custos da operação</p>
                 </div>
               </div>
             </div>
 
-            <div className="p-4 space-y-2 max-h-[420px] overflow-y-auto">
-              {topPlanosFiltrados.map((plano) => {
+            <div className="p-4 space-y-3">
+              {topPlanosFiltrados.slice(0, 5).map((plano) => {
                 const maxDesp = topPlanosFiltrados[0]?.despesa || 1
                 const pct = (plano.despesa / maxDesp) * 100
 
                 return (
                   <div
                     key={plano.nome + plano.rank}
-                    className="p-2.5 rounded-xl border border-border/15 bg-background/60 hover:border-red-500/30 transition-all"
+                    className="p-3 rounded-xl border border-border/15 bg-background/60 hover:border-red-500/30 transition-all"
                   >
-                    <div className="flex items-center justify-between text-xs mb-1">
+                    <div className="flex items-center justify-between text-xs mb-1.5">
                       <div className="flex items-center gap-2 min-w-0 pr-2">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-400 font-bold text-[10px]">
-                          {plano.rank}
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-red-400 font-bold text-[10px]">
+                          {plano.rank}º
                         </span>
                         <span className="font-bold text-foreground truncate">{plano.nome}</span>
                       </div>
