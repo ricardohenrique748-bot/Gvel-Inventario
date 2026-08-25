@@ -1,18 +1,16 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck, LayoutGrid } from 'lucide-react'
-import { isKanbanAuthorized, isEstoqueAuthorized } from './nav'
+import { isKanbanAuthorized } from './nav'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
-import { isNativeApp } from '@/lib/isNativeApp'
 
 export function BottomNav() {
   const { signOut, user, perfil, perfilLoading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  const native = isNativeApp()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
   const canAccessKanban = isKanbanAuthorized(user?.email)
-  const canAccessEstoque = isEstoqueAuthorized(user?.email, native)
+  const canAccessEstoque = (user?.email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
 
   const items = [
     { to: '/', label: 'INÍCIO', icon: Home, end: true },
