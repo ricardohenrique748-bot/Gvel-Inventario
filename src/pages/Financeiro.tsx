@@ -801,11 +801,21 @@ export function Financeiro() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Badge de Mês e Ano */}
-            <Badge tone="neutral" className="text-xs font-black border-border/40 text-white bg-primary/15 border-primary/30">
-              <Calendar className="h-3 w-3 text-primary mr-1" />
-              {mesFiltro === 'todos' ? 'TODOS OS MESES' : `${mesFiltro.toUpperCase()} 2026`}
-            </Badge>
+            {/* Seletor Interativo de Mês no Gráfico */}
+            <div className="relative flex items-center">
+              <Calendar className="absolute left-2.5 h-3.5 w-3.5 text-primary pointer-events-none" />
+              <select
+                value={mesFiltro}
+                onChange={(e) => setMesFiltro(e.target.value)}
+                className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
+              >
+                {MESES_OPCOES.map((m) => (
+                  <option key={m.id} value={m.id} className="bg-surface text-foreground font-bold">
+                    {m.label.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* Legenda Customizada e Elegante */}
             <div className="flex flex-wrap items-center gap-2 bg-background/60 border border-border/20 px-3 py-1.5 rounded-xl text-xs font-bold">
