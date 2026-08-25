@@ -65,8 +65,9 @@ export function useRetiradasFerramentas(filtros: RetiradasFiltros = {}) {
     setLoading(true)
     let query = supabase
       .from('ferramentas_retiradas')
-      .select('*, ferramenta:ferramentas(*)')
+      .select('id,ferramenta_id,placa,responsavel,quantidade,status,observacoes_retirada,data_hora_retirada,data_hora_devolucao,foto_url,foto_responsavel_url, ferramenta:ferramentas(id,nome,codigo,categoria,localizacao,quantidade_total,quantidade_disponivel,observacoes)')
       .order('data_hora_retirada', { ascending: false })
+      .limit(200)
 
     if (filtros.status && filtros.status !== 'todas') {
       query = query.eq('status', filtros.status)
@@ -83,11 +84,7 @@ export function useRetiradasFerramentas(filtros: RetiradasFiltros = {}) {
     if (error) {
       setError(error.message)
     } else {
-      const formatadas = ((data as unknown as FerramentaRetirada[]) ?? []).map((r) => ({
-        ...r,
-        ferramenta: r.ferramenta ? formatarFerramentaComFoto(r.ferramenta) : r.ferramenta,
-      }))
-      setRetiradas(formatadas)
+      setRetiradas((data as unknown as FerramentaRetirada[]) ?? [])
     }
     setLoading(false)
   }, [filtros.status, filtros.placa, filtros.responsavel])

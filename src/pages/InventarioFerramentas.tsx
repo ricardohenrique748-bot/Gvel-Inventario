@@ -315,19 +315,36 @@ export function InventarioFerramentas() {
   const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'grid'>('lista')
 
   // Caixas de Ferramentas State
-  const [caixas, setCaixas] = useState<CaixaFerramenta[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_CAIXAS_KEY)
-      if (raw) return JSON.parse(raw)
-    } catch {}
-    return CAIXAS_INICIAIS
-  })
+  const [caixas, setCaixas] = useState<CaixaFerramenta[]>(CAIXAS_INICIAIS)
   const [buscaCaixas, setBuscaCaixas] = useState('')
   const [statusFiltroCaixas, setStatusFiltroCaixas] = useState<'TODOS' | 'disponivel' | 'em_uso' | 'manutencao'>('TODOS')
   const [modalCaixaAberto, setModalCaixaAberto] = useState(false)
   const [caixaEditando, setCaixaEditando] = useState<CaixaFerramenta | null>(null)
   const [modalRetiradaCaixaAberto, setModalRetiradaCaixaAberto] = useState(false)
   const [caixaParaRetirar, setCaixaParaRetirar] = useState<CaixaFerramenta | null>(null)
+
+  // Uso e Consumo State
+  const [itensConsumo, setItensConsumo] = useState<ItemConsumo[]>(ITENS_CONSUMO_INICIAIS)
+  const [baixasConsumo, setBaixasConsumo] = useState<RegistroBaixaConsumo[]>([])
+
+  // Carregar dados do localStorage de forma assíncrona para não bloquear o primeiro render
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const rawCaixas = localStorage.getItem(STORAGE_CAIXAS_KEY)
+        if (rawCaixas) setCaixas(JSON.parse(rawCaixas))
+      } catch {}
+      try {
+        const rawConsumo = localStorage.getItem(STORAGE_CONSUMO_KEY)
+        if (rawConsumo) setItensConsumo(JSON.parse(rawConsumo))
+      } catch {}
+      try {
+        const rawBaixas = localStorage.getItem(STORAGE_BAIXAS_CONSUMO_KEY)
+        if (rawBaixas) setBaixasConsumo(JSON.parse(rawBaixas))
+      } catch {}
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [])
 
   function salvarCaixas(novasCaixas: CaixaFerramenta[]) {
     setCaixas(novasCaixas)
@@ -336,29 +353,12 @@ export function InventarioFerramentas() {
     } catch {}
   }
 
-  // Uso e Consumo State
-  const [itensConsumo, setItensConsumo] = useState<ItemConsumo[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_CONSUMO_KEY)
-      if (raw) return JSON.parse(raw)
-    } catch {}
-    return ITENS_CONSUMO_INICIAIS
-  })
-
   function salvarItensConsumo(novosItens: ItemConsumo[]) {
     setItensConsumo(novosItens)
     try {
       localStorage.setItem(STORAGE_CONSUMO_KEY, JSON.stringify(novosItens))
     } catch {}
   }
-
-  const [baixasConsumo, setBaixasConsumo] = useState<RegistroBaixaConsumo[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_BAIXAS_CONSUMO_KEY)
-      if (raw) return JSON.parse(raw)
-    } catch {}
-    return []
-  })
 
   function salvarBaixasConsumo(novasBaixas: RegistroBaixaConsumo[]) {
     setBaixasConsumo(novasBaixas)
@@ -875,6 +875,8 @@ export function InventarioFerramentas() {
                               <img
                                 src={f.foto_url}
                                 alt={f.nome}
+                                loading="lazy"
+                                decoding="async"
                                 className="h-full w-full object-cover group-hover/thumb:scale-110 transition-transform duration-200"
                               />
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
@@ -1024,7 +1026,7 @@ export function InventarioFerramentas() {
                             onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
                             className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-primary/30 shadow-sm"
                           >
-                            <img src={f.foto_url} alt={f.nome} className="h-full w-full object-cover" />
+                            <img src={f.foto_url} alt={f.nome} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                           </button>
                         ) : (
                           <div className="h-11 w-11 shrink-0 flex items-center justify-center rounded-xl bg-background border border-border/20 text-secondary/50">
@@ -1136,7 +1138,7 @@ export function InventarioFerramentas() {
                               onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
                               className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-primary/30 shadow-sm"
                             >
-                              <img src={f.foto_url} alt={f.nome} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
+                              <img src={f.foto_url} alt={f.nome} loading="lazy" decoding="async" className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
                             </button>
                           ) : (
                             <div className="h-14 w-14 shrink-0 flex items-center justify-center rounded-xl bg-background border border-border/20 text-secondary/40 text-2xl">
@@ -1296,6 +1298,8 @@ export function InventarioFerramentas() {
                             <img
                               src={r.foto_responsavel_url || r.foto_url || ''}
                               alt={r.responsavel}
+                              loading="lazy"
+                              decoding="async"
                               className="h-9 w-9 rounded-full object-cover border-2 border-primary/40 group-hover:border-primary transition-all shadow-sm"
                             />
                             <div className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -3483,7 +3487,7 @@ function ModalRetirada({
                           }`}
                         >
                           {m.foto ? (
-                            <img src={m.foto} alt={m.nome} className="h-4 w-4 rounded-full object-cover shrink-0" />
+                            <img src={m.foto} alt={m.nome} loading="lazy" decoding="async" className="h-4 w-4 rounded-full object-cover shrink-0" />
                           ) : (
                             <span className="text-[10px]">👤</span>
                           )}
