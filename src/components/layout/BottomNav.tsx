@@ -1,19 +1,22 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck, LayoutGrid } from 'lucide-react'
-import { isKanbanAuthorized } from './nav'
+import { isKanbanAuthorized, isEstoqueAuthorized } from './nav'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
+import { isNativeApp } from '@/lib/isNativeApp'
 
 export function BottomNav() {
   const { signOut, user, perfil, perfilLoading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+  const native = isNativeApp()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
   const canAccessKanban = isKanbanAuthorized(user?.email)
+  const canAccessEstoque = isEstoqueAuthorized(user?.email, native)
 
   const items = [
     { to: '/', label: 'INÍCIO', icon: Home, end: true },
-    { to: '/inventario-ferramentas', label: 'ESTOQUE', icon: Hammer },
+    ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'ESTOQUE', icon: Hammer }] : []),
     { to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck },
     { to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench },
     { to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight },

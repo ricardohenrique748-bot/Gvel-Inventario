@@ -131,3 +131,18 @@ export function isRelatoriosAuthorized(email?: string | null): boolean {
   return RELATORIOS_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
 }
 
+export const ESTOQUE_APK_ALLOWED_EMAILS = [
+  'inventario@gveldiesel.com',
+  'ricardo_h.16@hotmail.com',
+  'victor@gveldiesel.com',
+] as const
+
+export function isEstoqueAuthorized(email?: string | null, isNative = false): boolean {
+  if (isNative) {
+    if (!email) return false
+    return ESTOQUE_APK_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
+  }
+  return true
+}
+
+

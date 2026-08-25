@@ -4,18 +4,10 @@ import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench } f
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
-import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized, isRelatoriosAuthorized } from './nav'
+import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized, isRelatoriosAuthorized, isEstoqueAuthorized } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/cn'
 import { isNativeApp } from '@/lib/isNativeApp'
-
-const nativeNavItems = [
-  { to: '/', label: 'Home', icon: Home, end: true },
-  { to: '/manutencao', label: 'Manutenção', icon: Wrench },
-  { to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight },
-  { to: '/configuracoes', label: 'Configurações', icon: Settings },
-] as const
-
 
 export function Sidebar() {
   const { signOut, user, perfil, perfilLoading } = useAuth()
@@ -26,6 +18,7 @@ export function Sidebar() {
   const canAccessDashboardGerencial = isDashboardGerencialAuthorized(user?.email)
   const canAccessFinanceiro = isFinanceiroAuthorized(user?.email)
   const canAccessRelatorios = isRelatoriosAuthorized(user?.email)
+  const canAccessEstoque = isEstoqueAuthorized(user?.email, native)
   const location = useLocation()
 
   // Track which parent groups are open
@@ -44,9 +37,21 @@ export function Sidebar() {
     )
 
   const currentNavItems = useMemo(() => {
-    const base = native ? nativeNavItems : navItems
+    const base = native
+      ? [
+          { to: '/', label: 'Home', icon: Home, end: true },
+          ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'Estoque', icon: Wrench }] : []),
+          { to: '/manutencao', label: 'Manutenção', icon: Wrench },
+          { to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight },
+          { to: '/configuracoes', label: 'Configurações', icon: Settings },
+        ]
+      : navItems
+
     return base
       .filter((item) => {
+        if (item.to === '/inventario-ferramentas') {
+          return canAccessEstoque
+        }
         if (item.to === '/kanban') {
           return canAccessKanban
         }
