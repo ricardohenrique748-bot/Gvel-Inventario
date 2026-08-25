@@ -18,6 +18,9 @@ import {
   CheckCircle2,
   ShieldAlert,
   Home,
+  ExternalLink,
+  FileText,
+  Globe,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -126,6 +129,10 @@ export function Financeiro() {
   const [planoContaFiltro, setPlanoContaFiltro] = useState<string>('TODOS')
 
   // Modais e Estados de Ação
+  const [abaFinanceiro, setAbaFinanceiro] = useState<'sharepoint' | 'painel'>('sharepoint')
+  const [sharepointUrl, setSharepointUrl] = useState('https://lynustech.sharepoint.com/sites/Lynus/SitePages/TrainingHome.aspx')
+  const [iframeKey, setIframeKey] = useState(0)
+  const [iframeCarregando, setIframeCarregando] = useState(true)
   const [showHistoricoModal, setShowHistoricoModal] = useState(false)
   const [showListaModal, setShowListaModal] = useState(false)
   const [sincronizando, setSincronizando] = useState(false)
@@ -255,10 +262,236 @@ export function Financeiro() {
         </div>
       )}
 
-      {/* ──────────────────────────────────────────────────────────────────────────
-          BARRA DE FILTROS SUPERIOR (Empresa, Mês e Plano de Conta)
-         ────────────────────────────────────────────────────────────────────────── */}
-      <Card className="p-4 border-border/30 bg-surface/60 shadow-md">
+      {/* ─── Seletor de Visão: Relatórios SharePoint vs Painel Grupo Vel ─── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 rounded-2xl bg-surface/70 border border-border/30 backdrop-blur-md shadow-sm">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setAbaFinanceiro('sharepoint')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              abaFinanceiro === 'sharepoint'
+                ? 'bg-primary text-white shadow-lg shadow-primary/25'
+                : 'text-secondary hover:text-foreground hover:bg-background/50'
+            }`}
+          >
+            <Globe className="h-4 w-4" />
+            <span>RELATÓRIOS SHAREPOINT (LYNUS)</span>
+            <span className="px-1.5 py-0.2 rounded-md bg-white/20 text-[10px] font-bold">3 RELATÓRIOS</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAbaFinanceiro('painel')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              abaFinanceiro === 'painel'
+                ? 'bg-primary text-white shadow-lg shadow-primary/25'
+                : 'text-secondary hover:text-foreground hover:bg-background/50'
+            }`}
+          >
+            <BarChart2 className="h-4 w-4" />
+            <span>PAINEL EXECUTIVO GRUPO VEL</span>
+          </button>
+        </div>
+
+        {abaFinanceiro === 'sharepoint' && (
+          <a
+            href={sharepointUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-background/90 hover:bg-background border border-border/40 text-xs font-bold text-primary hover:text-primary-hover transition-all"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            <span>ABRIR SHAREPOINT</span>
+          </a>
+        )}
+      </div>
+
+      {abaFinanceiro === 'sharepoint' ? (
+        <div className="space-y-6">
+          {/* 3 Cards de Acesso aos 3 Relatórios do SharePoint */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="p-4 border-border/30 bg-surface/60 hover:border-primary/40 transition-all flex flex-col justify-between shadow-md">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/15 text-blue-400">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <Badge tone="neutral">Relatório 01</Badge>
+                </div>
+                <h4 className="text-xs font-black text-foreground mb-1">RELATÓRIO FINANCEIRO 01</h4>
+                <p className="text-[11px] text-secondary font-medium lowercase">
+                  Painel de treinamento, indicadores operacionais e fechamentos no SharePoint Lynus.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-border/10 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSharepointUrl('https://lynustech.sharepoint.com/sites/Lynus/SitePages/TrainingHome.aspx')
+                    setIframeCarregando(true)
+                    setIframeKey((k) => k + 1)
+                  }}
+                  className="text-[11px] font-bold text-primary hover:underline"
+                >
+                  CARREGAR NO PAINEL
+                </button>
+                <a
+                  href="https://lynustech.sharepoint.com/sites/Lynus/SitePages/TrainingHome.aspx"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-secondary hover:text-foreground p-1 rounded-md hover:bg-background"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </Card>
+
+            <Card className="p-4 border-border/30 bg-surface/60 hover:border-primary/40 transition-all flex flex-col justify-between shadow-md">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <Badge tone="neutral">Relatório 02</Badge>
+                </div>
+                <h4 className="text-xs font-black text-foreground mb-1">RELATÓRIO FINANCEIRO 02</h4>
+                <p className="text-[11px] text-secondary font-medium lowercase">
+                  Faturamento consolidado, conciliação e receitas por unidade de negócio.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-border/10 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSharepointUrl('https://lynustech.sharepoint.com/sites/Lynus/SitePages/TrainingHome.aspx')
+                    setIframeCarregando(true)
+                    setIframeKey((k) => k + 1)
+                  }}
+                  className="text-[11px] font-bold text-primary hover:underline"
+                >
+                  CARREGAR NO PAINEL
+                </button>
+                <a
+                  href="https://lynustech.sharepoint.com/sites/Lynus/SitePages/TrainingHome.aspx"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-secondary hover:text-foreground p-1 rounded-md hover:bg-background"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </Card>
+
+            <Card className="p-4 border-border/30 bg-surface/60 hover:border-primary/40 transition-all flex flex-col justify-between shadow-md">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/15 text-purple-400">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <Badge tone="neutral">Relatório 03</Badge>
+                </div>
+                <h4 className="text-xs font-black text-foreground mb-1">RELATÓRIO FINANCEIRO 03</h4>
+                <p className="text-[11px] text-secondary font-medium lowercase">
+                  Demonstrativo de resultados (DRE), despesas e análise por centro de custo.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-border/10 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSharepointUrl('https://lynustech.sharepoint.com/sites/Lynus/SitePages/TrainingHome.aspx')
+                    setIframeCarregando(true)
+                    setIframeKey((k) => k + 1)
+                  }}
+                  className="text-[11px] font-bold text-primary hover:underline"
+                >
+                  CARREGAR NO PAINEL
+                </button>
+                <a
+                  href="https://lynustech.sharepoint.com/sites/Lynus/SitePages/TrainingHome.aspx"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-secondary hover:text-foreground p-1 rounded-md hover:bg-background"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </Card>
+          </div>
+
+          {/* Visualizador Embutido do SharePoint LynusTech */}
+          <Card className="overflow-hidden border-border/30 bg-surface/70 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border/20 bg-background/40">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-primary" />
+                <span className="text-xs font-black text-foreground">
+                  PORTAL DE RELATÓRIOS SHAREPOINT LYNUSTECH
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIframeCarregando(true)
+                    setIframeKey((k) => k + 1)
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border/30 text-xs font-bold text-foreground hover:bg-surface-hover transition-colors"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  <span>RECARREGAR</span>
+                </button>
+                <a
+                  href={sharepointUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-colors shadow-sm"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  <span>ABRIR EM NOVA GUIA</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="relative w-full h-[780px] bg-background">
+              {iframeCarregando && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
+                  <RefreshCw className="h-8 w-8 text-primary animate-spin mb-3" />
+                  <p className="text-xs font-bold text-foreground">CARREGANDO RELATÓRIOS DO SHAREPOINT...</p>
+                  <p className="text-[11px] text-secondary lowercase mt-1">Conectando ao lynustech.sharepoint.com</p>
+                </div>
+              )}
+              <iframe
+                key={iframeKey}
+                src={sharepointUrl}
+                title="Relatórios SharePoint LynusTech"
+                className="w-full h-full border-0"
+                allow="autoplay; camera; microphone; clipboard-write; encrypted-media; fullscreen"
+                sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-downloads"
+                onLoad={() => setIframeCarregando(false)}
+              />
+            </div>
+
+            <div className="p-3.5 bg-surface/90 border-t border-border/20 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-secondary font-medium">
+              <span className="flex items-center gap-1.5">
+                <span>🔒 Acesso protegido com autenticação corporativa Microsoft LynusTech.</span>
+              </span>
+              <a
+                href={sharepointUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-bold"
+              >
+                Abrir portal diretamente no navegador ↗
+              </a>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        <>
+          {/* ──────────────────────────────────────────────────────────────────────────
+              BARRA DE FILTROS SUPERIOR (Empresa, Mês e Plano de Conta)
+             ────────────────────────────────────────────────────────────────────────── */}
+          <Card className="p-4 border-border/30 bg-surface/60 shadow-md">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* 1. Filtro Empresa */}
           <div>
@@ -893,6 +1126,8 @@ export function Financeiro() {
           })}
         </div>
       </Card>
+      </>
+      )}
 
       {/* ────────────────────────────────────────────────────────────────────────
           MODAL: HISTÓRICO DE APURAÇÕES
