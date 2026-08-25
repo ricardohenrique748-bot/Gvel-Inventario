@@ -36,16 +36,7 @@ export const navItems = [
       { to: '/movimentacoes', label: 'Movimentações', icon: ArrowLeftRight },
     ],
   },
-  {
-    to: '/frotas',
-    label: 'Gestão de Frotas',
-    icon: Truck,
-    children: [
-      { to: '/frotas', label: 'Dashboard', icon: LayoutDashboard, end: true },
-      { to: '/frotas?aba=veiculos', label: 'Veículos', icon: Truck },
-      { to: '/frotas?aba=checklist', label: 'Checklist', icon: ClipboardCheck },
-    ],
-  },
+  { to: '/frotas', label: 'Checklist da Frota', icon: ClipboardCheck },
   { to: '/inventario-ferramentas', label: 'Inventário de Ferramentas', icon: Hammer },
   { to: '/financeiro', label: 'Financeiro', icon: DollarSign },
   { to: '/rh', label: 'RH', icon: UserCheck },

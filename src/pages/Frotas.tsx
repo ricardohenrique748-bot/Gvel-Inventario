@@ -505,25 +505,14 @@ const totalFotosTiradas = [
         title="CHECKLIST DA FROTA"
         subtitle="INSPEÇÕES VEICULARES, VISTORIAS OPERACIONAIS E LAUDOS DE CONFORMIDADE"
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={iniciarCriacaoVeiculo}
-              className="gap-1.5 border-border/30 text-foreground font-bold text-xs uppercase"
-            >
-              <Truck className="h-4 w-4 text-primary" />
-              + VEÍCULO
-            </Button>
-            <Button
-              type="button"
-              onClick={iniciarNovoChecklist}
-              className="gap-2 shadow-md shadow-primary/20 uppercase font-bold text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              NOVO CHECKLIST
-            </Button>
-          </div>
+          <Button
+            type="button"
+            onClick={iniciarNovoChecklist}
+            className="gap-2 shadow-md shadow-primary/20 uppercase font-bold text-xs"
+          >
+            <Plus className="h-4 w-4" />
+            NOVO CHECKLIST
+          </Button>
         }
       />
 
@@ -1414,7 +1403,16 @@ const totalFotosTiradas = [
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="chkVeiculo">Veículo da Frota *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="chkVeiculo">Veículo da Frota *</Label>
+                      <button
+                        type="button"
+                        onClick={iniciarCriacaoVeiculo}
+                        className="text-[10px] text-primary hover:underline font-bold"
+                      >
+                        + Cadastrar Placa
+                      </button>
+                    </div>
                     <Select
                       id="chkVeiculo"
                       value={veiculoChecklistId}

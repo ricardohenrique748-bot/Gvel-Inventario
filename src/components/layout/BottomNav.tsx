@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, Truck, LayoutGrid } from 'lucide-react'
+import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck, LayoutGrid } from 'lucide-react'
 import { isKanbanAuthorized } from './nav'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
@@ -14,7 +14,7 @@ export function BottomNav() {
   const items = [
     { to: '/', label: 'INÍCIO', icon: Home, end: true },
     { to: '/inventario-ferramentas', label: 'FERRAMENTAS', icon: Hammer },
-    { to: '/frotas', label: 'FROTAS', icon: Truck },
+    { to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck },
     { to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench },
     { to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight },
     ...(canAccessKanban ? [{ to: '/kanban', label: 'KANBAN', icon: LayoutGrid }] : []),
