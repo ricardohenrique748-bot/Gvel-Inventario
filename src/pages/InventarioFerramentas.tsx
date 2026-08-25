@@ -437,6 +437,7 @@ export function InventarioFerramentas() {
   const [modalDevolucaoAberto, setModalDevolucaoAberto] = useState(false)
   const [retiradaParaDevolver, setRetiradaParaDevolver] = useState<FerramentaRetirada | null>(null)
   const [fotoModalUrl, setFotoModalUrl] = useState<{ url: string; titulo: string } | null>(null)
+  const [ferramentaHistorico, setFerramentaHistorico] = useState<Ferramenta | null>(null)
 
   // Mensagens de erro/sucesso
   const [mensagemErro, setMensagemErro] = useState<string | null>(null)
@@ -894,9 +895,16 @@ export function InventarioFerramentas() {
                         </div>
 
                         {/* FERRAMENTA / DESCRIÇÃO */}
-                        <div className="min-w-0 pr-2">
-                          <div className="font-bold text-foreground text-xs leading-snug truncate group-hover:text-primary transition-colors">
-                            {f.nome}
+                        <div
+                          className="min-w-0 pr-2 cursor-pointer group/item"
+                          onClick={() => setFerramentaHistorico(f)}
+                          title="Clique para ver o histórico de saídas e placas desta ferramenta"
+                        >
+                          <div className="font-bold text-foreground text-xs leading-snug truncate group-hover/item:text-primary transition-colors flex items-center gap-1.5">
+                            <span>{f.nome}</span>
+                            <span className="text-[10px] text-primary/80 opacity-0 group-hover/item:opacity-100 transition-opacity font-semibold">
+                              (ver saídas 🔍)
+                            </span>
                           </div>
                           {f.observacoes && (
                             <div className="text-[11px] text-secondary line-clamp-1 italic mt-0.5 truncate font-normal">
@@ -906,14 +914,14 @@ export function InventarioFerramentas() {
                         </div>
 
                         {/* CATEGORIA */}
-                        <div className="truncate">
-                          <span className="rounded-lg bg-overlay/5 border border-border/20 px-2.5 py-1 text-[10px] font-black text-secondary tracking-wider truncate inline-block max-w-full">
+                        <div className="truncate cursor-pointer" onClick={() => setFerramentaHistorico(f)}>
+                          <span className="rounded-lg bg-overlay/5 border border-border/20 px-2.5 py-1 text-[10px] font-black text-secondary tracking-wider truncate inline-block max-w-full hover:border-primary/40 transition-colors">
                             {f.categoria || 'GERAL'}
                           </span>
                         </div>
 
                         {/* LOCALIZAÇÃO */}
-                        <div className="truncate">
+                        <div className="truncate cursor-pointer" onClick={() => setFerramentaHistorico(f)}>
                           {f.localizacao ? (
                             <span className="text-xs font-semibold text-foreground flex items-center gap-1.5 truncate">
                               <Layers className="h-3.5 w-3.5 text-secondary shrink-0" />
@@ -925,7 +933,7 @@ export function InventarioFerramentas() {
                         </div>
 
                         {/* ESTOQUE DISP. COM BARRA VISUAL */}
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center cursor-pointer" onClick={() => setFerramentaHistorico(f)}>
                           <div className="flex items-center gap-1">
                             <span className={`text-sm font-black font-mono tabular-nums ${semEstoque ? 'text-status-danger' : 'text-emerald-500'}`}>
                               {disp}
@@ -954,7 +962,8 @@ export function InventarioFerramentas() {
                             type="button"
                             size="md"
                             disabled={semEstoque}
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setFerramentaSelecionadaParaRetirada(f)
                               setModalRetiradaAberto(true)
                             }}
@@ -965,7 +974,8 @@ export function InventarioFerramentas() {
                           </Button>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setFerramentaEditando(f)
                               setModalFerramentaAberto(true)
                             }}
@@ -976,7 +986,10 @@ export function InventarioFerramentas() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleExcluirFerramenta(f)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleExcluirFerramenta(f)
+                            }}
                             className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer"
                             title="Excluir Ferramenta"
                           >
@@ -1000,7 +1013,8 @@ export function InventarioFerramentas() {
                   return (
                     <div
                       key={f.id}
-                      className="rounded-2xl border border-border/25 bg-surface/80 p-3.5 space-y-2.5 transition-all shadow-sm"
+                      onClick={() => setFerramentaHistorico(f)}
+                      className="rounded-2xl border border-border/25 bg-surface/80 p-3.5 space-y-2.5 transition-all shadow-sm cursor-pointer hover:border-primary/40 active:scale-[0.99]"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -1023,7 +1037,10 @@ export function InventarioFerramentas() {
                         {f.foto_url ? (
                           <button
                             type="button"
-                            onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })
+                            }}
                             className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-primary/30 shadow-sm"
                           >
                             <img src={f.foto_url} alt={f.nome} loading="lazy" decoding="async" className="h-full w-full object-cover" />
@@ -1052,12 +1069,13 @@ export function InventarioFerramentas() {
                           <span className="text-[10px] font-bold text-emerald-500">Pronta no estoque</span>
                         )}
 
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <Button
                             type="button"
                             size="md"
                             disabled={semEstoque}
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setFerramentaSelecionadaParaRetirada(f)
                               setModalRetiradaAberto(true)
                             }}
@@ -1068,7 +1086,8 @@ export function InventarioFerramentas() {
                           </Button>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setFerramentaEditando(f)
                               setModalFerramentaAberto(true)
                             }}
@@ -1078,7 +1097,10 @@ export function InventarioFerramentas() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleExcluirFerramenta(f)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleExcluirFerramenta(f)
+                            }}
                             className="p-1.5 rounded-lg text-secondary hover:text-red-400"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1119,7 +1141,8 @@ export function InventarioFerramentas() {
                   return (
                     <Card
                       key={f.id}
-                      className="p-4 flex flex-col justify-between border border-border/25 bg-surface/80 hover:border-primary/40 transition-all shadow-sm group relative overflow-hidden"
+                      onClick={() => setFerramentaHistorico(f)}
+                      className="p-4 flex flex-col justify-between border border-border/25 bg-surface/80 hover:border-primary/40 transition-all shadow-sm group relative overflow-hidden cursor-pointer"
                     >
                       <div>
                         <div className="flex items-start justify-between gap-2 mb-2.5">
@@ -1135,7 +1158,10 @@ export function InventarioFerramentas() {
                           {f.foto_url ? (
                             <button
                               type="button"
-                              onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })
+                              }}
                               className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-primary/30 shadow-sm"
                             >
                               <img src={f.foto_url} alt={f.nome} loading="lazy" decoding="async" className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
@@ -1181,12 +1207,13 @@ export function InventarioFerramentas() {
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-border/10 flex items-center justify-between">
+                      <div className="pt-2 border-t border-border/10 flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
                         <Button
                           type="button"
                           size="md"
                           disabled={semEstoque}
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation()
                             setFerramentaSelecionadaParaRetirada(f)
                             setModalRetiradaAberto(true)
                           }}
@@ -1198,7 +1225,8 @@ export function InventarioFerramentas() {
                         <div className="flex items-center">
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setFerramentaEditando(f)
                               setModalFerramentaAberto(true)
                             }}
@@ -1208,7 +1236,10 @@ export function InventarioFerramentas() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleExcluirFerramenta(f)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleExcluirFerramenta(f)
+                            }}
                             className="p-1.5 rounded-lg text-secondary hover:text-red-400"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -2362,6 +2393,256 @@ export function InventarioFerramentas() {
           </div>
         </div>
       )}
+
+      {/* ==================== MODAL: HISTÓRICO DE SAÍDAS DA FERRAMENTA ==================== */}
+      {ferramentaHistorico && (
+        <ModalHistoricoFerramenta
+          ferramenta={ferramentaHistorico}
+          retiradas={retiradas}
+          onClose={() => setFerramentaHistorico(null)}
+          onRetirar={(f) => {
+            setFerramentaSelecionadaParaRetirada(f)
+            setModalRetiradaAberto(true)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Histórico de Saídas da Ferramenta
+// ----------------------------------------------------------------------------------
+function ModalHistoricoFerramenta({
+  ferramenta,
+  retiradas,
+  onClose,
+  onRetirar,
+}: {
+  ferramenta: Ferramenta
+  retiradas: FerramentaRetirada[]
+  onClose: () => void
+  onRetirar: (f: Ferramenta) => void
+}) {
+  const [busca, setBusca] = useState('')
+
+  const historico = useMemo(() => {
+    return retiradas.filter((r) => r.ferramenta_id === ferramenta.id)
+  }, [retiradas, ferramenta.id])
+
+  const filtrado = useMemo(() => {
+    if (!busca.trim()) return historico
+    const t = busca.toLowerCase().trim()
+    return historico.filter((r) => {
+      return (
+        (r.placa && r.placa.toLowerCase().includes(t)) ||
+        (r.responsavel && r.responsavel.toLowerCase().includes(t)) ||
+        (r.observacoes_retirada && r.observacoes_retirada.toLowerCase().includes(t))
+      )
+    })
+  }, [historico, busca])
+
+  const total = ferramenta.quantidade_total || 1
+  const disp = ferramenta.quantidade_disponivel || 0
+  const emUso = Math.max(0, total - disp)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in">
+      <div className="relative flex flex-col max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-3xl border border-border/25 bg-surface shadow-2xl animate-scale-in">
+        {/* Cabeçalho */}
+        <div className="flex items-center justify-between border-b border-border/15 p-5 bg-overlay/5">
+          <div className="flex items-center gap-3.5 min-w-0">
+            {ferramenta.foto_url ? (
+              <img
+                src={ferramenta.foto_url}
+                alt={ferramenta.nome}
+                className="h-12 w-12 rounded-2xl object-cover border border-border/30 shrink-0"
+              />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+                <Hammer className="h-6 w-6" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="rounded-lg bg-background border border-border/30 px-2 py-0.5 text-xs font-mono font-bold text-foreground">
+                  {ferramenta.codigo || 'S/ CÓD'}
+                </span>
+                <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[10px] font-black uppercase text-secondary tracking-wider">
+                  {ferramenta.categoria || 'GERAL'}
+                </span>
+              </div>
+              <h2 className="text-base font-black text-foreground uppercase truncate mt-0.5">
+                {ferramenta.nome}
+              </h2>
+              {ferramenta.localizacao && (
+                <p className="text-[11px] text-secondary font-medium">📍 {ferramenta.localizacao}</p>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-2 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Resumo de Estoque & Busca */}
+        <div className="p-5 pb-3 border-b border-border/10 space-y-3 bg-background/50">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
+              <span className="text-[10px] font-black text-secondary uppercase">Disponível</span>
+              <p className="text-lg font-black font-mono text-emerald-500">{disp}</p>
+            </div>
+            <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
+              <span className="text-[10px] font-black text-secondary uppercase">Em Uso</span>
+              <p className="text-lg font-black font-mono text-amber-500">{emUso}</p>
+            </div>
+            <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
+              <span className="text-[10px] font-black text-secondary uppercase">Total</span>
+              <p className="text-lg font-black font-mono text-foreground">{total}</p>
+            </div>
+          </div>
+
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="FILTRAR HISTÓRICO POR PLACA OU MECÂNICO..."
+              className="h-10 w-full rounded-xl border border-border/25 bg-surface pl-10 pr-4 text-xs uppercase text-foreground placeholder:text-secondary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+            />
+          </div>
+        </div>
+
+        {/* Lista de Saídas / Histórico */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-secondary flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-primary" />
+              Histórico de Saídas ({filtrado.length})
+            </span>
+          </div>
+
+          {filtrado.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/30 p-8 text-center bg-overlay/5">
+              <Clock className="mx-auto h-8 w-8 text-secondary/40 mb-2" />
+              <p className="text-xs font-black uppercase text-foreground">Nenhuma saída encontrada</p>
+              <p className="text-[11px] text-secondary mt-0.5">
+                {busca ? 'Tente buscar por outro termo.' : 'Esta ferramenta ainda não possui saídas registradas.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {filtrado.map((r) => {
+                const emUsoAgora = r.status === 'em_uso'
+                return (
+                  <div
+                    key={r.id}
+                    className="rounded-2xl border border-border/20 bg-surface/90 p-3.5 space-y-2.5 hover:border-primary/30 transition-all shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Placa */}
+                        <div className="flex items-center gap-1.5 rounded-lg bg-background border border-border/30 px-2.5 py-1">
+                          <Truck className="h-3.5 w-3.5 text-primary" />
+                          <span className="text-xs font-black font-mono text-foreground">
+                            {r.placa || 'SEM PLACA'}
+                          </span>
+                        </div>
+
+                        {/* Quantidade */}
+                        <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[11px] font-bold text-secondary">
+                          {r.quantidade || 1} un
+                        </span>
+                      </div>
+
+                      {/* Status */}
+                      {emUsoAgora ? (
+                        <span className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-[10px] font-black text-amber-400 uppercase tracking-wider">
+                          ● EM USO NO MOMENTO
+                        </span>
+                      ) : (
+                        <span className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 text-[10px] font-black text-emerald-400 uppercase tracking-wider">
+                          ✓ DEVOLVIDA
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Quem Solicitou Retirada */}
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-border/10">
+                      <div>
+                        <span className="text-[10px] font-bold text-secondary uppercase block">
+                          Quem Solicitou Retirada:
+                        </span>
+                        <span className="font-black text-foreground uppercase flex items-center gap-1.5 mt-0.5">
+                          <span className="h-2 w-2 rounded-full bg-primary" />
+                          {r.responsavel || 'NÃO INFORMADO'}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-secondary uppercase block">Data de Saída:</span>
+                        <span className="text-[11px] font-mono text-foreground font-semibold">
+                          {r.data_hora_retirada
+                            ? format(new Date(r.data_hora_retirada), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                            : '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Data de Devolução se houver */}
+                    {r.data_hora_devolucao && (
+                      <div className="text-[11px] text-emerald-400 font-medium bg-emerald-500/5 rounded-xl px-2.5 py-1.5 border border-emerald-500/15 flex items-center justify-between">
+                        <span>Devolvido em:</span>
+                        <span className="font-mono font-bold">
+                          {format(new Date(r.data_hora_devolucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Observações */}
+                    {r.observacoes_retirada && (
+                      <p className="text-[11px] text-secondary italic bg-background/50 rounded-xl p-2 border border-border/10">
+                        "{r.observacoes_retirada}"
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Rodapé */}
+        <div className="flex items-center justify-between border-t border-border/15 p-4 bg-overlay/5">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            className="!h-9 px-4 text-xs font-bold uppercase"
+          >
+            Fechar
+          </Button>
+
+          {disp > 0 && (
+            <Button
+              type="button"
+              onClick={() => {
+                onClose()
+                onRetirar(ferramenta)
+              }}
+              className="!h-9 px-4 text-xs font-black uppercase gap-1.5 shadow-md shadow-primary/20"
+            >
+              <ArrowUpRight className="h-4 w-4" />
+              Retirar Esta Ferramenta
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
