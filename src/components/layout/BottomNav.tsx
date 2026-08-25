@@ -1,6 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck, LayoutGrid } from 'lucide-react'
-import { isKanbanAuthorized } from './nav'
+import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -9,7 +8,6 @@ export function BottomNav() {
   const location = useLocation()
   const navigate = useNavigate()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
-  const canAccessKanban = isKanbanAuthorized(user?.email)
   const canAccessEstoque = (user?.email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
 
   const items = [
@@ -18,7 +16,6 @@ export function BottomNav() {
     { to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck },
     { to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench },
     { to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight },
-    ...(canAccessKanban ? [{ to: '/kanban', label: 'KANBAN', icon: LayoutGrid }] : []),
     ...(isAdmin ? [{ to: '/configuracoes', label: 'AJUSTES', icon: Settings }] : []),
   ]
 
