@@ -955,7 +955,36 @@ export function Financeiro() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Seletor Interativo de Empresa no Gráfico */}
+            <div className="relative flex items-center">
+              <Building2 className="absolute left-2.5 h-3.5 w-3.5 text-primary pointer-events-none" />
+              <select
+                value={empresaFiltro}
+                onChange={(e) => setEmpresaFiltro(e.target.value)}
+                className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
+              >
+                <option value="TODAS" className="bg-surface text-foreground font-bold">
+                  TODAS AS EMPRESAS (GRUPO VEL)
+                </option>
+                <option value="GVel Diesel" className="bg-surface text-foreground font-bold">
+                  GVEL DIESEL
+                </option>
+                <option value="GVel Leves" className="bg-surface text-foreground font-bold">
+                  GVEL LEVES
+                </option>
+                <option value="GV Distribuidora" className="bg-surface text-foreground font-bold">
+                  GV DISTRIBUIDORA
+                </option>
+                <option value="GV Transportes" className="bg-surface text-foreground font-bold">
+                  GV TRANSPORTES
+                </option>
+                <option value="Investimento" className="bg-surface text-foreground font-bold">
+                  INVESTIMENTO
+                </option>
+              </select>
+            </div>
+
             <Badge tone="neutral" className="text-[11px] font-bold border-border/30 text-white">
               MAIO · JUNHO · JULHO
             </Badge>
@@ -968,11 +997,6 @@ export function Financeiro() {
             <span className="h-3 w-3 rounded-md bg-blue-500 shadow-sm shadow-blue-500/50" />
             <span className="text-blue-400 font-black">FATURAMENTO</span>
             <span className="text-secondary text-[10px] lowercase font-normal">(competência)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-md bg-emerald-500 shadow-sm shadow-emerald-500/50" />
-            <span className="text-emerald-400 font-black">RECEITAS</span>
-            <span className="text-secondary text-[10px] lowercase font-normal">(caixa)</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-3 w-3 rounded-md bg-red-500 shadow-sm shadow-red-500/50" />
