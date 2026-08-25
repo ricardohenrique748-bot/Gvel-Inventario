@@ -43,6 +43,8 @@ import {
   atualizarFerramenta,
   excluirFerramenta,
   registrarRetiradaFerramenta,
+  atualizarRetiradaFerramenta,
+  excluirRetiradaFerramenta,
   registrarDevolucaoFerramenta,
   reverterDevolucaoFerramenta,
   uploadFotoFerramenta,
@@ -488,6 +490,8 @@ export function InventarioFerramentas() {
 
   const [modalDevolucaoAberto, setModalDevolucaoAberto] = useState(false)
   const [retiradaParaDevolver, setRetiradaParaDevolver] = useState<FerramentaRetirada | null>(null)
+  const [modalEditarRetiradaAberto, setModalEditarRetiradaAberto] = useState(false)
+  const [retiradaEditando, setRetiradaEditando] = useState<FerramentaRetirada | null>(null)
   const [fotoModalUrl, setFotoModalUrl] = useState<{ url: string; titulo: string } | null>(null)
   const [ferramentaHistorico, setFerramentaHistorico] = useState<Ferramenta | null>(null)
 
@@ -1394,11 +1398,23 @@ export function InventarioFerramentas() {
                             <p className="text-[11px] text-secondary italic mt-1 line-clamp-1">"{r.observacoes_retirada}"</p>
                           )}
                         </div>
-                        <div className="mt-3 pt-3 border-t border-border/10">
+                        <div className="mt-3 pt-3 border-t border-border/10 flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                              setRetiradaEditando(r)
+                              setModalEditarRetiradaAberto(true)
+                            }}
+                            className="!h-8 px-2 text-xs font-bold uppercase gap-1 border-primary/30 text-primary hover:border-primary shrink-0"
+                            title="Editar retirada"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
                           <Button
                             type="button"
                             onClick={() => handleReverterDevolucao(r)}
-                            className="w-full !h-8 text-xs font-black uppercase gap-1.5 bg-amber-500 hover:bg-amber-600 text-black shadow-sm"
+                            className="flex-1 !h-8 text-xs font-black uppercase gap-1.5 bg-amber-500 hover:bg-amber-600 text-black shadow-sm"
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
                             RESTAURAR PARA EM USO AGORA
@@ -1479,7 +1495,19 @@ export function InventarioFerramentas() {
                       )}
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-border/10 flex justify-end">
+                    <div className="mt-4 pt-4 border-t border-border/10 flex items-center justify-between gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          setRetiradaEditando(r)
+                          setModalEditarRetiradaAberto(true)
+                        }}
+                        className="gap-1.5 text-xs border-primary/30 text-foreground hover:bg-primary/10 hover:border-primary uppercase font-bold"
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-primary" />
+                        EDITAR
+                      </Button>
                       <Button
                         type="button"
                         variant="secondary"
@@ -1595,33 +1623,49 @@ export function InventarioFerramentas() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {r.status !== 'em_uso' ? (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="md"
-                              onClick={() => handleReverterDevolucao(r)}
-                              className="!h-7 px-2.5 text-[10px] font-black uppercase tracking-wider gap-1 border-amber-500/30 text-amber-400 hover:border-amber-500"
-                              title="Restaurar de volta para a lista Em Uso no Momento"
-                            >
-                              <RotateCcw className="h-3 w-3" />
-                              RESTAURAR (VOLTAR EM USO)
-                            </Button>
-                          ) : (
+                          <div className="flex items-center justify-end gap-1.5">
                             <Button
                               type="button"
                               variant="secondary"
                               size="md"
                               onClick={() => {
-                                setRetiradaParaDevolver(r)
-                                setModalDevolucaoAberto(true)
+                                setRetiradaEditando(r)
+                                setModalEditarRetiradaAberto(true)
                               }}
-                              className="!h-7 px-2.5 text-[10px] font-black uppercase tracking-wider gap-1 border-emerald-500/30 text-emerald-500 hover:border-emerald-500"
+                              className="!h-7 px-2 text-[10px] font-black uppercase tracking-wider gap-1 border-primary/30 text-primary hover:border-primary"
+                              title="Editar registro"
                             >
-                              <CheckCircle2 className="h-3 w-3" />
-                              DAR BAIXA
+                              <Pencil className="h-3 w-3" />
+                              EDITAR
                             </Button>
-                          )}
+                            {r.status !== 'em_uso' ? (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="md"
+                                onClick={() => handleReverterDevolucao(r)}
+                                className="!h-7 px-2.5 text-[10px] font-black uppercase tracking-wider gap-1 border-amber-500/30 text-amber-400 hover:border-amber-500"
+                                title="Restaurar de volta para a lista Em Uso no Momento"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                                RESTAURAR
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="md"
+                                onClick={() => {
+                                  setRetiradaParaDevolver(r)
+                                  setModalDevolucaoAberto(true)
+                                }}
+                                className="!h-7 px-2.5 text-[10px] font-black uppercase tracking-wider gap-1 border-emerald-500/30 text-emerald-500 hover:border-emerald-500"
+                              >
+                                <CheckCircle2 className="h-3 w-3" />
+                                DAR BAIXA
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
@@ -2469,6 +2513,20 @@ export function InventarioFerramentas() {
           onClose={() => setModalDevolucaoAberto(false)}
           onSucesso={async () => {
             setModalDevolucaoAberto(false)
+            await recarregarDados()
+          }}
+        />
+      )}
+
+      {/* ==================== MODAL: EDITAR RETIRADA ==================== */}
+      {modalEditarRetiradaAberto && retiradaEditando && (
+        <ModalEditarRetirada
+          retirada={retiradaEditando}
+          ferramentas={ferramentas}
+          veiculos={veiculosLista}
+          onClose={() => setModalEditarRetiradaAberto(false)}
+          onSucesso={async () => {
+            setModalEditarRetiradaAberto(false)
             await recarregarDados()
           }}
         />
@@ -4230,6 +4288,437 @@ function ModalDevolucao({
         </form>
       </div>
     </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Edição de Retirada / Saída de Ferramenta
+// ----------------------------------------------------------------------------------
+function ModalEditarRetirada({
+  retirada,
+  ferramentas,
+  veiculos,
+  onClose,
+  onSucesso,
+}: {
+  retirada: FerramentaRetirada
+  ferramentas: Ferramenta[]
+  veiculos: { id: string; placa: string }[]
+  onClose: () => void
+  onSucesso: () => Promise<void>
+}) {
+  const [ferramentaId, setFerramentaId] = useState(retirada.ferramenta_id)
+  const [placa, setPlaca] = useState(retirada.placa || '')
+  const [responsavel, setResponsavel] = useState(retirada.responsavel || '')
+  const [quantidade, setQuantidade] = useState(retirada.quantidade || 1)
+
+  const dataInicial = useMemo(() => {
+    try {
+      if (retirada.data_hora_retirada) {
+        const d = new Date(retirada.data_hora_retirada)
+        return format(d, "yyyy-MM-dd'T'HH:mm")
+      }
+    } catch {}
+    return format(new Date(), "yyyy-MM-dd'T'HH:mm")
+  }, [retirada.data_hora_retirada])
+
+  const [dataHoraRetirada, setDataHoraRetirada] = useState(dataInicial)
+  const [observacoes, setObservacoes] = useState(
+    retirada.observacoes_retirada ? retirada.observacoes_retirada.replace(/\[FOTO:.*?\]/g, '').trim() : ''
+  )
+  const [fotoUrl, setFotoUrl] = useState<string | null>(retirada.foto_responsavel_url || retirada.foto_url || null)
+  const [abrirWebcamModal, setAbrirWebcamModal] = useState(false)
+  const [comprimindoFoto, setComprimindoFoto] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [excluindo, setExcluindo] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      setComprimindoFoto(true)
+      const compressed = await comprimirImagem(file)
+      const url = await uploadFotoFerramenta(compressed)
+      setFotoUrl(url)
+    } catch (err) {
+      console.error(err)
+      setErro('ERRO AO PROCESSAR IMAGEM.')
+    } finally {
+      setComprimindoFoto(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleWebcamFoto = (blob: Blob) => {
+    const file = new File([blob], `foto-retirada-${Date.now()}.jpg`, { type: 'image/jpeg' })
+    uploadFotoFerramenta(file).then((url) => {
+      setFotoUrl(url)
+    }).catch((err) => {
+      console.error(err)
+      setErro('ERRO AO SALVAR FOTO DA CÂMERA.')
+    })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!responsavel.trim()) {
+      setErro('INFORME O NOME DO RESPONSÁVEL.')
+      return
+    }
+    if (!placa.trim()) {
+      setErro('INFORME A PLACA OU DESTINO.')
+      return
+    }
+    if (quantidade < 1) {
+      setErro('A QUANTIDADE DEVE SER NO MÍNIMO 1.')
+      return
+    }
+
+    setSalvando(true)
+    setErro(null)
+
+    try {
+      let isoDate: string | undefined = undefined
+      if (dataHoraRetirada) {
+        isoDate = new Date(dataHoraRetirada).toISOString()
+      }
+
+      await atualizarRetiradaFerramenta({
+        id: retirada.id,
+        ferramenta_id: ferramentaId,
+        placa: placa.toUpperCase(),
+        responsavel: responsavel.toUpperCase(),
+        quantidade: Number(quantidade),
+        observacoes_retirada: observacoes.toUpperCase(),
+        data_hora_retirada: isoDate,
+        foto_responsavel_url: fotoUrl,
+        foto_url: fotoUrl,
+      })
+
+      await onSucesso()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message.toUpperCase() : 'ERRO AO ATUALIZAR RETIRADA.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const handleExcluir = async () => {
+    if (!confirm(`DESEJA REALMENTE EXCLUIR ESTE REGISTRO DE RETIRADA?\n\nSE A FERRAMENTA ESTIVER EM USO, A QUANTIDADE SERÁ RESTAURADA NO ESTOQUE AUTOMATICAMENTE.`)) {
+      return
+    }
+
+    setExcluindo(true)
+    setErro(null)
+
+    try {
+      await excluirRetiradaFerramenta(retirada.id)
+      await onSucesso()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message.toUpperCase() : 'ERRO AO EXCLUIR RETIRADA.')
+    } finally {
+      setExcluindo(false)
+    }
+  }
+
+  const DESTINOS_RAPIDOS = [
+    'USO / E / CONSUMO / PESADA',
+    'USO / E / CONSUMO / FUNILARIA',
+    'USO / E / CONSUMO / ELÉTRICA',
+    'OFICINA',
+    'BORRACHARIA',
+    'SOCORRO',
+  ]
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 uppercase overflow-y-auto py-6">
+        <div className="w-full max-w-lg rounded-2xl border border-border/20 bg-surface p-6 shadow-2xl animate-scale-in max-h-[92vh] flex flex-col justify-between">
+          <div className="shrink-0 mb-4 flex items-center justify-between border-b border-border/10 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                <Pencil className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-foreground uppercase">EDITAR RETIRADA / SAÍDA</h2>
+                <p className="text-[11px] text-secondary font-medium">MODIFIQUE OS DADOS DO REGISTRO OU QUANTIDADE</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-secondary hover:bg-overlay/10 hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {erro && (
+            <div className="mb-4 rounded-xl border border-status-danger/30 bg-status-danger/10 p-3 text-xs text-status-danger uppercase font-bold">
+              {erro}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto pr-1 flex-1">
+            {/* Seleção de Ferramenta */}
+            <div>
+              <Label htmlFor="ferramentaEdit" className="uppercase font-bold text-xs">
+                Ferramenta
+              </Label>
+              <select
+                id="ferramentaEdit"
+                value={ferramentaId}
+                onChange={(e) => setFerramentaId(e.target.value)}
+                className="mt-1 h-10 w-full rounded-xl border border-border/20 bg-background px-3 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase font-bold"
+              >
+                {ferramentas.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.nome} {f.codigo ? `(${f.codigo})` : ''} — DISP: {f.quantidade_disponivel} / TOTAL: {f.quantidade_total}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Placa / Caminhão ou Setor */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <Label htmlFor="placaEdit" className="uppercase font-bold text-xs">
+                  Placa / Caminhão ou Destino *
+                </Label>
+              </div>
+              <Input
+                id="placaEdit"
+                value={placa}
+                onChange={(e) => setPlaca(e.target.value.toUpperCase())}
+                placeholder="EX: RGC7A66 OU USO / E / CONSUMO / PESADA"
+                className="uppercase font-mono text-xs font-bold"
+                required
+              />
+
+              {/* Botões Rápidos de Destino */}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {DESTINOS_RAPIDOS.map((dest) => (
+                  <button
+                    key={dest}
+                    type="button"
+                    onClick={() => setPlaca(dest)}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-all ${
+                      placa === dest
+                        ? 'bg-primary/20 border-primary text-primary'
+                        : 'bg-background/60 border-border/20 text-secondary hover:text-foreground hover:border-border/50'
+                    }`}
+                  >
+                    {dest}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sugestões de Veículos Cadastrados */}
+              {veiculos.length > 0 && placa.trim().length >= 2 && !DESTINOS_RAPIDOS.includes(placa) && (
+                <div className="mt-2 flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                  {veiculos
+                    .filter((v) => v.placa.toUpperCase().includes(placa.trim().toUpperCase()))
+                    .slice(0, 5)
+                    .map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => setPlaca(v.placa)}
+                        className="text-[10px] font-mono font-bold bg-primary/10 text-primary border border-primary/30 px-2 py-0.5 rounded"
+                      >
+                        🚛 {v.placa}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Responsável e Quantidade */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="respEdit" className="uppercase font-bold text-xs">
+                  Responsável *
+                </Label>
+                <Input
+                  id="respEdit"
+                  value={responsavel}
+                  onChange={(e) => setResponsavel(e.target.value.toUpperCase())}
+                  placeholder="NOME DO RESPONSÁVEL"
+                  className="mt-1 uppercase text-xs font-bold"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="qtdEdit" className="uppercase font-bold text-xs">
+                  Quantidade Retirada *
+                </Label>
+                <Input
+                  id="qtdEdit"
+                  type="number"
+                  min="1"
+                  value={quantidade}
+                  onChange={(e) => setQuantidade(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="mt-1 font-mono text-xs font-bold"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Data / Hora Retirada */}
+            <div>
+              <Label htmlFor="dataEdit" className="uppercase font-bold text-xs">
+                Data e Hora da Retirada
+              </Label>
+              <Input
+                id="dataEdit"
+                type="datetime-local"
+                value={dataHoraRetirada}
+                onChange={(e) => setDataHoraRetirada(e.target.value)}
+                className="mt-1 font-mono text-xs"
+              />
+            </div>
+
+            {/* Foto do Responsável / Comprovante */}
+            <div>
+              <Label className="uppercase font-bold text-xs mb-1.5 block">
+                Foto do Responsável / Comprovante
+              </Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFotoFile}
+                className="hidden"
+              />
+
+              {fotoUrl ? (
+                <div className="flex items-center gap-3 p-2.5 rounded-xl border border-border/20 bg-background/50">
+                  <img
+                    src={fotoUrl}
+                    alt="Foto do Responsável"
+                    className="h-12 w-12 rounded-xl object-cover border border-primary/40"
+                  />
+                  <div className="flex-1 space-y-1">
+                    <p className="text-[11px] font-bold text-foreground uppercase">Foto Registrada</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAbrirWebcamModal(true)}
+                        className="text-[10px] text-primary hover:underline font-bold flex items-center gap-1"
+                      >
+                        <Camera className="h-3 w-3" /> Tirar Nova Foto
+                      </button>
+                      <span className="text-secondary text-[10px]">·</span>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-[10px] text-primary hover:underline font-bold flex items-center gap-1"
+                      >
+                        <ImageIcon className="h-3 w-3" /> Trocar
+                      </button>
+                      <span className="text-secondary text-[10px]">·</span>
+                      <button
+                        type="button"
+                        onClick={() => setFotoUrl(null)}
+                        className="text-[10px] text-rose-400 hover:underline font-bold"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAbrirWebcamModal(true)}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary transition-all text-xs font-bold cursor-pointer"
+                  >
+                    <Camera className="h-4 w-4" /> Câmera
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={comprimindoFoto}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-border/20 bg-background hover:bg-surface text-secondary hover:text-foreground transition-all text-xs font-bold cursor-pointer"
+                  >
+                    {comprimindoFoto ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4" />
+                    )}
+                    Galeria / Arquivo
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Observações */}
+            <div>
+              <Label htmlFor="obsRetEdit" className="uppercase font-bold text-xs">
+                Observações
+              </Label>
+              <Input
+                id="obsRetEdit"
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                placeholder="OBSERVAÇÕES ADICIONAIS..."
+                className="mt-1 uppercase text-xs"
+              />
+            </div>
+
+            {/* Rodapé de Botões */}
+            <div className="pt-3 border-t border-border/10 flex items-center justify-between gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleExcluir}
+                disabled={salvando || excluindo}
+                className="text-xs border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500 uppercase font-bold gap-1"
+              >
+                {excluindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                EXCLUIR
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={onClose}
+                  disabled={salvando || excluindo}
+                  className="uppercase font-bold text-xs"
+                >
+                  CANCELAR
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={salvando || excluindo}
+                  className="bg-primary hover:bg-primary/90 text-white uppercase font-bold text-xs gap-1.5"
+                >
+                  {salvando ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> SALVANDO...
+                    </>
+                  ) : (
+                    'SALVAR ALTERAÇÕES'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {abrirWebcamModal && (
+        <CameraWebcamModal
+          onCapture={handleWebcamFoto}
+          onClose={() => setAbrirWebcamModal(false)}
+        />
+      )}
+    </>
   )
 }
 

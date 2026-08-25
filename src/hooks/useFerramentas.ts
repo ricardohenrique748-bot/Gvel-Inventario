@@ -465,3 +465,182 @@ export async function reverterDevolucaoFerramenta(retiradaId: string): Promise<v
   }
 }
 
+export interface AtualizarRetiradaInput {
+  id: string
+  ferramenta_id?: string
+  veiculo_id?: string | null
+  placa?: string
+  responsavel?: string
+  quantidade?: number
+  observacoes_retirada?: string | null
+  data_hora_retirada?: string
+  foto_responsavel_url?: string | null
+  foto_url?: string | null
+}
+
+export async function atualizarRetiradaFerramenta(input: AtualizarRetiradaInput): Promise<FerramentaRetirada> {
+  const { data: atual, error: buscaError } = await supabase
+    .from('ferramentas_retiradas')
+    .select('*, ferramenta:ferramentas(*)')
+    .eq('id', input.id)
+    .single()
+
+  if (buscaError || !atual) {
+    throw new Error('Registro de retirada não encontrado.')
+  }
+
+  const novaQtd = input.quantidade !== undefined ? Number(input.quantidade) || 1 : atual.quantidade
+  const novaFerramentaId = input.ferramenta_id || atual.ferramenta_id
+  const toolChanged = novaFerramentaId !== atual.ferramenta_id
+  const qtdChanged = novaQtd !== atual.quantidade
+
+  // Se o status for em_uso, ajusta a quantidade disponível
+  if (atual.status === 'em_uso') {
+    if (toolChanged) {
+      // Devolve para a ferramenta antiga
+      const antigaFerramenta = atual.ferramenta as Ferramenta | undefined
+      if (antigaFerramenta) {
+        await supabase
+          .from('ferramentas')
+          .update({
+            quantidade_disponivel: Math.min(
+              antigaFerramenta.quantidade_total,
+              (antigaFerramenta.quantidade_disponivel || 0) + atual.quantidade,
+            ),
+          })
+          .eq('id', atual.ferramenta_id)
+      }
+
+      // Baixa na nova ferramenta
+      const { data: novaFerramenta, error: errNova } = await supabase
+        .from('ferramentas')
+        .select('*')
+        .eq('id', novaFerramentaId)
+        .single()
+
+      if (errNova || !novaFerramenta) {
+        throw new Error('Nova ferramenta selecionada não encontrada.')
+      }
+
+      if (novaFerramenta.quantidade_disponivel < novaQtd) {
+        throw new Error(
+          `Estoque insuficiente da nova ferramenta. Disponível: ${novaFerramenta.quantidade_disponivel} un.`,
+        )
+      }
+
+      await supabase
+        .from('ferramentas')
+        .update({
+          quantidade_disponivel: Math.max(0, novaFerramenta.quantidade_disponivel - novaQtd),
+        })
+        .eq('id', novaFerramentaId)
+    } else if (qtdChanged) {
+      const diff = novaQtd - atual.quantidade
+      const ferramenta = atual.ferramenta as Ferramenta | undefined
+      if (ferramenta) {
+        if (diff > 0 && ferramenta.quantidade_disponivel < diff) {
+          throw new Error(
+            `Estoque insuficiente para aumentar. Disponível no estoque: ${ferramenta.quantidade_disponivel} un.`,
+          )
+        }
+        await supabase
+          .from('ferramentas')
+          .update({
+            quantidade_disponivel: Math.max(0, (ferramenta.quantidade_disponivel || 0) - diff),
+          })
+          .eq('id', atual.ferramenta_id)
+      }
+    }
+  }
+
+  const foto = input.foto_responsavel_url !== undefined ? input.foto_responsavel_url : (atual.foto_responsavel_url || atual.foto_url)
+  
+  let obs = input.observacoes_retirada !== undefined ? input.observacoes_retirada : atual.observacoes_retirada
+  // Remove marcas de fotos antigas para não duplicar se foto mudou ou foi removida
+  if (obs) {
+    obs = obs.replace(/\[FOTO:.*?\]/g, '').trim()
+  }
+  if (foto) {
+    obs = obs ? `${obs} [FOTO:${foto}]` : `[FOTO:${foto}]`
+  }
+
+  const payload: Record<string, unknown> = {
+    ferramenta_id: novaFerramentaId,
+    placa: input.placa ? up(input.placa) : atual.placa,
+    responsavel: input.responsavel ? up(input.responsavel) : atual.responsavel,
+    quantidade: novaQtd,
+    observacoes_retirada: obs || null,
+  }
+
+  if (input.veiculo_id !== undefined) {
+    payload.veiculo_id = input.veiculo_id || null
+  }
+  if (input.data_hora_retirada) {
+    payload.data_hora_retirada = input.data_hora_retirada
+  }
+  if (foto !== undefined) {
+    payload.foto_responsavel_url = foto || null
+    payload.foto_url = foto || null
+  }
+
+  let { data: atualizado, error: updateError } = await supabase
+    .from('ferramentas_retiradas')
+    .update(payload)
+    .eq('id', input.id)
+    .select('*, ferramenta:ferramentas(*)')
+    .single()
+
+  if (updateError && foto) {
+    const payloadSemFoto = { ...payload }
+    delete payloadSemFoto.foto_responsavel_url
+    delete payloadSemFoto.foto_url
+
+    const retry = await supabase
+      .from('ferramentas_retiradas')
+      .update(payloadSemFoto)
+      .eq('id', input.id)
+      .select('*, ferramenta:ferramentas(*)')
+      .single()
+
+    atualizado = retry.data
+    updateError = retry.error
+  }
+
+  if (updateError) throw new Error(updateError.message)
+  return formatarRetiradaComFoto(atualizado)
+}
+
+export async function excluirRetiradaFerramenta(retiradaId: string): Promise<void> {
+  const { data: retirada, error: buscaError } = await supabase
+    .from('ferramentas_retiradas')
+    .select('*, ferramenta:ferramentas(*)')
+    .eq('id', retiradaId)
+    .single()
+
+  if (buscaError || !retirada) {
+    throw new Error('Registro de retirada não encontrado.')
+  }
+
+  if (retirada.status === 'em_uso') {
+    const ferramenta = retirada.ferramenta as Ferramenta | undefined
+    if (ferramenta) {
+      await supabase
+        .from('ferramentas')
+        .update({
+          quantidade_disponivel: Math.min(
+            ferramenta.quantidade_total,
+            (ferramenta.quantidade_disponivel || 0) + (retirada.quantidade || 1),
+          ),
+        })
+        .eq('id', retirada.ferramenta_id)
+    }
+  }
+
+  const { error } = await supabase
+    .from('ferramentas_retiradas')
+    .delete()
+    .eq('id', retiradaId)
+
+  if (error) throw new Error(error.message)
+}
+
