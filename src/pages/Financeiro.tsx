@@ -732,23 +732,31 @@ export function Financeiro() {
                 <BarChart2 className="h-4 w-4" />
               </div>
               <h3 className="text-sm sm:text-base font-black text-foreground uppercase tracking-wide">
-                FATURAMENTO × DESPESAS POR EMPRESA
+                FATURAMENTO × DESPESAS POR EMPRESA — {mesFiltro.toUpperCase()} 2026
               </h3>
             </div>
             <p className="text-xs text-secondary font-medium mt-1">
-              Comparativo visual de faturamento e despesas por unidade de negócio
+              Comparativo de faturamento e despesas por unidade de negócio em {mesFiltro.toUpperCase()} / 2026
             </p>
           </div>
 
-          {/* Legenda Customizada e Elegante */}
-          <div className="flex flex-wrap items-center gap-2 bg-background/60 border border-border/20 px-3 py-1.5 rounded-xl text-xs font-bold">
-            <span className="flex items-center gap-1.5 text-blue-400">
-              <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-sm" /> FATURAMENTO
-            </span>
-            <span className="text-border/40">•</span>
-            <span className="flex items-center gap-1.5 text-red-400">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-sm" /> DESPESAS
-            </span>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Badge de Mês e Ano */}
+            <Badge tone="neutral" className="text-xs font-black border-border/40 text-white bg-primary/15 border-primary/30">
+              <Calendar className="h-3 w-3 text-primary mr-1" />
+              {mesFiltro.toUpperCase()} 2026
+            </Badge>
+
+            {/* Legenda Customizada e Elegante */}
+            <div className="flex flex-wrap items-center gap-2 bg-background/60 border border-border/20 px-3 py-1.5 rounded-xl text-xs font-bold">
+              <span className="flex items-center gap-1.5 text-blue-400">
+                <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-sm" /> FATURAMENTO
+              </span>
+              <span className="text-border/40">•</span>
+              <span className="flex items-center gap-1.5 text-red-400">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-sm" /> DESPESAS
+              </span>
+            </div>
           </div>
         </div>
 
