@@ -236,6 +236,39 @@ export function Financeiro() {
     return dadosMesAtivo.topClientes
   }, [dadosMesAtivo])
 
+  // Comparativo Mês a Mês (Evolutivo)
+  const dadosComparativoMeses = useMemo(() => {
+    const meses = [
+      { id: 'maio', label: 'MAIO 2026' },
+      { id: 'junho', label: 'JUNHO 2026' },
+      { id: 'julho', label: 'JULHO 2026' },
+    ]
+
+    return meses.map((m) => {
+      const dataMes = DADOS_MESES[m.id] || DADOS_MESES.julho
+      const empresas =
+        empresaFiltro === 'TODAS'
+          ? dataMes.empresas
+          : dataMes.empresas.filter((e) => e.nome === empresaFiltro || e.id === empresaFiltro)
+
+      const faturamento = empresas.reduce((acc, e) => acc + e.faturamento, 0)
+      const receitas = empresas.reduce((acc, e) => acc + e.receitas, 0)
+      const despesas = empresas.reduce((acc, e) => acc + e.despesas, 0)
+      const saldoCaixa = receitas - despesas
+      const resFat = faturamento - despesas
+
+      return {
+        mes: m.label,
+        id: m.id,
+        Faturamento: faturamento,
+        Receitas: receitas,
+        Despesas: despesas,
+        saldoCaixa,
+        resFat,
+      }
+    })
+  }, [empresaFiltro])
+
   if (!perfilLoading && !autorizado) {
     return (
       <div className="flex min-h-[65vh] flex-col items-center justify-center p-6 text-center animate-fade-in uppercase">
@@ -944,6 +977,217 @@ export function Financeiro() {
               </div>
             )
           })}
+        </div>
+      </Card>
+
+      {/* ──────────────────────────────────────────────────────────────────────────
+          GRÁFICO COMPARATIVO EVOLUTIVO MÊS A MÊS (FATURAMENTO vs DESPESAS vs RECEITAS)
+         ────────────────────────────────────────────────────────────────────────── */}
+      <Card className="p-6 border-border/30 bg-surface/50 shadow-xl space-y-6">
+        {/* Cabeçalho do Gráfico Comparativo */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/20 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 border border-primary/30 text-primary shadow-inner">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white tracking-wide uppercase">
+                COMPARATIVO EVOLUTIVO MÊS A MÊS — {empresaFiltro === 'TODAS' ? 'GRUPO VEL' : empresaFiltro.toUpperCase()}
+              </h3>
+              <p className="text-xs text-secondary font-medium lowercase">
+                Evolução comparativa de faturamento, receitas e despesas ao longo dos meses (Maio, Junho e Julho)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Badge tone="neutral" className="text-[11px] font-bold border-border/30 text-white">
+              MAIO · JUNHO · JULHO
+            </Badge>
+          </div>
+        </div>
+
+        {/* Legenda do Gráfico */}
+        <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-white bg-background/40 p-3 rounded-2xl border border-border/20">
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-md bg-blue-500 shadow-sm shadow-blue-500/50" />
+            <span className="text-blue-400 font-black">FATURAMENTO</span>
+            <span className="text-secondary text-[10px] lowercase font-normal">(competência)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-md bg-emerald-500 shadow-sm shadow-emerald-500/50" />
+            <span className="text-emerald-400 font-black">RECEITAS</span>
+            <span className="text-secondary text-[10px] lowercase font-normal">(caixa)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-md bg-red-500 shadow-sm shadow-red-500/50" />
+            <span className="text-red-400 font-black">DESPESAS</span>
+            <span className="text-secondary text-[10px] lowercase font-normal">(caixa)</span>
+          </div>
+        </div>
+
+        {/* Área do Gráfico Comparativo Recharts */}
+        <div className="h-80 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={dadosComparativoMeses}
+              margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
+              barGap={8}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis
+                dataKey="mes"
+                stroke="#FFFFFF"
+                tick={{ fill: '#FFFFFF', fontWeight: 800, fontSize: 13 }}
+                tickLine={false}
+                axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+              />
+              <YAxis
+                stroke="#FFFFFF"
+                tick={{ fill: '#FFFFFF', fontWeight: 700, fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(val) => fmtCompact(val)}
+              />
+              <Tooltip
+                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || !payload.length) return null
+
+                  const fat = Number(payload.find((p) => p.dataKey === 'Faturamento')?.value || 0)
+                  const rec = Number(payload.find((p) => p.dataKey === 'Receitas')?.value || 0)
+                  const desp = Number(payload.find((p) => p.dataKey === 'Despesas')?.value || 0)
+                  const saldo = rec - desp
+                  const resFat = fat - desp
+
+                  return (
+                    <div className="rounded-2xl border border-border/40 bg-surface/95 p-4 shadow-2xl backdrop-blur-md uppercase text-xs space-y-2 min-w-[250px]">
+                      <div className="border-b border-border/20 pb-2 flex items-center justify-between">
+                        <span className="font-black text-white text-sm flex items-center gap-1.5">
+                          📅 {label}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 font-mono">
+                        <div className="flex items-center justify-between">
+                          <span className="text-blue-400 font-sans font-bold flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-blue-500" /> FATURAMENTO:
+                          </span>
+                          <span className="font-bold text-white">{fmtBRL(fat)}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-emerald-400 font-sans font-bold flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" /> RECEITAS (CAIXA):
+                          </span>
+                          <span className="font-bold text-white">{fmtBRL(rec)}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-red-400 font-sans font-bold flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-red-500" /> DESPESAS (CAIXA):
+                          </span>
+                          <span className="font-bold text-white">{fmtBRL(desp)}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-border/20 pt-2 space-y-1 font-mono text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-secondary font-sans font-bold">SALDO CAIXA:</span>
+                          <span className={`font-black ${saldo >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {fmtBRL(saldo)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-secondary font-sans font-bold">RESULTADO FAT.:</span>
+                          <span className={`font-black ${resFat >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {fmtBRL(resFat)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+              <Bar dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                <LabelList
+                  dataKey="Faturamento"
+                  position="top"
+                  formatter={(v: any) => fmtCompact(Number(v) || 0)}
+                  style={{ fill: '#93c5fd', fontSize: 11, fontWeight: 800, fontFamily: 'monospace' }}
+                />
+              </Bar>
+              <Bar dataKey="Receitas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                <LabelList
+                  dataKey="Receitas"
+                  position="top"
+                  formatter={(v: any) => fmtCompact(Number(v) || 0)}
+                  style={{ fill: '#6ee7b7', fontSize: 11, fontWeight: 800, fontFamily: 'monospace' }}
+                />
+              </Bar>
+              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                <LabelList
+                  dataKey="Despesas"
+                  position="top"
+                  formatter={(v: any) => fmtCompact(Number(v) || 0)}
+                  style={{ fill: '#fca5a5', fontSize: 11, fontWeight: 800, fontFamily: 'monospace' }}
+                />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Resumo Comparativo em Cards por Mês */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-border/20">
+          {dadosComparativoMeses.map((m) => (
+            <div
+              key={m.id}
+              className="rounded-2xl border border-border/20 bg-background/50 p-4 hover:border-primary/40 transition-all space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <h4 className="font-black text-xs text-white">{m.mes}</h4>
+                <span
+                  className={`text-[10px] font-black px-2 py-0.5 rounded-full font-mono ${
+                    m.saldoCaixa >= 0
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-red-500/15 text-red-400 border border-red-500/30'
+                  }`}
+                >
+                  {m.saldoCaixa >= 0 ? '+ CAIXA' : '- DÉFICIT'}
+                </span>
+              </div>
+
+              <div className="space-y-1.5 text-xs font-mono">
+                <div className="flex items-center justify-between">
+                  <span className="text-blue-400 font-sans font-bold">FATURAMENTO:</span>
+                  <span className="font-bold text-white">{fmtBRL(m.Faturamento)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-emerald-400 font-sans font-bold">RECEITAS (CAIXA):</span>
+                  <span className="font-bold text-white">{fmtBRL(m.Receitas)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-red-400 font-sans font-bold">DESPESAS (CAIXA):</span>
+                  <span className="font-bold text-white">{fmtBRL(m.Despesas)}</span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-border/10 grid grid-cols-2 gap-2 text-[10px]">
+                <div>
+                  <span className="text-secondary font-sans font-bold block">SALDO CAIXA</span>
+                  <span className={`font-mono font-black ${m.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {fmtBRL(m.saldoCaixa)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-secondary font-sans font-bold block">RES. FATURAMENTO</span>
+                  <span className={`font-mono font-black ${m.resFat >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {fmtBRL(m.resFat)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </Card>
 
