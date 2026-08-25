@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -59,6 +59,7 @@ import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useAuth } from '@/contexts/AuthContext'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
+import { VEICULOS_FROTA_BASE } from '@/data/veiculosFrotaPadrao'
 
 const anoAtual = new Date().getFullYear()
 
@@ -98,6 +99,8 @@ export interface ItemFrotaCadastrada {
   ano?: number
   cor?: string
   chassi?: string
+  renavam?: string
+  categoria?: string
   situacao: 'operante' | 'inoperante'
   vencimentoDocumento?: string // YYYY-MM-DD
   dataUltimaPreventiva?: string // Data da última preventiva
@@ -231,9 +234,35 @@ export function Frotas() {
   const [frotas, setFrotas] = useState<ItemFrotaCadastrada[]>(() => {
     try {
       const salvo = localStorage.getItem(STORAGE_FROTAS_KEY)
-      if (salvo) return JSON.parse(salvo)
+      if (salvo) {
+        const parsed = JSON.parse(salvo)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const mapa = new Map<string, ItemFrotaCadastrada>()
+          // 1. Inserir todos os veículos padrão
+          VEICULOS_FROTA_BASE.forEach((v) => {
+            mapa.set(v.placa.toUpperCase().trim(), v as ItemFrotaCadastrada)
+          })
+          // 2. Mesclar com as edições e cadastros existentes do localStorage garantindo tipo e cliente corretos
+          parsed.forEach((v: ItemFrotaCadastrada) => {
+            const placa = v.placa ? v.placa.toUpperCase().trim() : v.id
+            const base = mapa.get(placa)
+            if (base) {
+              mapa.set(placa, {
+                ...base,
+                ...v,
+                tipo: base.tipo,
+                clienteNome: base.clienteNome,
+                clienteId: base.clienteId,
+              })
+            } else {
+              mapa.set(placa, v)
+            }
+          })
+          return Array.from(mapa.values())
+        }
+      }
     } catch {}
-    return []
+    return VEICULOS_FROTA_BASE as ItemFrotaCadastrada[]
   })
 
   // Lista de Checklists realizados
@@ -269,6 +298,10 @@ export function Frotas() {
   const [clienteFiltro, setClienteFiltro] = useState<string>('todos')
   const [alertaFiltro, setAlertaFiltro] = useState<'todos' | 'preventiva_atrasada' | 'doc_a_vencer' | 'doc_vencido'>('todos')
 
+  // Filtros dos Gráficos do Dashboard
+  const [filtroGraficoKm, setFiltroGraficoKm] = useState<'top12' | 'top20' | 'criticos' | 'todos'>('top12')
+  const [filtroTipoGraficoKm, setFiltroTipoGraficoKm] = useState<string>('todos_motor')
+
   // Modais de Checklist
   const [mostrarModalNovoChecklist, setMostrarModalNovoChecklist] = useState(false)
   const [checklistVisualizando, setChecklistVisualizando] = useState<RegistroChecklist | null>(null)
@@ -278,6 +311,10 @@ export function Frotas() {
 
   // Form State para Novo Checklist
   const [veiculoChecklistId, setVeiculoChecklistId] = useState('')
+  const [placaBuscaChecklist, setPlacaBuscaChecklist] = useState('')
+  const [dropdownPlacaAberto, setDropdownPlacaAberto] = useState(false)
+  const [filtroCatChecklist, setFiltroCatChecklist] = useState<string>('todos')
+  const containerBuscaPlacaRef = useRef<HTMLDivElement>(null)
   const [motoristaChecklist, setMotoristaChecklist] = useState('')
   const [kmChecklist, setKmChecklist] = useState<number>(0)
   const [resultadoChecklist, setResultadoChecklist] = useState<'aprovado' | 'aprovado_com_ressalvas' | 'reprovado'>('aprovado')
@@ -291,6 +328,16 @@ export function Frotas() {
       status: 'conforme',
     })),
   )
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerBuscaPlacaRef.current && !containerBuscaPlacaRef.current.contains(e.target as Node)) {
+        setDropdownPlacaAberto(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Refs de inputs de arquivo para disparar a câmera
   const inputFotoPainelRef = useRef<HTMLInputElement>(null)
@@ -454,9 +501,17 @@ export function Frotas() {
     return { status: 'nao_informado', label: 'NÃO INFORMADA', kmRestante: 0, kmLimite: 0, atrasada: false }
   }
 
-  // 1. DADOS DO GRÁFICO 1: KM Restante para Preventiva por Placa
+  // 1. DADOS DO GRÁFICO 1: KM Restante para Preventiva por Placa (Veículos Motorizados)
   const dadosGraficoKmPreventiva = useMemo(() => {
-    return frotas.map((v) => {
+    // Carretas e dollys não possuem odômetro de motor/KM
+    const motorizados = frotas.filter((v) => v.tipo !== 'carreta')
+
+    const filtrados = motorizados.filter((v) => {
+      if (filtroTipoGraficoKm === 'todos_motor') return true
+      return v.tipo === filtroTipoGraficoKm
+    })
+
+    const lista = filtrados.map((v) => {
       const placa = v.placa.toUpperCase().trim()
       const kmAtual = ultimasKmsPorPlaca.get(placa) || 0
       const kmUltima = v.kmUltimaPreventiva || 0
@@ -467,6 +522,8 @@ export function Frotas() {
       return {
         placa,
         modelo: v.modeloNome || v.marcaNome || 'VEÍCULO',
+        marca: v.marcaNome,
+        tipo: v.tipo,
         kmAtual,
         kmUltima,
         kmMeta,
@@ -474,7 +531,43 @@ export function Frotas() {
         status: kmFaltante < 0 ? 'atrasado' : kmFaltante <= 1500 ? 'proximo' : 'em_dia',
       }
     }).sort((a, b) => a.kmFaltante - b.kmFaltante)
-  }, [frotas, ultimasKmsPorPlaca])
+
+    if (filtroGraficoKm === 'criticos') {
+      const criticos = lista.filter((v) => v.kmFaltante <= 1500)
+      return criticos.length > 0 ? criticos : lista.slice(0, 10)
+    }
+    if (filtroGraficoKm === 'top12') {
+      return lista.slice(0, 12)
+    }
+    if (filtroGraficoKm === 'top20') {
+      return lista.slice(0, 20)
+    }
+    return lista
+  }, [frotas, ultimasKmsPorPlaca, filtroGraficoKm, filtroTipoGraficoKm])
+
+  // Distribuição da Frota por Categoria
+  const distribuicaoCategorias = useMemo(() => {
+    let trator = 0
+    let pesado = 0
+    let leve = 0
+    let carreta = 0
+
+    frotas.forEach((v) => {
+      if (v.tipo === 'trator') trator++
+      else if (v.tipo === 'pesado') pesado++
+      else if (v.tipo === 'carreta') carreta++
+      else leve++
+    })
+
+    const total = frotas.length || 1
+
+    return [
+      { nome: 'Cavalos Trator', total: trator, pct: Math.round((trator / total) * 100), cor: '#6366f1', icone: '🚜', tipo: 'trator' },
+      { nome: 'Carretas & Dollys', total: carreta, pct: Math.round((carreta / total) * 100), cor: '#ec4899', icone: '🛣️', tipo: 'carreta' },
+      { nome: 'Frota Leve / Utilitários', total: leve, pct: Math.round((leve / total) * 100), cor: '#3b82f6', icone: '🚗', tipo: 'leve' },
+      { nome: 'Caminhões Pesados', total: pesado, pct: Math.round((pesado / total) * 100), cor: '#f59e0b', icone: '🚚', tipo: 'pesado' },
+    ]
+  }, [frotas])
 
   // 2. DADOS DO GRÁFICO 2: Checklists Realizados por Pessoa (Motorista / Condutor)
   const dadosGraficoChecklistPessoa = useMemo(() => {
@@ -644,7 +737,19 @@ export function Frotas() {
   const veiculosFiltrados = useMemo(() => {
     return frotas.filter((v) => {
       if (tipoFiltro !== 'todos' && v.tipo !== tipoFiltro) return false
-      if (clienteFiltro !== 'todos' && v.clienteId !== clienteFiltro) return false
+
+      if (clienteFiltro !== 'todos') {
+        const clienteSelecionado = clientes.find((c) => c.id === clienteFiltro)
+        const matchId = v.clienteId === clienteFiltro
+        const matchNome = Boolean(
+          clienteSelecionado &&
+            v.clienteNome &&
+            (v.clienteNome.toUpperCase().trim() === clienteSelecionado.nome.toUpperCase().trim() ||
+              clienteSelecionado.nome.toUpperCase().includes('G VEL') ||
+              clienteSelecionado.nome.toUpperCase().includes('TRANSPORTES'))
+        )
+        if (!matchId && !matchNome) return false
+      }
 
       if (alertaFiltro === 'preventiva_atrasada') {
         const st = getStatusPreventiva(v)
@@ -775,10 +880,30 @@ export function Frotas() {
     salvarFrotas(frotas.filter((f) => f.id !== id))
   }
 
+  // Lista de veículos filtrados para o modal de checklist (por digitação de placa/modelo e categoria)
+  const veiculosFiltradosChecklist = useMemo(() => {
+    let lista = frotas
+    if (filtroCatChecklist !== 'todos') {
+      lista = lista.filter((f) => f.tipo === filtroCatChecklist)
+    }
+    const buscaLimpa = placaBuscaChecklist.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+    const buscaTexto = placaBuscaChecklist.trim().toUpperCase()
+    if (!buscaTexto) return lista
+
+    return lista.filter(
+      (f) =>
+        f.placa.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(buscaLimpa) ||
+        (f.modeloNome && f.modeloNome.toUpperCase().includes(buscaTexto)) ||
+        (f.marcaNome && f.marcaNome.toUpperCase().includes(buscaTexto))
+    )
+  }, [frotas, placaBuscaChecklist, filtroCatChecklist])
+
   // Handlers de Checklist
   function iniciarNovoChecklist() {
-    const primeiro = frotas[0]?.id || ''
-    setVeiculoChecklistId(primeiro)
+    setVeiculoChecklistId('')
+    setPlacaBuscaChecklist('')
+    setDropdownPlacaAberto(false)
+    setFiltroCatChecklist('todos')
     setMotoristaChecklist('')
     setKmChecklist(0)
     setResultadoChecklist('aprovado')
@@ -1022,90 +1147,159 @@ export function Frotas() {
           </div>
 
           {/* ========================================================================= */}
+          {/* DISTRIBUIÇÃO DA FROTA POR CATEGORIA */}
+          {/* ========================================================================= */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {distribuicaoCategorias.map((cat) => (
+              <Card
+                key={cat.nome}
+                className="p-4 border-border/20 bg-surface/90 flex items-center justify-between shadow-sm hover:border-border/40 transition-colors"
+              >
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-secondary">
+                    {cat.nome}
+                  </span>
+                  <p className="mt-1 text-2xl font-black font-mono text-foreground">
+                    {cat.total} <span className="text-xs text-secondary font-sans font-normal">({cat.pct}%)</span>
+                  </p>
+                </div>
+                <div
+                  className="flex h-10 w-10 items-center justify-center rounded-xl text-lg border"
+                  style={{ backgroundColor: `${cat.cor}15`, borderColor: `${cat.cor}30` }}
+                >
+                  {cat.icone}
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* ========================================================================= */}
           {/* GRÁFICO 1: QUANTOS KM FALTAM PARA FAZER PREVENTIVA POR PLACA */}
           {/* ========================================================================= */}
-          <Card className="p-5 border-border/25 bg-surface/90 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/10 pb-3">
-              <div className="flex items-center gap-2">
-                <Gauge className="h-5 w-5 text-primary" />
+          <Card className="p-5 border-border/25 bg-surface/90 space-y-4 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-border/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+                  <Gauge className="h-5 w-5" />
+                </div>
                 <div>
                   <h3 className="text-sm font-black text-foreground uppercase tracking-wide">
-                    QUILOMETRAGEM (KM) RESTANTE PARA PRÓXIMA PREVENTIVA POR VEÍCULO
+                    QUILOMETRAGEM (KM) RESTANTE PARA PRÓXIMA PREVENTIVA
                   </h3>
                   <p className="text-[11px] text-secondary normal-case">
-                    Comparação de KM atual dos checklists vs KM da última preventiva + intervalo de revisão
+                    Auditoria de KM atual vs limite de revisão por veículo motorizado (Cavalos, Caminhões e Leves)
                   </p>
                 </div>
               </div>
-              <Badge tone="neutral" className="text-[10px] font-black self-start sm:self-auto">
-                {dadosGraficoKmPreventiva.length} VEÍCULOS AUDITADOS
-              </Badge>
+
+              {/* Filtros de Categoria e Visualização */}
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={filtroTipoGraficoKm}
+                  onChange={(e) => setFiltroTipoGraficoKm(e.target.value)}
+                  aria-label="Filtrar categoria de veículo motorizado"
+                  className="h-9 rounded-xl border border-border/25 bg-surface/90 px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none uppercase cursor-pointer"
+                >
+                  <option value="todos_motor">MOTORIZADOS ({frotas.filter(v => v.tipo !== 'carreta').length})</option>
+                  <option value="trator">🚜 CAVALOS TRATOR ({frotas.filter(v => v.tipo === 'trator').length})</option>
+                  <option value="pesado">🚚 CAMINHÕES PESADOS ({frotas.filter(v => v.tipo === 'pesado').length})</option>
+                  <option value="leve">🚗 FROTA LEVE ({frotas.filter(v => v.tipo === 'leve').length})</option>
+                </select>
+
+                <select
+                  value={filtroGraficoKm}
+                  onChange={(e) => setFiltroGraficoKm(e.target.value as any)}
+                  aria-label="Selecionar modo de visualização do gráfico"
+                  className="h-9 rounded-xl border border-primary/40 bg-primary/10 px-3 text-xs font-bold text-primary focus:border-primary focus:outline-none uppercase cursor-pointer"
+                >
+                  <option value="top12">⚡ TOP 12 MAIS PRÓXIMOS DE REVISÃO</option>
+                  <option value="top20">⚡ TOP 20 MAIS PRÓXIMOS</option>
+                  <option value="criticos">🚨 CRÍTICOS / PRÓXIMOS (≤ 1.500 KM)</option>
+                  <option value="todos">📊 TODOS OS VEÍCULOS (ROLÁVEL)</option>
+                </select>
+              </div>
             </div>
 
             {dadosGraficoKmPreventiva.length === 0 ? (
               <div className="py-12 text-center text-secondary">
                 <Truck className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p className="text-xs font-bold text-foreground">NENHUM VEÍCULO CADASTRADO NA FROTA</p>
+                <p className="text-xs font-bold text-foreground">NENHUM VEÍCULO ENCONTRADO PARA OS FILTROS SELECIONADOS</p>
               </div>
             ) : (
-              <div className="h-80 w-full pt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={dadosGraficoKmPreventiva}
-                    margin={{ top: 20, right: 30, left: 10, bottom: 25 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                    <XAxis
-                      dataKey="placa"
-                      tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 11, fontWeight: 'bold' }}
-                      axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontFamily: 'monospace' }}
-                      axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                      tickLine={false}
-                      unit=" KM"
-                    />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload || !payload.length) return null
-                        const d = payload[0].payload
-                        return (
-                          <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
-                            <p className="font-mono font-black text-primary text-sm flex items-center gap-1">
-                              🚛 {d.placa} · {d.modelo}
-                            </p>
-                            <div className="mt-1.5 space-y-1 text-[11px] text-foreground font-mono">
-                              <p>KM Atual (Checklist): <span className="font-bold text-white">{d.kmAtual.toLocaleString('pt-BR')} KM</span></p>
-                              {d.kmUltima > 0 && <p>Última Preventiva: <span className="font-bold text-secondary">{d.kmUltima.toLocaleString('pt-BR')} KM</span></p>}
-                              <p>Limite da Preventiva: <span className="font-bold text-white">{d.kmMeta.toLocaleString('pt-BR')} KM</span></p>
-                              <p className={`font-black ${d.kmFaltante < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                                {d.kmFaltante < 0
-                                  ? `🛑 ATRASADA EM ${Math.abs(d.kmFaltante).toLocaleString('pt-BR')} KM`
-                                  : `✅ FALTAM ${d.kmFaltante.toLocaleString('pt-BR')} KM`}
-                              </p>
-                            </div>
-                          </div>
-                        )
-                      }}
-                    />
-                    <Bar dataKey="kmFaltante" radius={[6, 6, 0, 0]}>
-                      <LabelList
-                        dataKey="kmFaltante"
-                        position="top"
-                        formatter={(val: any) => `${Number(val).toLocaleString('pt-BR')} KM`}
-                        style={{ fill: '#cbd5e1', fontSize: '9px', fontWeight: 'bold', fontFamily: 'monospace' }}
+              <div className="w-full overflow-x-auto pb-2">
+                <div
+                  className="h-80 pt-2"
+                  style={{
+                    minWidth: filtroGraficoKm === 'todos' && dadosGraficoKmPreventiva.length > 15
+                      ? `${Math.max(1200, dadosGraficoKmPreventiva.length * 45)}px`
+                      : '100%',
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={dadosGraficoKmPreventiva}
+                      margin={{ top: 25, right: 25, left: 10, bottom: 25 }}
+                      barSize={filtroGraficoKm === 'todos' ? 24 : dadosGraficoKmPreventiva.length <= 12 ? 38 : 28}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis
+                        dataKey="placa"
+                        tick={{ fill: '#cbd5e1', fontSize: 11, fontWeight: 'bold' }}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.15)' }}
+                        tickLine={false}
+                        interval={0}
                       />
-                      {dadosGraficoKmPreventiva.map((entry, index) => {
-                        let cor = '#10b981' // Verde (em dia)
-                        if (entry.kmFaltante < 0) cor = '#ef4444' // Vermelho (atrasado)
-                        else if (entry.kmFaltante <= 1500) cor = '#f59e0b' // Amarelo (próximo de vencer)
-                        return <Cell key={`cell-km-${index}`} fill={cor} />
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                      <YAxis
+                        tick={{ fill: '#94a3b8', fontSize: 10, fontFamily: 'monospace' }}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        tickLine={false}
+                        unit=" KM"
+                      />
+                      <Tooltip
+                        cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                        content={({ active, payload }) => {
+                          if (!active || !payload || !payload.length) return null
+                          const d = payload[0].payload
+                          return (
+                            <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
+                              <p className="font-mono font-black text-primary text-sm flex items-center gap-1">
+                                🚛 {d.placa} · {d.modelo}
+                              </p>
+                              <div className="mt-2 space-y-1 text-[11px] text-foreground font-mono">
+                                <p>KM Atual (Checklist): <span className="font-bold text-white">{d.kmAtual.toLocaleString('pt-BR')} KM</span></p>
+                                {d.kmUltima > 0 && <p>Última Preventiva: <span className="font-bold text-secondary">{d.kmUltima.toLocaleString('pt-BR')} KM</span></p>}
+                                <p>Limite da Preventiva: <span className="font-bold text-white">{d.kmMeta.toLocaleString('pt-BR')} KM</span></p>
+                                <p className={`font-black pt-1 ${d.kmFaltante < 0 ? 'text-red-400' : d.kmFaltante <= 1500 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                  {d.kmFaltante < 0
+                                    ? `🛑 REVISÃO ATRASADA EM ${Math.abs(d.kmFaltante).toLocaleString('pt-BR')} KM`
+                                    : d.kmFaltante <= 1500
+                                    ? `⚠️ ATENÇÃO: FALTAM ${d.kmFaltante.toLocaleString('pt-BR')} KM`
+                                    : `✅ EM DIA: FALTAM ${d.kmFaltante.toLocaleString('pt-BR')} KM`}
+                                </p>
+                              </div>
+                            </div>
+                          )
+                        }}
+                      />
+                      <Bar dataKey="kmFaltante" radius={[6, 6, 0, 0]}>
+                        {dadosGraficoKmPreventiva.length <= 15 && (
+                          <LabelList
+                            dataKey="kmFaltante"
+                            position="top"
+                            formatter={(val: any) => `${Number(val).toLocaleString('pt-BR')} KM`}
+                            style={{ fill: '#e2e8f0', fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                          />
+                        )}
+                        {dadosGraficoKmPreventiva.map((entry, index) => {
+                          let cor = '#10b981' // Verde (em dia)
+                          if (entry.kmFaltante < 0) cor = '#ef4444' // Vermelho (atrasado)
+                          else if (entry.kmFaltante <= 1500) cor = '#f59e0b' // Amarelo (próximo de vencer)
+                          return <Cell key={`cell-km-${index}`} fill={cor} />
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             )}
           </Card>
@@ -1426,7 +1620,7 @@ export function Frotas() {
               <select
                 value={tipoFiltro}
                 onChange={(e) => setTipoFiltro(e.target.value)}
-                className="h-10 rounded-xl border border-border/25 bg-surface/90 px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none uppercase"
+                className="h-10 rounded-xl border border-border/25 bg-surface/90 px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none uppercase cursor-pointer"
               >
                 <option value="todos">TODOS OS TIPOS</option>
                 <option value="pesado">PESADOS / CAMINHÕES</option>
@@ -2116,13 +2310,236 @@ export function Frotas() {
             </div>
 
             <form onSubmit={handleSalvarChecklist} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-              {/* SEÇÃO 1: FOTOS OBRIGATÓRIAS DE VISTORIA (INÍCIO DO CHECKLIST) */}
+              {/* ========================================================================= */}
+              {/* SEÇÃO 1: DADOS DO VEÍCULO (BUSCA DE PLACA EM PRIMEIRO), CONDUTOR E KM */}
+              {/* ========================================================================= */}
               <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-4">
+                <div className="flex items-center justify-between border-b border-primary/15 pb-2.5">
+                  <span className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <Truck className="h-4 w-4 text-primary" /> 1. IDENTIFICAÇÃO DO VEÍCULO & OPERAÇÃO
+                  </span>
+                  <span className="text-[10px] text-primary font-bold">DIGITE A PLACA OU SELECIONE</span>
+                </div>
+
+                {/* Campo de Busca Direto por Placa */}
+                <div ref={containerBuscaPlacaRef} className="relative">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label htmlFor="chkBuscaPlaca" className="text-xs font-bold text-foreground">
+                      Buscar Placa do Veículo *
+                    </Label>
+                    <span className="text-[10px] text-secondary font-mono">
+                      {frotas.length} veículos cadastrados
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+                    <Input
+                      id="chkBuscaPlaca"
+                      placeholder="DIGITE A PLACA DO VEÍCULO (EX: IXF4J63)..."
+                      value={placaBuscaChecklist}
+                      onFocus={() => {
+                        if (placaBuscaChecklist.trim()) setDropdownPlacaAberto(true)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          if (veiculosFiltradosChecklist.length > 0) {
+                            const primeiro = veiculosFiltradosChecklist[0]
+                            setVeiculoChecklistId(primeiro.id)
+                            setPlacaBuscaChecklist(primeiro.placa)
+                            setDropdownPlacaAberto(false)
+                          }
+                        } else if (e.key === 'Escape') {
+                          setDropdownPlacaAberto(false)
+                        }
+                      }}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase()
+                        setPlacaBuscaChecklist(val)
+                        const limpa = val.replace(/[^A-Z0-9]/g, '')
+                        if (val.trim()) {
+                          setDropdownPlacaAberto(true)
+                        } else {
+                          setDropdownPlacaAberto(false)
+                        }
+                        const achado = frotas.find(
+                          (f) => f.placa.toUpperCase().replace(/[^A-Z0-9]/g, '') === limpa
+                        )
+                        if (achado) {
+                          setVeiculoChecklistId(achado.id)
+                        } else if (!val) {
+                          setVeiculoChecklistId('')
+                        }
+                      }}
+                      className="pl-10 pr-10 font-mono uppercase font-black text-sm tracking-wider border-primary/40 focus:border-primary bg-surface/90 shadow-sm"
+                      autoFocus
+                    />
+                    {placaBuscaChecklist && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlacaBuscaChecklist('')
+                          setVeiculoChecklistId('')
+                          setDropdownPlacaAberto(false)
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary hover:text-foreground p-1 rounded-md hover:bg-white/5"
+                        title="Limpar placa"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dropdown de Sugestão apenas quando estiver digitando */}
+                  {dropdownPlacaAberto && placaBuscaChecklist.trim() && (
+                    <div className="absolute z-40 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-primary/40 bg-surface shadow-2xl backdrop-blur-xl animate-fade-in divide-y divide-border/10 p-1">
+                      {veiculosFiltradosChecklist.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-secondary font-bold">
+                          Nenhum veículo encontrado com a placa &quot;{placaBuscaChecklist}&quot;
+                        </div>
+                      ) : (
+                        veiculosFiltradosChecklist.slice(0, 8).map((f) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => {
+                              setVeiculoChecklistId(f.id)
+                              setPlacaBuscaChecklist(f.placa)
+                              setDropdownPlacaAberto(false)
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                              f.id === veiculoChecklistId
+                                ? 'bg-primary text-white font-black'
+                                : 'hover:bg-primary/10 text-foreground'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className={`font-mono font-black px-2 py-0.5 rounded text-xs ${
+                                f.id === veiculoChecklistId ? 'bg-black/30 text-white' : 'bg-primary/20 text-primary border border-primary/30'
+                              }`}>
+                                {f.placa}
+                              </span>
+                              <span className="font-bold">
+                                {f.marcaNome} {f.modeloNome} {f.ano ? `(${f.ano})` : ''}
+                              </span>
+                            </div>
+                            <span className={`text-[10px] font-bold uppercase ${
+                              f.id === veiculoChecklistId ? 'text-white/80' : 'text-secondary'
+                            }`}>
+                              {tipoVeiculoLabel(f.tipo)}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Banner com Detalhes do Veículo Selecionado */}
+                {veiculoChecklistSelecionado && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl border border-primary/25 bg-surface/90 text-xs shadow-sm animate-fade-in">
+                    <div className="flex items-center gap-2.5 font-mono">
+                      <span className="px-2.5 py-1 rounded-lg bg-primary text-white font-black text-xs shadow-sm">
+                        {veiculoChecklistSelecionado.placa}
+                      </span>
+                      <div>
+                        <p className="font-bold text-foreground">
+                          {veiculoChecklistSelecionado.marcaNome} {veiculoChecklistSelecionado.modeloNome} ({veiculoChecklistSelecionado.ano})
+                        </p>
+                        <p className="text-[10px] text-secondary font-sans normal-case">
+                          {veiculoChecklistSelecionado.categoria || tipoVeiculoLabel(veiculoChecklistSelecionado.tipo)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <span className="text-[11px] font-bold text-primary block truncate max-w-[250px]">
+                        {veiculoChecklistSelecionado.clienteNome}
+                      </span>
+                      <span className={`text-[10px] font-black uppercase ${veiculoChecklistSelecionado.situacao === 'operante' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        ● {veiculoChecklistSelecionado.situacao}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Motorista & KM */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="chkMotorista">Motorista / Condutor *</Label>
+                    <div className="relative mt-1">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+                      <Input
+                        id="chkMotorista"
+                        placeholder="Nome do motorista"
+                        value={motoristaChecklist}
+                        onChange={(e) => setMotoristaChecklist(e.target.value.toUpperCase())}
+                        className="pl-9 text-xs uppercase font-bold"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="chkKm">Quilometragem Atual do Veículo (KM) *</Label>
+                    <div className="relative mt-1">
+                      <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+                      <Input
+                        id="chkKm"
+                        type="number"
+                        placeholder="Ex: 154200"
+                        value={kmChecklist || ''}
+                        onChange={(e) => setKmChecklist(Number(e.target.value))}
+                        className="pl-9 font-mono text-xs font-bold"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* CARD DE COMPARAÇÃO DE PREVENTIVA EM TEMPO REAL */}
+                <div className={`p-3.5 rounded-xl border text-xs transition-all ${
+                  comparacaoPreventivaChecklist.status === 'vencida'
+                    ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                    : comparacaoPreventivaChecklist.status === 'proxima'
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                    : comparacaoPreventivaChecklist.status === 'em_dia'
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                    : 'border-border/20 bg-overlay/5 text-secondary'
+                }`}>
+                  <div className="flex items-center gap-2 font-black uppercase text-[11px] mb-1">
+                    {comparacaoPreventivaChecklist.status === 'vencida' && <AlertOctagon className="h-4 w-4 text-red-400" />}
+                    {comparacaoPreventivaChecklist.status === 'proxima' && <AlertTriangle className="h-4 w-4 text-amber-400" />}
+                    {comparacaoPreventivaChecklist.status === 'em_dia' && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
+                    {comparacaoPreventivaChecklist.status === 'sem_dados' && <Gauge className="h-4 w-4 text-secondary" />}
+                    <span>DIAGNÓSTICO AUTOMÁTICO DE PREVENTIVA</span>
+                  </div>
+                  <p className="normal-case leading-relaxed font-medium">
+                    {comparacaoPreventivaChecklist.mensagem}
+                  </p>
+                  {comparacaoPreventivaChecklist.kmLimite && comparacaoPreventivaChecklist.kmLimite > 0 && (
+                    <div className="mt-2 pt-2 border-t border-border/10 flex flex-wrap items-center justify-between text-[10px] font-mono font-bold">
+                      {comparacaoPreventivaChecklist.kmUltima && comparacaoPreventivaChecklist.kmUltima > 0 && (
+                        <span>Última Rev.: {comparacaoPreventivaChecklist.kmUltima.toLocaleString('pt-BR')} KM</span>
+                      )}
+                      <span>Limite Rev.: {comparacaoPreventivaChecklist.kmLimite.toLocaleString('pt-BR')} KM</span>
+                      {Number(kmChecklist) > 0 && (
+                        <span>KM Atual: {Number(kmChecklist).toLocaleString('pt-BR')} KM</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ========================================================================= */}
+              {/* SEÇÃO 2: FOTOS OBRIGATÓRIAS DE VISTORIA (11 FOTOS) */}
+              {/* ========================================================================= */}
+              <div className="rounded-2xl border border-border/25 bg-surface/80 p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Camera className="h-4 w-4 text-primary animate-pulse" />
                     <span className="text-xs font-black text-foreground uppercase tracking-wide">
-                      1. FOTOS DA VISTORIA COMPLETA
+                      2. FOTOS DA VISTORIA COMPLETA
                     </span>
                   </div>
                   <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-md ${
@@ -2231,7 +2648,7 @@ export function Frotas() {
 
                       {fotosChecklist.capo ? (
                         <div className="relative w-full h-24 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                          <img src={fotosChecklist.capo} alt="Capô Aberto" className="w-full h-full object-cover" />
+                          <img src={fotosChecklist.capo} alt="Capô" className="w-full h-full object-cover" />
                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
                             <button
                               type="button"
@@ -2399,7 +2816,7 @@ export function Frotas() {
                       />
                       <div className="flex items-center justify-between w-full mb-1.5">
                         <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
-                          <ArrowLeft className="h-2.5 w-2.5 text-blue-400" /> LADO ESQ.
+                          <ArrowLeft className="h-2.5 w-2.5 text-cyan-400" /> LADO ESQ.
                         </span>
                         {fotosChecklist.ladoEsquerdo && (
                           <span className="text-[8px] font-black text-emerald-400">✓</span>
@@ -2776,97 +3193,6 @@ export function Frotas() {
                       )}
                     </div>
                   </div>
-                </div>
-              </div>
-
-              {/* SEÇÃO 2: DADOS DO VEÍCULO, CONDUTOR E COMPARADOR DE PREVENTIVA */}
-              <div className="space-y-3">
-                <span className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
-                  <Truck className="h-4 w-4 text-primary" /> 2. DADOS DA OPERAÇÃO & KM
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="chkVeiculo">Veículo da Frota *</Label>
-                    <Select
-                      id="chkVeiculo"
-                      value={veiculoChecklistId}
-                      onChange={(e) => setVeiculoChecklistId(e.target.value)}
-                      className="mt-1 text-xs uppercase font-bold"
-                      required
-                    >
-                      <option value="">Selecione o caminhão/veículo...</option>
-                      {frotas.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.placa} — {f.modeloNome || f.marcaNome || 'VEÍCULO'} {f.clienteNome ? `(${f.clienteNome})` : ''}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="chkMotorista">Motorista / Condutor *</Label>
-                    <div className="relative mt-1">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
-                      <Input
-                        id="chkMotorista"
-                        placeholder="Nome do motorista"
-                        value={motoristaChecklist}
-                        onChange={(e) => setMotoristaChecklist(e.target.value.toUpperCase())}
-                        className="pl-9 text-xs uppercase font-bold"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="chkKm">Quilometragem Atual do Veículo (KM) *</Label>
-                  <div className="relative mt-1">
-                    <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
-                    <Input
-                      id="chkKm"
-                      type="number"
-                      placeholder="Ex: 154200"
-                      value={kmChecklist || ''}
-                      onChange={(e) => setKmChecklist(Number(e.target.value))}
-                      className="pl-9 font-mono text-xs font-bold"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* CARD DE COMPARAÇÃO DE PREVENTIVA EM TEMPO REAL */}
-                <div className={`p-3.5 rounded-xl border text-xs transition-all ${
-                  comparacaoPreventivaChecklist.status === 'vencida'
-                    ? 'border-red-500/40 bg-red-500/10 text-red-300'
-                    : comparacaoPreventivaChecklist.status === 'proxima'
-                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
-                    : comparacaoPreventivaChecklist.status === 'em_dia'
-                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-                    : 'border-border/20 bg-overlay/5 text-secondary'
-                }`}>
-                  <div className="flex items-center gap-2 font-black uppercase text-[11px] mb-1">
-                    {comparacaoPreventivaChecklist.status === 'vencida' && <AlertOctagon className="h-4 w-4 text-red-400" />}
-                    {comparacaoPreventivaChecklist.status === 'proxima' && <AlertTriangle className="h-4 w-4 text-amber-400" />}
-                    {comparacaoPreventivaChecklist.status === 'em_dia' && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
-                    {comparacaoPreventivaChecklist.status === 'sem_dados' && <Gauge className="h-4 w-4 text-secondary" />}
-                    <span>DIAGNÓSTICO AUTOMÁTICO DE PREVENTIVA</span>
-                  </div>
-                  <p className="normal-case leading-relaxed font-medium">
-                    {comparacaoPreventivaChecklist.mensagem}
-                  </p>
-                  {comparacaoPreventivaChecklist.kmLimite && comparacaoPreventivaChecklist.kmLimite > 0 && (
-                    <div className="mt-2 pt-2 border-t border-border/10 flex flex-wrap items-center justify-between text-[10px] font-mono font-bold">
-                      {comparacaoPreventivaChecklist.kmUltima && comparacaoPreventivaChecklist.kmUltima > 0 && (
-                        <span>Última Rev.: {comparacaoPreventivaChecklist.kmUltima.toLocaleString('pt-BR')} KM</span>
-                      )}
-                      <span>Limite Rev.: {comparacaoPreventivaChecklist.kmLimite.toLocaleString('pt-BR')} KM</span>
-                      {Number(kmChecklist) > 0 && (
-                        <span>KM Atual: {Number(kmChecklist).toLocaleString('pt-BR')} KM</span>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
 
