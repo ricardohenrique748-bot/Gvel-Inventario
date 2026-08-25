@@ -647,8 +647,8 @@ export function InventarioFerramentas() {
         </div>
       </div>
 
-      {/* Barra de Abas Principal (Estilo Tabs Segmentadas com Drag-to-Scroll) */}
-      <DragScrollContainer className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md">
+      {/* Barra de Abas Principal (Estilo Tabs Segmentadas com Scroll Nativo) */}
+      <ScrollContainer className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md">
         <button
           type="button"
           onClick={() => setAbaAtiva('estoque')}
@@ -745,7 +745,7 @@ export function InventarioFerramentas() {
             </span>
           )}
         </button>
-      </DragScrollContainer>
+      </ScrollContainer>
 
       {/* ==================== ABA 1: ESTOQUE DE FERRAMENTAS ==================== */}
       {abaAtiva === 'estoque' && (
@@ -803,8 +803,8 @@ export function InventarioFerramentas() {
               </div>
             </div>
 
-            {/* Categorias com suporte a arrastar com o mouse / touch */}
-            <DragScrollContainer className="flex items-center gap-1.5 pb-1 max-w-full">
+            {/* Categorias com suporte a rolagem nativa ultra rápida */}
+            <ScrollContainer className="flex items-center gap-1.5 pb-1 max-w-full">
               {CATEGORIAS_SUGERIDAS.map((cat) => (
                 <button
                   key={cat}
@@ -819,7 +819,7 @@ export function InventarioFerramentas() {
                   {cat}
                 </button>
               ))}
-            </DragScrollContainer>
+            </ScrollContainer>
           </div>
 
           {/* Lista do Estoque */}
