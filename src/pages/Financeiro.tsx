@@ -745,15 +745,14 @@ export function Financeiro() {
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis
                 dataKey="name"
-                stroke="var(--color-secondary, #888)"
-                fontSize={12}
-                fontWeight={700}
+                stroke="#FFFFFF"
+                tick={{ fill: '#FFFFFF', fontWeight: 800, fontSize: 12 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
               />
               <YAxis
-                stroke="var(--color-secondary, #888)"
-                fontSize={11}
+                stroke="#FFFFFF"
+                tick={{ fill: '#FFFFFF', fontWeight: 700, fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(val) => fmtCompact(val)}
