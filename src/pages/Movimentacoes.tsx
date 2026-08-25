@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -24,6 +24,8 @@ import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarca
 import { atualizarVeiculo } from '@/hooks/useVeiculos'
 import { formatDateTime, formatPermanencia, toLocalInputValue } from '@/lib/format'
 import { ANGULOS_FOTO, type AnguloFoto } from '@/lib/fotos'
+import { extrairFotosExtras, type FotoExtraItem } from '@/lib/fotosExtras'
+import { comprimirImagem } from '@/lib/imagem'
 import type { MovimentacaoComVeiculo } from '@/lib/types'
 
 const anoAtual = new Date().getFullYear()
@@ -399,6 +401,43 @@ function EditarMovimentacaoForm({
   const { marcas, refetch: refetchMarcas } = useMarcas()
   const [fotos, setFotos] = useState<Partial<Record<AnguloFoto, { file: File; previewUrl: string }>>>({})
 
+  const { textoLimpo, fotosExtras: fotosExtrasIniciais } = useMemo(
+    () => extrairFotosExtras(movimentacao.observacoes),
+    [movimentacao.observacoes],
+  )
+  const [fotosExtras, setFotosExtras] = useState<FotoExtraItem[]>(() =>
+    fotosExtrasIniciais.map((f: { url: string; label?: string }, i: number) => ({
+      id: `existente-${i}-${f.url}`,
+      previewUrl: f.url,
+      label: f.label || `Foto extra ${i + 1}`,
+    })),
+  )
+  const inputFotoExtraRef = useRef<HTMLInputElement>(null)
+  const [comprimindoExtra, setComprimindoExtra] = useState(false)
+
+  async function handleAdicionarFotoExtra(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setComprimindoExtra(true)
+    try {
+      const comprimida = await comprimirImagem(file)
+      const nova: FotoExtraItem = {
+        id: `nova-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        file: comprimida,
+        previewUrl: URL.createObjectURL(comprimida),
+        label: `Foto extra ${fotosExtras.length + 1}`,
+      }
+      setFotosExtras((prev) => [...prev, nova])
+    } finally {
+      setComprimindoExtra(false)
+    }
+  }
+
+  function handleRemoverFotoExtra(id: string) {
+    setFotosExtras((prev) => prev.filter((f) => f.id !== id))
+  }
+
   const {
     register,
     handleSubmit,
@@ -421,7 +460,7 @@ function EditarMovimentacaoForm({
       statusId: movimentacao.status_id ?? '',
       motorista: movimentacao.motorista ?? '',
       destino: movimentacao.destino ?? '',
-      observacoes: movimentacao.observacoes ?? '',
+      observacoes: textoLimpo,
       dataHoraEntrada: toLocalInputValue(movimentacao.data_hora_entrada),
       dataHoraSaida: toLocalInputValue(movimentacao.data_hora_saida),
       kmEntrada: movimentacao.km_entrada ?? undefined,
@@ -472,6 +511,11 @@ function EditarMovimentacaoForm({
         ladoDireito: fotos.ladoDireito?.file,
         traseira: fotos.traseira?.file,
         painel: fotos.painel?.file,
+        extras: fotosExtras.map((f) => ({
+          file: f.file,
+          url: f.file ? undefined : f.previewUrl,
+          label: f.label,
+        })),
       }
 
       await atualizarMovimentacao(
@@ -703,7 +747,27 @@ function EditarMovimentacaoForm({
       </div>
 
       <div>
-        <Label>Fotos do veículo</Label>
+        <div className="flex items-center justify-between mb-2">
+          <Label className="mb-0">Fotos do veículo</Label>
+          <button
+            type="button"
+            onClick={() => inputFotoExtraRef.current?.click()}
+            disabled={comprimindoExtra}
+            className="flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+          >
+            <Plus className="h-3.5 w-3.5" /> Adicionar foto
+          </button>
+        </div>
+
+        <input
+          ref={inputFotoExtraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleAdicionarFotoExtra}
+        />
+
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {ANGULOS_FOTO.map(({ campo, label }) => (
             <FotoInput
@@ -714,6 +778,45 @@ function EditarMovimentacaoForm({
               onRemove={() => handleRemoverFoto(campo)}
             />
           ))}
+
+          {fotosExtras.map((extra, idx) => (
+            <div key={extra.id} className="rounded-xl bg-background p-3 relative flex flex-col justify-between min-h-[96px]">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-foreground truncate">{extra.label || `Foto extra ${idx + 1}`}</p>
+              </div>
+              <div className="relative mt-2 inline-block">
+                <img
+                  src={extra.previewUrl}
+                  alt={extra.label}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-16 w-16 rounded-lg object-cover border border-border/10"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleRemoverFotoExtra(extra.id)}
+                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-status-danger text-white hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+                  aria-label={`Remover ${extra.label}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => inputFotoExtraRef.current?.click()}
+            disabled={comprimindoExtra}
+            className="rounded-xl border-2 border-dashed border-border/40 hover:border-primary/60 bg-background/50 hover:bg-primary/5 p-3 flex flex-col items-center justify-center gap-1.5 text-secondary hover:text-primary transition-all min-h-[96px] cursor-pointer group disabled:opacity-50"
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface text-secondary group-hover:text-primary transition-colors">
+              <Plus className="h-5 w-5" />
+            </div>
+            <span className="text-[11px] font-bold">
+              {comprimindoExtra ? 'Processando...' : '+ Foto extra'}
+            </span>
+          </button>
         </div>
       </div>
 

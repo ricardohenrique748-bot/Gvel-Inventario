@@ -16,6 +16,7 @@ import { registrarSaida } from '@/hooks/useMovimentacoes'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
+import { extrairFotosExtras } from '@/lib/fotosExtras'
 import type { Movimentacao } from '@/lib/types'
 
 const FOTOS_MOVIMENTACAO: { campo: keyof Movimentacao; label: string }[] = [
@@ -248,36 +249,75 @@ export function VeiculoDetalhe() {
                       Registrado por: {m.usuario_entrada?.nome ?? '—'}
                       {m.data_hora_saida ? ` · Saída registrada por: ${m.usuario_saida?.nome ?? '—'}` : ''}
                     </p>
-                    {m.observacoes && <p className="text-secondary mt-1">Obs: {m.observacoes}</p>}
+                    {(() => {
+                      const { textoLimpo, fotosExtras } = extrairFotosExtras(m.observacoes)
+                      const temFotosPadrao = FOTOS_MOVIMENTACAO.some(({ campo }) => m[campo])
+                      const temFotos = temFotosPadrao || fotosExtras.length > 0
 
-                    {FOTOS_MOVIMENTACAO.some(({ campo }) => m[campo]) && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {FOTOS_MOVIMENTACAO.map(({ campo, label }) => {
-                          const url = m[campo] as string | null
-                          if (!url) return null
-                          return (
-                            <button
-                              key={campo}
-                              type="button"
-                              onClick={() => setFotoAmpliada({ url, label })}
-                              className="shrink-0"
-                              aria-label={`Ampliar foto — ${label}`}
-                            >
-                              <img
-                                src={urlMiniatura(url, 128)}
-                                onError={aoFalharMiniatura(url)}
-                                alt={label}
-                                loading="lazy"
-                                decoding="async"
-                                width={64}
-                                height={64}
-                                className="h-16 w-16 rounded-lg object-cover border border-border/10 hover:opacity-80"
-                              />
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
+                      return (
+                        <>
+                          {textoLimpo && <p className="text-secondary mt-1">Obs: {textoLimpo}</p>}
+
+                          {temFotos && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {FOTOS_MOVIMENTACAO.map(({ campo, label }) => {
+                                const url = m[campo] as string | null
+                                if (!url) return null
+                                return (
+                                  <button
+                                    key={campo}
+                                    type="button"
+                                    onClick={() => setFotoAmpliada({ url, label })}
+                                    className="shrink-0"
+                                    aria-label={`Ampliar foto — ${label}`}
+                                  >
+                                    <img
+                                      src={urlMiniatura(url, 128)}
+                                      onError={aoFalharMiniatura(url)}
+                                      alt={label}
+                                      loading="lazy"
+                                      decoding="async"
+                                      width={64}
+                                      height={64}
+                                      className="h-16 w-16 rounded-lg object-cover border border-border/10 hover:opacity-80"
+                                    />
+                                  </button>
+                                )
+                              })}
+
+                              {fotosExtras.map((extra, idx) => (
+                                <button
+                                  key={`extra-${idx}-${extra.url}`}
+                                  type="button"
+                                  onClick={() =>
+                                    setFotoAmpliada({
+                                      url: extra.url,
+                                      label: extra.label || `Foto extra ${idx + 1}`,
+                                    })
+                                  }
+                                  className="shrink-0 relative group"
+                                  aria-label={`Ampliar ${extra.label || `Foto extra ${idx + 1}`}`}
+                                >
+                                  <img
+                                    src={urlMiniatura(extra.url, 128)}
+                                    onError={aoFalharMiniatura(extra.url)}
+                                    alt={extra.label || `Foto extra ${idx + 1}`}
+                                    loading="lazy"
+                                    decoding="async"
+                                    width={64}
+                                    height={64}
+                                    className="h-16 w-16 rounded-lg object-cover border border-primary/40 hover:opacity-80 ring-1 ring-primary/30"
+                                  />
+                                  <span className="absolute bottom-0.5 left-0.5 right-0.5 text-[7px] font-bold text-center bg-black/70 text-white rounded px-0.5 truncate">
+                                    {extra.label || `+${idx + 1}`}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                   <div className="flex items-center gap-2">
                     {m.status === 'no_patio' ? (

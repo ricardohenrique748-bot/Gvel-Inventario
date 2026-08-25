@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
+import { extrairFotosExtras } from '@/lib/fotosExtras'
 import type { VeiculoPublicoItem } from '@/lib/types'
 
 function StatusManutencaoBadgePublico({ status }: { status: string | null }) {
@@ -135,57 +136,87 @@ export function VeiculoPublico() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {historico.map((m) => (
-                    <div key={m.movimentacao_id} className="rounded-xl bg-background px-4 py-3">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="text-sm">
-                          <p className="text-foreground">
-                            Entrada: {formatDateTime(m.data_hora_entrada)}
-                            {m.patio_nome ? ` · Pátio: ${m.patio_nome}` : ''}
-                            {m.motorista ? ` · ${m.motorista}` : ''}
-                          </p>
-                          <p className="text-secondary">
-                            Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'} · Permanência:{' '}
-                            {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}
-                            {m.destino ? ` · Destino: ${m.destino}` : ''}
-                          </p>
-                          {m.observacoes && <p className="text-secondary mt-1">Obs: {m.observacoes}</p>}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {m.status === 'no_patio' ? (
-                            <Badge tone="success">No pátio</Badge>
-                          ) : (
-                            <Badge tone="neutral">Saiu</Badge>
-                          )}
-                          <StatusManutencaoBadgePublico status={m.status_manutencao} />
-                        </div>
-                      </div>
+                  {historico.map((m) => {
+                    const { textoLimpo, fotosExtras } = extrairFotosExtras(m.observacoes)
+                    const temFotosPadrao = FOTOS_MOVIMENTACAO.some(({ campo }) => m[campo])
+                    const temFotos = temFotosPadrao || fotosExtras.length > 0
 
-                      {FOTOS_MOVIMENTACAO.some(({ campo }) => m[campo]) && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {FOTOS_MOVIMENTACAO.map(({ campo, label }) => {
-                            const url = m[campo] as string | null
-                            if (!url) return null
-                            return (
+                    return (
+                      <div key={m.movimentacao_id} className="rounded-xl bg-background px-4 py-3">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="text-sm">
+                            <p className="text-foreground">
+                              Entrada: {formatDateTime(m.data_hora_entrada)}
+                              {m.patio_nome ? ` · Pátio: ${m.patio_nome}` : ''}
+                              {m.motorista ? ` · ${m.motorista}` : ''}
+                            </p>
+                            <p className="text-secondary">
+                              Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'} · Permanência:{' '}
+                              {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}
+                              {m.destino ? ` · Destino: ${m.destino}` : ''}
+                            </p>
+                            {textoLimpo && <p className="text-secondary mt-1">Obs: {textoLimpo}</p>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {m.status === 'no_patio' ? (
+                              <Badge tone="success">No pátio</Badge>
+                            ) : (
+                              <Badge tone="neutral">Saiu</Badge>
+                            )}
+                            <StatusManutencaoBadgePublico status={m.status_manutencao} />
+                          </div>
+                        </div>
+
+                        {temFotos && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {FOTOS_MOVIMENTACAO.map(({ campo, label }) => {
+                              const url = m[campo] as string | null
+                              if (!url) return null
+                              return (
+                                <button
+                                  key={campo}
+                                  type="button"
+                                  onClick={() => setFotoAmpliada({ url, label })}
+                                  className="shrink-0"
+                                  aria-label={`Ampliar foto — ${label}`}
+                                >
+                                  <img
+                                    src={url}
+                                    alt={label}
+                                    className="h-16 w-16 rounded-lg object-cover border border-border/10 hover:opacity-80"
+                                  />
+                                </button>
+                              )
+                            })}
+
+                            {fotosExtras.map((extra, idx) => (
                               <button
-                                key={campo}
+                                key={`extra-${idx}-${extra.url}`}
                                 type="button"
-                                onClick={() => setFotoAmpliada({ url, label })}
-                                className="shrink-0"
-                                aria-label={`Ampliar foto — ${label}`}
+                                onClick={() =>
+                                  setFotoAmpliada({
+                                    url: extra.url,
+                                    label: extra.label || `Foto extra ${idx + 1}`,
+                                  })
+                                }
+                                className="shrink-0 relative group"
+                                aria-label={`Ampliar ${extra.label || `Foto extra ${idx + 1}`}`}
                               >
                                 <img
-                                  src={url}
-                                  alt={label}
-                                  className="h-16 w-16 rounded-lg object-cover border border-border/10 hover:opacity-80"
+                                  src={extra.url}
+                                  alt={extra.label || `Foto extra ${idx + 1}`}
+                                  className="h-16 w-16 rounded-lg object-cover border border-primary/40 hover:opacity-80 ring-1 ring-primary/30"
                                 />
+                                <span className="absolute bottom-0.5 left-0.5 right-0.5 text-[7px] font-bold text-center bg-black/70 text-white rounded px-0.5 truncate">
+                                  {extra.label || `+${idx + 1}`}
+                                </span>
                               </button>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>

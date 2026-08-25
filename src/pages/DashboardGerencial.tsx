@@ -29,7 +29,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useClientes } from '@/hooks/useClientes'
 import { useUsuarios } from '@/hooks/useUsuarios'
-import { isKanbanAuthorized } from '@/components/layout/nav'
+import { isDashboardGerencialAuthorized } from '@/components/layout/nav'
 
 export function DashboardGerencial() {
   const { perfil, user, perfilLoading } = useAuth()
@@ -87,7 +87,9 @@ export function DashboardGerencial() {
     )
   }
 
-  if (perfil?.nivel !== 'admin') {
+  const authorized = perfil?.nivel === 'admin' || isDashboardGerencialAuthorized(user?.email)
+
+  if (!authorized) {
     return (
       <div className="uppercase">
         <PageHeader title="DASHBOARD GERENCIAL" subtitle="VISÃO CONSOLIDADA DA OPERAÇÃO" />
@@ -95,7 +97,7 @@ export function DashboardGerencial() {
           <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-secondary" />
           <p className="text-base font-bold text-foreground">ACESSO RESTRITO</p>
           <p className="mt-1 text-sm text-secondary">
-            APENAS ADMINISTRADORES PODEM ACESSAR ESTA VISÃO GERENCIAL.
+            APENAS USUÁRIOS AUTORIZADOS PODEM ACESSAR ESTA VISÃO GERENCIAL.
           </p>
         </Card>
       </div>
@@ -230,7 +232,7 @@ export function DashboardGerencial() {
             </div>
           </div>
 
-          {/* Badge Perfil Admin */}
+          {/* Badge Perfil */}
           <div className="flex items-center gap-3 self-start md:self-auto rounded-2xl border border-border/10 bg-background/60 backdrop-blur-md px-4 py-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-sm font-bold text-primary">
               {primeiroNome.slice(0, 2).toUpperCase()}
@@ -240,7 +242,7 @@ export function DashboardGerencial() {
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-status-success animate-pulse" />
                 <span className="text-[11px] font-bold text-primary uppercase tracking-wider">
-                  ADMINISTRADOR
+                  {perfil?.nivel === 'admin' ? 'ADMINISTRADOR' : 'GERÊNCIA'}
                 </span>
               </div>
             </div>
@@ -314,9 +316,7 @@ export function DashboardGerencial() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 uppercase">
-          {atalhos
-            .filter((item) => item.to !== '/kanban' || isKanbanAuthorized(user?.email))
-            .map((item) => (
+          {atalhos.map((item) => (
             <Link
               key={item.to}
               to={item.to}

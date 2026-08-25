@@ -1,6 +1,4 @@
-import type { FotosEntrada } from '@/hooks/useMovimentacoes'
-
-export type AnguloFoto = keyof FotosEntrada
+export type AnguloFoto = 'frente' | 'ladoEsquerdo' | 'ladoDireito' | 'traseira' | 'painel'
 
 export const ANGULOS_FOTO: { campo: AnguloFoto; label: string }[] = [
   { campo: 'frente', label: 'Frente' },

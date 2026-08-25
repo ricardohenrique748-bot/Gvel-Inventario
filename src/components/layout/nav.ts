@@ -12,7 +12,6 @@ import {
   DollarSign,
   UserCheck,
   ShoppingCart,
-  Columns3,
   ClipboardCheck,
   Package,
   Boxes,
@@ -29,7 +28,6 @@ export const navItems = [
     ],
   },
   { to: '/manutencao', label: 'Manutenção', icon: Wrench },
-  { to: '/kanban', label: 'Kanban Localiza', icon: Columns3 },
   {
     to: '/inventario-caminhoes',
     label: 'Inventário de Caminhões',

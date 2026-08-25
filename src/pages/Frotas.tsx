@@ -28,6 +28,11 @@ import {
   MapPin,
   Users,
   AlertTriangle,
+  Car,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -115,6 +120,11 @@ export interface ItemChecagem {
 export interface FotosVistoria {
   painel?: string            // Foto do Painel / Hodômetro
   capo?: string              // Foto do Capô aberto / Motor
+  interna?: string           // Foto da Interna do Veículo
+  frente?: string            // Foto da Frente do Veículo
+  ladoEsquerdo?: string      // Foto do Lado Esquerdo
+  traseira?: string          // Foto da Traseira do Veículo
+  ladoDireito?: string       // Foto do Lado Direito
   pneuDiantEsq?: string      // Foto do Pneu Dianteiro Esquerdo
   pneuDiantDir?: string      // Foto do Pneu Dianteiro Direito
   pneuTrasEsq?: string       // Foto do Pneu Traseiro Esquerdo
@@ -285,6 +295,11 @@ export function Frotas() {
   // Refs de inputs de arquivo para disparar a câmera
   const inputFotoPainelRef = useRef<HTMLInputElement>(null)
   const inputFotoCapoRef = useRef<HTMLInputElement>(null)
+  const inputFotoInternaRef = useRef<HTMLInputElement>(null)
+  const inputFotoFrenteRef = useRef<HTMLInputElement>(null)
+  const inputFotoLadoEsquerdoRef = useRef<HTMLInputElement>(null)
+  const inputFotoTraseiraRef = useRef<HTMLInputElement>(null)
+  const inputFotoLadoDireitoRef = useRef<HTMLInputElement>(null)
   const inputFotoPneuDiantEsqRef = useRef<HTMLInputElement>(null)
   const inputFotoPneuDiantDirRef = useRef<HTMLInputElement>(null)
   const inputFotoPneuTrasEsqRef = useRef<HTMLInputElement>(null)
@@ -846,6 +861,11 @@ export function Frotas() {
   const totalFotosTiradas = [
     fotosChecklist.painel,
     fotosChecklist.capo,
+    fotosChecklist.interna,
+    fotosChecklist.frente,
+    fotosChecklist.ladoEsquerdo,
+    fotosChecklist.traseira,
+    fotosChecklist.ladoDireito,
     fotosChecklist.pneuDiantEsq,
     fotosChecklist.pneuDiantDir,
     fotosChecklist.pneuTrasEsq,
@@ -1704,6 +1724,11 @@ export function Frotas() {
                       const fotosQtd = [
                         chk.fotos?.painel,
                         chk.fotos?.capo,
+                        chk.fotos?.interna,
+                        chk.fotos?.frente,
+                        chk.fotos?.ladoEsquerdo,
+                        chk.fotos?.traseira,
+                        chk.fotos?.ladoDireito,
                         chk.fotos?.pneuDiantEsq,
                         chk.fotos?.pneuDiantDir,
                         chk.fotos?.pneuTrasEsq,
@@ -2097,27 +2122,27 @@ export function Frotas() {
                   <div className="flex items-center gap-2">
                     <Camera className="h-4 w-4 text-primary animate-pulse" />
                     <span className="text-xs font-black text-foreground uppercase tracking-wide">
-                      1. FOTOS DA VISTORIA (PAINEL, CAPÔ E OS 4 PNEUS)
+                      1. FOTOS DA VISTORIA COMPLETA
                     </span>
                   </div>
                   <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-md ${
-                    totalFotosTiradas === 6
+                    totalFotosTiradas === 11
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                       : 'bg-primary/20 text-primary'
                   }`}>
-                    {totalFotosTiradas}/6 CAPTURADAS
+                    {totalFotosTiradas}/11 CAPTURADAS
                   </span>
                 </div>
                 <p className="text-[11px] text-secondary normal-case leading-relaxed">
-                  Tire as fotos obrigatórias do painel, motor com capô aberto e o estado individual de cada um dos 4 pneus:
+                  Tire as fotos da vistoria: painel/km, motor/capô, interna/cabine, 4 lados do veículo e os 4 pneus:
                 </p>
 
-                {/* Subseção A: Veículo (Painel & Capô) */}
+                {/* Subseção A: Compartimento & Cabine */}
                 <div>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-wider block mb-2">
                     A. COMPARTIMENTO & INSTRUMENTOS
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Foto 1: Painel */}
                     <div className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
                       fotosChecklist.painel
@@ -2193,7 +2218,7 @@ export function Frotas() {
                       />
                       <div className="flex items-center justify-between w-full mb-2">
                         <span className="text-[10px] font-black text-foreground flex items-center gap-1">
-                          <Wrench className="h-3 w-3 text-amber-400" /> CAPÔ ABERTO / MOTOR
+                          <Wrench className="h-3 w-3 text-amber-400" /> CAPÔ / MOTOR
                         </span>
                         {fotosChecklist.capo ? (
                           <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
@@ -2235,13 +2260,300 @@ export function Frotas() {
                         </button>
                       )}
                     </div>
+
+                    {/* Foto 3: Interna do Veículo */}
+                    <div className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.interna
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoInternaRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('interna', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-2">
+                        <span className="text-[10px] font-black text-foreground flex items-center gap-1">
+                          <Car className="h-3 w-3 text-cyan-400" /> INTERNA / CABINE
+                        </span>
+                        {fotosChecklist.interna ? (
+                          <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
+                            <Check className="h-2.5 w-2.5" /> OK
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold text-secondary">PENDENTE</span>
+                        )}
+                      </div>
+
+                      {fotosChecklist.interna ? (
+                        <div className="relative w-full h-24 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.interna} alt="Interna do Veículo" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoInternaRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[9px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, interna: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[9px] font-bold"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => inputFotoInternaRef.current?.click()}
+                          className="w-full h-24 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-5 w-5" />
+                          <span className="text-[10px] font-bold">FOTO INTERNA</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Subseção B: Os 4 Pneus do Veículo */}
+                {/* Subseção B: Exterior do Veículo (4 Lados) */}
                 <div>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-wider block mb-2">
-                    B. FOTOS DOS 4 PNEUS (DIANTEIROS E TRASEIROS)
+                    B. EXTERIOR DO VEÍCULO (CARROCERIA)
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {/* Frente */}
+                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.frente
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoFrenteRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('frente', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                          <ArrowUp className="h-2.5 w-2.5 text-emerald-400" /> FRENTE
+                        </span>
+                        {fotosChecklist.frente && (
+                          <span className="text-[8px] font-black text-emerald-400">✓</span>
+                        )}
+                      </div>
+
+                      {fotosChecklist.frente ? (
+                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.frente} alt="Frente" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoFrenteRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, frente: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => inputFotoFrenteRef.current?.click()}
+                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[9px] font-bold">FRENTE</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Lado Esquerdo */}
+                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.ladoEsquerdo
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoLadoEsquerdoRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('ladoEsquerdo', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                          <ArrowLeft className="h-2.5 w-2.5 text-blue-400" /> LADO ESQ.
+                        </span>
+                        {fotosChecklist.ladoEsquerdo && (
+                          <span className="text-[8px] font-black text-emerald-400">✓</span>
+                        )}
+                      </div>
+
+                      {fotosChecklist.ladoEsquerdo ? (
+                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.ladoEsquerdo} alt="Lado Esquerdo" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoLadoEsquerdoRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, ladoEsquerdo: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => inputFotoLadoEsquerdoRef.current?.click()}
+                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[9px] font-bold">LADO ESQ.</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Traseira */}
+                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.traseira
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoTraseiraRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('traseira', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                          <ArrowDown className="h-2.5 w-2.5 text-amber-400" /> TRASEIRA
+                        </span>
+                        {fotosChecklist.traseira && (
+                          <span className="text-[8px] font-black text-emerald-400">✓</span>
+                        )}
+                      </div>
+
+                      {fotosChecklist.traseira ? (
+                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.traseira} alt="Traseira" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoTraseiraRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, traseira: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => inputFotoTraseiraRef.current?.click()}
+                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[9px] font-bold">TRASEIRA</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Lado Direito */}
+                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                      fotosChecklist.ladoDireito
+                        ? 'border-emerald-500/40 bg-emerald-500/5'
+                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                    }`}>
+                      <input
+                        ref={inputFotoLadoDireitoRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => handleUploadFoto('ladoDireito', e)}
+                      />
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                          <ArrowRight className="h-2.5 w-2.5 text-purple-400" /> LADO DIR.
+                        </span>
+                        {fotosChecklist.ladoDireito && (
+                          <span className="text-[8px] font-black text-emerald-400">✓</span>
+                        )}
+                      </div>
+
+                      {fotosChecklist.ladoDireito ? (
+                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                          <img src={fotosChecklist.ladoDireito} alt="Lado Direito" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => inputFotoLadoDireitoRef.current?.click()}
+                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                            >
+                              Trocar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFotosChecklist((prev) => ({ ...prev, ladoDireito: undefined }))}
+                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => inputFotoLadoDireitoRef.current?.click()}
+                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        >
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[9px] font-bold">LADO DIR.</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subseção C: Os 4 Pneus do Veículo */}
+                <div>
+                  <span className="text-[10px] font-black text-secondary uppercase tracking-wider block mb-2">
+                    C. FOTOS DOS 4 PNEUS (DIANTEIROS E TRASEIROS)
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {/* Pneu 1: Dianteiro Esquerdo */}
@@ -2778,7 +3090,7 @@ export function Frotas() {
                     <Camera className="h-3.5 w-3.5 text-primary" /> FOTOS REGISTRADAS DA VISTORIA
                   </span>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
                     {/* Painel */}
                     {checklistVisualizando.fotos.painel ? (
                       <div
@@ -2810,6 +3122,91 @@ export function Frotas() {
                     ) : (
                       <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
                         SEM FOTO DO CAPÔ
+                      </div>
+                    )}
+
+                    {/* Interna */}
+                    {checklistVisualizando.fotos.interna ? (
+                      <div
+                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.interna!, titulo: 'FOTO DA INTERNA / CABINE' })}
+                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
+                      >
+                        <img src={checklistVisualizando.fotos.interna} alt="Interna" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
+                          INTERNA / CABINE
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
+                        SEM FOTO INTERNA
+                      </div>
+                    )}
+
+                    {/* Frente */}
+                    {checklistVisualizando.fotos.frente ? (
+                      <div
+                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.frente!, titulo: 'FOTO DA FRENTE DO VEÍCULO' })}
+                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
+                      >
+                        <img src={checklistVisualizando.fotos.frente} alt="Frente" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
+                          FRENTE
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
+                        SEM FOTO DA FRENTE
+                      </div>
+                    )}
+
+                    {/* Lado Esquerdo */}
+                    {checklistVisualizando.fotos.ladoEsquerdo ? (
+                      <div
+                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.ladoEsquerdo!, titulo: 'FOTO DO LADO ESQUERDO' })}
+                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
+                      >
+                        <img src={checklistVisualizando.fotos.ladoEsquerdo} alt="Lado Esquerdo" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
+                          LADO ESQUERDO
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
+                        SEM LADO ESQUERDO
+                      </div>
+                    )}
+
+                    {/* Traseira */}
+                    {checklistVisualizando.fotos.traseira ? (
+                      <div
+                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.traseira!, titulo: 'FOTO DA TRASEIRA' })}
+                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
+                      >
+                        <img src={checklistVisualizando.fotos.traseira} alt="Traseira" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
+                          TRASEIRA
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
+                        SEM FOTO TRASEIRA
+                      </div>
+                    )}
+
+                    {/* Lado Direito */}
+                    {checklistVisualizando.fotos.ladoDireito ? (
+                      <div
+                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.ladoDireito!, titulo: 'FOTO DO LADO DIREITO' })}
+                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
+                      >
+                        <img src={checklistVisualizando.fotos.ladoDireito} alt="Lado Direito" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
+                          LADO DIREITO
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
+                        SEM LADO DIREITO
                       </div>
                     )}
 

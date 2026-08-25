@@ -29,7 +29,7 @@ import { Input, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
-import { isKanbanAuthorized } from '@/components/layout/nav'
+import { isKanbanAuthorized, isDashboardGerencialAuthorized } from '@/components/layout/nav'
 import { useKanbanSheet, type KanbanItem } from '@/hooks/useKanbanSheet'
 
 type ViewMode = 'kanban' | 'tabela'
@@ -169,8 +169,8 @@ const COLUNAS: ColunaConfig[] = [
   },
 ]
 
-export function Kanban() {
-  const { user, perfilLoading } = useAuth()
+export function Kanban({ embedded = false }: { embedded?: boolean } = {}) {
+  const { user, perfil, perfilLoading } = useAuth()
   const nomeUsuario =
     user?.user_metadata?.nome ||
     (user?.email === 'victor@gveldiesel.com'
@@ -191,12 +191,12 @@ export function Kanban() {
     fetchSheet,
   } = useKanbanSheet(nomeUsuario)
 
-  // Bloqueio no APK mobile
-  if (isNativeApp()) {
+  // Bloqueio no APK mobile (apenas em acesso direto por rota)
+  if (!embedded && isNativeApp()) {
     return <Navigate to="/" replace />
   }
 
-  const authorized = isKanbanAuthorized(user?.email)
+  const authorized = perfil?.nivel === 'admin' || isKanbanAuthorized(user?.email) || isDashboardGerencialAuthorized(user?.email)
 
   if (!perfilLoading && !authorized) {
     return (
@@ -284,7 +284,7 @@ export function Kanban() {
       let matched = false
       for (const col of COLUNAS) {
         if (col.matcher(item)) {
-          mapa.get(col.id)!.push(item)
+          mapa.get(col.id)?.push(item)
           matched = true
           break
         }
@@ -316,18 +316,61 @@ export function Kanban() {
   return (
     <div className="space-y-6 animate-fade-in uppercase">
       {/* Cabeçalho */}
-      <PageHeader
-        title="KANBAN LOCALIZA"
-        subtitle="FLUXO DE OPERAÇÃO E STATUS DOS VEÍCULOS EM TEMPO REAL"
-        actions={
-          <div className="flex items-center gap-2">
+      {!embedded ? (
+        <PageHeader
+          title="KANBAN LOCALIZA"
+          subtitle="FLUXO DE OPERAÇÃO E STATUS DOS VEÍCULOS EM TEMPO REAL"
+          actions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => setModalHistoricoAberto(true)}
+                className="gap-2 font-bold hover:border-primary/50 text-foreground"
+              >
+                <History className="h-4 w-4 text-primary" />
+                <span>HISTÓRICO</span>
+              </Button>
+
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => setViewMode(viewMode === 'kanban' ? 'tabela' : 'kanban')}
+                className="gap-2 font-bold"
+              >
+                {viewMode === 'kanban' ? <List className="h-4 w-4" /> : <Columns3 className="h-4 w-4" />}
+                <span>{viewMode === 'kanban' ? 'VER EM LISTA' : 'VER EM KANBAN'}</span>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => fetchSheet(nomeUsuario)}
+                disabled={loading}
+                className="gap-2 font-bold shadow-lg shadow-primary/20"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <span>{loading ? 'SINCRONIZANDO...' : 'ATUALIZAR'}</span>
+              </Button>
+            </div>
+          }
+        />
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-surface/80 p-4 rounded-2xl border border-border/20">
+          <div>
+            <h2 className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+              <Columns3 className="h-5 w-5 text-amber-500" /> KANBAN LOCALIZA
+            </h2>
+            <p className="text-[11px] text-secondary font-medium">FLUXO DE OPERAÇÃO E STATUS DOS VEÍCULOS EM TEMPO REAL</p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="secondary"
               size="md"
               onClick={() => setModalHistoricoAberto(true)}
-              className="gap-2 font-bold hover:border-primary/50 text-foreground"
+              className="gap-1.5 font-bold hover:border-primary/50 text-foreground"
             >
-              <History className="h-4 w-4 text-primary" />
+              <History className="h-3.5 w-3.5 text-primary" />
               <span>HISTÓRICO</span>
             </Button>
 
@@ -335,9 +378,9 @@ export function Kanban() {
               variant="secondary"
               size="md"
               onClick={() => setViewMode(viewMode === 'kanban' ? 'tabela' : 'kanban')}
-              className="gap-2 font-bold"
+              className="gap-1.5 font-bold"
             >
-              {viewMode === 'kanban' ? <List className="h-4 w-4" /> : <Columns3 className="h-4 w-4" />}
+              {viewMode === 'kanban' ? <List className="h-3.5 w-3.5" /> : <Columns3 className="h-3.5 w-3.5" />}
               <span>{viewMode === 'kanban' ? 'VER EM LISTA' : 'VER EM KANBAN'}</span>
             </Button>
 
@@ -346,14 +389,14 @@ export function Kanban() {
               size="md"
               onClick={() => fetchSheet(nomeUsuario)}
               disabled={loading}
-              className="gap-2 font-bold shadow-lg shadow-primary/20"
+              className="gap-1.5 font-bold shadow-md shadow-primary/20"
             >
-              <RefreshCw className={`h-4 w-4 ${loading || isAutoSyncing ? 'animate-spin' : ''}`} />
-              <span>{loading ? 'SINCRONIZANDO…' : isAutoSyncing ? 'ATUALIZANDO AUTO…' : 'ATUALIZAR PLANILHA'}</span>
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>{loading ? 'SINCRONIZANDO...' : 'ATUALIZAR'}</span>
             </Button>
           </div>
-        }
-      />
+        </div>
+      )}
 
       {/* Banner de Sincronização & Informações */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/10 bg-surface/80 px-4 py-3 text-xs font-medium text-secondary backdrop-blur-md">

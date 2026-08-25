@@ -137,12 +137,15 @@ type RegistrarEntradaInput =
       ano: number
     })
 
+import { embutirFotosExtras } from '@/lib/fotosExtras'
+
 export interface FotosEntrada {
   frente?: File
   ladoEsquerdo?: File
   ladoDireito?: File
   traseira?: File
   painel?: File
+  extras?: { file?: File; url?: string; label?: string }[]
 }
 
 async function getUsuarioAtualId() {
@@ -159,14 +162,17 @@ async function getUsuarioAtualId() {
   return userData.user?.id ?? null
 }
 
-async function uploadFotoEntrada(movimentacaoId: string, campo: string, file: File) {
+export async function uploadFotoEntrada(movimentacaoId: string, campo: string, file: File) {
   const ext = file.type === 'image/png' ? 'png' : 'jpg'
   const path = `entrada/${movimentacaoId}/${campo}.${ext}`
   const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
     contentType: file.type,
     upsert: true,
   })
-  if (error) return null
+  if (error) {
+    console.error('Erro ao fazer upload da foto:', error)
+    return null
+  }
   return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
 }
 
@@ -190,12 +196,8 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
 
   const movimentacaoId = crypto.randomUUID()
 
-  // usuarioId é resolvido em paralelo com os uploads de foto (não antes deles) para
-  // minimizar a janela entre "checar quem está logado" e o insert em si — no app
-  // nativo os uploads podem levar um tempo (usuário tira as fotos com a câmera), e
-  // se a sessão falhar em resolver mesmo assim, o trigger no banco preenche o campo
-  // via auth.uid() da própria requisição (ver migration 0032).
-  const [usuarioId, fotoFrenteUrl, fotoLadoEsquerdoUrl, fotoLadoDireitoUrl, fotoTraseiraUrl, fotoPainelUrl] =
+  // Processa uploads das fotos padrão e extras em paralelo
+  const [usuarioId, fotoFrenteUrl, fotoLadoEsquerdoUrl, fotoLadoDireitoUrl, fotoTraseiraUrl, fotoPainelUrl, fotosExtrasProcessadas] =
     await Promise.all([
       getUsuarioAtualId(),
       fotos?.frente ? uploadFotoEntrada(movimentacaoId, 'frente', fotos.frente) : null,
@@ -203,7 +205,27 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
       fotos?.ladoDireito ? uploadFotoEntrada(movimentacaoId, 'lado-direito', fotos.ladoDireito) : null,
       fotos?.traseira ? uploadFotoEntrada(movimentacaoId, 'traseira', fotos.traseira) : null,
       fotos?.painel ? uploadFotoEntrada(movimentacaoId, 'painel', fotos.painel) : null,
+      fotos?.extras
+        ? Promise.all(
+            fotos.extras.map(async (extra, idx) => {
+              if (extra.file) {
+                const url = await uploadFotoEntrada(
+                  movimentacaoId,
+                  `extra-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+                  extra.file,
+                )
+                return url ? { url, label: extra.label } : null
+              } else if (extra.url) {
+                return { url: extra.url, label: extra.label }
+              }
+              return null
+            }),
+          )
+        : Promise.resolve([]),
     ])
+
+  const extrasValidas = (fotosExtrasProcessadas || []).filter((f): f is { url: string; label: string | undefined } => f !== null)
+  const observacoesComExtras = embutirFotosExtras(input.observacoes, extrasValidas)
 
   const { data, error } = await supabase
     .from('movimentacoes')
@@ -215,7 +237,7 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
       motorista: up(input.motorista),
       data_hora_entrada: input.dataHoraEntrada,
       km_entrada: input.kmEntrada,
-      observacoes: up(input.observacoes),
+      observacoes: up(observacoesComExtras),
       status: 'no_patio',
       foto_frente_url: fotoFrenteUrl,
       foto_lado_esquerdo_url: fotoLadoEsquerdoUrl,
@@ -250,19 +272,44 @@ interface AtualizarMovimentacaoInput {
 
 export async function atualizarMovimentacao(id: string, input: AtualizarMovimentacaoInput, fotos?: FotosEntrada) {
   const fotoUpdates: Record<string, string> = {}
+  let observacoesParaSalvar = input.observacoes
+
   if (fotos) {
-    const [frente, ladoEsquerdo, ladoDireito, traseira, painel] = await Promise.all([
+    const [frente, ladoEsquerdo, ladoDireito, traseira, painel, extrasProcessadas] = await Promise.all([
       fotos.frente ? uploadFotoEntrada(id, 'frente', fotos.frente) : null,
       fotos.ladoEsquerdo ? uploadFotoEntrada(id, 'lado-esquerdo', fotos.ladoEsquerdo) : null,
       fotos.ladoDireito ? uploadFotoEntrada(id, 'lado-direito', fotos.ladoDireito) : null,
       fotos.traseira ? uploadFotoEntrada(id, 'traseira', fotos.traseira) : null,
       fotos.painel ? uploadFotoEntrada(id, 'painel', fotos.painel) : null,
+      fotos.extras
+        ? Promise.all(
+            fotos.extras.map(async (extra, idx) => {
+              if (extra.file) {
+                const url = await uploadFotoEntrada(
+                  id,
+                  `extra-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+                  extra.file,
+                )
+                return url ? { url, label: extra.label } : null
+              } else if (extra.url) {
+                return { url: extra.url, label: extra.label }
+              }
+              return null
+            }),
+          )
+        : Promise.resolve(null),
     ])
+
     if (frente) fotoUpdates.foto_frente_url = frente
     if (ladoEsquerdo) fotoUpdates.foto_lado_esquerdo_url = ladoEsquerdo
     if (ladoDireito) fotoUpdates.foto_lado_direito_url = ladoDireito
     if (traseira) fotoUpdates.foto_traseira_url = traseira
     if (painel) fotoUpdates.foto_painel_url = painel
+
+    if (extrasProcessadas !== null) {
+      const extrasValidas = extrasProcessadas.filter((f): f is { url: string; label: string | undefined } => f !== null)
+      observacoesParaSalvar = embutirFotosExtras(input.observacoes, extrasValidas)
+    }
   }
 
   const { data, error } = await supabase
@@ -272,7 +319,7 @@ export async function atualizarMovimentacao(id: string, input: AtualizarMoviment
       status_id: input.statusId || null,
       motorista: up(input.motorista),
       destino: up(input.destino),
-      observacoes: up(input.observacoes),
+      observacoes: up(observacoesParaSalvar),
       data_hora_entrada: input.dataHoraEntrada,
       data_hora_saida: input.dataHoraSaida || null,
       km_entrada: input.kmEntrada,
