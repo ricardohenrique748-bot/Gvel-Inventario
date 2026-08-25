@@ -1110,6 +1110,161 @@ export function Financeiro() {
         </div>
       </Card>
 
+      {/* ──────────────────────────────────────────────────────────────────────────
+          GRÁFICO 3: RECEITAS × DESPESAS (REGIME DE CAIXA)
+         ────────────────────────────────────────────────────────────────────────── */}
+      <Card className="p-5 sm:p-6 border-border/30 bg-surface/50 shadow-lg space-y-6">
+        {/* Cabeçalho da Seção */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/20 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                <Scale className="h-4 w-4" />
+              </div>
+              <h3 className="text-sm sm:text-base font-black text-foreground uppercase tracking-wide">
+                RECEITAS × DESPESAS (REGIME DE CAIXA) — {mesFiltro === 'todos' ? 'TODOS OS MESES (MAIO A JULHO)' : `${mesFiltro.toUpperCase()} 2026`}
+              </h3>
+            </div>
+            <p className="text-xs text-secondary font-medium mt-1">
+              Comparativo de entradas efetivas de caixa (Receitas) versus saídas (Despesas) por unidade de negócio
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Seletor Interativo de Mês no Gráfico */}
+            <div className="relative flex items-center">
+              <Calendar className="absolute left-2.5 h-3.5 w-3.5 text-primary pointer-events-none" />
+              <select
+                value={mesFiltro}
+                onChange={(e) => setMesFiltro(e.target.value)}
+                className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
+              >
+                {MESES_OPCOES.map((m) => (
+                  <option key={m.id} value={m.id} className="bg-surface text-foreground font-bold">
+                    {m.label.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Legenda Customizada e Elegante */}
+            <div className="flex flex-wrap items-center gap-2 bg-background/60 border border-border/20 px-3 py-1.5 rounded-xl text-xs font-bold">
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-sm" /> RECEITAS (CAIXA)
+              </span>
+              <span className="text-border/40">•</span>
+              <span className="flex items-center gap-1.5 text-red-400">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-sm" /> DESPESAS (CAIXA)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Gráfico de Barras e Linhas Responsivo */}
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart
+              data={chartData}
+              margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
+              barGap={8}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis
+                dataKey="name"
+                stroke="#FFFFFF"
+                tick={{ fill: '#FFFFFF', fontWeight: 800, fontSize: 12 }}
+                tickLine={false}
+                axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+              />
+              <YAxis
+                stroke="#FFFFFF"
+                tick={{ fill: '#FFFFFF', fontWeight: 700, fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(val) => fmtCompact(val)}
+              />
+              <Tooltip
+                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || !payload.length) return null
+
+                  const rec = Number(payload.find((p) => p.dataKey === 'Receitas')?.value || 0)
+                  const desp = Number(payload.find((p) => p.dataKey === 'Despesas')?.value || 0)
+                  const saldo = rec - desp
+
+                  return (
+                    <div className="rounded-2xl border border-border/40 bg-surface/95 p-4 shadow-2xl backdrop-blur-md uppercase text-xs space-y-2 min-w-[240px]">
+                      <div className="border-b border-border/20 pb-2 flex items-center justify-between">
+                        <span className="font-black text-foreground text-sm flex items-center gap-1.5">
+                          🏢 {label}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 font-mono">
+                        <div className="flex items-center justify-between">
+                          <span className="text-emerald-400 font-sans font-bold flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" /> RECEITAS (CAIXA):
+                          </span>
+                          <span className="font-bold text-foreground">{fmtBRL(rec)}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-red-400 font-sans font-bold flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-red-500" /> DESPESAS (CAIXA):
+                          </span>
+                          <span className="font-bold text-foreground">{fmtBRL(desp)}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-border/20 pt-2 space-y-1 font-mono text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-secondary font-sans font-bold">SALDO CAIXA:</span>
+                          <span className={`font-black ${saldo >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {fmtBRL(saldo)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+              <Bar dataKey="Receitas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                <LabelList
+                  dataKey="Receitas"
+                  position="top"
+                  formatter={(v: any) => fmtCompact(Number(v) || 0)}
+                  style={{ fill: '#6ee7b7', fontSize: 11, fontWeight: 800, fontFamily: 'monospace' }}
+                />
+              </Bar>
+              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                <LabelList
+                  dataKey="Despesas"
+                  position="top"
+                  formatter={(v: any) => fmtCompact(Number(v) || 0)}
+                  style={{ fill: '#fca5a5', fontSize: 11, fontWeight: 800, fontFamily: 'monospace' }}
+                />
+              </Bar>
+              <Line
+                type="monotone"
+                dataKey="Receitas"
+                stroke="#34d399"
+                strokeWidth={3}
+                dot={{ r: 6, fill: '#10b981', stroke: '#ffffff', strokeWidth: 2 }}
+                activeDot={{ r: 8, stroke: '#ffffff', strokeWidth: 2 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="Despesas"
+                stroke="#f87171"
+                strokeWidth={3}
+                dot={{ r: 6, fill: '#ef4444', stroke: '#ffffff', strokeWidth: 2 }}
+                activeDot={{ r: 8, stroke: '#ffffff', strokeWidth: 2 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
       {/* ────────────────────────────────────────────────────────────────────────
           MODAL: HISTÓRICO DE APURAÇÕES
          ──────────────────────────────────────────────────────────────────────── */}
