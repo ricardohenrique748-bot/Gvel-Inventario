@@ -21,8 +21,9 @@ import {
 } from 'lucide-react'
 import {
   ResponsiveContainer,
-  BarChart,
+  ComposedChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -754,7 +755,7 @@ export function Financeiro() {
         {/* Gráfico de Barras Responsivo */}
         <div className="h-80 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart
+            <ComposedChart
               data={chartData}
               margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
               barGap={8}
@@ -835,7 +836,23 @@ export function Financeiro() {
                   style={{ fill: '#fca5a5', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
                 />
               </Bar>
-            </BarChart>
+              <Line
+                type="monotone"
+                dataKey="Faturamento"
+                stroke="#60a5fa"
+                strokeWidth={3}
+                dot={{ r: 5, fill: '#3b82f6', stroke: '#ffffff', strokeWidth: 2 }}
+                activeDot={{ r: 7, stroke: '#ffffff', strokeWidth: 2 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="Despesas"
+                stroke="#f87171"
+                strokeWidth={3}
+                dot={{ r: 5, fill: '#ef4444', stroke: '#ffffff', strokeWidth: 2 }}
+                activeDot={{ r: 7, stroke: '#ffffff', strokeWidth: 2 }}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
 
@@ -987,10 +1004,10 @@ export function Financeiro() {
         {/* Área do Gráfico Comparativo Recharts */}
         <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart
+            <ComposedChart
               data={dadosComparativoMeses}
               margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
-              barGap={8}
+              barGap={10}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis
@@ -1013,9 +1030,7 @@ export function Financeiro() {
                   if (!active || !payload || !payload.length) return null
 
                   const fat = Number(payload.find((p) => p.dataKey === 'Faturamento')?.value || 0)
-                  const rec = Number(payload.find((p) => p.dataKey === 'Receitas')?.value || 0)
                   const desp = Number(payload.find((p) => p.dataKey === 'Despesas')?.value || 0)
-                  const saldo = rec - desp
                   const resFat = fat - desp
 
                   return (
@@ -1035,15 +1050,8 @@ export function Financeiro() {
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-emerald-400 font-sans font-bold flex items-center gap-1">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500" /> RECEITAS (CAIXA):
-                          </span>
-                          <span className="font-bold text-white">{fmtBRL(rec)}</span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
                           <span className="text-red-400 font-sans font-bold flex items-center gap-1">
-                            <span className="h-2 w-2 rounded-full bg-red-500" /> DESPESAS (CAIXA):
+                            <span className="h-2 w-2 rounded-full bg-red-500" /> DESPESAS:
                           </span>
                           <span className="font-bold text-white">{fmtBRL(desp)}</span>
                         </div>
@@ -1051,13 +1059,7 @@ export function Financeiro() {
 
                       <div className="border-t border-border/20 pt-2 space-y-1 font-mono text-[11px]">
                         <div className="flex items-center justify-between">
-                          <span className="text-secondary font-sans font-bold">SALDO CAIXA:</span>
-                          <span className={`font-black ${saldo >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {fmtBRL(saldo)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-secondary font-sans font-bold">RESULTADO FAT.:</span>
+                          <span className="text-secondary font-sans font-bold">RESULTADO LÍQUIDO:</span>
                           <span className={`font-black ${resFat >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {fmtBRL(resFat)}
                           </span>
@@ -1067,7 +1069,7 @@ export function Financeiro() {
                   )
                 }}
               />
-              <Bar dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={60}>
+              <Bar dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={70}>
                 <LabelList
                   dataKey="Faturamento"
                   position="top"
@@ -1075,15 +1077,7 @@ export function Financeiro() {
                   style={{ fill: '#93c5fd', fontSize: 11, fontWeight: 800, fontFamily: 'monospace' }}
                 />
               </Bar>
-              <Bar dataKey="Receitas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={60}>
-                <LabelList
-                  dataKey="Receitas"
-                  position="top"
-                  formatter={(v: any) => fmtCompact(Number(v) || 0)}
-                  style={{ fill: '#6ee7b7', fontSize: 11, fontWeight: 800, fontFamily: 'monospace' }}
-                />
-              </Bar>
-              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={60}>
+              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={70}>
                 <LabelList
                   dataKey="Despesas"
                   position="top"
@@ -1091,7 +1085,23 @@ export function Financeiro() {
                   style={{ fill: '#fca5a5', fontSize: 11, fontWeight: 800, fontFamily: 'monospace' }}
                 />
               </Bar>
-            </BarChart>
+              <Line
+                type="monotone"
+                dataKey="Faturamento"
+                stroke="#60a5fa"
+                strokeWidth={3}
+                dot={{ r: 6, fill: '#3b82f6', stroke: '#ffffff', strokeWidth: 2 }}
+                activeDot={{ r: 8, stroke: '#ffffff', strokeWidth: 2 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="Despesas"
+                stroke="#f87171"
+                strokeWidth={3}
+                dot={{ r: 6, fill: '#ef4444', stroke: '#ffffff', strokeWidth: 2 }}
+                activeDot={{ r: 8, stroke: '#ffffff', strokeWidth: 2 }}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
 
