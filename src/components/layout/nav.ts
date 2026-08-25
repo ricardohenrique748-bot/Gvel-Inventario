@@ -26,7 +26,7 @@ export const navItems = [
     ],
   },
   { to: '/manutencao', label: 'Manutenção', icon: Wrench },
-  { to: '/kanban', label: 'Kanban', icon: Columns3 },
+  { to: '/kanban', label: 'Kanban Localiza', icon: Columns3 },
   {
     to: '/inventario-caminhoes',
     label: 'Inventário de Caminhões',
@@ -46,7 +46,7 @@ export const navItems = [
       { to: '/frotas?aba=checklist', label: 'Checklist', icon: ClipboardCheck },
     ],
   },
-  { to: '/inventario-ferramentas', label: 'Inventário de Ferramentas', icon: Hammer },
+  { to: '/inventario-ferramentas', label: 'Estoque', icon: Hammer },
   { to: '/financeiro', label: 'Financeiro', icon: DollarSign },
   { to: '/rh', label: 'RH', icon: UserCheck },
   { to: '/compras', label: 'Compras', icon: ShoppingCart },

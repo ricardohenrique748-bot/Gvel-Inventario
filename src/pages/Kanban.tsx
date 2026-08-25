@@ -201,7 +201,7 @@ export function Kanban() {
   if (!perfilLoading && !authorized) {
     return (
       <div className="uppercase space-y-6 animate-fade-in">
-        <PageHeader title="QUADRO KANBAN" subtitle="FLUXO DE OPERAÇÃO E GESTÃO DE PROCESSOS" />
+        <PageHeader title="KANBAN LOCALIZA" subtitle="FLUXO DE OPERAÇÃO E GESTÃO DE PROCESSOS" />
         <Card className="p-8 sm:p-12 text-center uppercase border-border/20 bg-surface shadow-2xl">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 text-red-400 shadow-inner">
             <ShieldAlert className="h-8 w-8" />
@@ -317,7 +317,7 @@ export function Kanban() {
     <div className="space-y-6 animate-fade-in uppercase">
       {/* Cabeçalho */}
       <PageHeader
-        title="QUADRO KANBAN"
+        title="KANBAN LOCALIZA"
         subtitle="FLUXO DE OPERAÇÃO E STATUS DOS VEÍCULOS EM TEMPO REAL"
         actions={
           <div className="flex items-center gap-2">

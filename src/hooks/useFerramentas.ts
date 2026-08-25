@@ -23,6 +23,28 @@ function formatarFerramentaComFoto(f: any): Ferramenta {
   }
 }
 
+function formatarRetiradaComFoto(r: any): FerramentaRetirada {
+  if (!r) return r
+  let foto_url: string | null = r.foto_url || r.foto_responsavel_url || null
+  let observacoes: string | null = r.observacoes_retirada || null
+
+  if (observacoes && observacoes.includes('[FOTO:')) {
+    const match = observacoes.match(/\[FOTO:(.*?)\]/)
+    if (match) {
+      foto_url = match[1]
+      observacoes = observacoes.replace(/\[FOTO:.*?\]/g, '').trim() || null
+    }
+  }
+
+  return {
+    ...r,
+    foto_url,
+    foto_responsavel_url: foto_url,
+    observacoes_retirada: observacoes,
+    ferramenta: r.ferramenta ? formatarFerramentaComFoto(r.ferramenta) : undefined,
+  }
+}
+
 export function useFerramentas() {
   const [ferramentas, setFerramentas] = useState<Ferramenta[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,7 +87,7 @@ export function useRetiradasFerramentas(filtros: RetiradasFiltros = {}) {
     setLoading(true)
     let query = supabase
       .from('ferramentas_retiradas')
-      .select('id,ferramenta_id,placa,responsavel,quantidade,status,observacoes_retirada,data_hora_retirada,data_hora_devolucao,foto_url,foto_responsavel_url, ferramenta:ferramentas(id,nome,codigo,categoria,localizacao,quantidade_total,quantidade_disponivel,observacoes)')
+      .select('*, ferramenta:ferramentas(*)')
       .order('data_hora_retirada', { ascending: false })
       .limit(200)
 
@@ -82,9 +104,10 @@ export function useRetiradasFerramentas(filtros: RetiradasFiltros = {}) {
     const { data, error } = await query
 
     if (error) {
+      console.error('Erro ao buscar retiradas:', error)
       setError(error.message)
     } else {
-      setRetiradas((data as unknown as FerramentaRetirada[]) ?? [])
+      setRetiradas((data ?? []).map(formatarRetiradaComFoto))
     }
     setLoading(false)
   }, [filtros.status, filtros.placa, filtros.responsavel])
@@ -406,3 +429,39 @@ export async function registrarDevolucaoFerramenta(input: RegistrarDevolucaoInpu
     }
   }
 }
+
+export async function reverterDevolucaoFerramenta(retiradaId: string): Promise<void> {
+  const { data: retirada, error: buscaError } = await supabase
+    .from('ferramentas_retiradas')
+    .select('*, ferramenta:ferramentas(*)')
+    .eq('id', retiradaId)
+    .single()
+
+  if (buscaError || !retirada) {
+    throw new Error('Registro de retirada não encontrado.')
+  }
+
+  // Volta status para em_uso e remove data de devolução
+  const { error: updateRetiradaError } = await supabase
+    .from('ferramentas_retiradas')
+    .update({
+      status: 'em_uso',
+      data_hora_devolucao: null,
+      observacoes_devolucao: null,
+    })
+    .eq('id', retiradaId)
+
+  if (updateRetiradaError) throw new Error(updateRetiradaError.message)
+
+  // Ajusta quantidade disponível
+  const ferramenta = retirada.ferramenta as Ferramenta | undefined
+  if (ferramenta) {
+    await supabase
+      .from('ferramentas')
+      .update({
+        quantidade_disponivel: Math.max(0, (ferramenta.quantidade_disponivel || 0) - (retirada.quantidade || 1)),
+      })
+      .eq('id', retirada.ferramenta_id)
+  }
+}
+

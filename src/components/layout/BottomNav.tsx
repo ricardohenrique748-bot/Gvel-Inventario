@@ -13,7 +13,7 @@ export function BottomNav() {
 
   const items = [
     { to: '/', label: 'INÍCIO', icon: Home, end: true },
-    { to: '/inventario-ferramentas', label: 'FERRAMENTAS', icon: Hammer },
+    { to: '/inventario-ferramentas', label: 'ESTOQUE', icon: Hammer },
     { to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck },
     { to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench },
     { to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight },

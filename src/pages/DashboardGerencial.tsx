@@ -137,8 +137,8 @@ export function DashboardGerencial() {
     },
     {
       to: '/inventario-ferramentas',
-      title: 'INVENTÁRIO DE FERRAMENTAS',
-      desc: 'CONTROLE DE PATRIMÔNIO E EQUIPAMENTOS',
+      title: 'ESTOQUE',
+      desc: 'CONTROLE DE PATRIMÔNIO, FERRAMENTAS E CONSUMÍVEIS',
       icon: Hammer,
       tone: 'from-purple-500/20 to-purple-500/5 text-purple-500 border-purple-500/20',
       badge: 'ESTOQUE',
@@ -153,11 +153,11 @@ export function DashboardGerencial() {
     },
     {
       to: '/kanban',
-      title: 'QUADRO KANBAN',
+      title: 'KANBAN LOCALIZA',
       desc: 'FLUXO DE PROCESSOS, ETAPAS E ORDENS EM TEMPO REAL',
       icon: Columns3,
       tone: 'from-amber-500/20 to-amber-500/5 text-amber-500 border-amber-500/20',
-      badge: 'EM BREVE',
+      badge: 'PROCESSOS',
     },
     {
       to: '/rh',

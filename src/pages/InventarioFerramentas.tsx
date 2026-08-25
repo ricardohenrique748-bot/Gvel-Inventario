@@ -44,6 +44,7 @@ import {
   excluirFerramenta,
   registrarRetiradaFerramenta,
   registrarDevolucaoFerramenta,
+  reverterDevolucaoFerramenta,
   uploadFotoFerramenta,
 } from '@/hooks/useFerramentas'
 import { comprimirImagem } from '@/lib/imagem'
@@ -299,9 +300,60 @@ function ScrollContainer({
   children: React.ReactNode
   className?: string
 }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isDownRef = useRef(false)
+  const startXRef = useRef(0)
+  const scrollLeftRef = useRef(0)
+  const isDraggingRef = useRef(false)
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!containerRef.current) return
+    isDownRef.current = true
+    isDraggingRef.current = false
+    startXRef.current = e.pageX - containerRef.current.offsetLeft
+    scrollLeftRef.current = containerRef.current.scrollLeft
+  }
+
+  const handleMouseLeave = () => {
+    isDownRef.current = false
+    isDraggingRef.current = false
+  }
+
+  const handleMouseUp = () => {
+    isDownRef.current = false
+    setTimeout(() => {
+      isDraggingRef.current = false
+    }, 50)
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDownRef.current || !containerRef.current) return
+    e.preventDefault()
+    const x = e.pageX - containerRef.current.offsetLeft
+    const walk = (x - startXRef.current) * 1.6
+    if (Math.abs(walk) > 4) {
+      isDraggingRef.current = true
+    }
+    containerRef.current.scrollLeft = scrollLeftRef.current - walk
+  }
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!containerRef.current) return
+    if (e.deltaY !== 0) {
+      containerRef.current.scrollLeft += e.deltaY * 0.8
+    }
+  }
+
   return (
     <div
-      className={`overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${className}`}
+      ref={containerRef}
+      onMouseDown={handleMouseDown}
+      onMouseLeave={handleMouseLeave}
+      onMouseUp={handleMouseUp}
+      onMouseMove={handleMouseMove}
+      onWheel={handleWheel}
+      className={`overflow-x-auto select-none cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden touch-pan-x ${className}`}
+      style={{ WebkitOverflowScrolling: 'touch' }}
     >
       {children}
     </div>
@@ -525,12 +577,25 @@ export function InventarioFerramentas() {
     }
   }
 
+  // Reverter devolução / baixa (voltar para em uso)
+  const handleReverterDevolucao = async (r: FerramentaRetirada) => {
+    if (!confirm(`DESEJA RESTAURAR A RETIRADA DE "${r.ferramenta?.nome || 'FERRAMENTA'}" PARA O STATUS "EM USO NO MOMENTO"?`)) return
+    try {
+      setMensagemErro(null)
+      await reverterDevolucaoFerramenta(r.id)
+      await recarregarDados()
+      setAbaAtiva('em_uso')
+    } catch (err) {
+      setMensagemErro(err instanceof Error ? err.message : 'ERRO AO RESTAURAR RETIRADA.')
+    }
+  }
+
   return (
     <div className="space-y-5 animate-fade-in pb-12 uppercase max-w-full overflow-x-hidden">
       {/* Cabeçalho */}
       <PageHeader
-        title="INVENTÁRIO DE FERRAMENTAS"
-        subtitle="CONTROLE DE ESTOQUE, EMPRÉSTIMO E VINCULAÇÃO COM CAMINHÕES"
+        title="ESTOQUE"
+        subtitle="CONTROLE DE FERRAMENTAS, CONSUMÍVEIS, CAIXAS E PATRIMÔNIO"
         actions={
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
             <Button
@@ -804,23 +869,25 @@ export function InventarioFerramentas() {
               </div>
             </div>
 
-            {/* Categorias com suporte a rolagem nativa ultra rápida */}
-            <ScrollContainer className="flex items-center gap-1.5 pb-1 max-w-full">
-              {CATEGORIAS_SUGERIDAS.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategoriaFiltro(cat)}
-                  className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap uppercase cursor-pointer border shrink-0 ${
-                    categoriaFiltro === cat
-                      ? 'bg-primary/15 border-primary/50 text-primary shadow-sm'
-                      : 'bg-surface/80 border-border/20 text-secondary hover:border-border/60 hover:text-foreground'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </ScrollContainer>
+            {/* Categorias com suporte a rolagem nativa ultra rápida e arrasto */}
+            <div className="flex-1 min-w-0 max-w-full">
+              <ScrollContainer className="flex items-center gap-1.5 pb-1 max-w-full">
+                {CATEGORIAS_SUGERIDAS.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategoriaFiltro(cat)}
+                    className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap uppercase cursor-pointer border shrink-0 ${
+                      categoriaFiltro === cat
+                        ? 'bg-primary/15 border-primary/50 text-primary shadow-sm'
+                        : 'bg-surface/80 border-border/20 text-secondary hover:border-border/60 hover:text-foreground'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </ScrollContainer>
+            </div>
           </div>
 
           {/* Lista do Estoque */}
@@ -1278,13 +1345,71 @@ export function InventarioFerramentas() {
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
             </div>
           ) : retiradasAtivas.length === 0 ? (
-            <Card className="p-12 text-center uppercase">
-              <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-500" />
-              <p className="text-base font-bold text-foreground">NENHUMA FERRAMENTA EM USO NO MOMENTO</p>
-              <p className="mt-1 text-sm text-secondary font-medium">
-                TODAS AS FERRAMENTAS ESTÃO DISPONÍVEIS NO ESTOQUE.
-              </p>
-            </Card>
+            <div className="space-y-4">
+              <Card className="p-8 text-center uppercase space-y-3">
+                <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" />
+                <p className="text-base font-bold text-foreground">NENHUMA FERRAMENTA EM USO NO MOMENTO</p>
+                <p className="text-sm text-secondary font-medium max-w-lg mx-auto">
+                  TODAS AS FERRAMENTAS ESTÃO COM STATUS DEVOLVIDO/ESTOQUE. SE VOCÊ REGISTROU A BAIXA/DEVOLUÇÃO E QUER QUE ELAS VOLTEM A APARECER AQUI, RESTAURE-AS COM 1 CLIQUE ABAIXO:
+                </p>
+              </Card>
+
+              {retiradas.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-secondary flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 text-primary" />
+                      ÚLTIMAS RETIRADAS FINALIZADAS (CLIQUE PARA VOLTAR PARA EM USO):
+                    </span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="md"
+                      onClick={() => setAbaAtiva('historico')}
+                      className="text-[11px] font-black uppercase gap-1.5 border-border/30 hover:border-primary"
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      Ver Histórico Completo ({retiradas.length})
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {retiradas.slice(0, 6).map((r) => (
+                      <Card key={r.id} className="p-4 border-border/20 bg-surface/90 flex flex-col justify-between shadow-sm hover:border-primary/40 transition-all">
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1 rounded-lg bg-primary/20 px-2.5 py-1 text-xs font-mono font-bold text-primary">
+                              <Truck className="h-3.5 w-3.5" />
+                              {r.placa}
+                            </span>
+                            <span className="text-[10px] text-secondary font-bold font-mono">
+                              {r.data_hora_retirada ? format(new Date(r.data_hora_retirada), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : ''}
+                            </span>
+                          </div>
+                          <h4 className="mt-2.5 text-sm font-bold text-foreground uppercase">{r.ferramenta?.nome || 'FERRAMENTA'}</h4>
+                          <p className="text-xs text-secondary mt-1">
+                            RESPONSÁVEL: <strong className="text-foreground font-bold">{r.responsavel}</strong>
+                          </p>
+                          {r.observacoes_retirada && (
+                            <p className="text-[11px] text-secondary italic mt-1 line-clamp-1">"{r.observacoes_retirada}"</p>
+                          )}
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-border/10">
+                          <Button
+                            type="button"
+                            onClick={() => handleReverterDevolucao(r)}
+                            className="w-full !h-8 text-xs font-black uppercase gap-1.5 bg-amber-500 hover:bg-amber-600 text-black shadow-sm"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            RESTAURAR PARA EM USO AGORA
+                          </Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {retiradasAtivas.map((r) => {
@@ -1390,12 +1515,13 @@ export function InventarioFerramentas() {
                   <th className="px-4 py-3">DATA RETIRADA</th>
                   <th className="px-4 py-3">DATA DEVOLUÇÃO</th>
                   <th className="px-4 py-3">STATUS</th>
+                  <th className="px-4 py-3 text-right">AÇÕES</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/5">
                 {retiradas.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-secondary font-medium uppercase">
+                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-secondary font-medium uppercase">
                       NENHUM HISTÓRICO REGISTRADO AINDA.
                     </td>
                   </tr>
@@ -1466,6 +1592,35 @@ export function InventarioFerramentas() {
                             <Badge tone="danger" className="text-[10px] uppercase font-black tracking-wide">
                               AVARIA / PERDA
                             </Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {r.status !== 'em_uso' ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="md"
+                              onClick={() => handleReverterDevolucao(r)}
+                              className="!h-7 px-2.5 text-[10px] font-black uppercase tracking-wider gap-1 border-amber-500/30 text-amber-400 hover:border-amber-500"
+                              title="Restaurar de volta para a lista Em Uso no Momento"
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                              RESTAURAR (VOLTAR EM USO)
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="md"
+                              onClick={() => {
+                                setRetiradaParaDevolver(r)
+                                setModalDevolucaoAberto(true)
+                              }}
+                              className="!h-7 px-2.5 text-[10px] font-black uppercase tracking-wider gap-1 border-emerald-500/30 text-emerald-500 hover:border-emerald-500"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              DAR BAIXA
+                            </Button>
                           )}
                         </td>
                       </tr>
