@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/Button'
 import { Input, Label, Textarea } from '@/components/ui/Input'
 import { useNotificacoes, type ConfigNotificacoes } from '@/contexts/NotificacoesContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { solicitarPermissaoNotificacoes } from '@/lib/pushNotifications'
 
 function Toggle({
   checked,
@@ -110,8 +111,55 @@ export function NotificacoesTab() {
 
   const patioBloqueado = !formConfig.pushAtivo || !formConfig.alertaPatioAtivo
 
+  const [permissaoStatus, setPermissaoStatus] = useState<string>('default')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setPermissaoStatus(Notification.permission)
+    }
+  }, [])
+
+  async function handleSolicitarPermissao() {
+    const granted = await solicitarPermissaoNotificacoes()
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setPermissaoStatus(Notification.permission)
+    }
+    if (granted) {
+      dispararNotificacaoTeste()
+      setTesteDisparado(true)
+      setTimeout(() => setTesteDisparado(false), 3000)
+    }
+  }
+
   return (
     <div className="space-y-6 uppercase">
+      {/* Banner de Status de Permissão de Push no Navegador / Dispositivo */}
+      {permissaoStatus !== 'granted' && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
+              <Bell className="h-5 w-5 animate-pulse" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-amber-300">
+                PERMISSÃO DE NOTIFICAÇÕES NÃO ATIVADA NO NAVEGADOR
+              </p>
+              <p className="text-[11px] text-secondary normal-case mt-0.5">
+                Para receber alertas mesmo com a página em segundo plano ou em outra aba, permita as notificações.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="md"
+            onClick={handleSolicitarPermissao}
+            className="!h-9 !text-xs !bg-amber-600 hover:!bg-amber-700 whitespace-nowrap"
+          >
+            🔔 PERMITIR NOTIFICAÇÕES AGORA
+          </Button>
+        </div>
+      )}
+
       {/* Barra de Ações Rápidas do Topo */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-surface/40 p-4 rounded-2xl border border-border/40">
         <div>

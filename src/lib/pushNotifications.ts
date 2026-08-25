@@ -158,24 +158,28 @@ export async function dispararPushLocal(titulo: string, mensagem: string, linkUr
           data: { url: linkUrl || window.location.href },
         }
 
-        // Tenta exibir pelo Service Worker ativo se disponível
-        if ('serviceWorker' in navigator) {
+        // Tenta exibir pelo Service Worker ativo se disponível sem travar a execução
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           try {
-            const reg = await navigator.serviceWorker.ready
-            if (reg && 'showNotification' in reg) {
+            const reg = await navigator.serviceWorker.getRegistration()
+            if (reg && typeof reg.showNotification === 'function') {
               await reg.showNotification(titulo, notifOptions)
               return
             }
           } catch (swErr) {
-            console.debug('[PushNotifications] Fallback de serviceWorker:', swErr)
+            console.debug('[PushNotifications] Fallback para Notification direta:', swErr)
           }
         }
 
-        // Fallback para Notification API nativa do navegador
-        const notif = new Notification(titulo, notifOptions)
-        notif.onclick = () => {
-          window.focus()
-          notif.close()
+        // Fallback direto para Notification API nativa do navegador
+        try {
+          const notif = new Notification(titulo, notifOptions)
+          notif.onclick = () => {
+            window.focus()
+            notif.close()
+          }
+        } catch (notifErr) {
+          console.debug('[PushNotifications] Erro Notification API:', notifErr)
         }
       }
     }
