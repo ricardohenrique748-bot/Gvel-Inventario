@@ -103,6 +103,7 @@ export const DASHBOARD_GERENCIAL_ALLOWED_EMAILS = [
   'junior@gveldiesel.com',
   'victor@gveldiesel.com',
   'ricardo_h.16@hotmail.com',
+  'mariaclara@gveldiesel.com',
 ] as const
 
 export function isDashboardGerencialAuthorized(email?: string | null): boolean {
