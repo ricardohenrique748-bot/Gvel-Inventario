@@ -53,6 +53,7 @@ import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarca
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useAuth } from '@/contexts/AuthContext'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
+import { isNativeApp } from '@/lib/isNativeApp'
 
 const anoAtual = new Date().getFullYear()
 
@@ -210,10 +211,11 @@ export function Frotas() {
   const { movimentacoes } = useMovimentacoes()
   const navigate = useNavigate()
 
+  const isNative = isNativeApp()
   const [searchParams] = useSearchParams()
   const abaParam = searchParams.get('aba')
   const abaPrincipal: 'dashboard' | 'veiculos' | 'checklist' =
-    abaParam === 'checklist' ? 'checklist' : abaParam === 'veiculos' ? 'veiculos' : 'dashboard'
+    isNative ? 'checklist' : abaParam === 'checklist' ? 'checklist' : abaParam === 'veiculos' ? 'veiculos' : 'dashboard'
 
   // Lista de veículos de frotas
   const [frotas, setFrotas] = useState<ItemFrotaCadastrada[]>(() => {

@@ -98,6 +98,7 @@ export function ControleDeHoras() {
 
   const { itens, loading, error } = useControleHoras()
   const [filtros, setFiltros] = useState<Filtros>({})
+  const [colabGrafico, setColabGrafico] = useState<string | null>(null)
 
   function patch(next: Partial<Filtros>) {
     setFiltros((prev) => ({ ...prev, ...next }))
@@ -135,16 +136,37 @@ export function ControleDeHoras() {
   }, [itensFiltrados])
 
   const porMecanico = useMemo(() => {
-    const somaMinutos = new Map<string, number>()
+    const mapa = new Map<string, { minutos: number; placasMap: Map<string, number> }>()
     for (const item of itensFiltrados) {
       const nomeOriginal = item.mecanico_executor || 'Sem nome'
       const nomeExibicao = formatarNomeSobrenome(nomeOriginal)
       const minutos = extrairMinutosItem(item)
-      somaMinutos.set(nomeExibicao, (somaMinutos.get(nomeExibicao) ?? 0) + minutos)
+      const placa = item.movimentacao?.veiculo?.placa
+
+      if (!mapa.has(nomeExibicao)) {
+        mapa.set(nomeExibicao, { minutos: 0, placasMap: new Map() })
+      }
+      const entry = mapa.get(nomeExibicao)!
+      entry.minutos += minutos
+      if (placa) {
+        entry.placasMap.set(placa, (entry.placasMap.get(placa) ?? 0) + minutos)
+      }
     }
-    return [...somaMinutos.entries()]
-      .filter(([, minutos]) => minutos > 0)
-      .map(([name, minutos]) => ({ name, horas: Math.round((minutos / 60) * 10) / 10, minutos }))
+    return [...mapa.entries()]
+      .filter(([, data]) => data.minutos > 0)
+      .map(([name, data]) => {
+        const placasOrdenadas = [...data.placasMap.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([p]) => p)
+        return {
+          name,
+          horas: Math.round((data.minutos / 60) * 10) / 10,
+          minutos: data.minutos,
+          placas: placasOrdenadas,
+          placaTexto: placasOrdenadas.join(' • '),
+          placasDetalhe: [...data.placasMap.entries()].sort((a, b) => b[1] - a[1]),
+        }
+      })
       .sort((a, b) => b.minutos - a.minutos)
   }, [itensFiltrados])
 
@@ -152,6 +174,48 @@ export function ControleDeHoras() {
     () => porMecanico.map((item, i) => ({ ...item, name: MEDALHAS[i] ? `${MEDALHAS[i]} ${item.name}` : item.name })),
     [porMecanico],
   )
+
+  // Dados unificados de Colaborador e Placas para gráfico único
+  const { listaColaboradoresGrafico, dadosGraficoUnico } = useMemo(() => {
+    // Mapa: "Colaborador|||Placa" -> minutos
+    const mapaPares = new Map<string, { colaborador: string; placa: string; minutos: number }>()
+    const colabsSet = new Set<string>()
+
+    for (const item of itensFiltrados) {
+      const placa = item.movimentacao?.veiculo?.placa
+      if (!placa) continue
+      const colab = formatarNomeSobrenome(item.mecanico_executor || 'Sem nome')
+      const chave = `${colab}|||${placa}`
+      const minutos = extrairMinutosItem(item)
+      if (minutos <= 0) continue
+
+      colabsSet.add(colab)
+      if (!mapaPares.has(chave)) {
+        mapaPares.set(chave, { colaborador: colab, placa, minutos: 0 })
+      }
+      mapaPares.get(chave)!.minutos += minutos
+    }
+
+    const listaColaboradoresGrafico = [...colabsSet].sort((a, b) => a.localeCompare(b))
+
+    let pares = [...mapaPares.values()]
+    if (colabGrafico) {
+      pares = pares.filter((p) => p.colaborador === colabGrafico)
+    }
+
+    // Ordena decrescente por minutos
+    pares.sort((a, b) => b.minutos - a.minutos)
+
+    const dadosGraficoUnico = pares.map((p) => ({
+      label: colabGrafico ? p.placa : `${p.colaborador} - ${p.placa}`,
+      colaborador: p.colaborador,
+      placa: p.placa,
+      horas: Math.round((p.minutos / 60) * 10) / 10,
+      minutos: p.minutos,
+    }))
+
+    return { listaColaboradoresGrafico, dadosGraficoUnico }
+  }, [itensFiltrados, colabGrafico])
 
   const porSetor = useMemo(() => {
     const counts = new Map<string, number>()
@@ -248,7 +312,7 @@ export function ControleDeHoras() {
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <Card>
           <CardHeader>
-            <CardTitle>Horas por colaborador</CardTitle>
+            <CardTitle>HORAS POR COLABORADOR</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-80 w-full overflow-x-auto">
@@ -257,7 +321,7 @@ export function ControleDeHoras() {
               ) : (
                 <div style={{ minWidth: Math.max(380, porMecanico.length * 85), height: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart key={theme} data={porMecanico} margin={{ top: 28, right: 16, left: -10, bottom: 40 }}>
+                    <BarChart key={theme} data={porMecanico} margin={{ top: 32, right: 16, left: -10, bottom: 40 }}>
                       <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 3" />
                       <XAxis
                         dataKey="name"
@@ -283,12 +347,28 @@ export function ControleDeHoras() {
                       <Tooltip
                         contentStyle={tooltipStyle}
                         cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
-                        formatter={(_value, _name, props) => [
-                          formatMinutosParaTexto(props.payload.minutos),
-                          'Total Trabalhado',
-                        ]}
+                        formatter={(_value, _name, props: any) => {
+                          const payload = props.payload
+                          const detalhes = payload?.placasDetalhe as [string, number][] | undefined
+                          return [
+                            <div key="tt" className="space-y-1">
+                              <p className="font-bold text-primary">{formatMinutosParaTexto(payload.minutos)}</p>
+                              {detalhes && detalhes.length > 0 && (
+                                <div className="border-t border-border/20 pt-1 mt-1 space-y-0.5">
+                                  {detalhes.map(([placa, min]) => (
+                                    <p key={placa} className="text-xs text-secondary flex justify-between gap-3">
+                                      <span className="font-mono font-bold text-foreground">{placa}:</span>
+                                      <span>{formatMinutosCompacto(min)}</span>
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>,
+                            payload.name,
+                          ]
+                        }}
                       />
-                      <Bar dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={44}>
+                      <Bar dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={48}>
                         <LabelList
                           dataKey="minutos"
                           position="top"
@@ -374,6 +454,106 @@ export function ControleDeHoras() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ===== GRÁFICO: HORAS POR COLABORADOR E PLACA (COM ABAS DE SELEÇÃO) ===== */}
+      {dadosGraficoUnico.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>HORAS POR COLABORADOR E PLACA</CardTitle>
+                <p className="text-xs text-secondary font-medium mt-0.5">
+                  {colabGrafico ? `Exibindo placas atendidas por ${colabGrafico}` : 'Exibindo todos os atendimentos por colaborador e placa'}
+                </p>
+              </div>
+
+              {/* Filtro rápido por colaborador em Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto max-w-full pb-1 sm:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setColabGrafico(null)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-colors uppercase ${
+                    colabGrafico === null
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'border border-border/30 bg-surface/60 text-secondary hover:bg-surface hover:text-foreground'
+                  }`}
+                >
+                  Todos
+                </button>
+                {listaColaboradoresGrafico.map((colab) => (
+                  <button
+                    key={colab}
+                    type="button"
+                    onClick={() => setColabGrafico(colabGrafico === colab ? null : colab)}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-colors uppercase whitespace-nowrap ${
+                      colabGrafico === colab
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'border border-border/30 bg-surface/60 text-secondary hover:bg-surface hover:text-foreground'
+                    }`}
+                  >
+                    {colab}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80 w-full overflow-x-auto">
+              <div style={{ minWidth: Math.max(380, dadosGraficoUnico.length * 80), height: '100%' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    key={`${theme}-${colabGrafico ?? 'todos'}`}
+                    data={dadosGraficoUnico}
+                    margin={{ top: 32, right: 16, left: -10, bottom: 45 }}
+                  >
+                    <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="label"
+                      stroke={textColor}
+                      tick={{ fill: textColor, fontSize: 10, fontWeight: 700 }}
+                      tickLine={false}
+                      axisLine={{ stroke: axisLineColor }}
+                      interval={0}
+                      angle={dadosGraficoUnico.length > 2 ? -35 : 0}
+                      textAnchor={dadosGraficoUnico.length > 2 ? 'end' : 'middle'}
+                      height={dadosGraficoUnico.length > 2 ? 65 : 26}
+                    />
+                    <YAxis
+                      type="number"
+                      allowDecimals={false}
+                      stroke={textColor}
+                      tick={{ fill: textColor, fontSize: 11, fontWeight: 700 }}
+                      tickFormatter={(v) => `${v}h`}
+                      tickLine={false}
+                      axisLine={false}
+                      width={36}
+                    />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
+                      formatter={(_value, _name, props) => [
+                        formatMinutosParaTexto(props.payload.minutos),
+                        `${props.payload.colaborador} • ${props.payload.placa}`,
+                      ]}
+                    />
+                    <Bar dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={44}>
+                      <LabelList
+                        dataKey="minutos"
+                        position="top"
+                        fill={textColor}
+                        fontSize={11}
+                        fontWeight={800}
+                        offset={8}
+                        formatter={(val: any) => (typeof val === 'number' ? formatMinutosCompacto(val) : String(val ?? ''))}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <Card>
