@@ -288,11 +288,14 @@ export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput)
     )
   }
 
-  // Prepara o texto descritivo se for saída definitiva
+  // Prepara o texto descritivo se for saída definitiva ou se tiver foto
   let obsFinal = input.observacoes_retirada?.trim() || ''
   if (isDefinitiva) {
     const motivoTag = input.motivo_baixa ? `MOTIVO: ${input.motivo_baixa.toUpperCase()}` : 'NÃO VOLTA'
     obsFinal = `[SAÍDA DEFINITIVA · ${motivoTag}] ${obsFinal}`.trim()
+  }
+  if (foto) {
+    obsFinal = obsFinal ? `${obsFinal} [FOTO:${foto}]` : `[FOTO:${foto}]`
   }
 
   // 2. Insere a retirada
@@ -309,32 +312,11 @@ export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput)
     data_hora_devolucao: isDefinitiva ? new Date().toISOString() : null,
   }
 
-  if (foto) {
-    payload.foto_responsavel_url = foto
-    payload.foto_url = foto
-  }
-
-  let { data: retirada, error: insertError } = await supabase
+  const { data: retirada, error: insertError } = await supabase
     .from('ferramentas_retiradas')
     .insert(payload)
     .select('*, ferramenta:ferramentas(*)')
     .single()
-
-  // Fallback se colunas extras não existirem
-  if (insertError && foto) {
-    const payloadSemFoto = { ...payload }
-    delete payloadSemFoto.foto_responsavel_url
-    delete payloadSemFoto.foto_url
-
-    const retry = await supabase
-      .from('ferramentas_retiradas')
-      .insert(payloadSemFoto)
-      .select('*, ferramenta:ferramentas(*)')
-      .single()
-
-    retirada = retry.data
-    insertError = retry.error
-  }
 
   if (insertError) throw new Error(insertError.message)
 
@@ -578,33 +560,13 @@ export async function atualizarRetiradaFerramenta(input: AtualizarRetiradaInput)
   if (input.data_hora_retirada) {
     payload.data_hora_retirada = input.data_hora_retirada
   }
-  if (foto !== undefined) {
-    payload.foto_responsavel_url = foto || null
-    payload.foto_url = foto || null
-  }
 
-  let { data: atualizado, error: updateError } = await supabase
+  const { data: atualizado, error: updateError } = await supabase
     .from('ferramentas_retiradas')
     .update(payload)
     .eq('id', input.id)
     .select('*, ferramenta:ferramentas(*)')
     .single()
-
-  if (updateError && foto) {
-    const payloadSemFoto = { ...payload }
-    delete payloadSemFoto.foto_responsavel_url
-    delete payloadSemFoto.foto_url
-
-    const retry = await supabase
-      .from('ferramentas_retiradas')
-      .update(payloadSemFoto)
-      .eq('id', input.id)
-      .select('*, ferramenta:ferramentas(*)')
-      .single()
-
-    atualizado = retry.data
-    updateError = retry.error
-  }
 
   if (updateError) throw new Error(updateError.message)
   return formatarRetiradaComFoto(atualizado)
