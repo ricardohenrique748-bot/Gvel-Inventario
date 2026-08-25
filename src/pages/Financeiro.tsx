@@ -449,34 +449,30 @@ export function Financeiro() {
 
         {/* Card 4: Saldo Caixa */}
         <Card
-          className={`p-4 shadow-sm border ${
-            totais.saldoCaixa >= 0
+          className={`p-4 shadow-sm border ${totais.saldoCaixa >= 0
               ? 'border-emerald-500/20 bg-emerald-500/5'
               : 'border-amber-500/20 bg-amber-500/5'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between text-secondary mb-1">
             <span
-              className={`text-[10px] font-bold tracking-wider ${
-                totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
-              }`}
+              className={`text-[10px] font-bold tracking-wider ${totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
+                }`}
             >
               SALDO DE CAIXA
             </span>
             <div
-              className={`flex h-7 w-7 items-center justify-center rounded-lg ${
-                totais.saldoCaixa >= 0
+              className={`flex h-7 w-7 items-center justify-center rounded-lg ${totais.saldoCaixa >= 0
                   ? 'bg-emerald-500/10 text-emerald-400'
                   : 'bg-amber-500/10 text-amber-400'
-              }`}
+                }`}
             >
               <Scale className="h-3.5 w-3.5" />
             </div>
           </div>
           <p
-            className={`text-xl font-black tabular-nums ${
-              totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
-            }`}
+            className={`text-xl font-black tabular-nums ${totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
+              }`}
           >
             {fmtBRL(totais.saldoCaixa)}
           </p>
@@ -485,34 +481,30 @@ export function Financeiro() {
 
         {/* Card 5: Resultado (Faturamento - Despesas) */}
         <Card
-          className={`p-4 shadow-sm border ${
-            totais.resultadoFaturamento >= 0
+          className={`p-4 shadow-sm border ${totais.resultadoFaturamento >= 0
               ? 'border-emerald-500/20 bg-emerald-500/5'
               : 'border-red-500/30 bg-red-500/10'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between text-secondary mb-1">
             <span
-              className={`text-[10px] font-bold tracking-wider ${
-                totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
-              }`}
+              className={`text-[10px] font-bold tracking-wider ${totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
+                }`}
             >
               RESULTADO LÍQUIDO
             </span>
             <div
-              className={`flex h-7 w-7 items-center justify-center rounded-lg ${
-                totais.resultadoFaturamento >= 0
+              className={`flex h-7 w-7 items-center justify-center rounded-lg ${totais.resultadoFaturamento >= 0
                   ? 'bg-emerald-500/10 text-emerald-400'
                   : 'bg-red-500/20 text-red-400'
-              }`}
+                }`}
             >
               <DollarSign className="h-3.5 w-3.5" />
             </div>
           </div>
           <p
-            className={`text-xl font-black tabular-nums ${
-              totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
-            }`}
+            className={`text-xl font-black tabular-nums ${totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
+              }`}
           >
             {fmtBRL(totais.resultadoFaturamento)}
           </p>
@@ -569,16 +561,14 @@ export function Financeiro() {
                       {fmtBRL(emp.despesas)}
                     </td>
                     <td
-                      className={`py-3.5 px-4 text-right font-black ${
-                        sCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
-                      }`}
+                      className={`py-3.5 px-4 text-right font-black ${sCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        }`}
                     >
                       {fmtBRL(sCaixa)}
                     </td>
                     <td
-                      className={`py-3.5 px-4 text-right font-black ${
-                        sFat >= 0 ? 'text-emerald-400' : 'text-red-400'
-                      }`}
+                      className={`py-3.5 px-4 text-right font-black ${sFat >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        }`}
                     >
                       {fmtBRL(sFat)}
                     </td>
@@ -601,16 +591,14 @@ export function Financeiro() {
                   {fmtBRL(totais.despesas)}
                 </td>
                 <td
-                  className={`py-4 px-4 text-right ${
-                    totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
-                  }`}
+                  className={`py-4 px-4 text-right ${totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    }`}
                 >
                   {fmtBRL(totais.saldoCaixa)}
                 </td>
                 <td
-                  className={`py-4 px-4 text-right ${
-                    totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
-                  }`}
+                  className={`py-4 px-4 text-right ${totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    }`}
                 >
                   {fmtBRL(totais.resultadoFaturamento)}
                 </td>
@@ -743,11 +731,11 @@ export function Financeiro() {
                 <BarChart2 className="h-4 w-4" />
               </div>
               <h3 className="text-sm sm:text-base font-black text-foreground uppercase tracking-wide">
-                FATURAMENTO × RECEITAS × DESPESAS POR EMPRESA
+                FATURAMENTO × DESPESAS POR EMPRESA
               </h3>
             </div>
             <p className="text-xs text-secondary font-medium mt-1">
-              Comparativo visual e análise detalhada de desempenho por unidade de negócio
+              Comparativo visual de faturamento e despesas por unidade de negócio
             </p>
           </div>
 
@@ -755,10 +743,6 @@ export function Financeiro() {
           <div className="flex flex-wrap items-center gap-2 bg-background/60 border border-border/20 px-3 py-1.5 rounded-xl text-xs font-bold">
             <span className="flex items-center gap-1.5 text-blue-400">
               <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-sm" /> FATURAMENTO
-            </span>
-            <span className="text-border/40">•</span>
-            <span className="flex items-center gap-1.5 text-emerald-400">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-sm" /> RECEITAS
             </span>
             <span className="text-border/40">•</span>
             <span className="flex items-center gap-1.5 text-red-400">
@@ -773,7 +757,7 @@ export function Financeiro() {
             <BarChart
               data={chartData}
               margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
-              barGap={6}
+              barGap={8}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis
@@ -796,9 +780,7 @@ export function Financeiro() {
                   if (!active || !payload || !payload.length) return null
 
                   const fat = Number(payload.find((p) => p.dataKey === 'Faturamento')?.value || 0)
-                  const rec = Number(payload.find((p) => p.dataKey === 'Receitas')?.value || 0)
                   const desp = Number(payload.find((p) => p.dataKey === 'Despesas')?.value || 0)
-                  const saldo = rec - desp
                   const resFat = fat - desp
 
                   return (
@@ -818,15 +800,8 @@ export function Financeiro() {
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-emerald-400 font-sans font-bold flex items-center gap-1">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500" /> RECEITAS (CAIXA):
-                          </span>
-                          <span className="font-bold text-foreground">{fmtBRL(rec)}</span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
                           <span className="text-red-400 font-sans font-bold flex items-center gap-1">
-                            <span className="h-2 w-2 rounded-full bg-red-500" /> DESPESAS (CAIXA):
+                            <span className="h-2 w-2 rounded-full bg-red-500" /> DESPESAS:
                           </span>
                           <span className="font-bold text-foreground">{fmtBRL(desp)}</span>
                         </div>
@@ -834,13 +809,7 @@ export function Financeiro() {
 
                       <div className="border-t border-border/20 pt-2 space-y-1 font-mono text-[11px]">
                         <div className="flex items-center justify-between">
-                          <span className="text-secondary font-sans font-bold">SALDO CAIXA:</span>
-                          <span className={`font-black ${saldo >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {fmtBRL(saldo)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-secondary font-sans font-bold">RESULTADO FAT.:</span>
+                          <span className="text-secondary font-sans font-bold">RESULTADO:</span>
                           <span className={`font-black ${resFat >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {fmtBRL(resFat)}
                           </span>
@@ -850,7 +819,7 @@ export function Financeiro() {
                   )
                 }}
               />
-              <Bar dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={48}>
+              <Bar dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={56}>
                 <LabelList
                   dataKey="Faturamento"
                   position="top"
@@ -858,15 +827,7 @@ export function Financeiro() {
                   style={{ fill: '#93c5fd', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
                 />
               </Bar>
-              <Bar dataKey="Receitas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                <LabelList
-                  dataKey="Receitas"
-                  position="top"
-                  formatter={(v: any) => fmtCompact(Number(v) || 0)}
-                  style={{ fill: '#6ee7b7', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
-                />
-              </Bar>
-              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={48}>
+              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={56}>
                 <LabelList
                   dataKey="Despesas"
                   position="top"
@@ -896,11 +857,10 @@ export function Financeiro() {
                 <div className="flex items-center justify-between">
                   <h4 className="font-black text-xs text-foreground truncate">{emp.nome}</h4>
                   <span
-                    className={`text-[10px] font-black px-2 py-0.5 rounded-full font-mono ${
-                      saldoCaixa >= 0
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full font-mono ${saldoCaixa >= 0
                         ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                         : 'bg-red-500/15 text-red-400 border border-red-500/30'
-                    }`}
+                      }`}
                   >
                     {saldoCaixa >= 0 ? '+ CAIXA' : '- DÉFICIT'}
                   </span>
@@ -956,9 +916,8 @@ export function Financeiro() {
                   <div>
                     <span className="text-secondary font-sans font-bold block">SALDO CAIXA</span>
                     <span
-                      className={`font-mono font-black ${
-                        saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
-                      }`}
+                      className={`font-mono font-black ${saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        }`}
                     >
                       {fmtBRL(saldoCaixa)}
                     </span>
@@ -966,9 +925,8 @@ export function Financeiro() {
                   <div className="text-right">
                     <span className="text-secondary font-sans font-bold block">RES. FATURAMENTO</span>
                     <span
-                      className={`font-mono font-black ${
-                        resultadoFat >= 0 ? 'text-emerald-400' : 'text-red-400'
-                      }`}
+                      className={`font-mono font-black ${resultadoFat >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        }`}
                     >
                       {fmtBRL(resultadoFat)}
                     </span>
@@ -1147,11 +1105,10 @@ export function Financeiro() {
               <div className="flex items-center justify-between">
                 <h4 className="font-black text-xs text-white">{m.mes}</h4>
                 <span
-                  className={`text-[10px] font-black px-2 py-0.5 rounded-full font-mono ${
-                    m.saldoCaixa >= 0
+                  className={`text-[10px] font-black px-2 py-0.5 rounded-full font-mono ${m.saldoCaixa >= 0
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                       : 'bg-red-500/15 text-red-400 border border-red-500/30'
-                  }`}
+                    }`}
                 >
                   {m.saldoCaixa >= 0 ? '+ CAIXA' : '- DÉFICIT'}
                 </span>
