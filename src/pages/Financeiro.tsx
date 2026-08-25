@@ -155,6 +155,7 @@ const DADOS_MESES: Record<string, MesFinanceiroData> = {
 }
 
 const MESES_OPCOES = [
+  { id: 'todos', label: 'Todos os Meses (Maio a Julho / Consolidado)' },
   { id: 'julho', label: 'Julho' },
   { id: 'junho', label: 'Junho' },
   { id: 'maio', label: 'Maio' },
@@ -166,7 +167,7 @@ export function Financeiro() {
 
   // Filtros
   const [empresaFiltro, setEmpresaFiltro] = useState<string>('TODAS')
-  const [mesFiltro, setMesFiltro] = useState<string>('julho')
+  const [mesFiltro, setMesFiltro] = useState<string>('todos')
   const [planoContaFiltro, setPlanoContaFiltro] = useState<string>('TODOS')
 
   // Modais e Estados de Ação
@@ -184,8 +185,67 @@ export function Financeiro() {
     }, 1200)
   }
 
-  // Mês Ativo da base de dados
+  // Mês Ativo da base de dados (ou consolidação de todos os meses)
   const dadosMesAtivo = useMemo(() => {
+    if (mesFiltro === 'todos') {
+      const empresasIds = ['gvel', 'leves', 'distribuidora', 'transportes', 'investimento']
+      const empresas = empresasIds.map((id) => {
+        const nome =
+          id === 'gvel'
+            ? 'GVel Diesel'
+            : id === 'leves'
+            ? 'GVel Leves'
+            : id === 'distribuidora'
+            ? 'GV Distribuidora'
+            : id === 'transportes'
+            ? 'GV Transportes'
+            : 'Investimento'
+
+        const faturamento = ['maio', 'junho', 'julho'].reduce((acc, m) => {
+          const emp = DADOS_MESES[m]?.empresas.find((e) => e.id === id)
+          return acc + (emp?.faturamento || 0)
+        }, 0)
+
+        const receitas = ['maio', 'junho', 'julho'].reduce((acc, m) => {
+          const emp = DADOS_MESES[m]?.empresas.find((e) => e.id === id)
+          return acc + (emp?.receitas || 0)
+        }, 0)
+
+        const despesas = ['maio', 'junho', 'julho'].reduce((acc, m) => {
+          const emp = DADOS_MESES[m]?.empresas.find((e) => e.id === id)
+          return acc + (emp?.despesas || 0)
+        }, 0)
+
+        return { id, nome, faturamento, receitas, despesas }
+      })
+
+      // Consolidação de Top Clientes
+      const mapClientes: Record<string, number> = {}
+      ;['maio', 'junho', 'julho'].forEach((m) => {
+        DADOS_MESES[m]?.topClientes.forEach((cli) => {
+          mapClientes[cli.nome] = (mapClientes[cli.nome] || 0) + cli.faturamento
+        })
+      })
+      const topClientes = Object.entries(mapClientes)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([nome, faturamento], idx) => ({ rank: idx + 1, nome, faturamento }))
+
+      // Consolidação de Top Planos de Contas
+      const mapPlanos: Record<string, number> = {}
+      ;['maio', 'junho', 'julho'].forEach((m) => {
+        DADOS_MESES[m]?.topPlanosConta.forEach((p) => {
+          mapPlanos[p.nome] = (mapPlanos[p.nome] || 0) + p.despesa
+        })
+      })
+      const topPlanosConta = Object.entries(mapPlanos)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([nome, despesa], idx) => ({ rank: idx + 1, nome, despesa }))
+
+      return { empresas, topClientes, topPlanosConta }
+    }
+
     return DADOS_MESES[mesFiltro] || DADOS_MESES.julho
   }, [mesFiltro])
 
@@ -732,11 +792,11 @@ export function Financeiro() {
                 <BarChart2 className="h-4 w-4" />
               </div>
               <h3 className="text-sm sm:text-base font-black text-foreground uppercase tracking-wide">
-                FATURAMENTO × DESPESAS POR EMPRESA — {mesFiltro.toUpperCase()} 2026
+                FATURAMENTO × DESPESAS POR EMPRESA — {mesFiltro === 'todos' ? 'TODOS OS MESES (MAIO A JULHO)' : `${mesFiltro.toUpperCase()} 2026`}
               </h3>
             </div>
             <p className="text-xs text-secondary font-medium mt-1">
-              Comparativo de faturamento e despesas por unidade de negócio em {mesFiltro.toUpperCase()} / 2026
+              Comparativo de faturamento e despesas por unidade de negócio {mesFiltro === 'todos' ? 'consolidado (Maio, Junho e Julho)' : `em ${mesFiltro.toUpperCase()} / 2026`}
             </p>
           </div>
 
@@ -744,7 +804,7 @@ export function Financeiro() {
             {/* Badge de Mês e Ano */}
             <Badge tone="neutral" className="text-xs font-black border-border/40 text-white bg-primary/15 border-primary/30">
               <Calendar className="h-3 w-3 text-primary mr-1" />
-              {mesFiltro.toUpperCase()} 2026
+              {mesFiltro === 'todos' ? 'TODOS OS MESES' : `${mesFiltro.toUpperCase()} 2026`}
             </Badge>
 
             {/* Legenda Customizada e Elegante */}
