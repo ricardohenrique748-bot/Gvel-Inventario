@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useMemo, useState, useEffect, useRef, useDeferredValue } from 'react'
 import {
   Hammer,
   Plus,
@@ -60,28 +60,28 @@ export interface CaixaFerramenta {
   id: string
   nome: string
   codigo?: string
-  status: 'disponivel' | 'em_uso' | 'manutencao'
-  responsavel?: string
-  placa?: string
   localizacao?: string
+  status: 'disponivel' | 'em_uso' | 'manutencao'
   foto_url?: string | null
   itens: ItemCaixa[]
   observacoes?: string
+  responsavel?: string
+  placa?: string
   data_retirada?: string
   created_at: string
 }
 
 export interface ItemConsumo {
   id: string
-  codigo?: string | null
+  codigo: string | null
   nome: string
   categoria: string
   unidade: string
   quantidade_atual: number
   quantidade_minima: number
-  localizacao?: string | null
-  observacoes?: string | null
-  foto_url?: string | null
+  localizacao: string | null
+  observacoes: string | null
+  foto_url: string | null
   created_at: string
 }
 
@@ -102,140 +102,180 @@ const STORAGE_CAIXAS_KEY = 'gvel_inventario_caixas_v1'
 const STORAGE_CONSUMO_KEY = 'gvel_inventario_consumo_v1'
 const STORAGE_BAIXAS_CONSUMO_KEY = 'gvel_inventario_baixas_consumo_v1'
 
+const CATEGORIAS_CONSUMO = [
+  'TODAS',
+  'LUBRIFICANTES & QUÍMICOS',
+  'PARAFUSOS & FIXAÇÃO',
+  'ELÉTRICA & FUSÍVEIS',
+  'DISCOS & LIXAS',
+  'VEDAÇÃO & ANÉIS',
+  'MANGUEIRAS & CONEXÕES',
+  'EPIS & PROTEÇÃO',
+  'LIMPEZA & ESTOPAS',
+  'DIVERSOS',
+]
+
 const ITENS_CONSUMO_INICIAIS: ItemConsumo[] = [
   {
     id: 'c1',
-    codigo: 'INS-001',
-    nome: 'LUVAS NITRÍLICAS REFORÇADAS (TAM G)',
-    categoria: 'EPI & PROTEÇÃO',
-    unidade: 'CX',
-    quantidade_atual: 12,
-    quantidade_minima: 3,
-    localizacao: 'ARMÁRIO A - PRATELEIRA 1',
+    codigo: 'LUB-001',
+    nome: 'DESENGRIPANTE SPRAY WD-40 (300ML)',
+    categoria: 'LUBRIFICANTES & QUÍMICOS',
+    unidade: 'UN',
+    quantidade_atual: 18,
+    quantidade_minima: 5,
+    localizacao: 'ARMÁRIO QUÍMICOS - PRAT. 1',
+    observacoes: 'Uso geral em desmontagens',
+    foto_url: null,
     created_at: new Date().toISOString(),
   },
   {
     id: 'c2',
-    codigo: 'INS-002',
-    nome: 'DESENGRIPANTE WD-40 300ML',
+    codigo: 'LUB-002',
+    nome: 'GRAXA AZUL PARA ROLAMENTOS (POTE 1KG)',
     categoria: 'LUBRIFICANTES & QUÍMICOS',
-    unidade: 'LT',
-    quantidade_atual: 18,
-    quantidade_minima: 5,
-    localizacao: 'PRATELEIRA QUÍMICOS',
+    unidade: 'UN',
+    quantidade_atual: 6,
+    quantidade_minima: 3,
+    localizacao: 'ARMÁRIO QUÍMICOS - PRAT. 2',
+    observacoes: 'Linha pesada alta temperatura',
+    foto_url: null,
     created_at: new Date().toISOString(),
   },
   {
     id: 'c3',
-    codigo: 'INS-003',
-    nome: 'FITA ISOLANTE 3M TEMFLEX 20M',
-    categoria: 'ELÉTRICA & FITAS',
-    unidade: 'RL',
-    quantidade_atual: 24,
-    quantidade_minima: 6,
-    localizacao: 'GAVETA ELÉTRICA',
+    codigo: 'FIX-010',
+    nome: 'ABRAÇADEIRA DE NYLON 200MM (PCT C/ 100)',
+    categoria: 'PARAFUSOS & FIXAÇÃO',
+    unidade: 'PCT',
+    quantidade_atual: 12,
+    quantidade_minima: 4,
+    localizacao: 'GAVETEIRO FIXAÇÃO - GAVETA 3',
+    observacoes: 'Preta resistente a UV',
+    foto_url: null,
     created_at: new Date().toISOString(),
   },
   {
     id: 'c4',
-    codigo: 'INS-004',
-    nome: 'DISCO DE CORTE FINO INOX 4.1/2"',
-    categoria: 'DISCOS & CORTE',
-    unidade: 'UN',
-    quantidade_atual: 35,
-    quantidade_minima: 10,
-    localizacao: 'PRATELEIRA DE CORTE',
+    codigo: 'FIX-011',
+    nome: 'FITA ISOLANTE 3M 19MM X 20M',
+    categoria: 'ELÉTRICA & FUSÍVEIS',
+    unidade: 'RL',
+    quantidade_atual: 24,
+    quantidade_minima: 6,
+    localizacao: 'ARMÁRIO ELÉTRICA - PRAT. 1',
+    observacoes: 'Alta isolação antichama',
+    foto_url: null,
     created_at: new Date().toISOString(),
   },
   {
     id: 'c5',
-    codigo: 'INS-005',
-    nome: 'SILICONE PU 40 PRETO (TUBO)',
-    categoria: 'LUBRIFICANTES & QUÍMICOS',
-    unidade: 'UN',
+    codigo: 'ELT-005',
+    nome: 'TERMINAL ILHÓS PRÉ-ISOLADO 2.5MM (PCT 100)',
+    categoria: 'ELÉTRICA & FUSÍVEIS',
+    unidade: 'PCT',
     quantidade_atual: 8,
-    quantidade_minima: 4,
-    localizacao: 'ARMÁRIO B',
+    quantidade_minima: 2,
+    localizacao: 'GAVETEIRO ELÉTRICA - GAVETA 1',
+    observacoes: 'Azul padrão 2.5mm',
+    foto_url: null,
     created_at: new Date().toISOString(),
   },
   {
     id: 'c6',
-    codigo: 'INS-006',
-    nome: 'ESTOPA BRANCA ESPECIAL 1KG',
-    categoria: 'LIMPEZA & ESTOPAS',
-    unidade: 'PCT',
-    quantidade_atual: 15,
-    quantidade_minima: 5,
-    localizacao: 'SETOR LIMPEZA',
+    codigo: 'LIX-001',
+    nome: 'DISCO DE CORTE INOX 4.1/2" NORTON',
+    categoria: 'DISCOS & LIXAS',
+    unidade: 'UN',
+    quantidade_atual: 35,
+    quantidade_minima: 10,
+    localizacao: 'PRATELEIRA DE DISCOS',
+    observacoes: 'Espessura 1.0mm',
+    foto_url: null,
     created_at: new Date().toISOString(),
   },
   {
     id: 'c7',
-    codigo: 'INS-007',
-    nome: 'SPRAY LIMPA CONTATO ELÉTRICO 300ML',
-    categoria: 'ELÉTRICA & FITAS',
-    unidade: 'LT',
-    quantidade_atual: 6,
-    quantidade_minima: 3,
-    localizacao: 'GAVETA ELÉTRICA',
+    codigo: 'EPI-001',
+    nome: 'LUVA NITRÍLICA RESISTENTE TAMANHO G (PAR)',
+    categoria: 'EPIS & PROTEÇÃO',
+    unidade: 'PAR',
+    quantidade_atual: 40,
+    quantidade_minima: 15,
+    localizacao: 'ARMÁRIO EPIS',
+    observacoes: 'Proteção contra óleos e solventes',
+    foto_url: null,
     created_at: new Date().toISOString(),
   },
   {
     id: 'c8',
-    codigo: 'INS-008',
-    nome: 'ABRAÇADEIRAS DE NYLON 200MM (PCT C/ 100)',
-    categoria: 'FIXAÇÃO & PARAFUSOS',
-    unidade: 'PCT',
-    quantidade_atual: 9,
-    quantidade_minima: 3,
-    localizacao: 'GAVETEIRO 2',
+    codigo: 'LMP-001',
+    nome: 'ESTOPA BRANCA COSTURADA PARA LIMPEZA (FARDO 1KG)',
+    categoria: 'LIMPEZA & ESTOPAS',
+    unidade: 'KG',
+    quantidade_atual: 15,
+    quantidade_minima: 5,
+    localizacao: 'ÁREA DE LAVAGEM',
+    observacoes: '100% algodão',
+    foto_url: null,
     created_at: new Date().toISOString(),
   },
-]
-
-const CATEGORIAS_CONSUMO = [
-  'TODAS',
-  'FIXAÇÃO & PARAFUSOS',
-  'LUBRIFICANTES & QUÍMICOS',
-  'ELÉTRICA & FITAS',
-  'LIMPEZA & ESTOPAS',
-  'EPI & PROTEÇÃO',
-  'DISCOS & CORTE',
-  'OUTROS',
 ]
 
 const CAIXAS_INICIAIS: CaixaFerramenta[] = [
   {
-    id: 'caixa_1',
-    nome: 'CAIXA 01 - SOCORRO MECÂNICO',
+    id: 'caixa_01',
+    nome: 'CAIXA 01 - MECÂNICA PESADA',
     codigo: 'CX-001',
+    localizacao: 'BANCADA 01 / OFICINA',
     status: 'disponivel',
-    localizacao: 'ARMÁRIO A1',
     foto_url: null,
     itens: [
-      { id: '1', nome: 'Jogo de Chaves Combinadas 6 a 32mm', quantidade: 1 },
-      { id: '2', nome: 'Alicate de Pressão Gedore', quantidade: 2 },
-      { id: '3', nome: 'Catraca Reversível 1/2 com Extensões', quantidade: 1 },
-      { id: '4', nome: 'Jogo de Soquetes Sextavados', quantidade: 1 },
-      { id: '5', nome: 'Martelo de Borracha', quantidade: 1 },
+      { id: '1', nome: 'JOGO DE CHAVES COMBINADAS 6MM A 32MM (GEDORE)', quantidade: 1 },
+      { id: '2', nome: 'CHAVE DE CATRACA 1/2 REVERSÍVEL COM EXTENSÃO', quantidade: 1 },
+      { id: '3', nome: 'JOGO DE SOQUETES SEXTAVADOS 10MM A 32MM', quantidade: 1 },
+      { id: '4', nome: 'ALICATE DE PRESSÃO MORDAÇA CURVA 10"', quantidade: 1 },
+      { id: '5', nome: 'ALICATE UNIVERSAL 8" ISOLADO 1000V', quantidade: 1 },
+      { id: '6', nome: 'MARTELO BOLA 500G COM CABO DE FIBRA', quantidade: 1 },
+      { id: '7', nome: 'TALHADEIRA 3/4" OCTOGONAL', quantidade: 2 },
     ],
-    observacoes: 'Kit completo para atendimento de socorro na pista',
+    observacoes: 'Kit completo para desmontagem de eixos e suspensão',
     created_at: new Date().toISOString(),
   },
   {
-    id: 'caixa_2',
-    nome: 'CAIXA 02 - ELÉTRICA & DIAGNÓSTICO',
+    id: 'caixa_02',
+    nome: 'CAIXA 02 - ELÉTRICA & INJEÇÃO',
     codigo: 'CX-002',
+    localizacao: 'ARMÁRIO ELÉTRICA / GAVETA A2',
     status: 'disponivel',
-    localizacao: 'BANCADA ELÉTRICA',
     foto_url: null,
     itens: [
-      { id: '1', nome: 'Multímetro Digital Automotivo Minipa', quantidade: 1 },
-      { id: '2', nome: 'Alicate Decapador e Crimpador', quantidade: 1 },
-      { id: '3', nome: 'Caneta de Polaridade 12/24V', quantidade: 1 },
-      { id: '4', nome: 'Ferro de Solda 60W', quantidade: 1 },
+      { id: '1', nome: 'MULTÍMETRO DIGITAL AUTOMOTIVO MINIPA COM TRUE RMS', quantidade: 1 },
+      { id: '2', nome: 'CANETA DE POLARIDADE 12V/24V COM DISPLAY', quantidade: 1 },
+      { id: '3', nome: 'ALICATE DECAPADOR E CRIMPADOR AUTOMÁTICO', quantidade: 1 },
+      { id: '4', nome: 'JOGO DE CHAVES DE FENDA E PHILLIPS ISOLADAS', quantidade: 1 },
+      { id: '5', nome: 'FERRO DE SOLDA 60W 110V/220V COM SUPORTE', quantidade: 1 },
+      { id: '6', nome: 'TESTADOR DE RELÉS AUTOMOTIVOS', quantidade: 1 },
     ],
-    observacoes: 'Destinado para manutenção elétrica de caminhões',
+    observacoes: 'Kit exclusivo para diagnóstico e chicotes elétricos',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'caixa_03',
+    nome: 'CAIXA 03 - PNEUMÁTICA & PNEUS',
+    codigo: 'CX-003',
+    localizacao: 'BOX DE PNEUS / PAREDE SUL',
+    status: 'disponivel',
+    foto_url: null,
+    itens: [
+      { id: '1', nome: 'CHAVE DE IMPACTO PNEUMÁTICA 3/4" PISTOLA', quantidade: 1 },
+      { id: '2', nome: 'SOQUETE DE IMPACTO 32MM LONGO PARA RODA', quantidade: 1 },
+      { id: '3', nome: 'SOQUETE DE IMPACTO 33MM LONGO PARA RODA', quantidade: 1 },
+      { id: '4', nome: 'CALIBRADOR DE PNEUS DIGITAL COM GATILHO', quantidade: 1 },
+      { id: '5', nome: 'ESPATULA PARA PNEU CAMINHÃO 30"', quantidade: 2 },
+      { id: '6', nome: 'ENGATE RÁPIDO PNEUMÁTICO 1/2"', quantidade: 2 },
+    ],
+    observacoes: 'Kit para socorro de borracharia e troca de rodas',
     created_at: new Date().toISOString(),
   },
 ]
@@ -252,73 +292,16 @@ const CATEGORIAS_SUGERIDAS = [
   'GERAL',
 ]
 
-function DragScrollContainer({
+function ScrollContainer({
   children,
   className = '',
 }: {
   children: React.ReactNode
   className?: string
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const isDownRef = useRef(false)
-  const startXRef = useRef(0)
-  const scrollLeftRef = useRef(0)
-  const hasMovedRef = useRef(false)
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return
-    isDownRef.current = true
-    hasMovedRef.current = false
-    startXRef.current = e.pageX - containerRef.current.offsetLeft
-    scrollLeftRef.current = containerRef.current.scrollLeft
-  }
-
-  const handleMouseLeave = () => {
-    isDownRef.current = false
-  }
-
-  const handleMouseUp = () => {
-    isDownRef.current = false
-    setTimeout(() => {
-      hasMovedRef.current = false
-    }, 60)
-  }
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDownRef.current || !containerRef.current) return
-    e.preventDefault()
-    const x = e.pageX - containerRef.current.offsetLeft
-    const walk = (x - startXRef.current) * 1.6
-    if (Math.abs(walk) > 4) {
-      hasMovedRef.current = true
-    }
-    containerRef.current.scrollLeft = scrollLeftRef.current - walk
-  }
-
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return
-    if (e.deltaY !== 0) {
-      containerRef.current.scrollLeft += e.deltaY * 0.9
-    }
-  }
-
-  const handleClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (hasMovedRef.current) {
-      e.stopPropagation()
-      e.preventDefault()
-    }
-  }
-
   return (
     <div
-      ref={containerRef}
-      onMouseDown={handleMouseDown}
-      onMouseLeave={handleMouseLeave}
-      onMouseUp={handleMouseUp}
-      onMouseMove={handleMouseMove}
-      onWheel={handleWheel}
-      onClickCapture={handleClickCapture}
-      className={`overflow-x-auto select-none cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${className}`}
+      className={`overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${className}`}
     >
       {children}
     </div>
@@ -385,6 +368,10 @@ export function InventarioFerramentas() {
   }
 
   const [buscaConsumo, setBuscaConsumo] = useState('')
+  const deferredBusca = useDeferredValue(busca)
+  const deferredBuscaCaixas = useDeferredValue(buscaCaixas)
+  const deferredBuscaConsumo = useDeferredValue(buscaConsumo)
+
   const [categoriaConsumoFiltro, setCategoriaConsumoFiltro] = useState('TODAS')
   const [subAbaConsumo, setSubAbaConsumo] = useState<'estoque' | 'historico'>('estoque')
   const [modalItemConsumoAberto, setModalItemConsumoAberto] = useState(false)
@@ -395,8 +382,8 @@ export function InventarioFerramentas() {
   const [itemConsumoParaEntrada, setItemConsumoParaEntrada] = useState<ItemConsumo | null>(null)
 
   const itensConsumoFiltrados = useMemo(() => {
+    const termo = deferredBuscaConsumo.trim().toLowerCase()
     return itensConsumo.filter((item) => {
-      const termo = buscaConsumo.trim().toLowerCase()
       const matchBusca =
         !termo ||
         item.nome.toLowerCase().includes(termo) ||
@@ -409,7 +396,7 @@ export function InventarioFerramentas() {
 
       return matchBusca && matchCat
     })
-  }, [itensConsumo, buscaConsumo, categoriaConsumoFiltro])
+  }, [itensConsumo, deferredBuscaConsumo, categoriaConsumoFiltro])
 
   const alertasEstoqueBaixoCount = useMemo(() => {
     return itensConsumo.filter((item) => item.quantidade_atual <= item.quantidade_minima).length
@@ -472,19 +459,24 @@ export function InventarioFerramentas() {
   }, [ferramentas, retiradas])
 
   const [limiteExibicao, setLimiteExibicao] = useState(30)
+  const [limiteHistorico, setLimiteHistorico] = useState(30)
+  const [limiteCaixas, setLimiteCaixas] = useState(30)
+  const [limiteConsumo, setLimiteConsumo] = useState(30)
+  const [limiteHistoricoConsumo, setLimiteHistoricoConsumo] = useState(30)
 
   useEffect(() => {
     setLimiteExibicao(30)
-  }, [busca, categoriaFiltro])
+  }, [deferredBusca, categoriaFiltro])
 
   // Filtragem de estoque
   const ferramentasFiltradas = useMemo(() => {
+    const termo = deferredBusca.trim().toLowerCase()
     return ferramentas.filter((f) => {
       const matchBusca =
-        !busca.trim() ||
-        f.nome.toLowerCase().includes(busca.toLowerCase()) ||
-        (f.codigo && f.codigo.toLowerCase().includes(busca.toLowerCase())) ||
-        (f.localizacao && f.localizacao.toLowerCase().includes(busca.toLowerCase()))
+        !termo ||
+        f.nome.toLowerCase().includes(termo) ||
+        (f.codigo && f.codigo.toLowerCase().includes(termo)) ||
+        (f.localizacao && f.localizacao.toLowerCase().includes(termo))
 
       const matchCat =
         categoriaFiltro === 'TODAS' ||
@@ -492,7 +484,7 @@ export function InventarioFerramentas() {
 
       return matchBusca && matchCat
     })
-  }, [ferramentas, busca, categoriaFiltro])
+  }, [ferramentas, deferredBusca, categoriaFiltro])
 
   // Retiradas ativas
   const retiradasAtivas = useMemo(() => {
@@ -501,18 +493,19 @@ export function InventarioFerramentas() {
 
   // Caixas Filtradas
   const caixasFiltradas = useMemo(() => {
+    const termo = deferredBuscaCaixas.trim().toLowerCase()
     return caixas.filter((c) => {
       const matchBusca =
-        !buscaCaixas.trim() ||
-        c.nome.toLowerCase().includes(buscaCaixas.toLowerCase()) ||
-        (c.codigo && c.codigo.toLowerCase().includes(buscaCaixas.toLowerCase())) ||
-        (c.placa && c.placa.toLowerCase().includes(buscaCaixas.toLowerCase())) ||
-        (c.responsavel && c.responsavel.toLowerCase().includes(buscaCaixas.toLowerCase()))
+        !termo ||
+        c.nome.toLowerCase().includes(termo) ||
+        (c.codigo && c.codigo.toLowerCase().includes(termo)) ||
+        (c.placa && c.placa.toLowerCase().includes(termo)) ||
+        (c.responsavel && c.responsavel.toLowerCase().includes(termo))
 
       const matchStatus = statusFiltroCaixas === 'TODOS' || c.status === statusFiltroCaixas
       return matchBusca && matchStatus
     })
-  }, [caixas, buscaCaixas, statusFiltroCaixas])
+  }, [caixas, deferredBuscaCaixas, statusFiltroCaixas])
 
   // Recarrega tudo
   const recarregarDados = async () => {
@@ -1372,7 +1365,7 @@ export function InventarioFerramentas() {
                     </td>
                   </tr>
                 ) : (
-                  retiradas.map((r) => {
+                  retiradas.slice(0, limiteHistorico).map((r) => {
                     const dataRet = format(new Date(r.data_hora_retirada), "dd/MM/yyyy HH:mm", { locale: ptBR })
                     const dataDev = r.data_hora_devolucao
                       ? format(new Date(r.data_hora_devolucao), "dd/MM/yyyy HH:mm", { locale: ptBR })
@@ -1406,6 +1399,8 @@ export function InventarioFerramentas() {
                                 <img
                                   src={r.foto_responsavel_url || r.foto_url || ''}
                                   alt={r.responsavel}
+                                  loading="lazy"
+                                  decoding="async"
                                   className="h-6 w-6 rounded-full object-cover border border-primary/40 hover:scale-110 transition-transform"
                                 />
                               </button>
@@ -1445,6 +1440,21 @@ export function InventarioFerramentas() {
               </tbody>
             </table>
           </div>
+
+          {/* Botão Carregar Mais no Histórico */}
+          {retiradas.length > limiteHistorico && (
+            <div className="p-3 text-center border-t border-border/10">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setLimiteHistorico((prev) => prev + 40)}
+                className="!py-2 !px-5 text-xs font-black uppercase tracking-wider gap-2 border-primary/30 text-primary hover:border-primary w-full sm:w-auto"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                CARREGAR MAIS HISTÓRICO (+40 DE {retiradas.length - limiteHistorico} RESTANTES)
+              </Button>
+            </div>
+          )}
         </Card>
       )}
 
@@ -1507,202 +1517,221 @@ export function InventarioFerramentas() {
               NENHUMA CAIXA DE FERRAMENTAS ENCONTRADA.
             </Card>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {caixasFiltradas.map((caixa) => {
-                const totalItensNaCaixa = caixa.itens.reduce((acc, it) => acc + (it.quantidade || 1), 0)
-                return (
-                  <Card
-                    key={caixa.id}
-                    className="p-5 flex flex-col justify-between border border-border/20 hover:border-primary/40 transition-all shadow-md group relative overflow-hidden bg-surface"
-                  >
-                    <div>
-                      {/* Topo do Card com Foto ou Ícone + Status */}
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-3">
-                          {caixa.foto_url ? (
-                            <button
-                              type="button"
-                              onClick={() => setFotoModalUrl({ url: caixa.foto_url!, titulo: caixa.nome })}
-                              className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-primary/20 hover:border-primary transition-all group/foto cursor-pointer"
-                            >
-                              <img
-                                src={caixa.foto_url}
-                                alt={caixa.nome}
-                                className="h-full w-full object-cover"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/foto:opacity-100 flex items-center justify-center transition-opacity text-white">
-                                <Eye className="h-4 w-4" />
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {caixasFiltradas.slice(0, limiteCaixas).map((caixa) => {
+                  const totalItensNaCaixa = caixa.itens.reduce((acc, it) => acc + (it.quantidade || 1), 0)
+                  return (
+                    <Card
+                      key={caixa.id}
+                      className="p-5 flex flex-col justify-between border border-border/20 hover:border-primary/40 transition-all shadow-md group relative overflow-hidden bg-surface"
+                    >
+                      <div>
+                        {/* Topo do Card com Foto ou Ícone + Status */}
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex items-center gap-3">
+                            {caixa.foto_url ? (
+                              <button
+                                type="button"
+                                onClick={() => setFotoModalUrl({ url: caixa.foto_url!, titulo: caixa.nome })}
+                                className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-primary/20 hover:border-primary transition-all group/foto cursor-pointer"
+                              >
+                                <img
+                                  src={caixa.foto_url}
+                                  alt={caixa.nome}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="h-full w-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/foto:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                  <Eye className="h-4 w-4" />
+                                </div>
+                              </button>
+                            ) : (
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 font-bold text-xl">
+                                🧰
                               </div>
-                            </button>
-                          ) : (
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 font-bold text-xl">
-                              🧰
-                            </div>
-                          )}
+                            )}
 
-                          <div className="min-w-0">
-                            <h3 className="font-bold text-foreground text-sm leading-tight uppercase group-hover:text-primary transition-colors">
-                              {caixa.nome}
-                            </h3>
-                            <div className="flex items-center gap-2 mt-1">
-                              {caixa.codigo && (
-                                <span className="font-mono text-[11px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                                  {caixa.codigo}
-                                </span>
-                              )}
-                              {caixa.localizacao && (
-                                <span className="text-[10px] text-secondary font-medium">
-                                  📍 {caixa.localizacao}
-                                </span>
-                              )}
+                            <div className="min-w-0">
+                              <h3 className="font-bold text-foreground text-sm leading-tight uppercase group-hover:text-primary transition-colors">
+                                {caixa.nome}
+                              </h3>
+                              <div className="flex items-center gap-2 mt-1">
+                                {caixa.codigo && (
+                                  <span className="font-mono text-[11px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                                    {caixa.codigo}
+                                  </span>
+                                )}
+                                {caixa.localizacao && (
+                                  <span className="text-[10px] text-secondary font-medium">
+                                    📍 {caixa.localizacao}
+                                  </span>
+                                )}
+                              </div>
                             </div>
+                          </div>
+
+                          {/* Status Badge */}
+                          <div>
+                            {caixa.status === 'disponivel' && (
+                              <Badge tone="success" className="text-[10px] font-bold">
+                                DISPONÍVEL
+                              </Badge>
+                            )}
+                            {caixa.status === 'em_uso' && (
+                              <Badge tone="warning" className="text-[10px] font-bold">
+                                EM USO
+                              </Badge>
+                            )}
+                            {caixa.status === 'manutencao' && (
+                              <Badge tone="danger" className="text-[10px] font-bold">
+                                MANUTENÇÃO
+                              </Badge>
+                            )}
                           </div>
                         </div>
 
-                        {/* Status Badge */}
-                        <div>
-                          {caixa.status === 'disponivel' && (
-                            <Badge tone="success" className="text-[10px] font-bold">
-                              DISPONÍVEL
-                            </Badge>
-                          )}
-                          {caixa.status === 'em_uso' && (
-                            <Badge tone="warning" className="text-[10px] font-bold">
-                              EM USO
-                            </Badge>
-                          )}
-                          {caixa.status === 'manutencao' && (
-                            <Badge tone="danger" className="text-[10px] font-bold">
-                              MANUTENÇÃO
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Informações de Uso (Se estiver em uso) */}
-                      {caixa.status === 'em_uso' && (
-                        <div className="mb-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-secondary font-semibold">CAMINHÃO / PLACA:</span>
-                            <span className="font-mono font-bold text-primary">{caixa.placa || 'NÃO INFORMADA'}</span>
-                          </div>
-                          {caixa.responsavel && (
+                        {/* Informações de Uso (Se estiver em uso) */}
+                        {caixa.status === 'em_uso' && (
+                          <div className="mb-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs space-y-1">
                             <div className="flex items-center justify-between">
-                              <span className="text-secondary font-semibold">RESPONSÁVEL:</span>
-                              <span className="font-bold text-foreground">{caixa.responsavel}</span>
+                              <span className="text-secondary font-semibold">CAMINHÃO / PLACA:</span>
+                              <span className="font-mono font-bold text-primary">{caixa.placa || 'NÃO INFORMADA'}</span>
                             </div>
-                          )}
-                          {caixa.data_retirada && (
-                            <div className="flex items-center justify-between text-[11px] text-secondary pt-0.5">
-                              <span>RETIRADA EM:</span>
-                              <span>{format(new Date(caixa.data_retirada), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
-                            </div>
-                          )}
+                            {caixa.responsavel && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-secondary font-semibold">RESPONSÁVEL:</span>
+                                <span className="font-bold text-foreground">{caixa.responsavel}</span>
+                              </div>
+                            )}
+                            {caixa.data_retirada && (
+                              <div className="flex items-center justify-between text-[11px] text-secondary pt-0.5">
+                                <span>RETIRADA EM:</span>
+                                <span>{format(new Date(caixa.data_retirada), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Lista de Ferramentas dentro da Caixa */}
+                        <div className="mt-3 border-t border-border/10 pt-3">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[11px] font-bold text-secondary uppercase">
+                              FERRAMENTAS INCLUSAS ({totalItensNaCaixa} ITENS):
+                            </span>
+                          </div>
+                          <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                            {caixa.itens.map((it) => (
+                              <div
+                                key={it.id}
+                                className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-background/60 border border-border/5"
+                              >
+                                <span className="text-foreground font-medium truncate pr-2">
+                                  • {it.nome}
+                                </span>
+                                <span className="font-bold text-primary shrink-0 text-[11px]">
+                                  {it.quantidade}x
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      )}
 
-                      {/* Lista de Ferramentas dentro da Caixa */}
-                      <div className="mt-3 border-t border-border/10 pt-3">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[11px] font-bold text-secondary uppercase">
-                            FERRAMENTAS INCLUSAS ({totalItensNaCaixa} ITENS):
-                          </span>
-                        </div>
-                        <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                          {caixa.itens.map((it) => (
-                            <div
-                              key={it.id}
-                              className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-background/60 border border-border/5"
-                            >
-                              <span className="text-foreground font-medium truncate pr-2">
-                                • {it.nome}
-                              </span>
-                              <span className="font-bold text-primary shrink-0 text-[11px]">
-                                {it.quantidade}x
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {caixa.observacoes && (
-                        <p className="mt-2 text-[11px] text-secondary italic line-clamp-2">
-                          "{caixa.observacoes}"
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Botões de Ação do Card */}
-                    <div className="mt-4 pt-3 border-t border-border/10 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setCaixaEditando(caixa)
-                            setModalCaixaAberto(true)
-                          }}
-                          className="h-8 w-8 text-secondary hover:text-foreground"
-                          title="Editar Caixa"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            if (confirm(`Excluir a caixa "${caixa.nome}"?`)) {
-                              salvarCaixas(caixas.filter((c) => c.id !== caixa.id))
-                            }
-                          }}
-                          className="h-8 w-8 text-secondary hover:text-status-danger"
-                          title="Excluir Caixa"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {caixa.status === 'disponivel' ? (
-                          <Button
-                            type="button"
-                            size="md"
-                            onClick={() => {
-                              setCaixaParaRetirar(caixa)
-                              setModalRetiradaCaixaAberto(true)
-                            }}
-                            className="!h-8 px-3 text-xs uppercase font-bold gap-1.5 shadow-sm"
-                          >
-                            <ArrowUpRight className="h-3.5 w-3.5" />
-                            RETIRAR CAIXA
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="md"
-                            onClick={() => {
-                              salvarCaixas(
-                                caixas.map((c) =>
-                                  c.id === caixa.id
-                                    ? { ...c, status: 'disponivel', placa: undefined, responsavel: undefined, data_retirada: undefined }
-                                    : c,
-                                ),
-                              )
-                            }}
-                            className="!h-8 px-3 text-xs uppercase font-bold gap-1.5 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            DEVOLVER
-                          </Button>
+                        {caixa.observacoes && (
+                          <p className="mt-2 text-[11px] text-secondary italic line-clamp-2">
+                            "{caixa.observacoes}"
+                          </p>
                         )}
                       </div>
-                    </div>
-                  </Card>
-                )
-              })}
+
+                      {/* Botões de Ação do Card */}
+                      <div className="mt-4 pt-3 border-t border-border/10 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setCaixaEditando(caixa)
+                              setModalCaixaAberto(true)
+                            }}
+                            className="h-8 w-8 text-secondary hover:text-foreground"
+                            title="Editar Caixa"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (confirm(`Excluir a caixa "${caixa.nome}"?`)) {
+                                salvarCaixas(caixas.filter((c) => c.id !== caixa.id))
+                              }
+                            }}
+                            className="h-8 w-8 text-secondary hover:text-status-danger"
+                            title="Excluir Caixa"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {caixa.status === 'disponivel' ? (
+                            <Button
+                              type="button"
+                              size="md"
+                              onClick={() => {
+                                setCaixaParaRetirar(caixa)
+                                setModalRetiradaCaixaAberto(true)
+                              }}
+                              className="!h-8 px-3 text-xs uppercase font-bold gap-1.5 shadow-sm"
+                            >
+                              <ArrowUpRight className="h-3.5 w-3.5" />
+                              RETIRAR CAIXA
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="md"
+                              onClick={() => {
+                                salvarCaixas(
+                                  caixas.map((c) =>
+                                    c.id === caixa.id
+                                      ? { ...c, status: 'disponivel', placa: undefined, responsavel: undefined, data_retirada: undefined }
+                                      : c,
+                                  ),
+                                )
+                              }}
+                              className="!h-8 px-3 text-xs uppercase font-bold gap-1.5 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              DEVOLVER
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  )
+                })}
+              </div>
+
+              {/* Botão Carregar Mais Caixas */}
+              {caixasFiltradas.length > limiteCaixas && (
+                <div className="pt-2 text-center">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setLimiteCaixas((prev) => prev + 30)}
+                    className="!py-2 !px-5 text-xs font-black uppercase tracking-wider gap-2 border-primary/30 text-primary hover:border-primary w-full sm:w-auto"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    CARREGAR MAIS CAIXAS (+30 DE {caixasFiltradas.length - limiteCaixas} RESTANTES)
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1858,183 +1887,206 @@ export function InventarioFerramentas() {
                   NENHUM ITEM DE CONSUMO ENCONTRADO.
                 </Card>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {itensConsumoFiltrados.map((item) => {
-                    const isAlerta = item.quantidade_atual <= item.quantidade_minima
-                    const isZerado = item.quantidade_atual === 0
-                    return (
-                      <Card
-                        key={item.id}
-                        className={`p-4 flex flex-col justify-between border transition-all shadow-md group relative overflow-hidden bg-surface ${
-                          isZerado
-                            ? 'border-red-500/40 bg-red-500/5'
-                            : isAlerta
-                            ? 'border-amber-500/40 bg-amber-500/5'
-                            : 'border-border/20 hover:border-primary/40'
-                        }`}
-                      >
-                        <div>
-                          {/* Topo do Card */}
-                          <div className="flex items-start justify-between gap-3 mb-2.5">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              {item.foto_url ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setFotoModalUrl({ url: item.foto_url!, titulo: item.nome })}
-                                  className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-primary/20 hover:border-primary transition-all group/foto cursor-pointer"
-                                >
-                                  <img src={item.foto_url} alt={item.nome} className="h-full w-full object-cover" />
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/foto:opacity-100 flex items-center justify-center transition-opacity text-white">
-                                    <Eye className="h-3.5 w-3.5" />
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {itensConsumoFiltrados.slice(0, limiteConsumo).map((item) => {
+                      const isAlerta = item.quantidade_atual <= item.quantidade_minima
+                      const isZerado = item.quantidade_atual === 0
+                      return (
+                        <Card
+                          key={item.id}
+                          className={`p-4 flex flex-col justify-between border transition-all shadow-md group relative overflow-hidden bg-surface ${
+                            isZerado
+                              ? 'border-red-500/40 bg-red-500/5'
+                              : isAlerta
+                              ? 'border-amber-500/40 bg-amber-500/5'
+                              : 'border-border/20 hover:border-primary/40'
+                          }`}
+                        >
+                          <div>
+                            {/* Topo do Card */}
+                            <div className="flex items-start justify-between gap-3 mb-2.5">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                {item.foto_url ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFotoModalUrl({ url: item.foto_url!, titulo: item.nome })}
+                                    className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-primary/20 hover:border-primary transition-all group/foto cursor-pointer"
+                                  >
+                                    <img
+                                      src={item.foto_url}
+                                      alt={item.nome}
+                                      loading="lazy"
+                                      decoding="async"
+                                      className="h-full w-full object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/foto:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                      <Eye className="h-3.5 w-3.5" />
+                                    </div>
+                                  </button>
+                                ) : (
+                                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 font-bold text-lg">
+                                    📦
                                   </div>
-                                </button>
-                              ) : (
-                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 font-bold text-lg">
-                                  📦
-                                </div>
-                              )}
+                                )}
 
-                              <div className="min-w-0">
-                                <span className="text-[9px] font-black uppercase text-secondary tracking-widest block truncate">
-                                  {item.categoria}
-                                </span>
-                                <h3 className="font-bold text-foreground text-xs leading-tight uppercase truncate mt-0.5">
-                                  {item.nome}
-                                </h3>
-                                {item.codigo && (
-                                  <span className="font-mono text-[10px] text-primary font-bold">[{item.codigo}]</span>
+                                <div className="min-w-0">
+                                  <span className="text-[9px] font-black uppercase text-secondary tracking-widest block truncate">
+                                    {item.categoria}
+                                  </span>
+                                  <h3 className="font-bold text-foreground text-xs leading-tight uppercase truncate mt-0.5">
+                                    {item.nome}
+                                  </h3>
+                                  {item.codigo && (
+                                    <span className="font-mono text-[10px] text-primary font-bold">[{item.codigo}]</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Badge de Alerta */}
+                              <div>
+                                {isZerado ? (
+                                  <Badge tone="danger" className="text-[9px] font-black uppercase">
+                                    ZERADO
+                                  </Badge>
+                                ) : isAlerta ? (
+                                  <Badge tone="warning" className="text-[9px] font-black uppercase">
+                                    REPOSIÇÃO
+                                  </Badge>
+                                ) : (
+                                  <Badge tone="success" className="text-[9px] font-black uppercase">
+                                    NORMAL
+                                  </Badge>
                                 )}
                               </div>
                             </div>
 
-                            {/* Badge de Alerta */}
-                            <div>
-                              {isZerado ? (
-                                <Badge tone="danger" className="text-[9px] font-black uppercase">
-                                  ZERADO
-                                </Badge>
-                              ) : isAlerta ? (
-                                <Badge tone="warning" className="text-[9px] font-black uppercase">
-                                  REPOSIÇÃO
-                                </Badge>
-                              ) : (
-                                <Badge tone="success" className="text-[9px] font-black uppercase">
-                                  NORMAL
-                                </Badge>
+                            {/* Quantidade e Estoque Mínimo */}
+                            <div className="my-3 rounded-xl bg-background/50 border border-border/15 p-3 space-y-2">
+                              <div className="flex items-end justify-between">
+                                <div>
+                                  <span className="text-[10px] font-bold text-secondary uppercase block">ESTOQUE ATUAL</span>
+                                  <span className="text-2xl font-black font-mono text-foreground">
+                                    {item.quantidade_atual}{' '}
+                                    <span className="text-xs font-semibold text-secondary">{item.unidade}</span>
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[10px] font-bold text-secondary uppercase block">MÍNIMO</span>
+                                  <span className="text-xs font-bold font-mono text-secondary">
+                                    {item.quantidade_minima} {item.unidade}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Barra de Progresso de Nível */}
+                              <div className="w-full h-1.5 bg-border/20 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-500 ${
+                                    isZerado
+                                      ? 'w-0'
+                                      : isAlerta
+                                      ? 'bg-amber-500'
+                                      : 'bg-emerald-500'
+                                  }`}
+                                  style={{
+                                    width: `${Math.min(100, Math.max(8, (item.quantidade_atual / (item.quantidade_minima * 2.5 || 10)) * 100))}%`,
+                                  }}
+                                />
+                              </div>
+
+                              {item.localizacao && (
+                                <p className="text-[10px] text-secondary font-medium truncate pt-1 border-t border-border/10">
+                                  📍 {item.localizacao}
+                                </p>
                               )}
                             </div>
                           </div>
 
-                          {/* Quantidade e Estoque Mínimo */}
-                          <div className="my-3 rounded-xl bg-background/50 border border-border/15 p-3 space-y-2">
-                            <div className="flex items-end justify-between">
-                              <div>
-                                <span className="text-[10px] font-bold text-secondary uppercase block">ESTOQUE ATUAL</span>
-                                <span className="text-2xl font-black font-mono text-foreground">
-                                  {item.quantidade_atual}{' '}
-                                  <span className="text-xs font-semibold text-secondary">{item.unidade}</span>
-                                </span>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-[10px] font-bold text-secondary uppercase block">MÍNIMO</span>
-                                <span className="text-xs font-bold font-mono text-secondary">
-                                  {item.quantidade_minima} {item.unidade}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Barra de Progresso de Nível */}
-                            <div className="w-full h-1.5 bg-border/20 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${
-                                  isZerado
-                                    ? 'w-0'
-                                    : isAlerta
-                                    ? 'bg-amber-500'
-                                    : 'bg-emerald-500'
-                                }`}
-                                style={{
-                                  width: `${Math.min(100, Math.max(8, (item.quantidade_atual / (item.quantidade_minima * 2.5 || 10)) * 100))}%`,
+                          {/* Ações do Insumo */}
+                          <div className="pt-2 border-t border-border/10 flex items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="md"
+                                onClick={() => {
+                                  setItemConsumoParaBaixa(item)
+                                  setModalBaixaConsumoAberto(true)
                                 }}
-                              />
+                                disabled={item.quantidade_atual <= 0}
+                                className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-amber-500/30 text-amber-500 hover:bg-amber-500/10 disabled:opacity-30"
+                                title="Dar baixa de consumo"
+                              >
+                                <TrendingDown className="h-3.5 w-3.5" />
+                                BAIXAR
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="md"
+                                onClick={() => {
+                                  setItemConsumoParaEntrada(item)
+                                  setModalEntradaConsumoAberto(true)
+                                }}
+                                className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+                                title="Adicionar entrada ao estoque"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                REPOR
+                              </Button>
                             </div>
 
-                            {item.localizacao && (
-                              <p className="text-[10px] text-secondary font-medium truncate pt-1 border-t border-border/10">
-                                📍 {item.localizacao}
-                              </p>
-                            )}
+                            <div className="flex items-center gap-0.5">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setItemConsumoEditando(item)
+                                  setModalItemConsumoAberto(true)
+                                }}
+                                className="h-8 w-8 text-secondary hover:text-foreground"
+                                title="Editar Insumo"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  if (confirm(`Deseja excluir o insumo "${item.nome}"?`)) {
+                                    salvarItensConsumo(itensConsumo.filter((i) => i.id !== item.id))
+                                  }
+                                }}
+                                className="h-8 w-8 text-secondary hover:text-red-400"
+                                title="Excluir Insumo"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
+                        </Card>
+                      )
+                    })}
+                  </div>
 
-                        {/* Ações do Insumo */}
-                        <div className="pt-2 border-t border-border/10 flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="md"
-                              onClick={() => {
-                                setItemConsumoParaBaixa(item)
-                                setModalBaixaConsumoAberto(true)
-                              }}
-                              disabled={item.quantidade_atual <= 0}
-                              className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-amber-500/30 text-amber-500 hover:bg-amber-500/10 disabled:opacity-30"
-                              title="Dar baixa de consumo"
-                            >
-                              <TrendingDown className="h-3.5 w-3.5" />
-                              BAIXAR
-                            </Button>
-
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="md"
-                              onClick={() => {
-                                setItemConsumoParaEntrada(item)
-                                setModalEntradaConsumoAberto(true)
-                              }}
-                              className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
-                              title="Adicionar entrada ao estoque"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                              REPOR
-                            </Button>
-                          </div>
-
-                          <div className="flex items-center gap-0.5">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setItemConsumoEditando(item)
-                                setModalItemConsumoAberto(true)
-                              }}
-                              className="h-8 w-8 text-secondary hover:text-foreground"
-                              title="Editar Insumo"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                if (confirm(`Deseja excluir o insumo "${item.nome}"?`)) {
-                                  salvarItensConsumo(itensConsumo.filter((i) => i.id !== item.id))
-                                }
-                              }}
-                              className="h-8 w-8 text-secondary hover:text-red-400"
-                              title="Excluir Insumo"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      </Card>
-                    )
-                  })}
+                  {/* Botão Carregar Mais Insumos */}
+                  {itensConsumoFiltrados.length > limiteConsumo && (
+                    <div className="pt-2 text-center">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setLimiteConsumo((prev) => prev + 30)}
+                        className="!py-2 !px-5 text-xs font-black uppercase tracking-wider gap-2 border-primary/30 text-primary hover:border-primary w-full sm:w-auto"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        CARREGAR MAIS INSUMOS (+30 DE {itensConsumoFiltrados.length - limiteConsumo} RESTANTES)
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2063,7 +2115,7 @@ export function InventarioFerramentas() {
                         </td>
                       </tr>
                     ) : (
-                      baixasConsumo.map((bx) => (
+                      baixasConsumo.slice(0, limiteHistoricoConsumo).map((bx) => (
                         <tr key={bx.id} className="hover:bg-overlay/5 transition-colors">
                           <td className="px-4 py-3 font-bold text-foreground">
                             <div className="flex items-center gap-2">
@@ -2089,7 +2141,13 @@ export function InventarioFerramentas() {
                                   }
                                   className="h-6 w-6 rounded-full overflow-hidden border border-primary/40 hover:scale-110 transition-transform cursor-pointer"
                                 >
-                                  <img src={bx.foto_responsavel_url} alt={bx.responsavel} className="h-full w-full object-cover" />
+                                  <img
+                                    src={bx.foto_responsavel_url}
+                                    alt={bx.responsavel}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="h-full w-full object-cover"
+                                  />
                                 </button>
                               ) : (
                                 <span className="text-xs">👤</span>
@@ -2112,6 +2170,21 @@ export function InventarioFerramentas() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Botão Carregar Mais Histórico de Consumo */}
+              {baixasConsumo.length > limiteHistoricoConsumo && (
+                <div className="p-3 text-center border-t border-border/10">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setLimiteHistoricoConsumo((prev) => prev + 40)}
+                    className="!py-2 !px-5 text-xs font-black uppercase tracking-wider gap-2 border-primary/30 text-primary hover:border-primary w-full sm:w-auto"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    CARREGAR MAIS HISTÓRICO (+40 DE {baixasConsumo.length - limiteHistoricoConsumo} RESTANTES)
+                  </Button>
+                </div>
+              )}
             </Card>
           )}
         </div>
