@@ -69,6 +69,20 @@ export function EmpresasTab() {
     })
   }
 
+  function abrirNovaEmpresa() {
+    setEditandoId(null)
+    setCnpjInfo(null)
+    const proximaCor = CORES_PRESETS[empresas.length % CORES_PRESETS.length]?.value ?? '#1E3A5F'
+    reset({
+      nome: '',
+      sistemaLabel: 'CENTER TRUCK',
+      cor: proximaCor,
+      cnpj: '',
+      observacoes: '',
+    })
+    setMostrarForm(true)
+  }
+
   function cancelar() {
     setMostrarForm(false)
     setEditandoId(null)
@@ -148,7 +162,7 @@ export function EmpresasTab() {
         {!mostrarForm && (
           <Button
             size="md"
-            onClick={() => { setEditandoId(null); setMostrarForm(true); setCnpjInfo(null) }}
+            onClick={abrirNovaEmpresa}
             className="flex items-center gap-2 shrink-0"
           >
             <Plus className="h-4 w-4" />

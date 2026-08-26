@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
 
 export interface Empresa {
@@ -59,6 +59,24 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
   const [empresaAtivaId, setEmpresaAtivaId] = useState<string>(() =>
     loadEmpresaAtivaId(loadEmpresas()),
   )
+
+  useEffect(() => {
+    function handleStorage(e: StorageEvent) {
+      if (e.key === STORAGE_EMPRESAS_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setEmpresas(parsed)
+          }
+        } catch {}
+      }
+      if (e.key === STORAGE_EMPRESA_ATIVA_KEY && e.newValue) {
+        setEmpresaAtivaId(e.newValue)
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
 
   const empresaAtiva = empresas.find((e) => e.id === empresaAtivaId) ?? empresas[0]
 
