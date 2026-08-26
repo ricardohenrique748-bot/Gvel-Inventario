@@ -24,10 +24,10 @@ function CompanySwitcher() {
   }, [open])
 
   return (
-    <div ref={ref} className="relative flex-1 min-w-0">
+    <div ref={ref} className="relative w-full min-w-0 overflow-hidden">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-between gap-1.5 w-full group rounded-lg px-1 py-0.5 transition-colors hover:bg-overlay/5 overflow-hidden text-left cursor-pointer"
+        className="flex items-center justify-between gap-1 w-full max-w-full group rounded-lg p-1 transition-colors hover:bg-overlay/5 overflow-hidden text-left cursor-pointer"
         title="Trocar de empresa"
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -221,9 +221,11 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-60 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl md:border md:border-border/[0.06] bg-surface shadow-2xl shadow-black/50">
-      <div className="flex h-14 items-center justify-between px-3.5 border-b border-border/[0.06] gap-2">
-        <CompanySwitcher />
+    <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-64 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl md:border md:border-border/[0.06] bg-surface shadow-2xl shadow-black/50">
+      <div className="flex h-14 items-center justify-between px-3 border-b border-border/[0.06] gap-2 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <CompanySwitcher />
+        </div>
         <div className="flex items-center gap-1 shrink-0">
           <NotificacoesDropdown />
         </div>
