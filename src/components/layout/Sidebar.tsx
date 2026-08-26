@@ -24,7 +24,7 @@ function CompanySwitcher() {
   }, [open])
 
   return (
-    <div ref={ref} className="relative w-full min-w-0 overflow-hidden">
+    <div ref={ref} className="relative flex-1 min-w-0">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center justify-between gap-1 w-full max-w-full group rounded-lg p-1 transition-colors hover:bg-overlay/5 overflow-hidden text-left cursor-pointer"
@@ -44,10 +44,10 @@ function CompanySwitcher() {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-2 w-56 rounded-xl border border-border/[0.08] bg-surface shadow-2xl shadow-black/40 z-50 overflow-hidden">
-          <div className="px-3 py-2 border-b border-border/[0.06]">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-secondary/60">
-              Grupo GVEL — Trocar Empresa
+        <div className="absolute left-0 top-full mt-2 w-60 rounded-xl border border-border/[0.15] bg-[#18181b] shadow-2xl shadow-black/80 z-[100] overflow-hidden">
+          <div className="px-3 py-2 border-b border-border/[0.08] bg-black/20">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-secondary/70">
+              Trocar de Empresa
             </p>
           </div>
           <div className="py-1 max-h-64 overflow-y-auto">
@@ -222,8 +222,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-64 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl md:border md:border-border/[0.06] bg-surface shadow-2xl shadow-black/50">
-      <div className="flex h-14 items-center justify-between px-3 border-b border-border/[0.06] gap-2 overflow-hidden">
-        <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex h-14 items-center justify-between px-3 border-b border-border/[0.06] gap-2 relative z-30">
+        <div className="flex-1 min-w-0">
           <CompanySwitcher />
         </div>
         <div className="flex items-center gap-1 shrink-0">
