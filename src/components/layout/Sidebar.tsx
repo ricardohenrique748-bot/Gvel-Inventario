@@ -27,12 +27,14 @@ function CompanySwitcher() {
     <div ref={ref} className="relative flex-1 min-w-0">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 w-full group rounded-lg px-1 py-0.5 transition-colors hover:bg-overlay/5"
+        className="flex items-center justify-between gap-1.5 w-full group rounded-lg px-1 py-0.5 transition-colors hover:bg-overlay/5 overflow-hidden text-left cursor-pointer"
         title="Trocar de empresa"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <Logo size="sm" />
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <Logo size="sm" />
+        </div>
         <ChevronDown
           className={cn(
             'h-3.5 w-3.5 shrink-0 text-secondary/60 transition-transform duration-200 group-hover:text-secondary',

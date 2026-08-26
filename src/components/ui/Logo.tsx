@@ -22,16 +22,16 @@ export function Logo({ className, showText = true, size = 'md', stacked = false 
   const sistemaLabel = empresaAtiva?.sistemaLabel ?? 'CENTER TRUCK'
 
   return (
-    <div className={cn(stacked ? 'flex flex-col items-center' : 'flex items-center', s.gap, className)}>
+    <div className={cn(stacked ? 'flex flex-col items-center' : 'flex items-center min-w-0', s.gap, className)}>
       <img src={logoIcon} alt={nomeEmpresa} className={cn(s.icon, 'shrink-0 object-contain')} />
       {showText && (
-        <div className={cn('flex flex-col leading-none', stacked ? 'items-center' : 'justify-center')}>
-          <p className={cn('font-bold tracking-wide text-foreground whitespace-nowrap', s.title)}>
+        <div className={cn('flex flex-col leading-none min-w-0 flex-1 overflow-hidden', stacked ? 'items-center text-center' : 'justify-center text-left')}>
+          <p className={cn('font-bold tracking-wide text-foreground truncate', s.title)}>
             {sistemaLabel}
           </p>
           <p
             className={cn(
-              'mt-1 font-medium uppercase tracking-wider text-secondary whitespace-nowrap',
+              'mt-1 font-medium uppercase tracking-wider text-secondary truncate',
               s.subtitle,
             )}
           >
