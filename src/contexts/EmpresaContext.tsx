@@ -62,11 +62,14 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
 
   const empresaAtiva = empresas.find((e) => e.id === empresaAtivaId) ?? empresas[0]
 
-  const persistEmpresas = useCallback((novas: Empresa[]) => {
-    setEmpresas(novas)
-    try {
-      localStorage.setItem(STORAGE_EMPRESAS_KEY, JSON.stringify(novas))
-    } catch {}
+  const persistEmpresas = useCallback((updater: (prev: Empresa[]) => Empresa[]) => {
+    setEmpresas((prev) => {
+      const novas = updater(prev)
+      try {
+        localStorage.setItem(STORAGE_EMPRESAS_KEY, JSON.stringify(novas))
+      } catch {}
+      return novas
+    })
   }, [])
 
   const setEmpresaAtiva = useCallback((id: string) => {
@@ -80,28 +83,30 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     (dados: Omit<Empresa, 'id'>) => {
       const id = `empresa_${Date.now()}`
       const nova: Empresa = { id, ...dados }
-      persistEmpresas([...empresas, nova])
+      persistEmpresas((prev) => [...prev, nova])
     },
-    [empresas, persistEmpresas],
+    [persistEmpresas],
   )
 
   const atualizarEmpresa = useCallback(
     (id: string, dados: Partial<Omit<Empresa, 'id'>>) => {
-      persistEmpresas(empresas.map((e) => (e.id === id ? { ...e, ...dados } : e)))
+      persistEmpresas((prev) => prev.map((e) => (e.id === id ? { ...e, ...dados } : e)))
     },
-    [empresas, persistEmpresas],
+    [persistEmpresas],
   )
 
   const excluirEmpresa = useCallback(
     (id: string) => {
-      if (empresas.length <= 1) return
-      const novas = empresas.filter((e) => e.id !== id)
-      persistEmpresas(novas)
-      if (empresaAtivaId === id) {
-        setEmpresaAtiva(novas[0].id)
-      }
+      persistEmpresas((prev) => {
+        if (prev.length <= 1) return prev
+        const novas = prev.filter((e) => e.id !== id)
+        if (empresaAtivaId === id && novas.length > 0) {
+          setEmpresaAtiva(novas[0].id)
+        }
+        return novas
+      })
     },
-    [empresas, empresaAtivaId, persistEmpresas, setEmpresaAtiva],
+    [empresaAtivaId, persistEmpresas, setEmpresaAtiva],
   )
 
   return (

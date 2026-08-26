@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Building2, Check, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Building2, Check, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { useEmpresa } from '@/contexts/EmpresaContext'
 import type { Empresa } from '@/contexts/EmpresaContext'
+import { buscarCnpj, formatCnpj } from '@/lib/cnpj'
 
 const schema = z.object({
   nome: z.string().trim().min(1, 'Informe o nome da empresa'),
@@ -38,6 +39,8 @@ export function EmpresasTab() {
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [sucesso, setSucesso] = useState<string | null>(null)
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false)
+  const [cnpjInfo, setCnpjInfo] = useState<string | null>(null)
 
   const {
     register,
@@ -56,11 +59,12 @@ export function EmpresasTab() {
   function iniciarEdicao(empresa: Empresa) {
     setEditandoId(empresa.id)
     setMostrarForm(true)
+    setCnpjInfo(null)
     reset({
       nome: empresa.nome,
       sistemaLabel: empresa.sistemaLabel,
       cor: empresa.cor,
-      cnpj: empresa.cnpj ?? '',
+      cnpj: empresa.cnpj ? formatCnpj(empresa.cnpj) : '',
       observacoes: empresa.observacoes ?? '',
     })
   }
@@ -68,15 +72,54 @@ export function EmpresasTab() {
   function cancelar() {
     setMostrarForm(false)
     setEditandoId(null)
+    setCnpjInfo(null)
     reset({ nome: '', sistemaLabel: 'CENTER TRUCK', cor: '#E23B2E', cnpj: '', observacoes: '' })
   }
 
+  async function handleBuscarCnpj(cnpjVal?: string) {
+    const raw = cnpjVal ?? watch('cnpj') ?? ''
+    const digits = raw.replace(/\D/g, '')
+    if (digits.length !== 14) {
+      setCnpjInfo('O CNPJ deve conter 14 dígitos.')
+      return
+    }
+
+    setBuscandoCnpj(true)
+    setCnpjInfo(null)
+    try {
+      const info = await buscarCnpj(digits)
+      if (info.nome) {
+        setValue('nome', info.nome)
+        const currentSistema = watch('sistemaLabel')
+        if (!currentSistema || currentSistema === 'CENTER TRUCK') {
+          setValue('sistemaLabel', info.nome.split(' ').slice(0, 3).join(' ').toUpperCase())
+        }
+      }
+      if (info.endereco) {
+        const obs = [info.endereco, info.telefone ? `Tel: ${info.telefone}` : null].filter(Boolean).join(' | ')
+        const obsAtual = watch('observacoes')
+        if (!obsAtual) {
+          setValue('observacoes', obs)
+        }
+      }
+      setCnpjInfo('Dados da empresa preenchidos via Receita Federal!')
+    } catch (err) {
+      setCnpjInfo(err instanceof Error ? err.message : 'Não foi possível consultar o CNPJ.')
+    } finally {
+      setBuscandoCnpj(false)
+    }
+  }
+
   function onSubmit(values: FormValues) {
+    const dadosFormatados = {
+      ...values,
+      cnpj: values.cnpj ? formatCnpj(values.cnpj) : '',
+    }
     if (editandoId) {
-      atualizarEmpresa(editandoId, values)
+      atualizarEmpresa(editandoId, dadosFormatados)
       setSucesso('Empresa atualizada com sucesso!')
     } else {
-      adicionarEmpresa(values)
+      adicionarEmpresa(dadosFormatados)
       setSucesso('Empresa cadastrada com sucesso!')
     }
     cancelar()
@@ -105,7 +148,7 @@ export function EmpresasTab() {
         {!mostrarForm && (
           <Button
             size="md"
-            onClick={() => { setEditandoId(null); setMostrarForm(true) }}
+            onClick={() => { setEditandoId(null); setMostrarForm(true); setCnpjInfo(null) }}
             className="flex items-center gap-2 shrink-0"
           >
             <Plus className="h-4 w-4" />
@@ -162,14 +205,57 @@ export function EmpresasTab() {
                   </p>
                 </div>
 
-                {/* CNPJ */}
+                {/* CNPJ com Busca Automática */}
                 <div>
-                  <Label htmlFor="emp_cnpj">CNPJ</Label>
-                  <Input
-                    id="emp_cnpj"
-                    placeholder="00.000.000/0000-00"
-                    {...register('cnpj')}
-                  />
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="emp_cnpj">CNPJ</Label>
+                    {buscandoCnpj && (
+                      <span className="flex items-center gap-1 text-[11px] text-primary font-medium">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Buscando na Receita...
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative mt-1">
+                    <Input
+                      id="emp_cnpj"
+                      placeholder="00.000.000/0000-00"
+                      value={watch('cnpj') || ''}
+                      onChange={(e) => {
+                        const formatted = formatCnpj(e.target.value)
+                        setValue('cnpj', formatted)
+                        const digits = formatted.replace(/\D/g, '')
+                        if (digits.length === 14) {
+                          handleBuscarCnpj(formatted)
+                        }
+                      }}
+                      onBlur={() => {
+                        const digits = (watch('cnpj') || '').replace(/\D/g, '')
+                        if (digits.length === 14) {
+                          handleBuscarCnpj()
+                        }
+                      }}
+                      className="pr-10 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleBuscarCnpj()}
+                      disabled={buscandoCnpj}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-secondary hover:text-primary transition-colors cursor-pointer rounded-lg hover:bg-overlay/10"
+                      title="Buscar dados do CNPJ"
+                    >
+                      {buscandoCnpj ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  {cnpjInfo && (
+                    <p className={`mt-1 text-[11px] font-medium ${cnpjInfo.includes('via') ? 'text-emerald-500' : 'text-amber-500'}`}>
+                      {cnpjInfo}
+                    </p>
+                  )}
                 </div>
 
                 {/* Cor */}
