@@ -3,20 +3,28 @@ import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck 
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
 
+import { isEstoqueAuthorized, isModuloAuthorized } from './nav'
+
 export function BottomNav() {
   const { signOut, user, perfil, perfilLoading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
-  const canAccessEstoque = (user?.email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
+  const userRef = perfil || { email: user?.email }
+
+  const canAccessEstoque = isEstoqueAuthorized(userRef)
+  const canAccessFrotas = isModuloAuthorized(userRef, 'frotas')
+  const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao')
+  const canAccessPatio = isModuloAuthorized(userRef, 'inventario_caminhoes')
+  const canAccessConfiguracoes = isAdmin || isModuloAuthorized(userRef, 'configuracoes')
 
   const items = [
     { to: '/', label: 'INÍCIO', icon: Home, end: true },
     ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'ESTOQUE', icon: Hammer }] : []),
-    { to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck },
-    { to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench },
-    { to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight },
-    ...(isAdmin ? [{ to: '/configuracoes', label: 'AJUSTES', icon: Settings }] : []),
+    ...(canAccessFrotas ? [{ to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck }] : []),
+    ...(canAccessManutencao ? [{ to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench }] : []),
+    ...(canAccessPatio ? [{ to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight }] : []),
+    ...(canAccessConfiguracoes ? [{ to: '/configuracoes', label: 'AJUSTES', icon: Settings }] : []),
   ]
 
   return (

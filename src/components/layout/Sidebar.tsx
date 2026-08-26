@@ -1,24 +1,113 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench } from 'lucide-react'
+import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench, Check, Building2 } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
-import { navItems, ADMIN_ONLY_ROUTES, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized, isRelatoriosAuthorized, isEstoqueAuthorized } from './nav'
+import { navItems, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized, isRelatoriosAuthorized, isEstoqueAuthorized, isModuloAuthorized } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
+import { useEmpresa } from '@/contexts/EmpresaContext'
 import { cn } from '@/lib/cn'
 import { isNativeApp } from '@/lib/isNativeApp'
+
+function CompanySwitcher() {
+  const { empresas, empresaAtiva, setEmpresaAtiva } = useEmpresa()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative flex-1 min-w-0">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 w-full group rounded-lg px-1 py-0.5 transition-colors hover:bg-overlay/5"
+        title="Trocar de empresa"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <Logo size="sm" />
+        <ChevronDown
+          className={cn(
+            'h-3.5 w-3.5 shrink-0 text-secondary/60 transition-transform duration-200 group-hover:text-secondary',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-2 w-56 rounded-xl border border-border/[0.08] bg-surface shadow-2xl shadow-black/40 z-50 overflow-hidden">
+          <div className="px-3 py-2 border-b border-border/[0.06]">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-secondary/60">
+              Grupo GVEL — Trocar Empresa
+            </p>
+          </div>
+          <div className="py-1 max-h-64 overflow-y-auto">
+            {empresas.map((empresa) => {
+              const isActive = empresa.id === empresaAtiva?.id
+              return (
+                <button
+                  key={empresa.id}
+                  role="option"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    setEmpresaAtiva(empresa.id)
+                    setOpen(false)
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors',
+                    isActive
+                      ? 'bg-primary/10 text-foreground'
+                      : 'text-secondary hover:bg-overlay/5 hover:text-foreground',
+                  )}
+                >
+                  <div
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white text-[10px] font-black shadow-sm"
+                    style={{ backgroundColor: empresa.cor }}
+                  >
+                    <Building2 className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold truncate">{empresa.nome}</p>
+                    <p className="text-[10px] text-secondary/70 uppercase tracking-wide truncate">
+                      {empresa.sistemaLabel}
+                    </p>
+                  </div>
+                  {isActive && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function Sidebar() {
   const { signOut, user, perfil, perfilLoading } = useAuth()
   const [search, setSearch] = useState('')
   const native = isNativeApp()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
-  const canAccessKanban = isKanbanAuthorized(user?.email)
-  const canAccessDashboardGerencial = isDashboardGerencialAuthorized(user?.email)
-  const canAccessFinanceiro = isFinanceiroAuthorized(user?.email)
-  const canAccessRelatorios = isRelatoriosAuthorized(user?.email)
-  const canAccessEstoque = isEstoqueAuthorized(user?.email, native)
+  const userRef = perfil || { email: user?.email }
+
+  const canAccessKanban = isKanbanAuthorized(userRef)
+  const canAccessDashboardGerencial = isDashboardGerencialAuthorized(userRef)
+  const canAccessFinanceiro = isFinanceiroAuthorized(userRef)
+  const canAccessRelatorios = isRelatoriosAuthorized(userRef)
+  const canAccessEstoque = isEstoqueAuthorized(userRef, native)
+  const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao')
+  const canAccessInventarioCaminhoes = isModuloAuthorized(userRef, 'inventario_caminhoes')
+  const canAccessFrotas = isModuloAuthorized(userRef, 'frotas')
+  const canAccessRH = isModuloAuthorized(userRef, 'rh')
+  const canAccessCompras = isModuloAuthorized(userRef, 'compras')
+  const canAccessConfiguracoes = isAdmin || isModuloAuthorized(userRef, 'configuracoes')
   const location = useLocation()
 
   // Track which parent groups are open
@@ -41,31 +130,29 @@ export function Sidebar() {
       ? [
           { to: '/', label: 'Home', icon: Home, end: true },
           ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'Estoque', icon: Wrench }] : []),
-          { to: '/manutencao', label: 'Manutenção', icon: Wrench },
-          { to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight },
-          { to: '/configuracoes', label: 'Configurações', icon: Settings },
+          ...(canAccessManutencao ? [{ to: '/manutencao', label: 'Manutenção', icon: Wrench }] : []),
+          ...(canAccessInventarioCaminhoes ? [{ to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight }] : []),
+          ...(canAccessConfiguracoes ? [{ to: '/configuracoes', label: 'Configurações', icon: Settings }] : []),
         ]
       : navItems
 
     return base
       .filter((item) => {
-        if (item.to === '/inventario-ferramentas') {
-          return canAccessEstoque
-        }
-        if (item.to === '/kanban') {
-          return canAccessKanban
-        }
-        if (item.to === '/dashboard-gerencial') {
-          return isAdmin || canAccessDashboardGerencial
-        }
-        if (item.to === '/financeiro') {
-          return canAccessFinanceiro
-        }
-        return isAdmin || !ADMIN_ONLY_ROUTES.includes(item.to as (typeof ADMIN_ONLY_ROUTES)[number])
+        if (item.to === '/dashboard-gerencial') return canAccessDashboardGerencial
+        if (item.to === '/manutencao') return canAccessManutencao
+        if (item.to === '/inventario-caminhoes') return canAccessInventarioCaminhoes
+        if (item.to === '/frotas') return canAccessFrotas
+        if (item.to === '/inventario-ferramentas') return canAccessEstoque
+        if (item.to === '/financeiro') return canAccessFinanceiro
+        if (item.to === '/kanban') return canAccessKanban
+        if (item.to === '/rh') return canAccessRH
+        if (item.to === '/compras') return canAccessCompras
+        if (item.to === '/configuracoes') return canAccessConfiguracoes || canAccessRelatorios
+        return true
       })
       .map((item) => {
-        if (!isAdmin && item.to === '/configuracoes') {
-          // Usuário com acesso a relatórios mas não admin: mostrar Configurações só com Relatórios
+        if (!isAdmin && !canAccessConfiguracoes && item.to === '/configuracoes') {
+          // Usuário com acesso a relatórios mas não admin/configurações: mostrar Configurações só com Relatórios
           if (canAccessRelatorios && 'children' in item && (item as any).children) {
             const relatoriosChild = ((item as any).children as { to: string }[]).filter(
               (c) => c.to === '/relatorios',
@@ -79,7 +166,21 @@ export function Sidebar() {
         }
         return item
       })
-  }, [native, isAdmin, canAccessKanban, canAccessDashboardGerencial, canAccessFinanceiro, canAccessRelatorios])
+  }, [
+    native,
+    isAdmin,
+    canAccessKanban,
+    canAccessDashboardGerencial,
+    canAccessFinanceiro,
+    canAccessRelatorios,
+    canAccessEstoque,
+    canAccessManutencao,
+    canAccessInventarioCaminhoes,
+    canAccessFrotas,
+    canAccessRH,
+    canAccessCompras,
+    canAccessConfiguracoes,
+  ])
 
   // For search: flatten all items (including children) to find matches
   const filteredNavItems = useMemo(() => {
@@ -109,9 +210,9 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-60 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl md:border md:border-border/[0.06] bg-surface shadow-2xl shadow-black/50">
-      <div className="flex h-14 items-center justify-between px-3.5 border-b border-border/[0.06]">
-        <Logo size="sm" />
-        <div className="flex items-center gap-1">
+      <div className="flex h-14 items-center justify-between px-3.5 border-b border-border/[0.06] gap-2">
+        <CompanySwitcher />
+        <div className="flex items-center gap-1 shrink-0">
           <NotificacoesDropdown />
         </div>
       </div>

@@ -87,59 +87,42 @@ export const ADMIN_ONLY_ROUTES = [
   '/compras',
 ] as const
 
-export const KANBAN_ALLOWED_EMAILS = [
-  'victor@gveldiesel.com',
-  'ricardo_h.16@hotmail.com',
-] as const
+import { temPermissaoModulo } from '@/lib/permissoes'
+import type { Usuario } from '@/lib/types'
 
-export function isKanbanAuthorized(email?: string | null): boolean {
-  if (!email) return false
-  return KANBAN_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
+export function isModuloAuthorized(userOrPerfil: Partial<Usuario> | null | undefined, moduloId: string): boolean {
+  if (!userOrPerfil) return false
+  return temPermissaoModulo(userOrPerfil, moduloId)
 }
 
-export const DASHBOARD_GERENCIAL_ALLOWED_EMAILS = [
-  'junior@gveldiesel.com',
-  'victor@gveldiesel.com',
-  'ricardo_h.16@hotmail.com',
-  'mariaclara@gveldiesel.com',
-] as const
-
-export function isDashboardGerencialAuthorized(email?: string | null): boolean {
-  if (!email) return false
-  return DASHBOARD_GERENCIAL_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
+export function isKanbanAuthorized(userOrEmail?: string | Partial<Usuario> | null): boolean {
+  if (!userOrEmail) return false
+  if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'kanban')
+  return temPermissaoModulo({ email: userOrEmail }, 'kanban')
 }
 
-export const FINANCEIRO_ALLOWED_EMAILS = [
-  'victor@gveldiesel.com',
-  'ricardo_h.16@hotmail.com',
-] as const
-
-export function isFinanceiroAuthorized(email?: string | null): boolean {
-  if (!email) return false
-  return FINANCEIRO_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
+export function isDashboardGerencialAuthorized(userOrEmail?: string | Partial<Usuario> | null): boolean {
+  if (!userOrEmail) return false
+  if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'dashboard_gerencial')
+  return temPermissaoModulo({ email: userOrEmail }, 'dashboard_gerencial')
 }
 
-export const RELATORIOS_ALLOWED_EMAILS = [
-  'victor@gveldiesel.com',
-  'ricardo_h.16@hotmail.com',
-  'inventario@gveldiesel.com',
-] as const
-
-export function isRelatoriosAuthorized(email?: string | null): boolean {
-  if (!email) return false
-  return RELATORIOS_ALLOWED_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase().trim())
+export function isFinanceiroAuthorized(userOrEmail?: string | Partial<Usuario> | null): boolean {
+  if (!userOrEmail) return false
+  if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'financeiro')
+  return temPermissaoModulo({ email: userOrEmail }, 'financeiro')
 }
 
-export const ESTOQUE_APK_ALLOWED_EMAILS = [
-  'inventario@gveldiesel.com',
-] as const
+export function isRelatoriosAuthorized(userOrEmail?: string | Partial<Usuario> | null): boolean {
+  if (!userOrEmail) return false
+  if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'relatorios')
+  return temPermissaoModulo({ email: userOrEmail }, 'relatorios')
+}
 
-export function isEstoqueAuthorized(email?: string | null, isNative = false): boolean {
-  if (isNative) {
-    if (!email) return false
-    return email.toLowerCase().trim() === 'inventario@gveldiesel.com'
-  }
-  return true
+export function isEstoqueAuthorized(userOrEmail?: string | Partial<Usuario> | null, _isNative = false): boolean {
+  if (!userOrEmail) return false
+  if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'estoque')
+  return temPermissaoModulo({ email: userOrEmail }, 'estoque')
 }
 
 

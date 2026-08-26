@@ -29,7 +29,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useClientes } from '@/hooks/useClientes'
 import { useUsuarios } from '@/hooks/useUsuarios'
-import { isDashboardGerencialAuthorized } from '@/components/layout/nav'
+import { isDashboardGerencialAuthorized, isEstoqueAuthorized } from '@/components/layout/nav'
 
 export function DashboardGerencial() {
   const { perfil, user, perfilLoading } = useAuth()
@@ -203,6 +203,15 @@ export function DashboardGerencial() {
     },
   ]
 
+  const atalhosExibidos = useMemo(() => {
+    return atalhos.filter((item) => {
+      if (item.to === '/inventario-ferramentas') {
+        return isEstoqueAuthorized(user?.email)
+      }
+      return true
+    })
+  }, [atalhos, user?.email])
+
   return (
     <div className="space-y-6 animate-fade-in uppercase">
       {/* Banner de Boas-Vindas */}
@@ -316,7 +325,7 @@ export function DashboardGerencial() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 uppercase">
-          {atalhos.map((item) => (
+          {atalhosExibidos.map((item) => (
             <Link
               key={item.to}
               to={item.to}

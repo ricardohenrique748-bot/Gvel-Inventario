@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
+import { salvarPermissoesUsuario, getModulosUsuario } from '@/lib/permissoes'
 import type { NivelUsuario, Usuario } from '@/lib/types'
 
 export function useUsuarios() {
@@ -11,8 +12,16 @@ export function useUsuarios() {
   const refetch = useCallback(async () => {
     setLoading(true)
     const { data, error } = await supabase.from('usuarios').select('*').order('nome')
-    if (error) setError(error.message)
-    else setUsuarios(data ?? [])
+    if (error) {
+      setError(error.message)
+    } else {
+      // Injeta os módulos recuperados (do banco ou do mapeamento local)
+      const listaTratada = (data ?? []).map((u) => ({
+        ...u,
+        modulos: getModulosUsuario(u),
+      }))
+      setUsuarios(listaTratada)
+    }
     setLoading(false)
   }, [])
 
@@ -29,6 +38,7 @@ interface CriarUsuarioInput {
   senha: string
   telefone?: string
   nivel?: NivelUsuario
+  modulos?: string[]
 }
 
 async function mensagemErroFuncao(error: unknown, fallback: string): Promise<string> {
@@ -50,6 +60,14 @@ export async function criarUsuario(input: CriarUsuarioInput) {
   if (error) {
     throw new Error(await mensagemErroFuncao(error, 'Não foi possível criar o usuário.'))
   }
+  
+  if (input.modulos && input.email) {
+    salvarPermissoesUsuario(input.email, input.modulos)
+    if (data?.id) {
+      salvarPermissoesUsuario(data.id, input.modulos)
+    }
+  }
+
   return data as Usuario
 }
 
@@ -69,17 +87,53 @@ interface AtualizarUsuarioInput {
   nome: string
   telefone?: string
   nivel: NivelUsuario
+  modulos?: string[]
+  email?: string
 }
 
 export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput) {
-  const { data, error } = await supabase
+  // Salva permissões localmente de forma imediata e garantida
+  if (input.modulos) {
+    salvarPermissoesUsuario(id, input.modulos)
+    if (input.email) {
+      salvarPermissoesUsuario(input.email, input.modulos)
+    }
+  }
+
+  // Tenta atualizar no Supabase com modulos, e caso a coluna não exista no Postgres, atualiza os campos básicos
+  let updatePayload: Record<string, any> = {
+    nome: up(input.nome),
+    telefone: input.telefone || null,
+    nivel: input.nivel,
+  }
+  if (input.modulos) {
+    updatePayload.modulos = input.modulos
+  }
+
+  let { data, error } = await supabase
     .from('usuarios')
-    .update({ nome: up(input.nome), telefone: input.telefone || null, nivel: input.nivel })
+    .update(updatePayload)
     .eq('id', id)
     .select()
     .single()
-  if (error) throw new Error(error.message)
-  return data as Usuario
+
+  if (error) {
+    // Fallback sem a coluna modulos se a coluna não existir no schema do Postgres
+    const { data: dataFallback, error: errorFallback } = await supabase
+      .from('usuarios')
+      .update({ nome: up(input.nome), telefone: input.telefone || null, nivel: input.nivel })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (errorFallback) throw new Error(errorFallback.message)
+    data = dataFallback
+  }
+
+  return {
+    ...data,
+    modulos: input.modulos || getModulosUsuario(data),
+  } as Usuario
 }
 
 export async function resetarSenha(id: string, senha?: string): Promise<string> {
@@ -96,4 +150,3 @@ export async function resetarSenha(id: string, senha?: string): Promise<string> 
   if (!body?.senhaTemporaria) throw new Error('Senha temporária não retornada.')
   return body.senhaTemporaria
 }
-

@@ -5,13 +5,15 @@ import { ClientesTab } from '@/pages/configuracoes/ClientesTab'
 import { FrotaTab } from '@/pages/configuracoes/FrotaTab'
 import { UsuariosTab } from '@/pages/configuracoes/UsuariosTab'
 import { NotificacoesTab } from '@/pages/configuracoes/NotificacoesTab'
-import { Users, Truck, UserCheck, Bell } from 'lucide-react'
+import { EmpresasTab } from '@/pages/configuracoes/EmpresasTab'
+import { Users, Truck, UserCheck, Bell, Building2 } from 'lucide-react'
 
 const TABS = [
+  { id: 'empresas', label: 'Empresas', icon: Building2 },
   { id: 'clientes', label: 'Clientes', icon: Users },
   { id: 'frota', label: 'Frota', icon: Truck },
   { id: 'usuarios', label: 'Usuários', icon: UserCheck },
-  { id: 'notificacoes', label: 'Notificações', icon: Bell },
+  { id: 'notificacoes', label: 'Notif.', icon: Bell },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -19,7 +21,7 @@ type TabId = (typeof TABS)[number]['id']
 export function Configuracoes() {
   const { perfil, perfilLoading } = useAuth()
   const isAdmin = perfil?.nivel === 'admin'
-  const [tab, setTab] = useState<TabId>(isAdmin ? 'clientes' : 'notificacoes')
+  const [tab, setTab] = useState<TabId>(isAdmin ? 'empresas' : 'notificacoes')
 
   if (perfilLoading) {
     return (
@@ -43,9 +45,9 @@ export function Configuracoes() {
     <div className="space-y-6">
       <PageHeader title="Configurações" subtitle="Cadastros do sistema e notificações" />
 
-      {/* Barra de Abas: Grid de 4 Colunas Perfeito no Mobile e Desktop */}
+      {/* Barra de Abas: Grid de 5 Colunas */}
       <div className="w-full">
-        <div className="grid grid-cols-4 p-1 rounded-2xl bg-surface/90 border border-border/50 gap-1 shadow-sm">
+        <div className="grid grid-cols-5 p-1 rounded-2xl bg-surface/90 border border-border/50 gap-1 shadow-sm">
           {TABS.map((t) => {
             const Icon = t.icon
             const isActive = t.id === tab
@@ -62,7 +64,7 @@ export function Configuracoes() {
               >
                 <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-secondary'}`} />
                 <span className="text-[10px] sm:text-xs uppercase tracking-tight truncate max-w-full">
-                  {t.id === 'notificacoes' ? 'Notificações' : t.label}
+                  {t.label}
                 </span>
               </button>
             )
@@ -71,6 +73,7 @@ export function Configuracoes() {
       </div>
 
       <div>
+        {tab === 'empresas' && <EmpresasTab />}
         {tab === 'clientes' && <ClientesTab />}
         {tab === 'frota' && <FrotaTab />}
         {tab === 'usuarios' && <UsuariosTab />}

@@ -9,6 +9,7 @@ export interface Usuario {
   email: string
   telefone: string | null
   nivel: NivelUsuario
+  modulos?: string[]
   deve_trocar_senha: boolean
   created_at: string
 }

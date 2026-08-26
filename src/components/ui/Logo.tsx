@@ -1,5 +1,6 @@
 import { cn } from '@/lib/cn'
 import logoIcon from '@/assets/logo-icon.png'
+import { useEmpresa } from '@/contexts/EmpresaContext'
 
 interface LogoProps {
   className?: string
@@ -16,19 +17,25 @@ const sizes = {
 
 export function Logo({ className, showText = true, size = 'md', stacked = false }: LogoProps) {
   const s = sizes[size]
+  const { empresaAtiva } = useEmpresa()
+  const nomeEmpresa = empresaAtiva?.nome ?? 'GVel Diesel'
+  const sistemaLabel = empresaAtiva?.sistemaLabel ?? 'CENTER TRUCK'
+
   return (
     <div className={cn(stacked ? 'flex flex-col items-center' : 'flex items-center', s.gap, className)}>
-      <img src={logoIcon} alt="Gvel Diesel" className={cn(s.icon, 'shrink-0 object-contain')} />
+      <img src={logoIcon} alt={nomeEmpresa} className={cn(s.icon, 'shrink-0 object-contain')} />
       {showText && (
         <div className={cn('flex flex-col leading-none', stacked ? 'items-center' : 'justify-center')}>
-          <p className={cn('font-bold tracking-wide text-foreground whitespace-nowrap', s.title)}>CENTER TRUCK</p>
+          <p className={cn('font-bold tracking-wide text-foreground whitespace-nowrap', s.title)}>
+            {sistemaLabel}
+          </p>
           <p
             className={cn(
               'mt-1 font-medium uppercase tracking-wider text-secondary whitespace-nowrap',
               s.subtitle,
             )}
           >
-            Gvel Diesel
+            {nomeEmpresa}
           </p>
         </div>
       )}

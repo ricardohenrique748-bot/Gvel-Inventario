@@ -28,7 +28,10 @@ import {
   TrendingDown,
   Laptop,
   Sparkles,
+  ShieldAlert,
 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { isEstoqueAuthorized } from '@/components/layout/nav'
 import { CameraWebcamModal } from '@/components/CameraWebcamModal'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -364,6 +367,9 @@ function ScrollContainer({
 }
 
 export function InventarioFerramentas() {
+  const { user, perfilLoading } = useAuth()
+  const canAccess = isEstoqueAuthorized(user?.email)
+
   const [searchParams, setSearchParams] = useSearchParams()
   const abaParam = searchParams.get('aba')
 
@@ -623,6 +629,33 @@ export function InventarioFerramentas() {
     } catch (err) {
       setMensagemErro(err instanceof Error ? err.message : 'ERRO AO RESTAURAR RETIRADA.')
     }
+  }
+
+  if (perfilLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center uppercase">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
+      </div>
+    )
+  }
+
+  if (!canAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 space-y-4 uppercase">
+        <div className="h-16 w-16 rounded-2xl bg-status-danger/10 border border-status-danger/30 flex items-center justify-center text-status-danger">
+          <ShieldAlert className="h-8 w-8" />
+        </div>
+        <div className="space-y-1.5 max-w-md">
+          <h2 className="text-xl font-black text-foreground tracking-tight">ACESSO RESTRITO</h2>
+          <p className="text-xs text-secondary leading-relaxed">
+            O MÓDULO DE ESTOQUE É RESTRITO EXCLUSIVAMENTE AO USUÁRIO AUTORIZADO (INVENTARIO@GVELDIESEL.COM).
+          </p>
+        </div>
+        <Button onClick={() => (window.location.href = '/')} variant="secondary" size="md" className="uppercase font-bold text-xs">
+          VOLTAR AO INÍCIO
+        </Button>
+      </div>
+    )
   }
 
   return (

@@ -41,6 +41,7 @@ const VeiculoPublico = lazy(() =>
 )
 
 import { NotificacoesProvider } from '@/contexts/NotificacoesContext'
+import { EmpresaProvider } from '@/contexts/EmpresaContext'
 
 function PaginaCarregando() {
   return (
@@ -68,6 +69,7 @@ export default function App() {
     <ThemeProvider>
       <BrowserRouter>
         <AuthProvider>
+          <EmpresaProvider>
           <NotificacoesProvider>
             <Suspense fallback={<PaginaCarregando />}>
               <Routes>
@@ -112,6 +114,7 @@ export default function App() {
               </Routes>
             </Suspense>
           </NotificacoesProvider>
+          </EmpresaProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
