@@ -1,5 +1,12 @@
 import type { Usuario } from './types'
 
+export interface SubModuloSistema {
+  id: string
+  label: string
+  descricao: string
+  rota?: string
+}
+
 export interface ModuloSistema {
   id: string
   label: string
@@ -7,6 +14,7 @@ export interface ModuloSistema {
   iconeNome: string
   rotaPadrao: string
   categoria?: 'operacional' | 'gestao' | 'administrativo'
+  subModulos?: SubModuloSistema[]
 }
 
 export const MODULOS_SISTEMA: ModuloSistema[] = [
@@ -17,6 +25,10 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     iconeNome: 'BarChart3',
     rotaPadrao: '/dashboard-gerencial',
     categoria: 'gestao',
+    subModulos: [
+      { id: 'dashboard_visao_geral', label: 'Painel Geral', descricao: 'Visão executiva e consolidação de dados', rota: '/dashboard-gerencial' },
+      { id: 'dashboard_controle_horas', label: 'Indicador de Performance', descricao: 'Controle de horas e apontamentos', rota: '/controle-horas' },
+    ],
   },
   {
     id: 'manutencao',
@@ -33,6 +45,10 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     iconeNome: 'Truck',
     rotaPadrao: '/inventario-caminhoes',
     categoria: 'operacional',
+    subModulos: [
+      { id: 'caminhoes_dashboard', label: 'Dashboard do Pátio', descricao: 'Status em tempo real dos caminhões no pátio', rota: '/' },
+      { id: 'caminhoes_movimentacoes', label: 'Movimentações', descricao: 'Entradas, saídas e registros de fluxo', rota: '/movimentacoes' },
+    ],
   },
   {
     id: 'frotas',
@@ -41,6 +57,11 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     iconeNome: 'ClipboardCheck',
     rotaPadrao: '/frotas',
     categoria: 'operacional',
+    subModulos: [
+      { id: 'frotas_dashboard', label: 'Dashboard Frota', descricao: 'Gráficos, status e vencimentos de documentos', rota: '/frotas' },
+      { id: 'frotas_veiculos', label: 'Veículos', descricao: 'Listagem e cadastro completo de veículos', rota: '/frotas?aba=veiculos' },
+      { id: 'frotas_checklist', label: 'Checklist', descricao: 'Inspeções e conferência de itens', rota: '/frotas?aba=checklist' },
+    ],
   },
   {
     id: 'estoque',
@@ -49,6 +70,13 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     iconeNome: 'Hammer',
     rotaPadrao: '/inventario-ferramentas',
     categoria: 'operacional',
+    subModulos: [
+      { id: 'estoque_ferramentas', label: 'Ferramentas', descricao: 'Catálogo geral e inventário de ferramentas', rota: '/inventario-ferramentas' },
+      { id: 'estoque_consumo', label: 'Uso e Consumo', descricao: 'Insumos, descartáveis e reposição', rota: '/inventario-ferramentas?aba=consumo' },
+      { id: 'estoque_caixas', label: 'Caixas de Ferramentas', descricao: 'Kits por mecânico e caixas de ferramentas', rota: '/inventario-ferramentas?aba=caixas' },
+      { id: 'estoque_em_uso', label: 'Em Uso no Momento', descricao: 'Ferramentas retiradas da oficina', rota: '/inventario-ferramentas?aba=em_uso' },
+      { id: 'estoque_historico', label: 'Histórico de Retiradas', descricao: 'Log completo de retiradas e devoluções', rota: '/inventario-ferramentas?aba=historico' },
+    ],
   },
   {
     id: 'financeiro',
@@ -93,20 +121,37 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
   {
     id: 'configuracoes',
     label: 'Configurações',
-    descricao: 'Gestão de empresas, clientes, usuários e notificações',
+    descricao: 'Ajustes e cadastros gerais do sistema',
     iconeNome: 'Settings',
     rotaPadrao: '/configuracoes',
     categoria: 'administrativo',
+    subModulos: [
+      { id: 'config_empresas', label: 'Empresas', descricao: 'Cadastro e gestão de empresas do Grupo GVEL' },
+      { id: 'config_clientes', label: 'Clientes', descricao: 'Cadastro e gerenciamento de clientes e contatos' },
+      { id: 'config_frota', label: 'Frota', descricao: 'Modelos, marcas e veículos da frota' },
+      { id: 'config_usuarios', label: 'Usuários & Permissões', descricao: 'Gerenciar contas, senhas e permissões de acesso' },
+      { id: 'config_notificacoes', label: 'Notificações', descricao: 'Preferências de alertas e avisos sonoros' },
+    ],
   },
 ]
 
-export const TODOS_MODULOS_IDS = MODULOS_SISTEMA.map((m) => m.id)
+// Todos os IDs incluindo sub-módulos
+export const TODOS_MODULOS_IDS = MODULOS_SISTEMA.flatMap((m) => [
+  m.id,
+  ...(m.subModulos ? m.subModulos.map((s) => s.id) : []),
+])
 
 // Módulos padrão para novos usuários comuns
 export const MODULOS_PADRAO_USUARIO = [
   'inventario_caminhoes',
+  'caminhoes_dashboard',
+  'caminhoes_movimentacoes',
   'manutencao',
   'frotas',
+  'frotas_dashboard',
+  'frotas_veiculos',
+  'frotas_checklist',
+  'config_notificacoes',
 ]
 
 const STORAGE_PERMISSOES_KEY = 'gvel_permissoes_usuarios_v2'
@@ -141,8 +186,11 @@ export function salvarPermissoesUsuario(emailOuId: string, modulos: string[]) {
 export function getModulosUsuario(usuario?: Partial<Usuario> | null): string[] {
   if (!usuario) return []
 
+  const chaveEmail = (usuario.email || '').toLowerCase().trim()
+  const chaveId = usuario.id || ''
+
   // Administrador tem acesso total a todos os módulos
-  if (usuario.nivel === 'admin') {
+  if (usuario.nivel === 'admin' || chaveEmail === 'victor@gveldiesel.com' || chaveEmail === 'ricardo_h.16@hotmail.com') {
     return TODOS_MODULOS_IDS
   }
 
@@ -152,10 +200,7 @@ export function getModulosUsuario(usuario?: Partial<Usuario> | null): string[] {
   }
 
   // 2. Verificar no armazenamento local sincronizado
-  const chaveEmail = (usuario.email || '').toLowerCase().trim()
-  const chaveId = usuario.id || ''
   const locais = getPermissoesLocais()
-  
   if (chaveEmail && locais[chaveEmail]) {
     return locais[chaveEmail]
   }
@@ -165,28 +210,87 @@ export function getModulosUsuario(usuario?: Partial<Usuario> | null): string[] {
 
   // 3. Fallbacks legados baseados em regras anteriores
   if (chaveEmail === 'inventario@gveldiesel.com') {
-    return ['estoque', 'inventario_caminhoes', 'frotas', 'relatorios']
-  }
-  if (chaveEmail === 'victor@gveldiesel.com') {
-    return TODOS_MODULOS_IDS
+    return [
+      'estoque',
+      'estoque_ferramentas',
+      'estoque_consumo',
+      'estoque_caixas',
+      'estoque_em_uso',
+      'estoque_historico',
+      'inventario_caminhoes',
+      'caminhoes_dashboard',
+      'caminhoes_movimentacoes',
+      'frotas',
+      'frotas_dashboard',
+      'frotas_veiculos',
+      'frotas_checklist',
+      'relatorios',
+      'config_notificacoes',
+    ]
   }
   if (chaveEmail === 'junior@gveldiesel.com' || chaveEmail === 'mariaclara@gveldiesel.com') {
-    return ['dashboard_gerencial', 'manutencao', 'inventario_caminhoes', 'frotas', 'relatorios']
+    return [
+      'dashboard_gerencial',
+      'dashboard_visao_geral',
+      'dashboard_controle_horas',
+      'manutencao',
+      'inventario_caminhoes',
+      'caminhoes_dashboard',
+      'caminhoes_movimentacoes',
+      'frotas',
+      'frotas_dashboard',
+      'frotas_veiculos',
+      'frotas_checklist',
+      'relatorios',
+      'config_notificacoes',
+    ]
   }
 
   return MODULOS_PADRAO_USUARIO
 }
 
 /**
- * Verifica se o usuário tem permissão para acessar um módulo específico
+ * Mapeia prefixos para facilitar a resolução de módulo pai e filho
+ */
+const PREFIXO_PAI_MAP: Record<string, string> = {
+  config_: 'configuracoes',
+  estoque_: 'estoque',
+  frotas_: 'frotas',
+  caminhoes_: 'inventario_caminhoes',
+  dashboard_: 'dashboard_gerencial',
+}
+
+/**
+ * Verifica se o usuário tem permissão para acessar um módulo ou sub-módulo específico
  */
 export function temPermissaoModulo(
   usuario: Partial<Usuario> | null | undefined,
   moduloId: string,
 ): boolean {
   if (!usuario) return false
-  if (usuario.nivel === 'admin') return true
+  const email = (usuario.email || '').toLowerCase().trim()
+  if (usuario.nivel === 'admin' || email === 'victor@gveldiesel.com' || email === 'ricardo_h.16@hotmail.com') {
+    return true
+  }
 
   const permitidos = getModulosUsuario(usuario)
-  return permitidos.includes(moduloId)
+  
+  // Se tem o ID exato
+  if (permitidos.includes(moduloId)) return true
+
+  // Verifica se o usuário possui o módulo pai do sub-módulo
+  for (const [prefixo, paiId] of Object.entries(PREFIXO_PAI_MAP)) {
+    if (moduloId.startsWith(prefixo) && permitidos.includes(paiId)) {
+      return true
+    }
+  }
+
+  // Verifica se o usuário possui qualquer sub-módulo do módulo pai
+  for (const [prefixo, paiId] of Object.entries(PREFIXO_PAI_MAP)) {
+    if (moduloId === paiId && permitidos.some((p) => p.startsWith(prefixo))) {
+      return true
+    }
+  }
+
+  return false
 }

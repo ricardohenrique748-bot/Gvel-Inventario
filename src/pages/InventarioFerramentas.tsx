@@ -367,8 +367,9 @@ function ScrollContainer({
 }
 
 export function InventarioFerramentas() {
-  const { user, perfilLoading } = useAuth()
-  const canAccess = isEstoqueAuthorized(user?.email)
+  const { user, perfil, perfilLoading } = useAuth()
+  const userRef = perfil || { email: user?.email }
+  const canAccess = perfil?.nivel === 'admin' || isEstoqueAuthorized(userRef)
 
   const [searchParams, setSearchParams] = useSearchParams()
   const abaParam = searchParams.get('aba')

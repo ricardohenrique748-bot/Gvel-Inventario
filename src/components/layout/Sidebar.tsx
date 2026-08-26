@@ -151,18 +151,28 @@ export function Sidebar() {
         return true
       })
       .map((item) => {
-        if (!isAdmin && !canAccessConfiguracoes && item.to === '/configuracoes') {
-          // Usuário com acesso a relatórios mas não admin/configurações: mostrar Configurações só com Relatórios
-          if (canAccessRelatorios && 'children' in item && (item as any).children) {
-            const relatoriosChild = ((item as any).children as { to: string }[]).filter(
-              (c) => c.to === '/relatorios',
-            )
-            if (relatoriosChild.length > 0) {
-              return { ...item, children: relatoriosChild }
-            }
+        if ('children' in item && item.children && (item as any).children.length > 0) {
+          const filteredChildren = ((item as any).children as any[]).filter((c: any) => {
+            if (c.to === '/controle-horas') return isModuloAuthorized(userRef, 'dashboard_controle_horas')
+            if (c.to === '/') return isModuloAuthorized(userRef, 'caminhoes_dashboard')
+            if (c.to === '/movimentacoes') return isModuloAuthorized(userRef, 'caminhoes_movimentacoes')
+            if (c.to === '/frotas') return isModuloAuthorized(userRef, 'frotas_dashboard')
+            if (c.to === '/frotas?aba=veiculos') return isModuloAuthorized(userRef, 'frotas_veiculos')
+            if (c.to === '/frotas?aba=checklist') return isModuloAuthorized(userRef, 'frotas_checklist')
+            if (c.to === '/inventario-ferramentas') return isModuloAuthorized(userRef, 'estoque_ferramentas')
+            if (c.to === '/inventario-ferramentas?aba=consumo') return isModuloAuthorized(userRef, 'estoque_consumo')
+            if (c.to === '/inventario-ferramentas?aba=caixas') return isModuloAuthorized(userRef, 'estoque_caixas')
+            if (c.to === '/inventario-ferramentas?aba=em_uso') return isModuloAuthorized(userRef, 'estoque_em_uso')
+            if (c.to === '/inventario-ferramentas?aba=historico') return isModuloAuthorized(userRef, 'estoque_historico')
+            if (c.to === '/clientes') return isModuloAuthorized(userRef, 'config_clientes')
+            if (c.to === '/relatorios') return isModuloAuthorized(userRef, 'relatorios')
+            return true
+          })
+          if (filteredChildren.length === 0) {
+            const { children: _children, ...rest } = item as any
+            return rest
           }
-          const { children: _children, ...rest } = item as any
-          return rest
+          return { ...item, children: filteredChildren }
         }
         return item
       })

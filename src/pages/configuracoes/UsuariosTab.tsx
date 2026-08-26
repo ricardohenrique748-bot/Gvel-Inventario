@@ -10,10 +10,9 @@ import {
   KeyRound,
   Copy,
   Check,
+  Minus,
   Shield,
   ShieldCheck,
-  CheckSquare,
-  Square,
   BarChart3,
   Wrench,
   Truck,
@@ -25,6 +24,10 @@ import {
   ShoppingCart,
   FileBarChart,
   Settings,
+  ShieldAlert,
+  Building2,
+  Users,
+  Bell,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError, Select } from '@/components/ui/Input'
@@ -33,7 +36,7 @@ import { Badge } from '@/components/ui/Badge'
 import { useUsuarios, criarUsuario, excluirUsuario, atualizarUsuario, resetarSenha } from '@/hooks/useUsuarios'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatDate } from '@/lib/format'
-import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, getModulosUsuario } from '@/lib/permissoes'
+import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, getModulosUsuario, type ModuloSistema } from '@/lib/permissoes'
 import type { Usuario } from '@/lib/types'
 
 const ICONES_MODULOS: Record<string, React.ElementType> = {
@@ -48,6 +51,9 @@ const ICONES_MODULOS: Record<string, React.ElementType> = {
   ShoppingCart,
   FileBarChart,
   Settings,
+  Building2,
+  Users,
+  Bell,
 }
 
 const schema = z.object({
@@ -79,64 +85,212 @@ interface ModulosSelectorProps {
 function ModulosSelector({ nivel, selected, onChange }: ModulosSelectorProps) {
   const isAdmin = nivel === 'admin'
 
-  const toggleModulo = (id: string) => {
+  const toggleModulo = (id: string, subIds?: string[]) => {
     if (isAdmin) return
-    if (selected.includes(id)) {
-      onChange(selected.filter((m) => m !== id))
+    const hasSub = Array.isArray(subIds) && subIds.length > 0
+    const areAllSubsSelected = hasSub ? subIds.every((s) => selected.includes(s)) : selected.includes(id)
+
+    if (areAllSubsSelected) {
+      // Se todos estavam selecionados, remove o pai e todos os filhos
+      const idsParaRemover = [id, ...(subIds || [])]
+      onChange(selected.filter((m) => !idsParaRemover.includes(m)))
     } else {
-      onChange([...selected, id])
+      // Se não estavam todos selecionados, marca o pai e TODOS os filhos
+      const idsParaAdicionar = [id, ...(subIds || [])]
+      onChange(Array.from(new Set([...selected, ...idsParaAdicionar])))
     }
   }
 
-  const selecionarTodos = () => {
-    onChange(TODOS_MODULOS_IDS)
+  const toggleSubModulo = (subId: string, parentId: string, allSubIds: string[]) => {
+    if (isAdmin) return
+    let updated: string[]
+
+    if (selected.includes(subId)) {
+      // Desmarcando este sub-módulo
+      updated = selected.filter((m) => m !== subId)
+      // Se não sobrou nenhum outro sub-módulo selecionado, desmarca também o pai
+      const sobrouAlgum = allSubIds.some((s) => s !== subId && updated.includes(s))
+      if (!sobrouAlgum) {
+        updated = updated.filter((m) => m !== parentId)
+      }
+    } else {
+      // Marcando este sub-módulo: adiciona o sub-módulo e garante que o pai esteja na lista
+      updated = Array.from(new Set([...selected, subId, parentId]))
+    }
+
+    onChange(updated)
   }
 
-  const selecionarPadrao = () => {
-    onChange(MODULOS_PADRAO_USUARIO)
-  }
+  const selecionarTodos = () => onChange(TODOS_MODULOS_IDS)
+  const selecionarPadrao = () => onChange(MODULOS_PADRAO_USUARIO)
+  const limparTodos = () => onChange([])
 
-  const limparTodos = () => {
-    onChange([])
+  const renderCardModulo = (modulo: ModuloSistema) => {
+    const Icon = ICONES_MODULOS[modulo.iconeNome] || Shield
+    const hasSub = Array.isArray(modulo.subModulos) && modulo.subModulos.length > 0
+    const subIds = hasSub ? modulo.subModulos!.map((s) => s.id) : []
+    const totalSubsSelecionados = subIds.filter((s) => selected.includes(s)).length
+    const isAllSubsChecked = hasSub && totalSubsSelecionados === subIds.length
+    const isParentChecked = isAdmin || (hasSub ? totalSubsSelecionados > 0 : selected.includes(modulo.id))
+
+    return (
+      <div
+        key={modulo.id}
+        className={`flex flex-col justify-between rounded-2xl border transition-all duration-200 overflow-hidden ${
+          isAdmin
+            ? 'border-primary/30 bg-primary/5 opacity-85'
+            : isParentChecked
+            ? 'border-primary/50 bg-gradient-to-b from-surface via-surface to-primary/5 text-foreground shadow-lg shadow-black/20'
+            : 'border-border/15 bg-surface/50 text-secondary hover:border-border/40 hover:bg-surface'
+        }`}
+      >
+        {/* Cabeçalho do Card */}
+        <div
+          onClick={() => toggleModulo(modulo.id, subIds)}
+          className="flex items-start justify-between gap-3 p-3.5 select-none cursor-pointer"
+        >
+          <div className="flex items-start gap-3 min-w-0">
+            <div
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                isParentChecked
+                  ? 'bg-primary/20 text-primary border border-primary/30'
+                  : 'bg-background text-secondary border border-border/15'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-xs font-bold uppercase tracking-tight truncate text-foreground">
+                  {modulo.label}
+                </p>
+                {hasSub && !isAdmin && totalSubsSelecionados > 0 && (
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                    isAllSubsChecked
+                      ? 'bg-primary/20 text-primary border-primary/30'
+                      : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                  }`}>
+                    {totalSubsSelecionados}/{subIds.length} abas
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-secondary leading-tight mt-0.5 line-clamp-2">
+                {modulo.descricao}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-0.5 shrink-0 pl-1">
+            {isAdmin || isAllSubsChecked || (!hasSub && isParentChecked) ? (
+              <div className="h-5 w-5 rounded-md bg-primary flex items-center justify-center text-white shadow-sm shadow-primary/40">
+                <Check className="h-3.5 w-3.5 stroke-[3]" />
+              </div>
+            ) : totalSubsSelecionados > 0 ? (
+              <div className="h-5 w-5 rounded-md bg-primary/20 border border-primary/50 flex items-center justify-center text-primary">
+                <Minus className="h-3.5 w-3.5 stroke-[3]" />
+              </div>
+            ) : (
+              <div className="h-5 w-5 rounded-md border border-secondary/30 bg-background/50 hover:border-secondary transition-colors" />
+            )}
+          </div>
+        </div>
+
+        {/* Sub-Abas Detalhadas em Pills Chips */}
+        {hasSub && (
+          <div className="border-t border-border/10 bg-background/40 p-2.5 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-secondary">
+                Abas e Telas:
+              </span>
+              {!isAdmin && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleModulo(modulo.id, subIds)
+                  }}
+                  className="text-[9px] font-bold text-primary hover:underline uppercase"
+                >
+                  {isAllSubsChecked ? 'Desmarcar Todas' : 'Marcar Todas'}
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {modulo.subModulos!.map((sub) => {
+                const isSubChecked = isAdmin || selected.includes(sub.id)
+
+                return (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleSubModulo(sub.id, modulo.id, subIds)
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-tight transition-all cursor-pointer ${
+                      isAdmin
+                        ? 'bg-primary text-white border border-primary cursor-default'
+                        : isSubChecked
+                        ? 'bg-primary text-white border border-primary shadow-sm shadow-primary/30'
+                        : 'bg-surface/50 border border-border/15 text-secondary/60 hover:border-border/40 hover:text-foreground'
+                    }`}
+                  >
+                    {isSubChecked ? (
+                      <Check className="h-3 w-3 text-white stroke-[3]" />
+                    ) : (
+                      <span className="h-1.5 w-1.5 rounded-full bg-secondary/30" />
+                    )}
+                    <span>{sub.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-3 rounded-2xl border border-border/20 bg-background/50 p-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/10 pb-3">
+    <div className="space-y-4 rounded-2xl border border-border/20 bg-background/60 p-4 sm:p-5">
+      {/* Cabeçalho do Seletor */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-border/10 pb-3.5">
         <div>
           <Label className="!mb-0 text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
             <Shield className="h-4 w-4 text-primary" />
-            Módulos & Telas Permitidas
+            Permissões de Acesso aos Módulos
           </Label>
           <p className="text-[11px] text-secondary mt-0.5">
             {isAdmin
-              ? 'Administradores possuem acesso mestre a todas as telas do sistema.'
-              : 'Selecione as telas e funcionalidades que este usuário poderá visualizar e acessar:'}
+              ? 'Administradores possuem acesso mestre a todas as telas e abas do sistema.'
+              : 'Defina com precisão quais telas e sub-abas este usuário poderá acessar:'}
           </p>
         </div>
 
         {!isAdmin && (
-          <div className="flex items-center gap-1.5 self-end sm:self-auto">
+          <div className="flex items-center gap-2 self-end sm:self-auto bg-surface/80 border border-border/15 px-2.5 py-1 rounded-xl">
             <button
               type="button"
               onClick={selecionarTodos}
-              className="text-[11px] font-bold text-primary hover:underline px-1.5 py-0.5 rounded transition-colors"
+              className="text-[10px] font-bold uppercase text-primary hover:underline transition-colors"
             >
               Marcar Todos
             </button>
-            <span className="text-secondary/40">·</span>
+            <span className="text-secondary/30">|</span>
             <button
               type="button"
               onClick={selecionarPadrao}
-              className="text-[11px] font-bold text-secondary hover:text-foreground px-1.5 py-0.5 rounded transition-colors"
+              className="text-[10px] font-bold uppercase text-secondary hover:text-foreground transition-colors"
             >
               Padrão
             </button>
-            <span className="text-secondary/40">·</span>
+            <span className="text-secondary/30">|</span>
             <button
               type="button"
               onClick={limparTodos}
-              className="text-[11px] font-bold text-secondary hover:text-foreground px-1.5 py-0.5 rounded transition-colors"
+              className="text-[10px] font-bold uppercase text-secondary hover:text-foreground transition-colors"
             >
               Limpar
             </button>
@@ -144,51 +298,17 @@ function ModulosSelector({ nivel, selected, onChange }: ModulosSelectorProps) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
-        {MODULOS_SISTEMA.map((modulo) => {
-          const Icon = ICONES_MODULOS[modulo.iconeNome] || Shield
-          const isChecked = isAdmin || selected.includes(modulo.id)
-
-          return (
-            <div
-              key={modulo.id}
-              onClick={() => toggleModulo(modulo.id)}
-              className={`flex items-start gap-3 p-3 rounded-xl border transition-all select-none cursor-pointer ${
-                isAdmin
-                  ? 'border-primary/30 bg-primary/5 opacity-80 cursor-default'
-                  : isChecked
-                  ? 'border-primary/50 bg-primary/10 text-foreground shadow-sm shadow-primary/10'
-                  : 'border-border/15 bg-surface/60 text-secondary hover:border-border/40 hover:text-foreground hover:bg-surface'
-              }`}
-            >
-              <div className="mt-0.5 shrink-0">
-                {isChecked ? (
-                  <CheckSquare className="h-4 w-4 text-primary" />
-                ) : (
-                  <Square className="h-4 w-4 text-secondary/50" />
-                )}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <Icon className={`h-3.5 w-3.5 shrink-0 ${isChecked ? 'text-primary' : 'text-secondary'}`} />
-                  <p className="text-xs font-bold uppercase tracking-tight truncate">{modulo.label}</p>
-                </div>
-                <p className="text-[10px] text-secondary leading-tight mt-0.5 line-clamp-2">
-                  {modulo.descricao}
-                </p>
-              </div>
-            </div>
-          )
-        })}
+      {/* Grid Clean em 2 Colunas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {MODULOS_SISTEMA.map(renderCardModulo)}
       </div>
     </div>
   )
 }
 
 export function UsuariosTab() {
-  const { perfil } = useAuth()
-  const isAdmin = perfil?.nivel === 'admin'
+  const { perfil, user } = useAuth()
+  const isAdmin = perfil?.nivel === 'admin' || user?.email === 'ricardo_h.16@hotmail.com' || user?.email === 'victor@gveldiesel.com'
   const { usuarios, loading, refetch } = useUsuarios()
   const [mostrarForm, setMostrarForm] = useState(false)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
@@ -215,6 +335,23 @@ export function UsuariosTab() {
   })
 
   const nivelWatch = watch('nivel')
+
+  // Regra fundamental: Apenas administradores podem gerenciar usuários
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] text-center p-6 space-y-3 uppercase">
+        <div className="h-14 w-14 rounded-2xl bg-status-danger/10 border border-status-danger/30 flex items-center justify-center text-status-danger">
+          <ShieldAlert className="h-7 w-7" />
+        </div>
+        <div className="space-y-1 max-w-md">
+          <h3 className="text-base font-bold text-foreground tracking-tight">Acesso Exclusivo para Administradores</h3>
+          <p className="text-xs text-secondary leading-relaxed">
+            Apenas administradores do sistema possuem permissão para cadastrar, editar permissões ou alterar dados de usuários.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   async function onSubmit(values: FormValues) {
     try {
@@ -315,7 +452,7 @@ export function UsuariosTab() {
                   </div>
                 </div>
 
-                {/* Seletor de Permissões de Módulos */}
+                {/* Seletor Clean de Permissões */}
                 <Controller
                   name="modulos"
                   control={control}
@@ -394,59 +531,72 @@ export function UsuariosTab() {
                             ) : (
                               modulosPermitidos.map((modId) => {
                                 const mod = MODULOS_SISTEMA.find((m) => m.id === modId)
-                                if (!mod) return null
-                                return (
-                                  <span
-                                    key={modId}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface border border-border/20 text-[10px] font-semibold text-foreground uppercase"
-                                  >
-                                    {mod.label}
-                                  </span>
-                                )
+                                if (mod) {
+                                  return (
+                                    <span
+                                      key={modId}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface border border-border/20 text-[10px] font-semibold text-foreground uppercase"
+                                    >
+                                      {mod.label}
+                                    </span>
+                                  )
+                                }
+                                for (const m of MODULOS_SISTEMA) {
+                                  const sub = m.subModulos?.find((s) => s.id === modId)
+                                  if (sub) {
+                                    return (
+                                      <span
+                                        key={modId}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary uppercase"
+                                      >
+                                        {m.label}: {sub.label}
+                                      </span>
+                                    )
+                                  }
+                                }
+                                return null
                               })
                             )}
                           </div>
                         )}
                       </div>
 
-                      {isAdmin && (
-                        <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                      <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          onClick={() => setEditandoId(u.id)}
+                          aria-label={`Editar ${u.nome}`}
+                          title="Editar permissões e dados"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          onClick={() => handleResetar(u.id, u.nome)}
+                          disabled={resetandoId === u.id}
+                          aria-label={`Resetar senha de ${u.nome}`}
+                          title="Resetar senha"
+                        >
+                          <KeyRound className="h-4 w-4" />
+                        </Button>
+                        {u.id !== perfil?.id && (
                           <Button
                             type="button"
-                            variant="secondary"
+                            variant="danger"
                             size="icon"
-                            onClick={() => setEditandoId(u.id)}
-                            aria-label={`Editar ${u.nome}`}
-                            title="Editar permissões e dados"
+                            onClick={() => handleExcluir(u.id, u.nome)}
+                            disabled={excluindoId === u.id}
+                            aria-label={`Excluir ${u.nome}`}
+                            title="Excluir usuário"
                           >
-                            <Pencil className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="icon"
-                            onClick={() => handleResetar(u.id, u.nome)}
-                            disabled={resetandoId === u.id}
-                            aria-label={`Resetar senha de ${u.nome}`}
-                            title="Resetar senha"
-                          >
-                            <KeyRound className="h-4 w-4" />
-                          </Button>
-                          {u.id !== perfil?.id && (
-                            <Button
-                              type="button"
-                              variant="danger"
-                              size="icon"
-                              onClick={() => handleExcluir(u.id, u.nome)}
-                              disabled={excluindoId === u.id}
-                              aria-label={`Excluir ${u.nome}`}
-                              title="Excluir usuário"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   )
                 })}
@@ -577,7 +727,7 @@ function EditarUsuarioForm({
         </div>
       </div>
 
-      {/* Seletor de Permissões de Módulos */}
+      {/* Seletor Clean de Permissões com Sub-Abas */}
       <Controller
         name="modulos"
         control={control}
