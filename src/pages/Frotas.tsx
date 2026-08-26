@@ -253,6 +253,8 @@ export function Frotas() {
                 tipo: base.tipo,
                 clienteNome: base.clienteNome,
                 clienteId: base.clienteId,
+                vencimentoDocumento: base.vencimentoDocumento || v.vencimentoDocumento,
+                observacoes: base.observacoes || v.observacoes,
               })
             } else {
               mapa.set(placa, v)
