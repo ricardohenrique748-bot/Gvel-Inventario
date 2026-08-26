@@ -65,13 +65,13 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
   },
   {
     id: 'estoque',
-    label: 'Estoque de Ferramentas',
+    label: 'Estoque',
     descricao: 'Controle de ferramentas, caixas e consumo',
     iconeNome: 'Hammer',
     rotaPadrao: '/inventario-ferramentas',
     categoria: 'operacional',
     subModulos: [
-      { id: 'estoque_ferramentas', label: 'Ferramentas', descricao: 'Catálogo geral e inventário de ferramentas', rota: '/inventario-ferramentas' },
+      { id: 'estoque_ferramentas', label: 'Inventário de Ferramentas', descricao: 'Catálogo geral e inventário de ferramentas', rota: '/inventario-ferramentas' },
       { id: 'estoque_consumo', label: 'Uso e Consumo', descricao: 'Insumos, descartáveis e reposição', rota: '/inventario-ferramentas?aba=consumo' },
       { id: 'estoque_caixas', label: 'Caixas de Ferramentas', descricao: 'Kits por mecânico e caixas de ferramentas', rota: '/inventario-ferramentas?aba=caixas' },
       { id: 'estoque_em_uso', label: 'Em Uso no Momento', descricao: 'Ferramentas retiradas da oficina', rota: '/inventario-ferramentas?aba=em_uso' },
@@ -213,10 +213,8 @@ export function getModulosUsuario(usuario?: Partial<Usuario> | null): string[] {
     return [
       'estoque',
       'estoque_ferramentas',
-      'estoque_consumo',
-      'estoque_caixas',
-      'estoque_em_uso',
-      'estoque_historico',
+      'estoque_especiais',
+      'estoque_insumos',
       'inventario_caminhoes',
       'caminhoes_dashboard',
       'caminhoes_movimentacoes',

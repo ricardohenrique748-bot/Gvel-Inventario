@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useRef, useDeferredValue } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Hammer,
+  Wrench,
   Plus,
   ArrowUpRight,
   RotateCcw,
@@ -287,7 +288,7 @@ const CAIXAS_INICIAIS: CaixaFerramenta[] = [
   },
 ]
 
-const CATEGORIAS_SUGERIDAS = [
+const CATEGORIAS_FERRAMENTAS = [
   'TODAS',
   'CHAVES E SOQUETES',
   'PNEUMÁTICA',
@@ -295,9 +296,36 @@ const CATEGORIAS_SUGERIDAS = [
   'HIDRÁULICA',
   'MEDIÇÃO E DIAGNÓSTICO',
   'CORTE E DESBASTE',
-  'INSUMOS',
   'GERAL',
 ]
+
+const CATEGORIAS_ESPECIAIS = [
+  'TODAS',
+  'SACADORES E EXTRATORES',
+  'GABARITOS E TRAVAS',
+  'SCANNERS E DIAGNÓSTICO',
+  'TORQUÍMETROS ESPECIAIS',
+  'HIDRÁULICA PESADA',
+  'ESPECIAL MOTORES',
+  'GERAL',
+]
+
+const CATEGORIAS_INSUMOS = [
+  'TODAS',
+  'QUÍMICOS E SPRAYS',
+  'ABRASIVOS E DISCOS',
+  'FIXAÇÃO E PARAFUSOS',
+  'EPI E SEGURANÇA',
+  'SOLDA E CONSUMÍVEIS',
+  'LIMPEZA E ESTOPA',
+  'GERAL',
+]
+
+const CATEGORIAS_SUGERIDAS = Array.from(
+  new Set([...CATEGORIAS_FERRAMENTAS, ...CATEGORIAS_ESPECIAIS, ...CATEGORIAS_INSUMOS])
+)
+
+export type AbaEstoque = 'ferramentas' | 'especiais' | 'insumos' | 'em_uso' | 'historico' | 'caixas'
 
 function ScrollContainer({
   children,
@@ -358,8 +386,8 @@ function ScrollContainer({
       onMouseUp={handleMouseUp}
       onMouseMove={handleMouseMove}
       onWheel={handleWheel}
-      className={`overflow-x-auto select-none cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden touch-pan-x ${className}`}
-      style={{ WebkitOverflowScrolling: 'touch' }}
+      className={`overflow-x-auto select-none no-scrollbar cursor-grab active:cursor-grabbing ${className}`}
+      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
     >
       {children}
     </div>
@@ -402,6 +430,7 @@ export function InventarioFerramentas() {
     })
   }
 
+  const [tipoFiltro, setTipoFiltro] = useState<'ferramentas' | 'especiais' | 'insumos'>('ferramentas')
   const [busca, setBusca] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState('TODAS')
   const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'grid'>('lista')
@@ -559,14 +588,53 @@ export function InventarioFerramentas() {
   const [limiteConsumo, setLimiteConsumo] = useState(30)
   const [limiteHistoricoConsumo, setLimiteHistoricoConsumo] = useState(30)
 
-  useEffect(() => {
-    setLimiteExibicao(30)
-  }, [deferredBusca, categoriaFiltro])
+  // Ferramentas comuns vs especiais vs insumos
+  const ferramentasComuns = useMemo(() => {
+    return ferramentas.filter(
+      (f) => f.tipo_ferramenta !== 'especial' && !f.categoria?.toUpperCase().includes('ESPECIAL') && !f.categoria?.toUpperCase().includes('INSUMO')
+    )
+  }, [ferramentas])
 
-  // Filtragem de estoque
+  const ferramentasEspeciais = useMemo(() => {
+    return ferramentas.filter(
+      (f) => f.tipo_ferramenta === 'especial' || f.categoria?.toUpperCase().includes('ESPECIAL')
+    )
+  }, [ferramentas])
+
+  const ferramentasInsumos = useMemo(() => {
+    return ferramentas.filter(
+      (f) => f.categoria?.toUpperCase().includes('INSUMO')
+    )
+  }, [ferramentas])
+
+  // Categorias ativas para o tipo selecionado (Ferramentas, Ferramentas Especiais, Insumos)
+  const categoriasAtivas = useMemo(() => {
+    if (tipoFiltro === 'ferramentas') {
+      const customCats = Array.from(new Set(ferramentasComuns.map((f) => f.categoria?.toUpperCase()).filter(Boolean))) as string[]
+      return Array.from(new Set([...CATEGORIAS_FERRAMENTAS, ...customCats]))
+    }
+    if (tipoFiltro === 'especiais') {
+      const customCats = Array.from(new Set(ferramentasEspeciais.map((f) => f.categoria?.toUpperCase()).filter(Boolean))) as string[]
+      return Array.from(new Set([...CATEGORIAS_ESPECIAIS, ...customCats]))
+    }
+    if (tipoFiltro === 'insumos') {
+      const customCats = Array.from(new Set(itensConsumo.map((i) => i.categoria?.toUpperCase()).filter(Boolean))) as string[]
+      return Array.from(new Set([...CATEGORIAS_INSUMOS, ...customCats]))
+    }
+    return ['TODAS']
+  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, itensConsumo])
+
+  // Filtragem da lista ativa de acordo com o tipoFiltro
   const ferramentasFiltradas = useMemo(() => {
     const termo = deferredBusca.trim().toLowerCase()
-    return ferramentas.filter((f) => {
+    const baseList =
+      tipoFiltro === 'especiais'
+        ? ferramentasEspeciais
+        : tipoFiltro === 'insumos'
+        ? (ferramentasInsumos.length > 0 ? ferramentasInsumos : ferramentas.filter((f) => f.categoria?.toUpperCase().includes('INSUMO')))
+        : ferramentasComuns
+
+    return baseList.filter((f) => {
       const matchBusca =
         !termo ||
         f.nome.toLowerCase().includes(termo) ||
@@ -579,7 +647,7 @@ export function InventarioFerramentas() {
 
       return matchBusca && matchCat
     })
-  }, [ferramentas, deferredBusca, categoriaFiltro])
+  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, ferramentasInsumos, ferramentas, deferredBusca, categoriaFiltro])
 
   // Retiradas ativas
   const retiradasAtivas = useMemo(() => {
@@ -782,7 +850,7 @@ export function InventarioFerramentas() {
         </div>
       </div>
 
-      {/* Barra de Abas Principal (Estilo Tabs Segmentadas com Scroll Nativo) */}
+      {/* Barra de Abas Principal (5 Abas Originais do Fluxo de Trabalho do Estoque) */}
       <ScrollContainer className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md">
         <button
           type="button"
@@ -885,9 +953,97 @@ export function InventarioFerramentas() {
       {/* ==================== ABA 1: ESTOQUE DE FERRAMENTAS ==================== */}
       {abaAtiva === 'estoque' && (
         <div className="space-y-4">
-          {/* Filtros, Busca e Alternador de Visualização */}
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-1 items-center gap-2 max-w-lg">
+          {/* Barra de Filtros: Linha 1 (Tipos + Categorias) & Linha 2 (Busca + Alternador) */}
+          <div className="space-y-3">
+            {/* Linha 1: 3 Abas de Tipos e Filtro de Categoria em destaque */}
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+              {/* 3 Abas de Tipos (Ferramentas, Ferramentas Especiais, Insumos) */}
+              <ScrollContainer className="flex items-center gap-1.5 p-1 rounded-2xl bg-surface/80 border border-border/20 shadow-sm shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoFiltro('ferramentas')
+                    setCategoriaFiltro('TODAS')
+                  }}
+                  className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 uppercase ${
+                    tipoFiltro === 'ferramentas'
+                      ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                      : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+                  }`}
+                >
+                  <Hammer className="h-3.5 w-3.5" />
+                  FERRAMENTAS
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                    tipoFiltro === 'ferramentas' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+                  }`}>
+                    {ferramentasComuns.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoFiltro('especiais')
+                    setCategoriaFiltro('TODAS')
+                  }}
+                  className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 uppercase ${
+                    tipoFiltro === 'especiais'
+                      ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                      : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+                  }`}
+                >
+                  <Wrench className="h-3.5 w-3.5" />
+                  FERRAMENTAS ESPECIAIS
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                    tipoFiltro === 'especiais' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+                  }`}>
+                    {ferramentasEspeciais.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoFiltro('insumos')
+                    setCategoriaFiltro('TODAS')
+                  }}
+                  className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 uppercase ${
+                    tipoFiltro === 'insumos'
+                      ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                      : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+                  }`}
+                >
+                  <Boxes className="h-3.5 w-3.5" />
+                  INSUMOS
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                    tipoFiltro === 'insumos' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+                  }`}>
+                    {itensConsumo.length}
+                  </span>
+                </button>
+              </ScrollContainer>
+
+              {/* Filtro de Categoria (Totalmente Visível e em Destaque) */}
+              <div className="w-full md:w-80 shrink-0">
+                <select
+                  value={categoriaFiltro}
+                  onChange={(e) => setCategoriaFiltro(e.target.value)}
+                  className="h-11 w-full rounded-2xl border border-border/25 bg-surface/90 px-3.5 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase shadow-sm cursor-pointer transition-all"
+                >
+                  <option value="TODAS">TODAS AS CATEGORIAS ({categoriasAtivas.length - 1})</option>
+                  {categoriasAtivas
+                    .filter((c) => c !== 'TODAS')
+                    .map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Linha 2: Busca e Alternador de Grade/Lista */}
+            <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
                 <input
@@ -907,7 +1063,7 @@ export function InventarioFerramentas() {
                 )}
               </div>
 
-              {/* Botões de Alternância Lista / Grade */}
+              {/* Alternador Lista / Grade */}
               <div className="flex items-center rounded-2xl border border-border/25 bg-surface/90 p-1 shrink-0 shadow-sm">
                 <button
                   type="button"
@@ -936,26 +1092,6 @@ export function InventarioFerramentas() {
                   <LayoutGrid className="h-4 w-4" />
                 </button>
               </div>
-            </div>
-
-            {/* Categorias com suporte a rolagem nativa ultra rápida e arrasto */}
-            <div className="flex-1 min-w-0 max-w-full">
-              <ScrollContainer className="flex items-center gap-1.5 pb-1 max-w-full">
-                {CATEGORIAS_SUGERIDAS.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setCategoriaFiltro(cat)}
-                    className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap uppercase cursor-pointer border shrink-0 ${
-                      categoriaFiltro === cat
-                        ? 'bg-primary/15 border-primary/50 text-primary shadow-sm'
-                        : 'bg-surface/80 border-border/20 text-secondary hover:border-border/60 hover:text-foreground'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </ScrollContainer>
             </div>
           </div>
 

@@ -170,6 +170,7 @@ export interface Ferramenta {
   codigo: string | null
   nome: string
   categoria: string
+  tipo_ferramenta?: 'comum' | 'especial'
   quantidade_total: number
   quantidade_disponivel: number
   localizacao: string | null
