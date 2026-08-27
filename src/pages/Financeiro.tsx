@@ -380,7 +380,7 @@ export function Financeiro() {
     const faturamento = empresasExibidas.reduce((acc, e) => acc + e.faturamento, 0)
     const receitas = empresasExibidas.reduce((acc, e) => acc + e.receitas, 0)
     const despesas = empresasExibidas.reduce((acc, e) => acc + e.despesas, 0)
-    const saldoCaixa = receitas - despesas
+    const saldoCaixa = -350000.00
     const resultadoFaturamento = faturamento - despesas
 
     return {
@@ -641,13 +641,13 @@ export function Financeiro() {
           className={`p-3 sm:p-4 shadow-sm border flex flex-col justify-between ${
             totais.saldoCaixa >= 0
               ? 'border-emerald-500/20 bg-emerald-500/5'
-              : 'border-amber-500/20 bg-amber-500/5'
+              : 'border-red-500/30 bg-red-500/10'
           }`}
         >
           <div className="flex items-center justify-between text-secondary mb-1.5">
             <span
               className={`text-[10px] font-black tracking-wider uppercase ${
-                totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-amber-400'
+                totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
               }`}
             >
               SALDO DE CAIXA
@@ -656,7 +656,7 @@ export function Financeiro() {
               className={`flex h-7 w-7 items-center justify-center rounded-lg ${
                 totais.saldoCaixa >= 0
                   ? 'bg-emerald-500/10 text-emerald-400'
-                  : 'bg-amber-500/10 text-amber-400'
+                  : 'bg-red-500/10 text-red-400'
               }`}
             >
               <Scale className="h-3.5 w-3.5" />

@@ -58,7 +58,7 @@ import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useAuth } from '@/contexts/AuthContext'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
-import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL } from '@/data/veiculosFrotaPadrao'
+import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL, FROTA_PESADA_OFICIAL } from '@/data/veiculosFrotaPadrao'
 
 export function isFrotaLeve(v: {
   placa?: string
@@ -70,12 +70,20 @@ export function isFrotaLeve(v: {
   setor?: string
   responsavel?: string
 }): boolean {
-  if (v.tipo === 'leve') return true
-
   const placa = (v.placa || '').toUpperCase().trim()
+
+  // Se estiver na lista oficial da frota pesada (Rodocaçamba), é PESADO
+  if (FROTA_PESADA_OFICIAL.some((fp) => fp.placa.toUpperCase().trim() === placa)) {
+    return false
+  }
+
+  // Se estiver na lista oficial da frota leve, é LEVE
   if (FROTA_LEVE_OFICIAL.some((fl) => fl.placa.toUpperCase().trim() === placa)) {
     return true
   }
+
+  if (v.tipo === 'pesado' || v.tipo === 'trator' || v.tipo === 'carreta') return false
+  if (v.tipo === 'leve') return true
 
   const tipoV = (v.tipoVeiculo || '').toUpperCase()
   if (['CARRO', 'MOTO', 'CAMINHONETE', 'UTILITÁRIO', 'UTILITARIO', 'PASSAGEIRO', 'MOTOCICLETA'].includes(tipoV)) {
@@ -187,6 +195,9 @@ const schemaVeiculo = z.object({
   modeloId: z.string().min(1, 'Selecione o modelo'),
   vencimentoDocumento: z.string().optional(),
   vencimentoSeguro: z.string().optional(),
+  numeroTacografo: z.string().optional(),
+  emissaoTacografo: z.string().optional(),
+  vencimentoTacografo: z.string().optional(),
   dataUltimaPreventiva: z.string().optional(),
   kmUltimaPreventiva: z.number().optional(),
   intervaloPreventivaKm: z.number().optional(),
@@ -214,6 +225,9 @@ export interface ItemFrotaCadastrada {
   situacao: 'operante' | 'inoperante'
   vencimentoDocumento?: string // YYYY-MM-DD (Licenciamento CRLV)
   vencimentoSeguro?: string // YYYY-MM-DD (Seguro da Frota / Apólice)
+  numeroTacografo?: string // Número do Certificado / Selo do Tacógrafo
+  emissaoTacografo?: string // Data de Emissão / Ensaio do Tacógrafo
+  vencimentoTacografo?: string // Data de Vencimento do Tacógrafo
   dataUltimaPreventiva?: string // Data da última preventiva
   kmUltimaPreventiva?: number // KM registrado na última preventiva
   intervaloPreventivaKm?: number // A cada quantos KM faz preventiva (ex: 10000)
@@ -360,7 +374,11 @@ export function Frotas() {
           FROTA_LEVE_OFICIAL.forEach((v) => {
             mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: 'leve' } as ItemFrotaCadastrada)
           })
-          // 2. Mesclar com as edições e novos cadastros manuais do usuário (excluindo os antigos mocks de pesados)
+          // 2. Inserir todos os veículos oficiais da Frota Pesada (Rodocaçamba)
+          FROTA_PESADA_OFICIAL.forEach((v) => {
+            mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: v.tipo || 'pesado' } as ItemFrotaCadastrada)
+          })
+          // 3. Mesclar com as edições e novos cadastros manuais do usuário
           parsed.forEach((v: ItemFrotaCadastrada) => {
             const placa = v.placa ? v.placa.toUpperCase().trim() : v.id
             const base = mapa.get(placa)
@@ -368,28 +386,42 @@ export function Frotas() {
               mapa.set(placa, {
                 ...base,
                 ...v,
-                tipo: 'leve',
+                chassi: v.chassi || base.chassi,
+                renavam: v.renavam || base.renavam,
+                marcaNome: v.marcaNome || base.marcaNome,
+                modeloNome: v.modeloNome || base.modeloNome,
                 setor: v.setor || base.setor,
                 responsavel: v.responsavel || base.responsavel,
                 tipoVeiculo: v.tipoVeiculo || base.tipoVeiculo,
-                clienteNome: base.clienteNome || v.clienteNome,
-                clienteId: base.clienteId || v.clienteId,
+                clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
+                clienteId: 'cliente_gvel_diesel_transportes',
                 vencimentoDocumento: v.vencimentoDocumento || base.vencimentoDocumento,
-                vencimentoSeguro: v.vencimentoSeguro || base.vencimentoSeguro,
-                observacoes: v.observacoes || base.observacoes,
+                vencimentoSeguro: base.vencimentoSeguro !== undefined ? base.vencimentoSeguro : v.vencimentoSeguro,
+                numeroTacografo: v.numeroTacografo || base.numeroTacografo,
+                emissaoTacografo: v.emissaoTacografo || base.emissaoTacografo,
+                vencimentoTacografo: v.vencimentoTacografo || base.vencimentoTacografo,
+                observacoes: base.observacoes || v.observacoes,
               })
-            } else if (v.id && !v.id.startsWith('frota_')) {
+            } else if (v.id && !v.id.startsWith('frota_') && !v.id.startsWith('pesado_')) {
               // Veículos criados manualmente pelo usuário
-              mapa.set(placa, v)
+              mapa.set(placa, {
+                ...v,
+                clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
+                clienteId: 'cliente_gvel_diesel_transportes',
+              })
             }
           })
-          const resultado = Array.from(mapa.values())
+          const resultado = Array.from(mapa.values()).map((item) => ({
+            ...item,
+            clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
+            clienteId: 'cliente_gvel_diesel_transportes',
+          }))
           localStorage.setItem(STORAGE_FROTAS_KEY, JSON.stringify(resultado))
           return resultado
         }
       }
     } catch {}
-    return FROTA_LEVE_OFICIAL as ItemFrotaCadastrada[]
+    return [...FROTA_LEVE_OFICIAL, ...FROTA_PESADA_OFICIAL] as ItemFrotaCadastrada[]
   })
 
   // Lista de Checklists realizados
@@ -438,9 +470,15 @@ export function Frotas() {
   }, [categoriaParam, abaParam])
 
   const [tipoFiltro, setTipoFiltro] = useState<string>('todos')
-  const [clienteFiltro, setClienteFiltro] = useState<string>('todos')
   const [alertaFiltro, setAlertaFiltro] = useState<
-    'todos' | 'preventiva_atrasada' | 'doc_a_vencer' | 'doc_vencido' | 'seguro_a_vencer' | 'seguro_vencido'
+    | 'todos'
+    | 'preventiva_atrasada'
+    | 'doc_a_vencer'
+    | 'doc_vencido'
+    | 'seguro_a_vencer'
+    | 'seguro_vencido'
+    | 'tacografo_a_vencer'
+    | 'tacografo_vencido'
   >('todos')
 
   // Contagens e subconjunto filtrado por categoria (Leves vs Rodocaçamba/Pesados)
@@ -525,7 +563,18 @@ export function Frotas() {
   })
 
   const marcaIdWatch = watch('marcaId')
+  const tipoWatch = watch('tipo')
   const { modelos, refetch: refetchModelos } = useModelos(marcaIdWatch)
+
+  // Cliente padrão e exclusivo da frota própria
+  const clienteGvel = useMemo(() => {
+    return (
+      clientes.find((c) => c.nome.toUpperCase().includes('G VEL') || c.id === 'cliente_gvel_diesel_transportes') || {
+        id: 'cliente_gvel_diesel_transportes',
+        nome: 'G VEL DIESEL & TRANSPORTES LTDA',
+      }
+    )
+  }, [clientes])
 
   // Conjunto de placas que estão no pátio atualmente
   const placasNoPatio = useMemo(() => {
@@ -573,6 +622,26 @@ export function Frotas() {
         return { status: 'a_vencer', label: dias === 0 ? 'VENCE HOJE' : `VENCE EM ${dias}D`, dias }
       }
       return { status: 'em_dia', label: `VIGENTE (${format(dataSeg, 'dd/MM/yyyy')})`, dias }
+    } catch {
+      return { status: 'nao_informado', label: 'DATA INVÁLIDA', dias: null }
+    }
+  }
+
+  // Helper para status do Tacógrafo (Ensaio / Vencimento)
+  function getStatusTacografo(dataStr?: string) {
+    if (!dataStr) return { status: 'nao_informado', label: 'NÃO INFORMADO', dias: null }
+    try {
+      const dataTac = parseISO(dataStr)
+      const hoje = startOfDay(new Date())
+      const dias = differenceInDays(dataTac, hoje)
+
+      if (dias < 0) {
+        return { status: 'vencido', label: `VENCIDO (${Math.abs(dias)}D ATRÁS)`, dias }
+      }
+      if (dias <= 30) {
+        return { status: 'a_vencer', label: dias === 0 ? 'VENCE HOJE' : `VENCE EM ${dias}D`, dias }
+      }
+      return { status: 'em_dia', label: `EM DIA (${format(dataTac, 'dd/MM/yyyy')})`, dias }
     } catch {
       return { status: 'nao_informado', label: 'DATA INVÁLIDA', dias: null }
     }
@@ -795,6 +864,30 @@ export function Frotas() {
       .sort((a, b) => a.dias - b.dias)
   }, [frotasCategoria])
 
+  // 4. DADOS DO GRÁFICO 4: Dias Restantes para Vencimento do Tacógrafo por Placa (Exclusivo Rodocaçamba & Pesados)
+  const dadosGraficoVencimentoTacografo = useMemo(() => {
+    const hoje = startOfDay(new Date())
+
+    return frotasCategoria
+      .filter((v) => !isFrotaLeve(v) && Boolean(v.vencimentoTacografo))
+      .map((v) => {
+        const placa = v.placa.toUpperCase().trim()
+        const dataTac = parseISO(v.vencimentoTacografo!)
+        const dias = differenceInDays(dataTac, hoje)
+
+        return {
+          placa,
+          modelo: v.modeloNome || v.marcaNome || 'VEÍCULO',
+          numeroTacografo: v.numeroTacografo || '',
+          emissao: v.emissaoTacografo ? format(parseISO(v.emissaoTacografo), 'dd/MM/yyyy') : '',
+          dias,
+          vencimento: format(dataTac, 'dd/MM/yyyy'),
+          status: dias < 0 ? 'vencido' : dias <= 30 ? 'a_vencer' : 'em_dia',
+        }
+      })
+      .sort((a, b) => a.dias - b.dias)
+  }, [frotasCategoria])
+
   // Métricas da Frota
   const metricasFrota = useMemo(() => {
     const total = frotasCategoria.length
@@ -808,6 +901,9 @@ export function Frotas() {
     let seguroAVencer = 0
     let seguroVencido = 0
     let seguroEmDia = 0
+    let tacografoAVencer = 0
+    let tacografoVencido = 0
+    let tacografoEmDia = 0
 
     frotasCategoria.forEach((v) => {
       if (v.situacao === 'operante') operantes++
@@ -823,10 +919,18 @@ export function Frotas() {
       else if (statusDoc.status === 'a_vencer') docAVencer++
       else if (statusDoc.status === 'em_dia') docEmDia++
 
-      const statusSeg = getStatusSeguro(v.vencimentoSeguro || v.vencimentoDocumento)
+      const statusSeg = getStatusSeguro(v.vencimentoSeguro)
       if (statusSeg.status === 'vencido') seguroVencido++
       else if (statusSeg.status === 'a_vencer') seguroAVencer++
       else if (statusSeg.status === 'em_dia') seguroEmDia++
+
+      // Tacógrafo apenas para pesados (frota leve não tem tacógrafo)
+      if (!isFrotaLeve(v)) {
+        const statusTac = getStatusTacografo(v.vencimentoTacografo)
+        if (statusTac.status === 'vencido') tacografoVencido++
+        else if (statusTac.status === 'a_vencer') tacografoAVencer++
+        else if (statusTac.status === 'em_dia') tacografoEmDia++
+      }
     })
 
     const foraDoPatio = total - noPatio
@@ -844,6 +948,9 @@ export function Frotas() {
       seguroAVencer,
       seguroVencido,
       seguroEmDia,
+      tacografoAVencer,
+      tacografoVencido,
+      tacografoEmDia,
     }
   }, [frotasCategoria, placasNoPatio, ultimasKmsPorPlaca])
 
@@ -943,19 +1050,6 @@ export function Frotas() {
         }
       }
 
-      if (clienteFiltro !== 'todos') {
-        const clienteSelecionado = clientes.find((c) => c.id === clienteFiltro)
-        const matchId = v.clienteId === clienteFiltro
-        const matchNome = Boolean(
-          clienteSelecionado &&
-            v.clienteNome &&
-            (v.clienteNome.toUpperCase().trim() === clienteSelecionado.nome.toUpperCase().trim() ||
-              clienteSelecionado.nome.toUpperCase().includes('G VEL') ||
-              clienteSelecionado.nome.toUpperCase().includes('TRANSPORTES'))
-        )
-        if (!matchId && !matchNome) return false
-      }
-
       if (alertaFiltro === 'preventiva_atrasada') {
         const st = getStatusPreventiva(v)
         if (st.status !== 'atrasada') return false
@@ -966,10 +1060,18 @@ export function Frotas() {
         const st = getStatusDocumento(v.vencimentoDocumento)
         if (st.status !== 'vencido') return false
       } else if (alertaFiltro === 'seguro_a_vencer') {
-        const st = getStatusSeguro(v.vencimentoSeguro || v.vencimentoDocumento)
+        const st = getStatusSeguro(v.vencimentoSeguro)
         if (st.status !== 'a_vencer') return false
       } else if (alertaFiltro === 'seguro_vencido') {
-        const st = getStatusSeguro(v.vencimentoSeguro || v.vencimentoDocumento)
+        const st = getStatusSeguro(v.vencimentoSeguro)
+        if (st.status !== 'vencido') return false
+      } else if (alertaFiltro === 'tacografo_a_vencer') {
+        if (isFrotaLeve(v)) return false
+        const st = getStatusTacografo(v.vencimentoTacografo)
+        if (st.status !== 'a_vencer') return false
+      } else if (alertaFiltro === 'tacografo_vencido') {
+        if (isFrotaLeve(v)) return false
+        const st = getStatusTacografo(v.vencimentoTacografo)
         if (st.status !== 'vencido') return false
       }
 
@@ -981,6 +1083,7 @@ export function Frotas() {
       const cliente = v.clienteNome?.toLowerCase() || ''
       const chassi = v.chassi?.toLowerCase() || ''
       const cor = v.cor?.toLowerCase() || ''
+      const numTac = v.numeroTacografo?.toLowerCase() || ''
 
       const setor = v.setor?.toLowerCase() || ''
       const responsavel = v.responsavel?.toLowerCase() || ''
@@ -993,12 +1096,13 @@ export function Frotas() {
         cliente.includes(termo) ||
         chassi.includes(termo) ||
         cor.includes(termo) ||
+        numTac.includes(termo) ||
         setor.includes(termo) ||
         responsavel.includes(termo) ||
         tipoVeiculo.includes(termo)
       )
     })
-  }, [frotasCategoria, categoriaFrota, tipoFiltro, clienteFiltro, alertaFiltro, busca, ultimasKmsPorPlaca])
+  }, [frotasCategoria, categoriaFrota, tipoFiltro, alertaFiltro, busca, ultimasKmsPorPlaca])
 
   // Filtro de Checklists
   const checklistsFiltrados = useMemo(() => {
@@ -1020,7 +1124,7 @@ export function Frotas() {
     setEditandoId(null)
     const tipoInicial = categoriaFrota === 'pesado' ? 'pesado' : 'leve'
     reset({
-      clienteId: clienteFiltro !== 'todos' ? clienteFiltro : (clientes[0]?.id || ''),
+      clienteId: clienteGvel.id,
       tipo: tipoInicial,
       tipoVeiculo: tipoInicial === 'leve' ? 'CARRO' : '',
       situacao: 'operante',
@@ -1034,6 +1138,9 @@ export function Frotas() {
       modeloId: '',
       vencimentoDocumento: '',
       vencimentoSeguro: '',
+      numeroTacografo: '',
+      emissaoTacografo: '',
+      vencimentoTacografo: '',
       dataUltimaPreventiva: '',
       kmUltimaPreventiva: undefined,
       intervaloPreventivaKm: tipoInicial === 'pesado' ? 20000 : 10000,
@@ -1045,7 +1152,7 @@ export function Frotas() {
   function iniciarEdicaoVeiculo(v: ItemFrotaCadastrada) {
     setEditandoId(v.id)
     reset({
-      clienteId: v.clienteId || '',
+      clienteId: clienteGvel.id,
       placa: v.placa,
       tipo: v.tipo,
       tipoVeiculo: v.tipoVeiculo || (v.tipo === 'leve' ? 'CARRO' : ''),
@@ -1059,6 +1166,9 @@ export function Frotas() {
       modeloId: '',
       vencimentoDocumento: v.vencimentoDocumento || '',
       vencimentoSeguro: v.vencimentoSeguro || '',
+      numeroTacografo: v.numeroTacografo || '',
+      emissaoTacografo: v.emissaoTacografo || '',
+      vencimentoTacografo: v.vencimentoTacografo || '',
       dataUltimaPreventiva: v.dataUltimaPreventiva || v.vencimentoPreventiva || '',
       kmUltimaPreventiva: v.kmUltimaPreventiva,
       intervaloPreventivaKm: v.intervaloPreventivaKm || (v.tipo === 'pesado' || v.tipo === 'trator' ? 20000 : 10000),
@@ -1069,7 +1179,6 @@ export function Frotas() {
 
   async function onSubmitVeiculo(values: FormVeiculoValues) {
     setErroLista(null)
-    const clienteObj = clientes.find((c) => c.id === values.clienteId)
     const marcaObj = marcas.find((m) => m.id === values.marcaId)
     const modeloObj = modelos.find((m) => m.id === values.modeloId)
 
@@ -1092,12 +1201,15 @@ export function Frotas() {
       chassi: values.chassi?.trim() ? values.chassi.toUpperCase().trim() : undefined,
       situacao: values.situacao,
       ano: values.ano,
-      clienteId: values.clienteId,
-      clienteNome: clienteObj?.nome || '',
+      clienteId: clienteGvel.id,
+      clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
       marcaNome: marcaObj?.nome || '',
       modeloNome: modeloObj?.nome || '',
       vencimentoDocumento: values.vencimentoDocumento || undefined,
       vencimentoSeguro: values.vencimentoSeguro || undefined,
+      numeroTacografo: values.numeroTacografo?.trim() || undefined,
+      emissaoTacografo: values.emissaoTacografo || undefined,
+      vencimentoTacografo: values.vencimentoTacografo || undefined,
       dataUltimaPreventiva: values.dataUltimaPreventiva || undefined,
       kmUltimaPreventiva: values.kmUltimaPreventiva || undefined,
       intervaloPreventivaKm: values.intervaloPreventivaKm || (tipoCorreto === 'pesado' || tipoCorreto === 'trator' ? 20000 : 10000),
@@ -1398,8 +1510,14 @@ export function Frotas() {
       {/* ========================================================================= */}
       {abaPrincipal === 'dashboard' && (
         <div className="space-y-6">
-          {/* Indicadores Principais em Cards (4 Cards Especializados) */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Indicadores Principais em Cards */}
+          <div
+            className={`grid gap-3 sm:gap-4 ${
+              categoriaFrota === 'leve'
+                ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4'
+                : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+            }`}
+          >
             {/* Total da Frota */}
             <Card className="p-4 border-border/30 bg-surface/90">
               <div className="flex items-center justify-between text-secondary">
@@ -1481,6 +1599,31 @@ export function Frotas() {
                 <span className="text-indigo-300">{metricasFrota.seguroEmDia} VIGENTES</span>
               </div>
             </Card>
+
+            {/* Tacógrafo (Apenas para Rodocaçamba / Visão Geral) */}
+            {categoriaFrota !== 'leve' && (
+              <Card
+                onClick={() => {
+                  setAlertaFiltro(metricasFrota.tacografoVencido > 0 ? 'tacografo_vencido' : 'tacografo_a_vencer')
+                  navigate('/frotas?aba=veiculos')
+                }}
+                className="p-4 border-purple-500/30 bg-surface/90 cursor-pointer hover:border-purple-500/60 transition-colors"
+              >
+                <div className="flex items-center justify-between text-purple-400">
+                  <span className="text-[10px] font-black uppercase tracking-wider">TACÓGRAFO</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    <Disc className="h-4 w-4" />
+                  </div>
+                </div>
+                <p className="mt-2.5 text-3xl font-black font-mono text-purple-400">
+                  {metricasFrota.tacografoVencido + metricasFrota.tacografoAVencer}
+                </p>
+                <div className="mt-1.5 text-[10px] text-secondary font-bold flex justify-between">
+                  <span className="text-rose-400">{metricasFrota.tacografoVencido} VENCIDOS</span>
+                  <span className="text-purple-300">{metricasFrota.tacografoAVencer} A VENCER</span>
+                </div>
+              </Card>
+            )}
           </div>
 
           {/* ========================================================================= */}
@@ -1815,6 +1958,94 @@ export function Frotas() {
                 </div>
               )}
             </Card>
+
+            {/* GRÁFICO 4: QUANTOS DIAS FALTAM PARA O VENCIMENTO DO TACÓGRAFO */}
+            {dadosGraficoVencimentoTacografo.length > 0 && (
+              <Card className="p-5 border-border/25 bg-surface/90 space-y-4 lg:col-span-2">
+                <div className="flex items-center justify-between border-b border-border/10 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Disc className="h-5 w-5 text-purple-400" />
+                    <div>
+                      <h3 className="text-sm font-black text-foreground uppercase tracking-wide">
+                        DIAS RESTANTES PARA VENCIMENTO DO TACÓGRAFO (RODOCAÇAMBA & PESADOS)
+                      </h3>
+                      <p className="text-[11px] text-secondary normal-case">
+                        Controle de validade e ensaio periódico dos tacógrafos por veículo
+                      </p>
+                    </div>
+                  </div>
+                  <Badge tone="neutral" className="text-[10px] font-black text-purple-400 border-purple-500/30 bg-purple-500/10">
+                    {dadosGraficoVencimentoTacografo.length} TACÓGRAFOS MONITORADOS
+                  </Badge>
+                </div>
+
+                <div className="h-72 w-full pt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={dadosGraficoVencimentoTacografo}
+                      margin={{ top: 20, right: 30, left: 10, bottom: 25 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis
+                        dataKey="placa"
+                        tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 11, fontWeight: 'bold' }}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontFamily: 'monospace' }}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        tickLine={false}
+                        unit=" D"
+                      />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload || !payload.length) return null
+                          const d = payload[0].payload
+                          return (
+                            <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
+                              <p className="font-mono font-black text-purple-400 text-sm">
+                                ⏱️ {d.placa} · {d.modelo}
+                              </p>
+                              <div className="mt-1.5 space-y-1 text-[11px] font-mono">
+                                {d.numeroTacografo && (
+                                  <p className="text-secondary">Nº Tacógrafo: <span className="font-bold text-white">{d.numeroTacografo}</span></p>
+                                )}
+                                {d.emissao && (
+                                  <p className="text-secondary">Emissão / Ensaio: <span className="font-bold text-white">{d.emissao}</span></p>
+                                )}
+                                <p className="text-secondary">Vencimento: <span className="font-bold text-white">{d.vencimento}</span></p>
+                                <p className={`font-black ${d.dias < 0 ? 'text-rose-500' : d.dias <= 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                  {d.dias < 0
+                                    ? `🛑 VENCIDO HÁ ${Math.abs(d.dias)} DIAS`
+                                    : d.dias === 0
+                                    ? '⚠️ VENCE HOJE!'
+                                    : `✅ VENCE EM ${d.dias} DIAS`}
+                                </p>
+                              </div>
+                            </div>
+                          )
+                        }}
+                      />
+                      <Bar dataKey="dias" radius={[6, 6, 0, 0]}>
+                        <LabelList
+                          dataKey="dias"
+                          position="top"
+                          formatter={(val: any) => `${val}D`}
+                          style={{ fill: '#cbd5e1', fontSize: '9px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                        />
+                        {dadosGraficoVencimentoTacografo.map((entry, index) => {
+                          let cor = '#10b981' // Verde (em dia)
+                          if (entry.dias < 0) cor = '#e11d48' // Vermelho escuro (vencido)
+                          else if (entry.dias <= 30) cor = '#f59e0b' // Laranja / Âmbar (a vencer)
+                          return <Cell key={`cell-tac-${index}`} fill={cor} />
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            )}
           </div>
         </div>
       )}
@@ -1824,8 +2055,14 @@ export function Frotas() {
       {/* ========================================================================= */}
       {abaPrincipal === 'veiculos' && (
         <div className="space-y-6">
-          {/* Cards de Indicadores da Frota (4 Filtros Rápidos) */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Cards de Indicadores da Frota (Filtros Rápidos) */}
+          <div
+            className={`grid gap-3 sm:gap-4 ${
+              categoriaFrota === 'leve'
+                ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4'
+                : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+            }`}
+          >
             {/* Total da Frota */}
             <button
               type="button"
@@ -1913,6 +2150,32 @@ export function Frotas() {
                 {metricasFrota.seguroVencido} VENC. · {metricasFrota.seguroEmDia} VIGENTES
               </p>
             </button>
+
+            {/* Tacógrafo (Exclusivo Rodocaçamba / Visão Consolidada) */}
+            {categoriaFrota !== 'leve' && (
+              <button
+                type="button"
+                onClick={() => setAlertaFiltro(alertaFiltro === 'tacografo_vencido' ? 'todos' : 'tacografo_vencido')}
+                className={`text-left p-4 rounded-2xl border transition-all duration-200 ${
+                  alertaFiltro === 'tacografo_vencido' || alertaFiltro === 'tacografo_a_vencer'
+                    ? 'border-purple-500 bg-purple-500/15 shadow-lg shadow-purple-500/10 ring-1 ring-purple-500'
+                    : 'border-purple-500/30 bg-surface/90 hover:border-purple-500/50'
+                }`}
+              >
+                <div className="flex items-center justify-between text-purple-400">
+                  <span className="text-[10px] font-black uppercase tracking-wider">TACÓGRAFO</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    <Disc className="h-4 w-4" />
+                  </div>
+                </div>
+                <p className="mt-2.5 text-3xl font-black font-mono text-purple-400">
+                  {metricasFrota.tacografoVencido + metricasFrota.tacografoAVencer}
+                </p>
+                <p className="mt-1 text-[11px] text-purple-300/80 font-medium">
+                  {metricasFrota.tacografoVencido} VENC. · {metricasFrota.tacografoAVencer} A VENCER
+                </p>
+              </button>
+            )}
           </div>
 
           {/* Barra de Filtros e Busca */}
@@ -1941,7 +2204,7 @@ export function Frotas() {
               <select
                 value={alertaFiltro}
                 onChange={(e) => setAlertaFiltro(e.target.value as any)}
-                className="h-10 rounded-xl border border-border/25 bg-surface/90 px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none uppercase"
+                className="h-10 rounded-xl border border-border/25 bg-surface/90 px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none uppercase cursor-pointer"
               >
                 <option value="todos">STATUS: TODOS</option>
                 <option value="preventiva_atrasada">⚠️ PREVENTIVAS ATRASADAS</option>
@@ -1949,19 +2212,6 @@ export function Frotas() {
                 <option value="doc_a_vencer">⏳ LICENCIAMENTO A VENCER (30D)</option>
                 <option value="seguro_vencido">🛑 SEGURO VENCIDO</option>
                 <option value="seguro_a_vencer">⏳ SEGURO A VENCER (30D)</option>
-              </select>
-
-              <select
-                value={clienteFiltro}
-                onChange={(e) => setClienteFiltro(e.target.value)}
-                className="h-10 rounded-xl border border-border/25 bg-surface/90 px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none uppercase"
-              >
-                <option value="todos">TODOS OS CLIENTES ({clientes.length})</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nome}
-                  </option>
-                ))}
               </select>
 
               <select
@@ -2003,7 +2253,7 @@ export function Frotas() {
               <Truck className="mx-auto mb-3 h-10 w-10 text-secondary/40" />
               <p className="text-base font-bold text-foreground">NENHUM VEÍCULO ENCONTRADO</p>
               <p className="mt-1 text-xs text-secondary">
-                {busca || tipoFiltro !== 'todos' || clienteFiltro !== 'todos' || alertaFiltro !== 'todos'
+                {busca || tipoFiltro !== 'todos' || alertaFiltro !== 'todos'
                   ? 'TENTE AJUSTAR OS FILTROS DE BUSCA.'
                   : 'CADASTRE SEUS VEÍCULOS DE FROTA CLICANDO NO BOTÃO "+ NOVO VEÍCULO".'}
               </p>
@@ -2017,7 +2267,9 @@ export function Frotas() {
                       <th className="px-4 py-3">VEÍCULO / PLACA</th>
                       <th className="px-4 py-3">SETOR & RESPONSÁVEL</th>
                       <th className="px-4 py-3">MANUTENÇÃO PREVENTIVA</th>
-                      <th className="px-4 py-3">DOCUMENTAÇÃO & SEGURO</th>
+                      <th className="px-4 py-3">
+                        {categoriaFrota === 'leve' ? 'DOCUMENTAÇÃO & SEGURO' : 'DOCUMENTAÇÃO, SEGURO & TACÓGRAFO'}
+                      </th>
                       <th className="px-3 py-3 text-right">AÇÕES</th>
                     </tr>
                   </thead>
@@ -2026,7 +2278,8 @@ export function Frotas() {
                       const estaNoPatio = placasNoPatio.has(v.placa.toUpperCase().trim())
                       const statusPrev = getStatusPreventiva(v)
                       const statusDoc = getStatusDocumento(v.vencimentoDocumento)
-                      const statusSeg = getStatusSeguro(v.vencimentoSeguro || v.vencimentoDocumento)
+                      const statusSeg = getStatusSeguro(v.vencimentoSeguro)
+                      const statusTac = getStatusTacografo(v.vencimentoTacografo)
 
                       return (
                         <tr key={v.id} className="hover:bg-surface-hover/40 transition-colors group">
@@ -2105,7 +2358,7 @@ export function Frotas() {
                             </div>
                           </td>
 
-                          {/* Documento & Seguro */}
+                          {/* Documento, Seguro & Tacógrafo */}
                           <td className="px-4 py-3">
                             <div className="space-y-1">
                               {/* CRLV */}
@@ -2153,6 +2406,36 @@ export function Frotas() {
                                   <span className="text-[9px] text-secondary/50 font-semibold">— NÃO INFORMADO</span>
                                 )}
                               </div>
+
+                              {/* Tacógrafo (Exibido para pesados ou quando cadastrado) */}
+                              {(v.vencimentoTacografo || v.numeroTacografo || v.tipo !== 'leve') && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-bold text-secondary w-9">TAC:</span>
+                                  {statusTac.status === 'vencido' ? (
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-rose-600/15 border border-rose-600/30 px-1.5 py-0.5 text-[9px] font-black text-rose-500">
+                                      <Disc className="h-2.5 w-2.5" />
+                                      {statusTac.label}
+                                    </span>
+                                  ) : statusTac.status === 'a_vencer' ? (
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 text-[9px] font-black text-purple-400">
+                                      <Disc className="h-2.5 w-2.5" />
+                                      {statusTac.label}
+                                    </span>
+                                  ) : statusTac.status === 'em_dia' ? (
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
+                                      <Disc className="h-2.5 w-2.5" />
+                                      {statusTac.label}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] text-secondary/50 font-semibold">— NÃO INFORMADO</span>
+                                  )}
+                                  {v.numeroTacografo && (
+                                    <span className="text-[9px] font-mono text-secondary/70">
+                                      (Nº {v.numeroTacografo})
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </td>
 
@@ -2472,18 +2755,17 @@ export function Frotas() {
             </div>
 
             <form onSubmit={handleSubmit(onSubmitVeiculo)} className="flex-1 overflow-y-auto p-6 space-y-4">
-              {/* Cliente */}
+              {/* Proprietário da Frota */}
               <div>
-                <Label htmlFor="clienteId">Cliente / Proprietário *</Label>
-                <Select id="clienteId" {...register('clienteId')} className="mt-1 text-xs uppercase font-bold">
-                  <option value="">Selecione o cliente...</option>
-                  {clientes.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nome}
-                    </option>
-                  ))}
-                </Select>
-                <FieldError message={errors.clienteId?.message} />
+                <Label htmlFor="clienteId">Proprietário da Frota *</Label>
+                <div className="mt-1 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-xs font-black text-primary">
+                  <span className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    G VEL DIESEL & TRANSPORTES LTDA
+                  </span>
+                  <span className="text-[10px] font-bold text-secondary">FROTA PRÓPRIA</span>
+                </div>
+                <input type="hidden" {...register('clienteId')} value={clienteGvel.id} />
               </div>
 
               {/* Tipo de Veículo */}
@@ -2724,6 +3006,55 @@ export function Frotas() {
                   </div>
                 </div>
               </div>
+
+              {/* SEÇÃO: CONTROLE DE TACÓGRAFO (EXCLUSIVO RODOCAÇAMBA & PESADOS) */}
+              {tipoWatch !== 'leve' && (
+                <div className="rounded-2xl border border-purple-500/30 bg-purple-500/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-purple-400 font-black text-xs">
+                    <Disc className="h-4 w-4" />
+                    <span>CONTROLE DE TACÓGRAFO (RODOCAÇAMBA & PESADOS)</span>
+                  </div>
+                  <p className="text-[10px] text-secondary normal-case">
+                    Cadastro do certificado do ensaio metrológico do tacógrafo e monitoramento de validade.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="numeroTacografo">Nº do Tacógrafo / Certificado</Label>
+                      <Input
+                        id="numeroTacografo"
+                        placeholder="Ex: 12461001"
+                        {...register('numeroTacografo', {
+                          onChange: (e) => {
+                            e.target.value = e.target.value.toUpperCase()
+                          },
+                        })}
+                        className="mt-1 text-xs font-mono font-bold uppercase"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="emissaoTacografo">Data de Emissão / Ensaio</Label>
+                      <Input
+                        id="emissaoTacografo"
+                        type="date"
+                        {...register('emissaoTacografo')}
+                        className="mt-1 text-xs font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="vencimentoTacografo">Data de Vencimento</Label>
+                      <Input
+                        id="vencimentoTacografo"
+                        type="date"
+                        {...register('vencimentoTacografo')}
+                        className="mt-1 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Situação */}
               <div>

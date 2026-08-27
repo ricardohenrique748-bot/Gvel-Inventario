@@ -470,6 +470,7 @@ function EditarMovimentacaoForm({
 
   const marcaId = watch('marcaId')
   const { modelos, refetch: refetchModelos } = useModelos(marcaId)
+  const jaSaiu = movimentacao.status === 'saiu' || Boolean(movimentacao.data_hora_saida)
 
   function handleSelecionarFoto(campo: AnguloFoto, file: File, previewUrl: string) {
     setFotos((prev) => ({ ...prev, [campo]: { file, previewUrl } }))
@@ -527,9 +528,9 @@ function EditarMovimentacaoForm({
           destino: values.destino || undefined,
           observacoes: values.observacoes?.trim() || undefined,
           dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
-          dataHoraSaida: values.dataHoraSaida ? new Date(values.dataHoraSaida).toISOString() : undefined,
+          dataHoraSaida: jaSaiu && values.dataHoraSaida ? new Date(values.dataHoraSaida).toISOString() : undefined,
           kmEntrada: values.kmEntrada || undefined,
-          kmSaida: values.kmSaida || undefined,
+          kmSaida: jaSaiu ? (values.kmSaida || undefined) : undefined,
         },
         fotosEntrada,
       )
@@ -695,7 +696,7 @@ function EditarMovimentacaoForm({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`grid gap-4 ${jaSaiu ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <div>
           <Label htmlFor={`motorista-${movimentacao.id}`}>Motorista</Label>
           <Input id={`motorista-${movimentacao.id}`} placeholder="Opcional" {...register('motorista')} />
@@ -704,13 +705,15 @@ function EditarMovimentacaoForm({
           <Label htmlFor={`entrada-${movimentacao.id}`}>Data/hora de entrada</Label>
           <Input id={`entrada-${movimentacao.id}`} type="datetime-local" {...register('dataHoraEntrada')} />
         </div>
-        <div>
-          <Label htmlFor={`saida-${movimentacao.id}`}>Data/hora de saída</Label>
-          <Input id={`saida-${movimentacao.id}`} type="datetime-local" {...register('dataHoraSaida')} />
-        </div>
+        {jaSaiu && (
+          <div>
+            <Label htmlFor={`saida-${movimentacao.id}`}>Data/hora de saída</Label>
+            <Input id={`saida-${movimentacao.id}`} type="datetime-local" {...register('dataHoraSaida')} />
+          </div>
+        )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className={`grid gap-4 ${jaSaiu ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`}>
         <div>
           <Label htmlFor={`km-entrada-${movimentacao.id}`}>KM entrada</Label>
           <Input
@@ -722,17 +725,19 @@ function EditarMovimentacaoForm({
           />
           <FieldError message={errors.kmEntrada?.message} />
         </div>
-        <div>
-          <Label htmlFor={`km-saida-${movimentacao.id}`}>KM saída</Label>
-          <Input
-            id={`km-saida-${movimentacao.id}`}
-            type="number"
-            inputMode="numeric"
-            placeholder="Opcional"
-            {...register('kmSaida', { valueAsNumber: true })}
-          />
-          <FieldError message={errors.kmSaida?.message} />
-        </div>
+        {jaSaiu && (
+          <div>
+            <Label htmlFor={`km-saida-${movimentacao.id}`}>KM saída</Label>
+            <Input
+              id={`km-saida-${movimentacao.id}`}
+              type="number"
+              inputMode="numeric"
+              placeholder="Opcional"
+              {...register('kmSaida', { valueAsNumber: true })}
+            />
+            <FieldError message={errors.kmSaida?.message} />
+          </div>
+        )}
       </div>
 
       <div>
