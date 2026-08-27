@@ -639,11 +639,11 @@ export function InventarioFerramentas() {
       return Array.from(new Set([...CATEGORIAS_ESPECIAIS, ...customCats]))
     }
     if (tipoFiltro === 'insumos') {
-      const customCats = Array.from(new Set(itensConsumo.map((i) => i.categoria?.toUpperCase()).filter(Boolean))) as string[]
+      const customCats = Array.from(new Set(ferramentasInsumos.map((f) => f.categoria?.toUpperCase()).filter(Boolean))) as string[]
       return Array.from(new Set([...CATEGORIAS_INSUMOS, ...customCats]))
     }
     return ['TODAS']
-  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, itensConsumo])
+  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, ferramentasInsumos])
 
   // Filtragem da lista ativa de acordo com o tipoFiltro
   const ferramentasFiltradas = useMemo(() => {
@@ -1041,7 +1041,7 @@ export function InventarioFerramentas() {
                   <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
                     tipoFiltro === 'insumos' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
                   }`}>
-                    {itensConsumo.length}
+                    {ferramentasInsumos.length}
                   </span>
                 </button>
               </ScrollContainer>
@@ -1136,164 +1136,166 @@ export function InventarioFerramentas() {
           ) : modoVisualizacao === 'lista' ? (
             <div className="space-y-2">
               {/* Desktop: Lista / Tabela de Estoque em Grid */}
-              <div className="hidden md:block overflow-hidden rounded-2xl border border-border/25 bg-surface/70 shadow-sm backdrop-blur-sm">
-                <div className="grid grid-cols-[130px_minmax(220px,1fr)_160px_160px_130px_140px] items-center gap-3 border-b border-border/15 bg-surface/90 px-4 py-3 text-[11px] font-black text-secondary uppercase tracking-wider">
-                  <div>CÓDIGO</div>
-                  <div>FERRAMENTA / DESCRIÇÃO</div>
-                  <div>CATEGORIA</div>
-                  <div>LOCALIZAÇÃO</div>
-                  <div className="text-center">ESTOQUE</div>
-                  <div className="text-right">AÇÕES</div>
-                </div>
+              <div className="hidden md:block overflow-x-auto rounded-2xl border border-border/25 bg-surface/70 shadow-sm backdrop-blur-sm">
+                <div className="min-w-[960px]">
+                  <div className="grid grid-cols-[120px_minmax(220px,1fr)_140px_160px_110px_180px] items-center gap-3 border-b border-border/15 bg-surface/90 px-4 py-3 text-[11px] font-black text-secondary uppercase tracking-wider">
+                    <div>CÓDIGO</div>
+                    <div>FERRAMENTA / DESCRIÇÃO</div>
+                    <div>CATEGORIA</div>
+                    <div>LOCALIZAÇÃO</div>
+                    <div className="text-center">ESTOQUE</div>
+                    <div className="text-right pr-2">AÇÕES</div>
+                  </div>
 
-                <div className="divide-y divide-border/10">
-                  {ferramentasFiltradas.slice(0, limiteExibicao).map((f) => {
-                    const total = f.quantidade_total || 1
-                    const disp = f.quantidade_disponivel || 0
-                    const emUsoQtd = total - disp
-                    const semEstoque = disp <= 0
-                    const percentualDisp = Math.max(0, Math.min(100, Math.round((disp / total) * 100)))
+                  <div className="divide-y divide-border/10">
+                    {ferramentasFiltradas.slice(0, limiteExibicao).map((f) => {
+                      const total = f.quantidade_total || 1
+                      const disp = f.quantidade_disponivel || 0
+                      const emUsoQtd = total - disp
+                      const semEstoque = disp <= 0
+                      const percentualDisp = Math.max(0, Math.min(100, Math.round((disp / total) * 100)))
 
-                    return (
-                      <div
-                        key={f.id}
-                        className="grid grid-cols-[130px_minmax(220px,1fr)_160px_160px_130px_140px] items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover/30 group"
-                      >
-                        {/* CÓDIGO & FOTO */}
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {f.foto_url ? (
+                      return (
+                        <div
+                          key={f.id}
+                          className="grid grid-cols-[120px_minmax(220px,1fr)_140px_160px_110px_180px] items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover/30 group"
+                        >
+                          {/* CÓDIGO & FOTO */}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {f.foto_url ? (
+                              <button
+                                type="button"
+                                onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
+                                className="relative group/thumb h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-primary/30 bg-background shadow-sm cursor-pointer hover:border-primary transition-all"
+                                title="Ver foto ampliada"
+                              >
+                                <img
+                                  src={f.foto_url}
+                                  alt={f.nome}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="h-full w-full object-cover group-hover/thumb:scale-110 transition-transform duration-200"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
+                                  <Eye className="h-3.5 w-3.5 text-white" />
+                                </div>
+                              </button>
+                            ) : (
+                              <div className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-border/20 bg-background text-secondary/50">
+                                <Hammer className="h-4 w-4" />
+                              </div>
+                            )}
+                            <span className="inline-flex rounded-lg bg-background border border-border/30 px-2 py-0.5 text-xs font-mono font-bold text-foreground truncate max-w-[85px]">
+                              {f.codigo || 'S/ CÓD'}
+                            </span>
+                          </div>
+
+                          {/* FERRAMENTA / DESCRIÇÃO */}
+                          <div
+                            className="min-w-0 pr-2 cursor-pointer group/item"
+                            onClick={() => setFerramentaHistorico(f)}
+                            title="Clique para ver o histórico de saídas e placas desta ferramenta"
+                          >
+                            <div className="font-bold text-foreground text-xs leading-snug truncate group-hover/item:text-primary transition-colors flex items-center gap-1.5">
+                              <span>{f.nome}</span>
+                              <span className="text-[10px] text-primary/80 opacity-0 group-hover/item:opacity-100 transition-opacity font-semibold">
+                                (ver saídas 🔍)
+                              </span>
+                            </div>
+                            {f.observacoes && (
+                              <div className="text-[11px] text-secondary line-clamp-1 italic mt-0.5 truncate font-normal">
+                                "{f.observacoes}"
+                              </div>
+                            )}
+                          </div>
+
+                          {/* CATEGORIA */}
+                          <div className="truncate cursor-pointer" onClick={() => setFerramentaHistorico(f)}>
+                            <span className="rounded-lg bg-overlay/5 border border-border/20 px-2.5 py-1 text-[10px] font-black text-secondary tracking-wider truncate inline-block max-w-full hover:border-primary/40 transition-colors">
+                              {f.categoria || 'GERAL'}
+                            </span>
+                          </div>
+
+                          {/* LOCALIZAÇÃO */}
+                          <div className="truncate cursor-pointer" onClick={() => setFerramentaHistorico(f)}>
+                            {f.localizacao ? (
+                              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5 truncate">
+                                <Layers className="h-3.5 w-3.5 text-secondary shrink-0" />
+                                <span className="truncate">{f.localizacao}</span>
+                              </span>
+                            ) : (
+                              <span className="text-xs text-secondary/50">—</span>
+                            )}
+                          </div>
+
+                          {/* ESTOQUE DISP. COM BARRA VISUAL */}
+                          <div className="flex flex-col items-center cursor-pointer" onClick={() => setFerramentaHistorico(f)}>
+                            <div className="flex items-center gap-1">
+                              <span className={`text-sm font-black font-mono tabular-nums ${semEstoque ? 'text-status-danger' : 'text-emerald-500'}`}>
+                                {disp}
+                              </span>
+                              <span className="text-xs text-secondary font-mono">/ {total}</span>
+                            </div>
+                            {/* Mini barra de estoque */}
+                            <div className="w-16 h-1 bg-border/20 rounded-full overflow-hidden mt-1">
+                              <div
+                                className={`h-full transition-all duration-300 ${
+                                  semEstoque ? 'bg-status-danger w-0' : disp === total ? 'bg-emerald-500' : 'bg-amber-500'
+                                }`}
+                                style={{ width: `${percentualDisp}%` }}
+                              />
+                            </div>
+                            {emUsoQtd > 0 && (
+                              <span className="text-[9px] font-black text-amber-500 mt-0.5">
+                                {emUsoQtd} em uso
+                              </span>
+                            )}
+                          </div>
+
+                          {/* AÇÕES */}
+                          <div className="flex items-center justify-end gap-1.5 shrink-0 pr-1">
+                            <Button
+                              type="button"
+                              size="md"
+                              disabled={semEstoque}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setFerramentaSelecionadaParaRetirada(f)
+                                setModalRetiradaAberto(true)
+                              }}
+                              className="!h-8 !px-3 !text-xs gap-1 uppercase font-bold bg-primary hover:bg-primary/90 text-white shadow-sm shrink-0"
+                            >
+                              <ArrowUpRight className="h-3.5 w-3.5" />
+                              RETIRAR
+                            </Button>
                             <button
                               type="button"
-                              onClick={() => setFotoModalUrl({ url: f.foto_url!, titulo: f.nome })}
-                              className="relative group/thumb h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-primary/30 bg-background shadow-sm cursor-pointer hover:border-primary transition-all"
-                              title="Ver foto ampliada"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setFerramentaEditando(f)
+                                setModalFerramentaAberto(true)
+                              }}
+                              className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer shrink-0"
+                              title="Editar Ferramenta"
                             >
-                              <img
-                                src={f.foto_url}
-                                alt={f.nome}
-                                loading="lazy"
-                                decoding="async"
-                                className="h-full w-full object-cover group-hover/thumb:scale-110 transition-transform duration-200"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
-                                <Eye className="h-3.5 w-3.5 text-white" />
-                              </div>
+                              <Pencil className="h-3.5 w-3.5" />
                             </button>
-                          ) : (
-                            <div className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-border/20 bg-background text-secondary/50">
-                              <Hammer className="h-4 w-4" />
-                            </div>
-                          )}
-                          <span className="inline-flex rounded-lg bg-background border border-border/30 px-2 py-0.5 text-xs font-mono font-bold text-foreground truncate max-w-[85px]">
-                            {f.codigo || 'S/ CÓD'}
-                          </span>
-                        </div>
-
-                        {/* FERRAMENTA / DESCRIÇÃO */}
-                        <div
-                          className="min-w-0 pr-2 cursor-pointer group/item"
-                          onClick={() => setFerramentaHistorico(f)}
-                          title="Clique para ver o histórico de saídas e placas desta ferramenta"
-                        >
-                          <div className="font-bold text-foreground text-xs leading-snug truncate group-hover/item:text-primary transition-colors flex items-center gap-1.5">
-                            <span>{f.nome}</span>
-                            <span className="text-[10px] text-primary/80 opacity-0 group-hover/item:opacity-100 transition-opacity font-semibold">
-                              (ver saídas 🔍)
-                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleExcluirFerramenta(f)
+                              }}
+                              className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer shrink-0"
+                              title="Excluir Ferramenta"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
-                          {f.observacoes && (
-                            <div className="text-[11px] text-secondary line-clamp-1 italic mt-0.5 truncate font-normal">
-                              "{f.observacoes}"
-                            </div>
-                          )}
                         </div>
-
-                        {/* CATEGORIA */}
-                        <div className="truncate cursor-pointer" onClick={() => setFerramentaHistorico(f)}>
-                          <span className="rounded-lg bg-overlay/5 border border-border/20 px-2.5 py-1 text-[10px] font-black text-secondary tracking-wider truncate inline-block max-w-full hover:border-primary/40 transition-colors">
-                            {f.categoria || 'GERAL'}
-                          </span>
-                        </div>
-
-                        {/* LOCALIZAÇÃO */}
-                        <div className="truncate cursor-pointer" onClick={() => setFerramentaHistorico(f)}>
-                          {f.localizacao ? (
-                            <span className="text-xs font-semibold text-foreground flex items-center gap-1.5 truncate">
-                              <Layers className="h-3.5 w-3.5 text-secondary shrink-0" />
-                              <span className="truncate">{f.localizacao}</span>
-                            </span>
-                          ) : (
-                            <span className="text-xs text-secondary/50">—</span>
-                          )}
-                        </div>
-
-                        {/* ESTOQUE DISP. COM BARRA VISUAL */}
-                        <div className="flex flex-col items-center cursor-pointer" onClick={() => setFerramentaHistorico(f)}>
-                          <div className="flex items-center gap-1">
-                            <span className={`text-sm font-black font-mono tabular-nums ${semEstoque ? 'text-status-danger' : 'text-emerald-500'}`}>
-                              {disp}
-                            </span>
-                            <span className="text-xs text-secondary font-mono">/ {total}</span>
-                          </div>
-                          {/* Mini barra de estoque */}
-                          <div className="w-16 h-1 bg-border/20 rounded-full overflow-hidden mt-1">
-                            <div
-                              className={`h-full transition-all duration-300 ${
-                                semEstoque ? 'bg-status-danger w-0' : disp === total ? 'bg-emerald-500' : 'bg-amber-500'
-                              }`}
-                              style={{ width: `${percentualDisp}%` }}
-                            />
-                          </div>
-                          {emUsoQtd > 0 && (
-                            <span className="text-[9px] font-black text-amber-500 mt-0.5">
-                              {emUsoQtd} em uso
-                            </span>
-                          )}
-                        </div>
-
-                        {/* AÇÕES */}
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            type="button"
-                            size="md"
-                            disabled={semEstoque}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setFerramentaSelecionadaParaRetirada(f)
-                              setModalRetiradaAberto(true)
-                            }}
-                            className="!h-8 !px-3 !text-xs gap-1 uppercase font-bold bg-primary hover:bg-primary/90 text-white shadow-sm"
-                          >
-                            <ArrowUpRight className="h-3.5 w-3.5" />
-                            RETIRAR
-                          </Button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setFerramentaEditando(f)
-                              setModalFerramentaAberto(true)
-                            }}
-                            className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
-                            title="Editar Ferramenta"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleExcluirFerramenta(f)
-                            }}
-                            className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer"
-                            title="Excluir Ferramenta"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
 
