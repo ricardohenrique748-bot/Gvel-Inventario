@@ -11,7 +11,6 @@ import {
   BarChart3,
   DollarSign,
   UserCheck,
-  ShoppingCart,
   ClipboardCheck,
   Package,
   Boxes,
@@ -61,7 +60,6 @@ export const navItems = [
   },
   { to: '/financeiro', label: 'Financeiro', icon: DollarSign },
   { to: '/rh', label: 'RH', icon: UserCheck },
-  { to: '/compras', label: 'Compras', icon: ShoppingCart },
   {
     to: '/configuracoes',
     label: 'Configurações',
@@ -84,7 +82,6 @@ export const ADMIN_ONLY_ROUTES = [
   '/financeiro/dre',
   '/financeiro/contas',
   '/rh',
-  '/compras',
 ] as const
 
 import { temPermissaoModulo } from '@/lib/permissoes'

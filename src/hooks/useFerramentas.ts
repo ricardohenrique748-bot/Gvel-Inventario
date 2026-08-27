@@ -3,10 +3,35 @@ import { supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
 import type { Ferramenta, FerramentaRetirada, StatusRetiradaFerramenta } from '@/lib/types'
 
+const CATEGORIAS_ESPECIAIS_KEYWORDS = [
+  'ESPECIAL',
+  'SACADOR',
+  'EXTRATOR',
+  'GABARITO',
+  'TRAVA',
+  'SCANNER',
+  'TORQUIMETRO',
+  'TORQUÍMETRO',
+  'DIAGNOSTICO',
+  'DIAGNÓSTICO',
+  'HIDRÁULICA PESADA',
+  'HIDRAULICA PESADA',
+  'ESPECIAL MOTORES',
+]
+
 function formatarFerramentaComFoto(f: any): Ferramenta {
   if (!f) return f
   let foto_url: string | null = f.foto_url || null
   let observacoes: string | null = f.observacoes || null
+  let tipo_ferramenta: 'comum' | 'especial' = f.tipo_ferramenta || 'comum'
+
+  if (observacoes && observacoes.includes('[TIPO:')) {
+    const matchTipo = observacoes.match(/\[TIPO:(.*?)\]/)
+    if (matchTipo) {
+      tipo_ferramenta = matchTipo[1] === 'especial' ? 'especial' : 'comum'
+      observacoes = observacoes.replace(/\[TIPO:.*?\]/g, '').trim() || null
+    }
+  }
 
   if (observacoes && observacoes.includes('[FOTO:')) {
     const match = observacoes.match(/\[FOTO:(.*?)\]/)
@@ -16,8 +41,14 @@ function formatarFerramentaComFoto(f: any): Ferramenta {
     }
   }
 
+  const catUpper = (f.categoria || '').toUpperCase()
+  if (CATEGORIAS_ESPECIAIS_KEYWORDS.some((kw) => catUpper.includes(kw))) {
+    tipo_ferramenta = 'especial'
+  }
+
   return {
     ...f,
+    tipo_ferramenta,
     observacoes,
     foto_url,
   }
@@ -119,24 +150,21 @@ export function useRetiradasFerramentas(filtros: RetiradasFiltros = {}) {
   return { retiradas, loading, error, refetch }
 }
 
-const FOTOS_BUCKET = 'fotos'
-
 export async function uploadFotoFerramenta(file: File): Promise<string> {
   try {
     const ext = file.name.split('.').pop() || 'jpg'
     const path = `ferramentas/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-    const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
+    const { error } = await supabase.storage.from('fotos').upload(path, file, {
       cacheControl: '3600',
       upsert: false,
     })
     if (!error) {
-      return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+      return supabase.storage.from('fotos').getPublicUrl(path).data.publicUrl
     }
   } catch (err) {
     console.warn('Falha no storage, convertendo em dataURL:', err)
   }
 
-  // Fallback para DataURL caso o bucket de storage esteja offline ou inacessível
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result as string)
@@ -149,6 +177,7 @@ export interface CriarFerramentaInput {
   codigo?: string
   nome: string
   categoria?: string
+  tipo_ferramenta?: 'comum' | 'especial'
   quantidade_total: number
   localizacao?: string
   observacoes?: string
@@ -158,8 +187,10 @@ export interface CriarFerramentaInput {
 export async function criarFerramenta(input: CriarFerramentaInput): Promise<Ferramenta> {
   const total = Number(input.quantidade_total) || 1
   
-  // Embutir foto_url no campo observacoes para garantir compatibilidade 100% caso a coluna não exista no Postgres
   let observacoesFinal = input.observacoes?.trim() || ''
+  if (input.tipo_ferramenta === 'especial') {
+    observacoesFinal = `[TIPO:especial] ${observacoesFinal}`.trim()
+  }
   if (input.foto_url) {
     observacoesFinal = observacoesFinal ? `${observacoesFinal} [FOTO:${input.foto_url}]` : `[FOTO:${input.foto_url}]`
   }
@@ -167,20 +198,29 @@ export async function criarFerramenta(input: CriarFerramentaInput): Promise<Ferr
   const payload: any = {
     codigo: input.codigo ? up(input.codigo) : null,
     nome: up(input.nome),
-    categoria: input.categoria ? up(input.categoria) : 'GERAL',
+    categoria: input.categoria ? up(input.categoria) : (input.tipo_ferramenta === 'especial' ? 'SACADORES E EXTRATORES' : 'GERAL'),
     quantidade_total: total,
     quantidade_disponivel: total,
     localizacao: input.localizacao ? up(input.localizacao) : null,
     observacoes: observacoesFinal || null,
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('ferramentas')
-    .insert(payload)
+    .insert({ ...payload, tipo_ferramenta: input.tipo_ferramenta || 'comum' })
     .select()
     .single()
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    const res = await supabase
+      .from('ferramentas')
+      .insert(payload)
+      .select()
+      .single()
+    if (res.error) throw new Error(res.error.message)
+    data = res.data
+  }
+
   return formatarFerramentaComFoto(data)
 }
 
@@ -188,6 +228,7 @@ export interface AtualizarFerramentaInput {
   codigo?: string
   nome: string
   categoria?: string
+  tipo_ferramenta?: 'comum' | 'especial'
   quantidade_total: number
   localizacao?: string
   observacoes?: string
@@ -195,7 +236,6 @@ export interface AtualizarFerramentaInput {
 }
 
 export async function atualizarFerramenta(id: string, input: AtualizarFerramentaInput): Promise<Ferramenta> {
-  // Busca a ferramenta atual para ajustar a quantidade disponível proporcionalmente
   const { data: atual, error: buscaError } = await supabase
     .from('ferramentas')
     .select('*')
@@ -208,8 +248,10 @@ export async function atualizarFerramenta(id: string, input: AtualizarFerramenta
   const emUso = (atual.quantidade_total || 0) - (atual.quantidade_disponivel || 0)
   const novaDisponivel = Math.max(0, novoTotal - emUso)
 
-  // Embutir foto_url no campo observacoes
   let observacoesFinal = input.observacoes?.trim() || ''
+  if (input.tipo_ferramenta === 'especial') {
+    observacoesFinal = `[TIPO:especial] ${observacoesFinal}`.trim()
+  }
   if (input.foto_url) {
     observacoesFinal = observacoesFinal ? `${observacoesFinal} [FOTO:${input.foto_url}]` : `[FOTO:${input.foto_url}]`
   }
@@ -224,19 +266,28 @@ export async function atualizarFerramenta(id: string, input: AtualizarFerramenta
     observacoes: observacoesFinal || null,
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('ferramentas')
-    .update(payload)
+    .update({ ...payload, tipo_ferramenta: input.tipo_ferramenta || 'comum' })
     .eq('id', id)
     .select()
     .single()
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    const res = await supabase
+      .from('ferramentas')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single()
+    if (res.error) throw new Error(res.error.message)
+    data = res.data
+  }
+
   return formatarFerramentaComFoto(data)
 }
 
 export async function excluirFerramenta(id: string): Promise<void> {
-  // Verifica se há retiradas em uso
   const { data: emUso, error: checkError } = await supabase
     .from('ferramentas_retiradas')
     .select('id')

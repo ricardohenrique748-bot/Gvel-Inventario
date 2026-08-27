@@ -103,14 +103,6 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     categoria: 'administrativo',
   },
   {
-    id: 'compras',
-    label: 'Compras',
-    descricao: 'Cotações, pedidos e fornecedores',
-    iconeNome: 'ShoppingCart',
-    rotaPadrao: '/compras',
-    categoria: 'administrativo',
-  },
-  {
     id: 'relatorios',
     label: 'Relatórios',
     descricao: 'Relatórios analíticos, exportações em PDF e Excel',

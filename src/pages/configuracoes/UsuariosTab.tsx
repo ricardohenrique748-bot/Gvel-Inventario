@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -35,6 +35,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { useUsuarios, criarUsuario, excluirUsuario, atualizarUsuario, resetarSenha } from '@/hooks/useUsuarios'
 import { useAuth } from '@/contexts/AuthContext'
+import { useEmpresa } from '@/contexts/EmpresaContext'
 import { formatDate } from '@/lib/format'
 import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, getModulosUsuario, type ModuloSistema } from '@/lib/permissoes'
 import type { Usuario } from '@/lib/types'
@@ -62,6 +63,7 @@ const schema = z.object({
   senha: z.string().min(6, 'Mínimo de 6 caracteres'),
   telefone: z.string().optional(),
   nivel: z.enum(['admin', 'usuario']),
+  empresa_id: z.string().optional(),
   modulos: z.array(z.string()).optional(),
 })
 
@@ -71,6 +73,7 @@ const editSchema = z.object({
   nome: z.string().trim().min(1, 'Informe o nome'),
   telefone: z.string().optional(),
   nivel: z.enum(['admin', 'usuario']),
+  empresa_id: z.string().optional(),
   modulos: z.array(z.string()).optional(),
 })
 
@@ -308,8 +311,10 @@ function ModulosSelector({ nivel, selected, onChange }: ModulosSelectorProps) {
 
 export function UsuariosTab() {
   const { perfil, user } = useAuth()
+  const { empresas, empresaAtiva } = useEmpresa()
   const isAdmin = perfil?.nivel === 'admin' || user?.email === 'ricardo_h.16@hotmail.com' || user?.email === 'victor@gveldiesel.com'
   const { usuarios, loading, refetch } = useUsuarios()
+  const [filtroEmpresa, setFiltroEmpresa] = useState<string>('TODAS')
   const [mostrarForm, setMostrarForm] = useState(false)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [editandoId, setEditandoId] = useState<string | null>(null)
@@ -330,11 +335,17 @@ export function UsuariosTab() {
     resolver: zodResolver(schema),
     defaultValues: {
       nivel: 'usuario',
+      empresa_id: empresaAtiva?.id || empresas[0]?.id || 'gvel_diesel',
       modulos: MODULOS_PADRAO_USUARIO,
     },
   })
 
   const nivelWatch = watch('nivel')
+
+  const usuariosFiltrados = useMemo(() => {
+    if (filtroEmpresa === 'TODAS') return usuarios
+    return usuarios.filter((u) => (u.empresa_id || 'gvel_diesel') === filtroEmpresa)
+  }, [usuarios, filtroEmpresa])
 
   // Regra fundamental: Apenas administradores podem gerenciar usuários
   if (!isAdmin) {
@@ -357,10 +368,15 @@ export function UsuariosTab() {
     try {
       await criarUsuario({
         ...values,
+        empresa_id: values.empresa_id || empresaAtiva?.id || 'gvel_diesel',
         modulos: values.nivel === 'admin' ? TODOS_MODULOS_IDS : values.modulos || MODULOS_PADRAO_USUARIO,
       })
       await refetch()
-      reset({ nivel: 'usuario', modulos: MODULOS_PADRAO_USUARIO })
+      reset({
+        nivel: 'usuario',
+        empresa_id: empresaAtiva?.id || empresas[0]?.id || 'gvel_diesel',
+        modulos: MODULOS_PADRAO_USUARIO,
+      })
       setMostrarForm(false)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Não foi possível criar o usuário.'
@@ -410,44 +426,123 @@ export function UsuariosTab() {
 
   return (
     <>
-      <div className="space-y-6">
-        {!mostrarForm ? (
-          <Button type="button" onClick={() => setMostrarForm(true)} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Novo usuário
-          </Button>
-        ) : (
+      <div className="space-y-5">
+        {/* Barra Superior com Filtro por Empresa e Ação de Novo Usuário */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface/60 p-4 rounded-2xl border border-border/10">
+          <div>
+            <h2 className="text-sm font-bold text-foreground uppercase tracking-wide flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              Usuários e Permissões
+            </h2>
+            <p className="text-xs text-secondary mt-0.5">
+              Gerencie usuários vinculados por empresa e defina permissões de acesso
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            {/* Seletor de Filtro de Empresa */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-secondary uppercase tracking-wider whitespace-nowrap">
+                Empresa:
+              </span>
+              <Select
+                value={filtroEmpresa}
+                onChange={(e) => setFiltroEmpresa(e.target.value)}
+                className="text-xs h-9 min-w-44 bg-background"
+              >
+                <option value="TODAS">Todas as Empresas ({usuarios.length})</option>
+                {empresas.map((emp) => {
+                  const count = usuarios.filter((u) => (u.empresa_id || 'gvel_diesel') === emp.id).length
+                  return (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.nome} ({count})
+                    </option>
+                  )
+                })}
+              </Select>
+            </div>
+
+            {!mostrarForm && (
+              <Button
+                type="button"
+                onClick={() => {
+                  reset({
+                    nivel: 'usuario',
+                    empresa_id: filtroEmpresa !== 'TODAS' ? filtroEmpresa : (empresaAtiva?.id || 'gvel_diesel'),
+                    modulos: MODULOS_PADRAO_USUARIO,
+                  })
+                  setMostrarForm(true)
+                }}
+                className="flex items-center gap-2 shrink-0 h-9"
+              >
+                <Plus className="h-4 w-4" />
+                Novo usuário
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Formulário de Cadastro */}
+        {mostrarForm && (
           <Card>
             <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4 border-b border-border/10 pb-2">
+                <h3 className="text-sm font-bold text-foreground uppercase tracking-wide flex items-center gap-2">
+                  <Plus className="h-4 w-4 text-primary" />
+                  Cadastrar Novo Usuário
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => { setMostrarForm(false); reset() }}
+                  className="text-secondary hover:text-foreground transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                 <div>
-                  <Label htmlFor="nome">Nome</Label>
+                  <Label htmlFor="nome">Nome Completo *</Label>
                   <Input id="nome" placeholder="Nome do usuário" {...register('nome')} />
                   <FieldError message={errors.nome?.message} />
                 </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="email">E-mail</Label>
+                    <Label htmlFor="email">E-mail de Acesso *</Label>
                     <Input id="email" type="email" placeholder="usuario@empresa.com" {...register('email')} />
                     <FieldError message={errors.email?.message} />
                   </div>
                   <div>
-                    <Label htmlFor="senha">Senha temporária</Label>
+                    <Label htmlFor="senha">Senha Temporária *</Label>
                     <Input id="senha" type="password" placeholder="Mínimo de 6 caracteres" {...register('senha')} />
                     <FieldError message={errors.senha?.message} />
                     <p className="mt-1 text-xs text-secondary">A pessoa será obrigada a trocar no primeiro login.</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="telefone">Telefone</Label>
                     <Input id="telefone" placeholder="Opcional" {...register('telefone')} />
                   </div>
+
                   <div>
-                    <Label htmlFor="nivel">Nível</Label>
+                    <Label htmlFor="empresa_id">Empresa Vinculada *</Label>
+                    <Select id="empresa_id" {...register('empresa_id')}>
+                      {empresas.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.nome} ({emp.sistemaLabel})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="nivel">Nível de Acesso *</Label>
                     <Select id="nivel" {...register('nivel')}>
-                      <option value="usuario">Usuário</option>
-                      <option value="admin">Administrador</option>
+                      <option value="usuario">Usuário Padrão</option>
+                      <option value="admin">Administrador (Total)</option>
                     </Select>
                   </div>
                 </div>
@@ -478,17 +573,26 @@ export function UsuariosTab() {
           </Card>
         )}
 
+        {/* Lista de Usuários */}
         <Card>
           <CardContent className="pt-6">
             {erroLista && <p className="mb-3 text-sm text-status-danger">{erroLista}</p>}
             {loading ? (
-              <p className="text-sm text-secondary">Carregando…</p>
-            ) : usuarios.length === 0 ? (
-              <p className="text-sm text-secondary">Nenhum usuário cadastrado.</p>
+              <p className="text-sm text-secondary">Carregando usuários…</p>
+            ) : usuariosFiltrados.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="h-8 w-8 text-secondary mx-auto mb-2 opacity-50" />
+                <p className="text-sm text-secondary font-medium">
+                  {filtroEmpresa === 'TODAS'
+                    ? 'Nenhum usuário cadastrado.'
+                    : 'Nenhum usuário cadastrado para a empresa selecionada.'}
+                </p>
+              </div>
             ) : (
               <div className="space-y-3">
-                {usuarios.map((u) => {
+                {usuariosFiltrados.map((u: Usuario) => {
                   const modulosPermitidos = getModulosUsuario(u)
+                  const empresaVinculada = empresas.find((e) => e.id === u.empresa_id) || empresas[0]
 
                   return editandoId === u.id ? (
                     <EditarUsuarioForm
@@ -506,9 +610,26 @@ export function UsuariosTab() {
                       <div className="space-y-2 flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-foreground font-bold text-sm">{u.nome}</p>
+                          
+                          {/* Badge de Empresa */}
+                          {empresaVinculada && (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10px] font-bold border shadow-xs"
+                              style={{
+                                backgroundColor: empresaVinculada.cor ? `${empresaVinculada.cor}18` : '#37415118',
+                                color: empresaVinculada.cor || '#9ca3af',
+                                borderColor: empresaVinculada.cor ? `${empresaVinculada.cor}40` : '#37415140',
+                              }}
+                            >
+                              <Building2 className="h-3 w-3" />
+                              {empresaVinculada.nome}
+                            </span>
+                          )}
+
                           <Badge tone={u.nivel === 'admin' ? 'warning' : 'neutral'}>
                             {u.nivel === 'admin' ? 'Administrador' : 'Usuário'}
                           </Badge>
+
                           {u.nivel === 'admin' && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-primary uppercase">
                               <ShieldCheck className="h-3.5 w-3.5" /> Acesso Total
@@ -659,6 +780,7 @@ function EditarUsuarioForm({
   onSalvo: () => void | Promise<void>
   onErro: (message: string) => void
 }) {
+  const { empresas } = useEmpresa()
   const {
     register,
     handleSubmit,
@@ -670,6 +792,7 @@ function EditarUsuarioForm({
     defaultValues: {
       nome: usuario.nome,
       telefone: usuario.telefone ?? '',
+      empresa_id: usuario.empresa_id || 'gvel_diesel',
       nivel: usuario.nivel,
       modulos: getModulosUsuario(usuario),
     },
@@ -682,6 +805,7 @@ function EditarUsuarioForm({
       await atualizarUsuario(usuario.id, {
         ...values,
         email: usuario.email,
+        empresa_id: values.empresa_id || 'gvel_diesel',
         modulos: values.nivel === 'admin' ? TODOS_MODULOS_IDS : values.modulos || [],
       })
       await onSalvo()
@@ -709,7 +833,7 @@ function EditarUsuarioForm({
         </button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-4">
         <div>
           <Label htmlFor={`nome-${usuario.id}`}>Nome</Label>
           <Input id={`nome-${usuario.id}`} {...register('nome')} />
@@ -717,6 +841,16 @@ function EditarUsuarioForm({
         <div>
           <Label htmlFor={`telefone-${usuario.id}`}>Telefone</Label>
           <Input id={`telefone-${usuario.id}`} placeholder="Opcional" {...register('telefone')} />
+        </div>
+        <div>
+          <Label htmlFor={`empresa-${usuario.id}`}>Empresa</Label>
+          <Select id={`empresa-${usuario.id}`} {...register('empresa_id')}>
+            {empresas.map((emp) => (
+              <option key={emp.id} value={emp.id}>
+                {emp.nome} ({emp.sistemaLabel})
+              </option>
+            ))}
+          </Select>
         </div>
         <div>
           <Label htmlFor={`nivel-${usuario.id}`}>Nível</Label>

@@ -4,6 +4,33 @@ import { up } from '@/lib/text'
 import { salvarPermissoesUsuario, getModulosUsuario } from '@/lib/permissoes'
 import type { NivelUsuario, Usuario } from '@/lib/types'
 
+const STORAGE_EMPRESA_USUARIO_PREFIX = 'gvel_user_empresa_'
+
+export function salvarEmpresaUsuario(key: string, empresaId: string) {
+  if (!key) return
+  try {
+    localStorage.setItem(`${STORAGE_EMPRESA_USUARIO_PREFIX}${key.toLowerCase().trim()}`, empresaId)
+  } catch {}
+}
+
+export function getEmpresaUsuario(user: Partial<Usuario>): string {
+  if (user.empresa_id) return user.empresa_id
+  const email = (user.email || '').toLowerCase().trim()
+  if (email) {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_EMPRESA_USUARIO_PREFIX}${email}`)
+      if (saved) return saved
+    } catch {}
+  }
+  if (user.id) {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_EMPRESA_USUARIO_PREFIX}${user.id}`)
+      if (saved) return saved
+    } catch {}
+  }
+  return 'gvel_diesel'
+}
+
 export function useUsuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [loading, setLoading] = useState(true)
@@ -15,9 +42,10 @@ export function useUsuarios() {
     if (error) {
       setError(error.message)
     } else {
-      // Injeta os módulos recuperados (do banco ou do mapeamento local)
+      // Injeta os módulos recuperados e a empresa vinculada
       const listaTratada = (data ?? []).map((u) => ({
         ...u,
+        empresa_id: getEmpresaUsuario(u),
         modulos: getModulosUsuario(u),
       }))
       setUsuarios(listaTratada)
@@ -38,6 +66,7 @@ interface CriarUsuarioInput {
   senha: string
   telefone?: string
   nivel?: NivelUsuario
+  empresa_id?: string
   modulos?: string[]
 }
 
@@ -61,6 +90,13 @@ export async function criarUsuario(input: CriarUsuarioInput) {
     throw new Error(await mensagemErroFuncao(error, 'Não foi possível criar o usuário.'))
   }
   
+  if (input.empresa_id) {
+    salvarEmpresaUsuario(input.email, input.empresa_id)
+    if (data?.id) {
+      salvarEmpresaUsuario(data.id, input.empresa_id)
+    }
+  }
+
   if (input.modulos && input.email) {
     salvarPermissoesUsuario(input.email, input.modulos)
     if (data?.id) {
@@ -87,11 +123,20 @@ interface AtualizarUsuarioInput {
   nome: string
   telefone?: string
   nivel: NivelUsuario
+  empresa_id?: string
   modulos?: string[]
   email?: string
 }
 
 export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput) {
+  // Salva empresa vinculada
+  if (input.empresa_id) {
+    salvarEmpresaUsuario(id, input.empresa_id)
+    if (input.email) {
+      salvarEmpresaUsuario(input.email, input.empresa_id)
+    }
+  }
+
   // Salva permissões localmente de forma imediata e garantida
   if (input.modulos) {
     salvarPermissoesUsuario(id, input.modulos)
@@ -100,11 +145,14 @@ export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput)
     }
   }
 
-  // Tenta atualizar no Supabase com modulos, e caso a coluna não exista no Postgres, atualiza os campos básicos
+  // Tenta atualizar no Supabase com modulos e empresa_id
   let updatePayload: Record<string, any> = {
     nome: up(input.nome),
     telefone: input.telefone || null,
     nivel: input.nivel,
+  }
+  if (input.empresa_id) {
+    updatePayload.empresa_id = input.empresa_id
   }
   if (input.modulos) {
     updatePayload.modulos = input.modulos
@@ -118,7 +166,7 @@ export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput)
     .single()
 
   if (error) {
-    // Fallback sem a coluna modulos se a coluna não existir no schema do Postgres
+    // Fallback sem as colunas novas caso não existam no Postgres
     const { data: dataFallback, error: errorFallback } = await supabase
       .from('usuarios')
       .update({ nome: up(input.nome), telefone: input.telefone || null, nivel: input.nivel })

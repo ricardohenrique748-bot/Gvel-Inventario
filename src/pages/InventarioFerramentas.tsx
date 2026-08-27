@@ -321,9 +321,6 @@ const CATEGORIAS_INSUMOS = [
   'GERAL',
 ]
 
-const CATEGORIAS_SUGERIDAS = Array.from(
-  new Set([...CATEGORIAS_FERRAMENTAS, ...CATEGORIAS_ESPECIAIS, ...CATEGORIAS_INSUMOS])
-)
 
 export type AbaEstoque = 'ferramentas' | 'especiais' | 'insumos' | 'em_uso' | 'historico' | 'caixas'
 
@@ -588,16 +585,40 @@ export function InventarioFerramentas() {
   const [limiteConsumo, setLimiteConsumo] = useState(30)
   const [limiteHistoricoConsumo, setLimiteHistoricoConsumo] = useState(30)
 
+  // Detecção robusta de ferramenta especial por tipo, categoria e palavras-chave
+  const isEspecial = (f: Ferramenta) => {
+    if (f.tipo_ferramenta === 'especial') return true
+    const catUpper = (f.categoria || '').toUpperCase()
+    if (CATEGORIAS_ESPECIAIS.some((c) => c !== 'TODAS' && c !== 'GERAL' && catUpper === c)) return true
+    if (
+      catUpper.includes('ESPECIAL') ||
+      catUpper.includes('SACADOR') ||
+      catUpper.includes('EXTRATOR') ||
+      catUpper.includes('GABARITO') ||
+      catUpper.includes('TRAVA') ||
+      catUpper.includes('SCANNER') ||
+      catUpper.includes('TORQUIMETRO') ||
+      catUpper.includes('TORQUÍMETRO') ||
+      catUpper.includes('DIAGNOSTICO') ||
+      catUpper.includes('DIAGNÓSTICO') ||
+      catUpper.includes('HIDRÁULICA PESADA') ||
+      catUpper.includes('MOTORES')
+    ) {
+      return true
+    }
+    return false
+  }
+
   // Ferramentas comuns vs especiais vs insumos
   const ferramentasComuns = useMemo(() => {
     return ferramentas.filter(
-      (f) => f.tipo_ferramenta !== 'especial' && !f.categoria?.toUpperCase().includes('ESPECIAL') && !f.categoria?.toUpperCase().includes('INSUMO')
+      (f) => !isEspecial(f) && !f.categoria?.toUpperCase().includes('INSUMO')
     )
   }, [ferramentas])
 
   const ferramentasEspeciais = useMemo(() => {
     return ferramentas.filter(
-      (f) => f.tipo_ferramenta === 'especial' || f.categoria?.toUpperCase().includes('ESPECIAL')
+      (f) => isEspecial(f)
     )
   }, [ferramentas])
 
@@ -756,7 +777,9 @@ export function InventarioFerramentas() {
               className="w-full !px-3 !py-2 uppercase font-bold text-[11px] sm:text-xs gap-1.5"
             >
               <Plus className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">NOVA FERRAMENTA</span>
+              <span className="truncate">
+                {tipoFiltro === 'especiais' ? 'NOVA FERRAMENTA ESPECIAL' : 'NOVA FERRAMENTA'}
+              </span>
             </Button>
           </div>
         }
@@ -2684,6 +2707,7 @@ export function InventarioFerramentas() {
       {modalFerramentaAberto && (
         <ModalFerramenta
           ferramenta={ferramentaEditando}
+          tipoInicial={tipoFiltro === 'especiais' ? 'especial' : 'comum'}
           onClose={() => setModalFerramentaAberto(false)}
           onSalvo={async () => {
             setModalFerramentaAberto(false)
@@ -3066,16 +3090,45 @@ function ModalHistoricoFerramenta({
 // ----------------------------------------------------------------------------------
 function ModalFerramenta({
   ferramenta,
+  tipoInicial = 'comum',
   onClose,
   onSalvo,
 }: {
   ferramenta: Ferramenta | null
+  tipoInicial?: 'comum' | 'especial'
   onClose: () => void
   onSalvo: () => Promise<void>
 }) {
+  const [tipoFerramenta, setTipoFerramenta] = useState<'comum' | 'especial'>(() => {
+    if (ferramenta) {
+      if (ferramenta.tipo_ferramenta) return ferramenta.tipo_ferramenta
+      const cat = (ferramenta.categoria || '').toUpperCase()
+      if (
+        cat.includes('ESPECIAL') ||
+        cat.includes('SACADOR') ||
+        cat.includes('EXTRATOR') ||
+        cat.includes('GABARITO') ||
+        cat.includes('TRAVA') ||
+        cat.includes('SCANNER') ||
+        cat.includes('TORQUIMETRO') ||
+        cat.includes('TORQUÍMETRO') ||
+        cat.includes('DIAGNOSTICO') ||
+        cat.includes('DIAGNÓSTICO') ||
+        cat.includes('HIDRÁULICA PESADA') ||
+        cat.includes('MOTORES')
+      ) {
+        return 'especial'
+      }
+      return 'comum'
+    }
+    return tipoInicial
+  })
+
   const [nome, setNome] = useState(ferramenta?.nome || '')
   const [codigo, setCodigo] = useState(ferramenta?.codigo || '')
-  const [categoria, setCategoria] = useState(ferramenta?.categoria || 'GERAL')
+  const [categoria, setCategoria] = useState(
+    ferramenta?.categoria || (tipoInicial === 'especial' ? 'SACADORES E EXTRATORES' : 'GERAL')
+  )
   const [quantidadeTotal, setQuantidadeTotal] = useState(String(ferramenta?.quantidade_total || 1))
   const [localizacao, setLocalizacao] = useState(ferramenta?.localizacao || '')
   const [observacoes, setObservacoes] = useState(ferramenta?.observacoes || '')
@@ -3130,6 +3183,7 @@ function ModalFerramenta({
           nome: nome.toUpperCase(),
           codigo: codigo.toUpperCase(),
           categoria: categoria.toUpperCase(),
+          tipo_ferramenta: tipoFerramenta,
           quantidade_total: Number(quantidadeTotal) || 1,
           localizacao: localizacao.toUpperCase(),
           observacoes: observacoes.toUpperCase(),
@@ -3140,6 +3194,7 @@ function ModalFerramenta({
           nome: nome.toUpperCase(),
           codigo: codigo.toUpperCase(),
           categoria: categoria.toUpperCase(),
+          tipo_ferramenta: tipoFerramenta,
           quantidade_total: Number(quantidadeTotal) || 1,
           localizacao: localizacao.toUpperCase(),
           observacoes: observacoes.toUpperCase(),
@@ -3160,10 +3215,16 @@ function ModalFerramenta({
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
-              <Hammer className="h-5 w-5" />
+              {tipoFerramenta === 'especial' ? <Wrench className="h-5 w-5" /> : <Hammer className="h-5 w-5" />}
             </div>
             <h2 className="text-base font-bold text-foreground uppercase">
-              {ferramenta ? 'EDITAR FERRAMENTA' : 'NOVA FERRAMENTA'}
+              {ferramenta
+                ? tipoFerramenta === 'especial'
+                  ? 'EDITAR FERRAMENTA ESPECIAL'
+                  : 'EDITAR FERRAMENTA'
+                : tipoFerramenta === 'especial'
+                ? 'NOVA FERRAMENTA ESPECIAL'
+                : 'NOVA FERRAMENTA'}
             </h2>
           </div>
           <button
@@ -3177,13 +3238,50 @@ function ModalFerramenta({
         {erro && <p className="mb-4 text-sm text-status-danger uppercase font-bold">{erro}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Tipo de Ferramenta */}
+          <div>
+            <Label className="uppercase font-bold text-xs">TIPO DE FERRAMENTA *</Label>
+            <div className="grid grid-cols-2 gap-2 mt-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setTipoFerramenta('comum')
+                  if (categoria === 'SACADORES E EXTRATORES') setCategoria('GERAL')
+                }}
+                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold uppercase transition-all cursor-pointer ${
+                  tipoFerramenta === 'comum'
+                    ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                    : 'bg-background border-border/20 text-secondary hover:text-foreground'
+                }`}
+              >
+                <Hammer className="h-4 w-4" />
+                CONVENCIONAL
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTipoFerramenta('especial')
+                  if (categoria === 'GERAL') setCategoria('SACADORES E EXTRATORES')
+                }}
+                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold uppercase transition-all cursor-pointer ${
+                  tipoFerramenta === 'especial'
+                    ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                    : 'bg-background border-border/20 text-secondary hover:text-foreground'
+                }`}
+              >
+                <Wrench className="h-4 w-4" />
+                ESPECIAL
+              </button>
+            </div>
+          </div>
+
           <div>
             <Label htmlFor="nome" className="uppercase font-bold">NOME DA FERRAMENTA *</Label>
             <Input
               id="nome"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder="EX: CHAVE DE IMPACTO 1/2, TORQUÍMETRO, SCANNER..."
+              placeholder={tipoFerramenta === 'especial' ? 'EX: SACADOR DE BICO, SCANNER DIESEL...' : 'EX: CHAVE DE IMPACTO 1/2, SOQUETE 24MM...'}
               required
               className="uppercase font-medium"
             />
@@ -3207,13 +3305,15 @@ function ModalFerramenta({
                 list="lista-categorias-sugeridas"
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
-                placeholder="EX: INSUMOS, PNEUMÁTICA..."
+                placeholder={tipoFerramenta === 'especial' ? 'EX: SACADORES E EXTRATORES' : 'EX: PNEUMÁTICA'}
                 className="uppercase font-medium"
               />
               <datalist id="lista-categorias-sugeridas">
-                {CATEGORIAS_SUGERIDAS.filter((c) => c !== 'TODAS').map((cat) => (
-                  <option key={cat} value={cat} />
-                ))}
+                {(tipoFerramenta === 'especial' ? CATEGORIAS_ESPECIAIS : CATEGORIAS_FERRAMENTAS)
+                  .filter((c) => c !== 'TODAS')
+                  .map((cat) => (
+                    <option key={cat} value={cat} />
+                  ))}
               </datalist>
             </div>
           </div>

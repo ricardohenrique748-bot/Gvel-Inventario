@@ -16,7 +16,6 @@ import {
   Sparkles,
   DollarSign,
   UserCheck,
-  ShoppingCart,
   Columns3,
   ArrowUpRight,
 } from 'lucide-react'
@@ -167,14 +166,6 @@ export function DashboardGerencial() {
       desc: 'QUADRO DE EQUIPE, MECÂNICOS E ESCALAS',
       icon: UserCheck,
       tone: 'from-blue-500/20 to-blue-500/5 text-blue-500 border-blue-500/20',
-      badge: 'EM BREVE',
-    },
-    {
-      to: '/compras',
-      title: 'COMPRAS',
-      desc: 'PEDIDOS, COTAÇÕES E FORNECEDORES',
-      icon: ShoppingCart,
-      tone: 'from-orange-500/20 to-orange-500/5 text-orange-500 border-orange-500/20',
       badge: 'EM BREVE',
     },
     {

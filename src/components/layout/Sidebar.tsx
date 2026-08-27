@@ -1,4 +1,5 @@
-import { useMemo, useState, useRef, useEffect } from 'react'
+import { useMemo, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { NavLink, useLocation } from 'react-router-dom'
 import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench, Check, Building2 } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
@@ -12,81 +13,112 @@ import { isNativeApp } from '@/lib/isNativeApp'
 
 function CompanySwitcher() {
   const { empresas, empresaAtiva, setEmpresaAtiva } = useEmpresa()
+  const { user, perfil, perfilLoading } = useAuth()
+  const isAdmin = !perfilLoading && (perfil?.nivel === 'admin' || user?.email === 'ricardo_h.16@hotmail.com' || user?.email === 'victor@gveldiesel.com')
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+  function toggleOpen() {
+    if (!isAdmin) return
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setCoords({
+        top: rect.bottom + 6,
+        left: rect.left,
+      })
     }
-    if (open) document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+    setOpen((o) => !o)
+  }
 
   return (
-    <div ref={ref} className="relative flex-1 min-w-0">
+    <div className="relative flex-1 min-w-0">
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-between gap-1 w-full max-w-full group rounded-lg p-1 transition-colors hover:bg-overlay/5 overflow-hidden text-left cursor-pointer"
-        title="Trocar de empresa"
-        aria-haspopup="listbox"
+        ref={buttonRef}
+        type="button"
+        onClick={toggleOpen}
+        disabled={!isAdmin}
+        className={cn(
+          "flex items-center justify-between gap-1 w-full max-w-full group rounded-lg p-1 transition-colors overflow-hidden text-left",
+          isAdmin ? "hover:bg-overlay/5 cursor-pointer" : "cursor-default"
+        )}
+        title={isAdmin ? "Trocar de empresa (Administrador)" : "Empresa ativa"}
+        aria-haspopup={isAdmin ? "listbox" : undefined}
         aria-expanded={open}
       >
         <div className="min-w-0 flex-1 overflow-hidden">
           <Logo size="sm" />
         </div>
-        <ChevronDown
-          className={cn(
-            'h-3.5 w-3.5 shrink-0 text-secondary/60 transition-transform duration-200 group-hover:text-secondary',
-            open && 'rotate-180',
-          )}
-        />
+        {isAdmin && (
+          <ChevronDown
+            className={cn(
+              'h-3.5 w-3.5 shrink-0 text-secondary/60 transition-transform duration-200 group-hover:text-secondary',
+              open && 'rotate-180',
+            )}
+          />
+        )}
       </button>
 
-      {open && (
-        <div className="absolute left-0 top-full mt-2 w-60 rounded-xl border border-border/[0.15] bg-[#18181b] shadow-2xl shadow-black/80 z-[100] overflow-hidden">
-          <div className="px-3 py-2 border-b border-border/[0.08] bg-black/20">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-secondary/70">
-              Trocar de Empresa
-            </p>
-          </div>
-          <div className="py-1 max-h-64 overflow-y-auto">
-            {empresas.map((empresa) => {
-              const isActive = empresa.id === empresaAtiva?.id
-              return (
-                <button
-                  key={empresa.id}
-                  role="option"
-                  aria-selected={isActive}
-                  onClick={() => {
-                    setEmpresaAtiva(empresa.id)
-                    setOpen(false)
-                  }}
-                  className={cn(
-                    'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors',
-                    isActive
-                      ? 'bg-primary/10 text-foreground'
-                      : 'text-secondary hover:bg-overlay/5 hover:text-foreground',
-                  )}
-                >
-                  <div
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white text-[10px] font-black shadow-sm"
-                    style={{ backgroundColor: empresa.cor }}
+      {open && isAdmin && createPortal(
+        <>
+          <div className="fixed inset-0 z-[99998]" onClick={() => setOpen(false)} />
+          <div
+            style={{
+              position: 'fixed',
+              top: `${coords.top}px`,
+              left: `${coords.left}px`,
+              width: '250px',
+            }}
+            className="z-[99999] rounded-xl border border-border/20 bg-[#18181b] shadow-2xl shadow-black/90 overflow-hidden animate-in fade-in zoom-in-95 duration-150 font-sans"
+          >
+            <div className="px-3 py-2 border-b border-border/10 bg-black/40 flex items-center justify-between">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-secondary/80">
+                Trocar de Empresa
+              </p>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold tracking-wider">
+                ADMIN
+              </span>
+            </div>
+            <div className="py-1 max-h-64 overflow-y-auto">
+              {empresas.map((empresa) => {
+                const isActive = empresa.id === empresaAtiva?.id
+                return (
+                  <button
+                    key={empresa.id}
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    onClick={() => {
+                      setEmpresaAtiva(empresa.id)
+                      setOpen(false)
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer',
+                      isActive
+                        ? 'bg-primary/15 text-foreground font-semibold'
+                        : 'text-secondary hover:bg-white/5 hover:text-foreground',
+                    )}
                   >
-                    <Building2 className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold truncate">{empresa.nome}</p>
-                    <p className="text-[10px] text-secondary/70 uppercase tracking-wide truncate">
-                      {empresa.sistemaLabel}
-                    </p>
-                  </div>
-                  {isActive && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                </button>
-              )
-            })}
+                    <div
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white text-[10px] font-black shadow-sm"
+                      style={{ backgroundColor: empresa.cor }}
+                    >
+                      <Building2 className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold truncate text-foreground">{empresa.nome}</p>
+                      <p className="text-[10px] text-secondary/70 uppercase tracking-wide truncate">
+                        {empresa.sistemaLabel}
+                      </p>
+                    </div>
+                    {isActive && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        </>,
+        document.body
       )}
     </div>
   )
@@ -108,7 +140,6 @@ export function Sidebar() {
   const canAccessInventarioCaminhoes = isModuloAuthorized(userRef, 'inventario_caminhoes')
   const canAccessFrotas = isModuloAuthorized(userRef, 'frotas')
   const canAccessRH = isModuloAuthorized(userRef, 'rh')
-  const canAccessCompras = isModuloAuthorized(userRef, 'compras')
   const canAccessConfiguracoes = isAdmin || isModuloAuthorized(userRef, 'configuracoes')
   const location = useLocation()
 
@@ -148,7 +179,6 @@ export function Sidebar() {
         if (item.to === '/financeiro') return canAccessFinanceiro
         if (item.to === '/kanban') return canAccessKanban
         if (item.to === '/rh') return canAccessRH
-        if (item.to === '/compras') return canAccessCompras
         if (item.to === '/configuracoes') return canAccessConfiguracoes || canAccessRelatorios
         return true
       })
@@ -190,7 +220,6 @@ export function Sidebar() {
     canAccessInventarioCaminhoes,
     canAccessFrotas,
     canAccessRH,
-    canAccessCompras,
     canAccessConfiguracoes,
   ])
 
