@@ -78,7 +78,6 @@ export async function criarCanalNotificacoesAndroid() {
         description: 'Notificações de entrada, saída, pátio, O.S e manutenção de frota',
         importance: 5, // 5 = HIGH / MAX (mostra banner popup e vibra)
         visibility: 1, // 1 = PUBLIC
-        sound: undefined,
         vibration: true,
         lights: true,
         lightColor: '#C7301F',
@@ -97,10 +96,17 @@ export async function solicitarPermissaoNotificacoes(): Promise<boolean> {
   try {
     if (Capacitor.isNativePlatform()) {
       await criarCanalNotificacoesAndroid()
-      const status = await LocalNotifications.checkPermissions()
-      if (status.display === 'granted') return true
-      const req = await LocalNotifications.requestPermissions()
-      return req.display === 'granted'
+      let status = await LocalNotifications.checkPermissions()
+      if (status.display !== 'granted') {
+        status = await LocalNotifications.requestPermissions()
+      }
+      try {
+        let pushStatus = await PushNotifications.checkPermissions()
+        if (pushStatus.receive !== 'granted') {
+          pushStatus = await PushNotifications.requestPermissions()
+        }
+      } catch {}
+      return status.display === 'granted'
     }
 
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -131,7 +137,6 @@ export async function dispararPushLocal(titulo: string, mensagem: string, linkUr
             id: Math.floor(Math.random() * 900000) + 100000,
             title: titulo,
             body: mensagem,
-            schedule: { at: new Date(Date.now() + 50) },
             smallIcon: 'ic_stat_notification',
             iconColor: '#C7301F',
             channelId: GVEL_NOTIFICATION_CHANNEL_ID,

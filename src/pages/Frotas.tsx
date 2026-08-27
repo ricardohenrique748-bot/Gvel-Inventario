@@ -25,7 +25,6 @@ import {
   Wrench,
   Check,
   Disc,
-  MapPin,
   Users,
   AlertTriangle,
   Car,
@@ -1399,8 +1398,8 @@ export function Frotas() {
       {/* ========================================================================= */}
       {abaPrincipal === 'dashboard' && (
         <div className="space-y-6">
-          {/* Indicadores Principais em Cards (5 Cards Especializados) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          {/* Indicadores Principais em Cards (4 Cards Especializados) */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Total da Frota */}
             <Card className="p-4 border-border/30 bg-surface/90">
               <div className="flex items-center justify-between text-secondary">
@@ -1413,21 +1412,6 @@ export function Frotas() {
               <div className="mt-1.5 flex items-center justify-between text-[10px] font-bold text-secondary">
                 <span className="text-emerald-400 font-black">● {metricasFrota.operantes} OPERANTES</span>
                 <span className="text-amber-400 font-black">● {metricasFrota.inoperantes} INOP.</span>
-              </div>
-            </Card>
-
-            {/* Status no Pátio */}
-            <Card className="p-4 border-blue-500/20 bg-surface/90">
-              <div className="flex items-center justify-between text-blue-400">
-                <span className="text-[10px] font-black uppercase tracking-wider">STATUS NO PÁTIO</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  <MapPin className="h-4 w-4" />
-                </div>
-              </div>
-              <p className="mt-2.5 text-3xl font-black font-mono text-blue-400">{metricasFrota.noPatio}</p>
-              <div className="mt-1.5 flex items-center justify-between text-[10px] font-bold text-secondary">
-                <span className="text-blue-300">NO PÁTIO AGORA</span>
-                <span className="text-foreground/70">{metricasFrota.foraDoPatio} EM ROTA</span>
               </div>
             </Card>
 
@@ -1840,8 +1824,8 @@ export function Frotas() {
       {/* ========================================================================= */}
       {abaPrincipal === 'veiculos' && (
         <div className="space-y-6">
-          {/* Cards de Indicadores da Frota (5 Filtros Rápidos) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          {/* Cards de Indicadores da Frota (4 Filtros Rápidos) */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Total da Frota */}
             <button
               type="button"
@@ -1928,22 +1912,6 @@ export function Frotas() {
               <p className="mt-1 text-[11px] text-indigo-300/80 font-medium">
                 {metricasFrota.seguroVencido} VENC. · {metricasFrota.seguroEmDia} VIGENTES
               </p>
-            </button>
-
-            {/* Status no Pátio */}
-            <button
-              type="button"
-              onClick={() => setAlertaFiltro('todos')}
-              className="text-left p-4 rounded-2xl border border-blue-500/30 bg-surface/90 hover:border-blue-500/50 transition-all"
-            >
-              <div className="flex items-center justify-between text-blue-400">
-                <span className="text-[10px] font-black uppercase tracking-wider">STATUS NO PÁTIO</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  <MapPin className="h-4 w-4" />
-                </div>
-              </div>
-              <p className="mt-2.5 text-3xl font-black font-mono text-blue-400">{metricasFrota.noPatio}</p>
-              <p className="mt-1 text-[11px] text-blue-300/80 font-medium">{metricasFrota.foraDoPatio} EM ROTA</p>
             </button>
           </div>
 
