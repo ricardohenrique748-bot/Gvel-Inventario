@@ -59,7 +59,7 @@ import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useAuth } from '@/contexts/AuthContext'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
-import { VEICULOS_FROTA_BASE } from '@/data/veiculosFrotaPadrao'
+import { VEICULOS_FROTA_BASE, SETORES_FROTA_LEVE } from '@/data/veiculosFrotaPadrao'
 
 const anoAtual = new Date().getFullYear()
 
@@ -69,7 +69,10 @@ const schemaVeiculo = z.object({
   clienteId: z.string().min(1, 'Selecione o cliente').refine((val) => val !== 'todos', 'Selecione um cliente para o veículo'),
   placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
   tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
+  tipoVeiculo: z.string().optional(),
   cor: z.string().trim().min(1, 'Informe a cor'),
+  setor: z.string().trim().optional(),
+  responsavel: z.string().trim().optional(),
   chassi: z.string().trim().optional(),
   situacao: z.enum(['operante', 'inoperante']),
   ano: z
@@ -92,12 +95,15 @@ export interface ItemFrotaCadastrada {
   id: string
   placa: string
   tipo: 'pesado' | 'leve' | 'trator' | 'carreta'
+  tipoVeiculo?: 'CARRO' | 'MOTO' | 'CAMINHONETE' | 'UTILITÁRIO' | string
   marcaNome?: string
   modeloNome?: string
   clienteNome?: string
   clienteId?: string
   ano?: number
   cor?: string
+  setor?: string
+  responsavel?: string
   chassi?: string
   renavam?: string
   categoria?: string
@@ -242,7 +248,7 @@ export function Frotas() {
           VEICULOS_FROTA_BASE.forEach((v) => {
             mapa.set(v.placa.toUpperCase().trim(), v as ItemFrotaCadastrada)
           })
-          // 2. Mesclar com as edições e cadastros existentes do localStorage garantindo tipo e cliente corretos
+          // 2. Mesclar com as edições e cadastros existentes do localStorage garantindo tipo, setor e responsável corretos
           parsed.forEach((v: ItemFrotaCadastrada) => {
             const placa = v.placa ? v.placa.toUpperCase().trim() : v.id
             const base = mapa.get(placa)
@@ -250,11 +256,14 @@ export function Frotas() {
               mapa.set(placa, {
                 ...base,
                 ...v,
-                tipo: base.tipo,
-                clienteNome: base.clienteNome,
-                clienteId: base.clienteId,
-                vencimentoDocumento: base.vencimentoDocumento || v.vencimentoDocumento,
-                observacoes: base.observacoes || v.observacoes,
+                tipo: v.tipo || base.tipo,
+                setor: v.setor || base.setor,
+                responsavel: v.responsavel || base.responsavel,
+                tipoVeiculo: v.tipoVeiculo || base.tipoVeiculo,
+                clienteNome: base.clienteNome || v.clienteNome,
+                clienteId: base.clienteId || v.clienteId,
+                vencimentoDocumento: v.vencimentoDocumento || base.vencimentoDocumento,
+                observacoes: v.observacoes || base.observacoes,
               })
             } else {
               mapa.set(placa, v)
@@ -315,7 +324,6 @@ export function Frotas() {
   const [veiculoChecklistId, setVeiculoChecklistId] = useState('')
   const [placaBuscaChecklist, setPlacaBuscaChecklist] = useState('')
   const [dropdownPlacaAberto, setDropdownPlacaAberto] = useState(false)
-  const [filtroCatChecklist, setFiltroCatChecklist] = useState<string>('todos')
   const containerBuscaPlacaRef = useRef<HTMLDivElement>(null)
   const [motoristaChecklist, setMotoristaChecklist] = useState('')
   const [kmChecklist, setKmChecklist] = useState<number>(0)
@@ -773,13 +781,20 @@ export function Frotas() {
       const chassi = v.chassi?.toLowerCase() || ''
       const cor = v.cor?.toLowerCase() || ''
 
+      const setor = v.setor?.toLowerCase() || ''
+      const responsavel = v.responsavel?.toLowerCase() || ''
+      const tipoVeiculo = v.tipoVeiculo?.toLowerCase() || ''
+
       return (
         placa.includes(termo) ||
         modelo.includes(termo) ||
         marca.includes(termo) ||
         cliente.includes(termo) ||
         chassi.includes(termo) ||
-        cor.includes(termo)
+        cor.includes(termo) ||
+        setor.includes(termo) ||
+        responsavel.includes(termo) ||
+        tipoVeiculo.includes(termo)
       )
     })
   }, [frotas, tipoFiltro, clienteFiltro, alertaFiltro, busca, ultimasKmsPorPlaca])
@@ -804,10 +819,13 @@ export function Frotas() {
     setEditandoId(null)
     reset({
       clienteId: clienteFiltro !== 'todos' ? clienteFiltro : (clientes[0]?.id || ''),
-      tipo: 'pesado',
+      tipo: 'leve',
+      tipoVeiculo: 'CARRO',
       situacao: 'operante',
       placa: '',
-      cor: '',
+      cor: 'BRANCO',
+      setor: 'GV MANUTENÇÃO',
+      responsavel: '',
       chassi: '',
       ano: anoAtual,
       marcaId: '',
@@ -827,7 +845,10 @@ export function Frotas() {
       clienteId: v.clienteId || '',
       placa: v.placa,
       tipo: v.tipo,
+      tipoVeiculo: v.tipoVeiculo || (v.tipo === 'leve' ? 'CARRO' : ''),
       cor: v.cor || '',
+      setor: v.setor || '',
+      responsavel: v.responsavel || '',
       chassi: v.chassi ?? '',
       situacao: v.situacao,
       ano: v.ano || anoAtual,
@@ -852,7 +873,10 @@ export function Frotas() {
       id: editandoId || `frota_${Date.now()}`,
       placa: values.placa.toUpperCase().trim(),
       tipo: values.tipo,
+      tipoVeiculo: values.tipoVeiculo || (values.tipo === 'leve' ? 'CARRO' : undefined),
       cor: values.cor.toUpperCase().trim(),
+      setor: values.setor?.trim() ? values.setor.toUpperCase().trim() : undefined,
+      responsavel: values.responsavel?.trim() ? values.responsavel.toUpperCase().trim() : undefined,
       chassi: values.chassi?.trim() ? values.chassi.toUpperCase().trim() : undefined,
       situacao: values.situacao,
       ano: values.ano,
@@ -882,12 +906,14 @@ export function Frotas() {
     salvarFrotas(frotas.filter((f) => f.id !== id))
   }
 
-  // Lista de veículos filtrados para o modal de checklist (por digitação de placa/modelo e categoria)
+  // Lista de veículos disponíveis para o checklist (Restrito exclusivamente para Frota Leve por enquanto)
+  const veiculosFrotaLeveChecklist = useMemo(() => {
+    return frotas.filter((f) => f.tipo === 'leve')
+  }, [frotas])
+
+  // Lista de veículos filtrados para o modal de checklist (apenas frota leve)
   const veiculosFiltradosChecklist = useMemo(() => {
-    let lista = frotas
-    if (filtroCatChecklist !== 'todos') {
-      lista = lista.filter((f) => f.tipo === filtroCatChecklist)
-    }
+    let lista = veiculosFrotaLeveChecklist
     const buscaLimpa = placaBuscaChecklist.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
     const buscaTexto = placaBuscaChecklist.trim().toUpperCase()
     if (!buscaTexto) return lista
@@ -896,16 +922,17 @@ export function Frotas() {
       (f) =>
         f.placa.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(buscaLimpa) ||
         (f.modeloNome && f.modeloNome.toUpperCase().includes(buscaTexto)) ||
-        (f.marcaNome && f.marcaNome.toUpperCase().includes(buscaTexto))
+        (f.marcaNome && f.marcaNome.toUpperCase().includes(buscaTexto)) ||
+        (f.setor && f.setor.toUpperCase().includes(buscaTexto)) ||
+        (f.responsavel && f.responsavel.toUpperCase().includes(buscaTexto))
     )
-  }, [frotas, placaBuscaChecklist, filtroCatChecklist])
+  }, [veiculosFrotaLeveChecklist, placaBuscaChecklist])
 
   // Handlers de Checklist
   function iniciarNovoChecklist() {
     setVeiculoChecklistId('')
     setPlacaBuscaChecklist('')
     setDropdownPlacaAberto(false)
-    setFiltroCatChecklist('todos')
     setMotoristaChecklist('')
     setKmChecklist(0)
     setResultadoChecklist('aprovado')
@@ -1652,6 +1679,7 @@ export function Frotas() {
                     <tr>
                       <th className="px-4 py-3.5">PLACA</th>
                       <th className="px-4 py-3.5">MODELO / MARCA</th>
+                      <th className="px-4 py-3.5">SETOR / RESPONSÁVEL</th>
                       <th className="px-4 py-3.5">CLIENTE</th>
                       <th className="px-4 py-3.5">ÚLTIMA PREVENTIVA (KM / DATA)</th>
                       <th className="px-4 py-3.5">STATUS PREVENTIVA</th>
@@ -1672,7 +1700,7 @@ export function Frotas() {
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-black text-primary text-sm flex items-center gap-1.5">
-                                <span>🚛</span>
+                                <span>{v.tipoVeiculo === 'MOTO' ? '🏍️' : v.tipo === 'leve' ? '🚗' : '🚛'}</span>
                                 <span>{v.placa}</span>
                               </span>
                               {estaNoPatio && (
@@ -1689,7 +1717,30 @@ export function Frotas() {
                               {v.modeloNome || '—'}
                             </div>
                             <div className="text-[11px] text-secondary font-semibold">
-                              {v.marcaNome || '—'} · <span className="text-[10px] font-mono">{tipoVeiculoLabel(v.tipo)}</span>
+                              {v.marcaNome || '—'} · <span className="text-[10px] font-mono">{v.tipoVeiculo || tipoVeiculoLabel(v.tipo)}</span>
+                            </div>
+                          </td>
+
+                          {/* Setor / Responsável */}
+                          <td className="px-4 py-3.5">
+                            {v.setor ? (
+                              <div className="font-black text-xs text-primary flex items-center gap-1">
+                                <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 text-[10px]">
+                                  {v.setor}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-secondary/50 text-xs font-mono">—</span>
+                            )}
+                            <div className="text-[11px] text-secondary font-bold flex items-center gap-1 mt-0.5">
+                              {v.responsavel ? (
+                                <>
+                                  <User className="h-3 w-3 text-secondary/70 shrink-0" />
+                                  <span className="truncate max-w-[140px]">{v.responsavel}</span>
+                                </>
+                              ) : (
+                                <span className="text-secondary/40 text-[10px]">SEM RESPONSÁVEL</span>
+                              )}
                             </div>
                           </td>
 
@@ -1805,6 +1856,21 @@ export function Frotas() {
       {/* ========================================================================= */}
       {abaPrincipal === 'checklist' && (
         <div className="space-y-6">
+          {/* Banner Informativo Frota Leve */}
+          <div className="flex items-center justify-between p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-xs font-bold shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 rounded-xl bg-emerald-500/20 text-emerald-400">
+                <Car className="h-4 w-4" />
+              </span>
+              <span>
+                CHECKLIST OPERACIONAL HABILITADO EXCLUSIVAMENTE PARA A <strong>FROTA LEVE</strong> ({veiculosFrotaLeveChecklist.length} VEÍCULOS).
+              </span>
+            </div>
+            <span className="hidden sm:inline-block text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/30 text-emerald-400">
+              VISTORIAS LEVES ATIVAS
+            </span>
+          </div>
+
           {/* Métricas do Checklist */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <Card className="p-4 sm:p-5 border-border/30 bg-surface/90">
@@ -2197,6 +2263,64 @@ export function Frotas() {
                 </div>
               </div>
 
+              {/* Setor, Responsável e Subtipo */}
+              <div className="rounded-2xl border border-primary/20 bg-surface/90 p-4 space-y-3 shadow-sm">
+                <div className="flex items-center justify-between border-b border-border/10 pb-2">
+                  <span className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <Building2 className="h-4 w-4 text-primary" /> ALOCAÇÃO OPERACIONAL DA FROTA
+                  </span>
+                  <span className="text-[10px] text-primary font-bold">SETOR & CONDUTOR</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="setor">Setor / Lotação</Label>
+                    <Input
+                      id="setor"
+                      list="lista-setores-frota"
+                      placeholder="Ex: GV MANUTENÇÃO, GV SINOP..."
+                      {...register('setor', {
+                        onChange: (e) => {
+                          e.target.value = e.target.value.toUpperCase()
+                        },
+                      })}
+                      className="mt-1 text-xs uppercase font-bold"
+                    />
+                    <datalist id="lista-setores-frota">
+                      {SETORES_FROTA_LEVE.map((s) => (
+                        <option key={s} value={s} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="responsavel">Responsável / Condutor Principal</Label>
+                    <Input
+                      id="responsavel"
+                      placeholder="Ex: TIAGO, ANDERSON, MORINI, DIRETORIA..."
+                      {...register('responsavel', {
+                        onChange: (e) => {
+                          e.target.value = e.target.value.toUpperCase()
+                        },
+                      })}
+                      className="mt-1 text-xs uppercase font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="tipoVeiculo">Subtipo / Carroceria</Label>
+                  <Select id="tipoVeiculo" {...register('tipoVeiculo')} className="mt-1 text-xs uppercase font-bold">
+                    <option value="CARRO">CARRO DE PASSEIO</option>
+                    <option value="CAMINHONETE">CAMINHONETE / PICK-UP</option>
+                    <option value="UTILITÁRIO">UTILITÁRIO / FURGÃO</option>
+                    <option value="MOTO">MOTOCICLETA</option>
+                    <option value="CAMINHÃO">CAMINHÃO / PESADO</option>
+                    <option value="CARRETA">CARRETA / IMPLEMENTO</option>
+                  </Select>
+                </div>
+              </div>
+
               {/* SEÇÃO: CONTROLE DE PREVENTIVA (KM DA ÚLTIMA, DATA E INTERVALO) */}
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-3">
                 <div className="flex items-center gap-2 text-primary font-black text-xs">
@@ -2298,8 +2422,13 @@ export function Frotas() {
                   <ClipboardCheck className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-sm sm:text-base font-black text-foreground uppercase">NOVO CHECKLIST DA FROTA</h2>
-                  <p className="text-[10px] sm:text-[11px] text-secondary">Vistoria fotográfica, KM e diagnóstico de preventiva</p>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm sm:text-base font-black text-foreground uppercase">NOVO CHECKLIST DA FROTA LEVE</h2>
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase">
+                      FROTA LEVE
+                    </span>
+                  </div>
+                  <p className="text-[10px] sm:text-[11px] text-secondary">Vistoria fotográfica, KM e diagnóstico de preventiva (exclusivo frota leve)</p>
                 </div>
               </div>
               <button
@@ -2318,19 +2447,21 @@ export function Frotas() {
               <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-4">
                 <div className="flex items-center justify-between border-b border-primary/15 pb-2.5">
                   <span className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
-                    <Truck className="h-4 w-4 text-primary" /> 1. IDENTIFICAÇÃO DO VEÍCULO & OPERAÇÃO
+                    <Car className="h-4 w-4 text-primary" /> 1. VEÍCULO DA FROTA LEVE & CONDUTOR
                   </span>
-                  <span className="text-[10px] text-primary font-bold">DIGITE A PLACA OU SELECIONE</span>
+                  <span className="text-[10px] text-primary font-black uppercase">
+                    {veiculosFrotaLeveChecklist.length} VEÍCULOS LEVES HABILITADOS
+                  </span>
                 </div>
 
                 {/* Campo de Busca Direto por Placa */}
                 <div ref={containerBuscaPlacaRef} className="relative">
                   <div className="flex items-center justify-between mb-1.5">
                     <Label htmlFor="chkBuscaPlaca" className="text-xs font-bold text-foreground">
-                      Buscar Placa do Veículo *
+                      Selecione ou Busque a Placa (Frota Leve) *
                     </Label>
                     <span className="text-[10px] text-secondary font-mono">
-                      {frotas.length} veículos cadastrados
+                      {veiculosFrotaLeveChecklist.length} veículos leves
                     </span>
                   </div>
 
@@ -2338,10 +2469,10 @@ export function Frotas() {
                     <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
                     <Input
                       id="chkBuscaPlaca"
-                      placeholder="DIGITE A PLACA DO VEÍCULO (EX: IXF4J63)..."
+                      placeholder="DIGITE A PLACA, MODELO OU RESPONSÁVEL (EX: IXF4J63, SAVEIRO, TIAGO)..."
                       value={placaBuscaChecklist}
                       onFocus={() => {
-                        if (placaBuscaChecklist.trim()) setDropdownPlacaAberto(true)
+                        setDropdownPlacaAberto(true)
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -2350,6 +2481,9 @@ export function Frotas() {
                             const primeiro = veiculosFiltradosChecklist[0]
                             setVeiculoChecklistId(primeiro.id)
                             setPlacaBuscaChecklist(primeiro.placa)
+                            if (primeiro.responsavel && !motoristaChecklist) {
+                              setMotoristaChecklist(primeiro.responsavel)
+                            }
                             setDropdownPlacaAberto(false)
                           }
                         } else if (e.key === 'Escape') {
@@ -2360,16 +2494,15 @@ export function Frotas() {
                         const val = e.target.value.toUpperCase()
                         setPlacaBuscaChecklist(val)
                         const limpa = val.replace(/[^A-Z0-9]/g, '')
-                        if (val.trim()) {
-                          setDropdownPlacaAberto(true)
-                        } else {
-                          setDropdownPlacaAberto(false)
-                        }
-                        const achado = frotas.find(
+                        setDropdownPlacaAberto(true)
+                        const achado = veiculosFrotaLeveChecklist.find(
                           (f) => f.placa.toUpperCase().replace(/[^A-Z0-9]/g, '') === limpa
                         )
                         if (achado) {
                           setVeiculoChecklistId(achado.id)
+                          if (achado.responsavel && !motoristaChecklist) {
+                            setMotoristaChecklist(achado.responsavel)
+                          }
                         } else if (!val) {
                           setVeiculoChecklistId('')
                         }
@@ -2393,21 +2526,24 @@ export function Frotas() {
                     )}
                   </div>
 
-                  {/* Dropdown de Sugestão apenas quando estiver digitando */}
-                  {dropdownPlacaAberto && placaBuscaChecklist.trim() && (
-                    <div className="absolute z-40 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-primary/40 bg-surface shadow-2xl backdrop-blur-xl animate-fade-in divide-y divide-border/10 p-1">
+                  {/* Dropdown de Sugestão */}
+                  {dropdownPlacaAberto && (
+                    <div className="absolute z-40 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-primary/40 bg-surface shadow-2xl backdrop-blur-xl animate-fade-in divide-y divide-border/10 p-1">
                       {veiculosFiltradosChecklist.length === 0 ? (
                         <div className="p-3 text-center text-xs text-secondary font-bold">
-                          Nenhum veículo encontrado com a placa &quot;{placaBuscaChecklist}&quot;
+                          Nenhum veículo da frota leve encontrado com o termo &quot;{placaBuscaChecklist}&quot;
                         </div>
                       ) : (
-                        veiculosFiltradosChecklist.slice(0, 8).map((f) => (
+                        veiculosFiltradosChecklist.map((f) => (
                           <button
                             key={f.id}
                             type="button"
                             onClick={() => {
                               setVeiculoChecklistId(f.id)
                               setPlacaBuscaChecklist(f.placa)
+                              if (f.responsavel) {
+                                setMotoristaChecklist(f.responsavel)
+                              }
                               setDropdownPlacaAberto(false)
                             }}
                             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition-colors cursor-pointer ${
@@ -2422,14 +2558,21 @@ export function Frotas() {
                               }`}>
                                 {f.placa}
                               </span>
-                              <span className="font-bold">
-                                {f.marcaNome} {f.modeloNome} {f.ano ? `(${f.ano})` : ''}
-                              </span>
+                              <div>
+                                <span className="font-bold block">
+                                  {f.marcaNome} {f.modeloNome} {f.ano ? `(${f.ano})` : ''}
+                                </span>
+                                {f.setor && (
+                                  <span className={`text-[10px] block ${f.id === veiculoChecklistId ? 'text-white/80' : 'text-primary font-bold'}`}>
+                                    Setor: {f.setor} {f.responsavel ? `· Resp: ${f.responsavel}` : ''}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <span className={`text-[10px] font-bold uppercase ${
-                              f.id === veiculoChecklistId ? 'text-white/80' : 'text-secondary'
+                            <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                              f.id === veiculoChecklistId ? 'bg-black/20 text-white' : 'bg-surface border border-border/20 text-secondary'
                             }`}>
-                              {tipoVeiculoLabel(f.tipo)}
+                              {f.tipoVeiculo || tipoVeiculoLabel(f.tipo)}
                             </span>
                           </button>
                         ))
@@ -2440,21 +2583,30 @@ export function Frotas() {
 
                 {/* Banner com Detalhes do Veículo Selecionado */}
                 {veiculoChecklistSelecionado && (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl border border-primary/25 bg-surface/90 text-xs shadow-sm animate-fade-in">
-                    <div className="flex items-center gap-2.5 font-mono">
-                      <span className="px-2.5 py-1 rounded-lg bg-primary text-white font-black text-xs shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-primary/30 bg-surface/95 text-xs shadow-sm animate-fade-in">
+                    <div className="flex items-center gap-3 font-mono">
+                      <span className="px-3 py-1.5 rounded-lg bg-primary text-white font-black text-sm shadow-sm">
                         {veiculoChecklistSelecionado.placa}
                       </span>
                       <div>
-                        <p className="font-bold text-foreground">
+                        <p className="font-bold text-foreground text-sm">
                           {veiculoChecklistSelecionado.marcaNome} {veiculoChecklistSelecionado.modeloNome} ({veiculoChecklistSelecionado.ano})
                         </p>
-                        <p className="text-[10px] text-secondary font-sans normal-case">
-                          {veiculoChecklistSelecionado.categoria || tipoVeiculoLabel(veiculoChecklistSelecionado.tipo)}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] font-sans">
+                          {veiculoChecklistSelecionado.setor && (
+                            <span className="px-1.5 py-0.2 rounded bg-primary/10 border border-primary/20 text-primary font-black uppercase">
+                              SETOR: {veiculoChecklistSelecionado.setor}
+                            </span>
+                          )}
+                          {veiculoChecklistSelecionado.responsavel && (
+                            <span className="text-secondary font-bold">
+                              RESP: <strong className="text-foreground">{veiculoChecklistSelecionado.responsavel}</strong>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="text-left sm:text-right">
+                    <div className="text-left sm:text-right font-sans">
                       <span className="text-[11px] font-bold text-primary block truncate max-w-[250px]">
                         {veiculoChecklistSelecionado.clienteNome}
                       </span>

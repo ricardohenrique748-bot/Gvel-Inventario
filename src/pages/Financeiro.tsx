@@ -153,13 +153,129 @@ const DADOS_MESES: Record<string, MesFinanceiroData> = {
       { rank: 10, nome: 'Combustível/Abastecimento', despesa: 99221.14 },
     ],
   },
+  abril: {
+    empresas: [
+      { id: 'gvel', nome: 'GVel Diesel', faturamento: 707764.10, receitas: 707764.10, despesas: 300000.00 },
+      { id: 'leves', nome: 'GVel Leves', faturamento: 0.00, receitas: 0.00, despesas: 0.00 },
+      { id: 'distribuidora', nome: 'GV Distribuidora', faturamento: 0.00, receitas: 0.00, despesas: 0.00 },
+      { id: 'transportes', nome: 'GV Transportes', faturamento: 513760.35, receitas: 513760.35, despesas: 480000.00 },
+      { id: 'investimento', nome: 'Investimento', faturamento: 0.00, receitas: 0.00, despesas: 300000.00 },
+    ],
+    topClientes: [
+      { rank: 1, nome: 'LOCALIZA VEICULOS ESPECIAIS S.A', faturamento: 565000.00 },
+      { rank: 2, nome: 'J D COCENZO E CIA LTDA', faturamento: 54000.00 },
+      { rank: 3, nome: 'PEPSICO DO BRASIL LTDA', faturamento: 25000.00 },
+      { rank: 4, nome: 'VAMOS LOCACAO DE CAMINHOES, MAQUINAS E EQUIPAMENTOS S.A.', faturamento: 18000.00 },
+      { rank: 5, nome: 'FJ LOCACAO COMERCIO VEICULOS EQUIPAMENTO', faturamento: 15000.00 },
+    ],
+    topPlanosConta: [
+      { rank: 1, nome: '(-) Investimento da Empresa em Veículos', despesa: 300000.00 },
+      { rank: 2, nome: 'Compra de Peças', despesa: 280000.00 },
+      { rank: 3, nome: 'Serviços de Terceiros', despesa: 190000.00 },
+      { rank: 4, nome: 'Salário', despesa: 160000.00 },
+      { rank: 5, nome: 'Amortização de Contrato', despesa: 95000.00 },
+      { rank: 6, nome: 'Combustível/Abastecimento', despesa: 80000.00 },
+      { rank: 7, nome: 'COMPRA DE MERCADORIA', despesa: 65000.00 },
+      { rank: 8, nome: 'Aluguel', despesa: 60000.00 },
+      { rank: 9, nome: 'Taxa de Ant.= Ticket/Localiza/Vamos', despesa: 40000.00 },
+      { rank: 10, nome: 'INSS (Previdência Social/GPS)', despesa: 40000.00 },
+    ],
+  },
+  marco: {
+    empresas: [
+      { id: 'gvel', nome: 'GVel Diesel', faturamento: 1002818.46, receitas: 1000000.00, despesas: 250000.00 },
+      { id: 'leves', nome: 'GVel Leves', faturamento: 0.00, receitas: 0.00, despesas: 0.00 },
+      { id: 'distribuidora', nome: 'GV Distribuidora', faturamento: 0.00, receitas: 0.00, despesas: 0.00 },
+      { id: 'transportes', nome: 'GV Transportes', faturamento: 105972.64, receitas: 105972.64, despesas: 89000.00 },
+      { id: 'investimento', nome: 'Investimento', faturamento: 0.00, receitas: 0.00, despesas: 250000.00 },
+    ],
+    topClientes: [
+      { rank: 1, nome: 'LOCALIZA VEICULOS ESPECIAIS S.A', faturamento: 802000.00 },
+      { rank: 2, nome: 'J D COCENZO E CIA LTDA', faturamento: 78000.00 },
+      { rank: 3, nome: 'PEPSICO DO BRASIL LTDA', faturamento: 32000.00 },
+      { rank: 4, nome: 'VAMOS LOCACAO DE CAMINHOES, MAQUINAS E EQUIPAMENTOS S.A.', faturamento: 24000.00 },
+      { rank: 5, nome: 'FJ LOCACAO COMERCIO VEICULOS EQUIPAMENTO', faturamento: 19000.00 },
+    ],
+    topPlanosConta: [
+      { rank: 1, nome: '(-) Investimento da Empresa em Veículos', despesa: 250000.00 },
+      { rank: 2, nome: 'Compra de Peças', despesa: 190000.00 },
+      { rank: 3, nome: 'Serviços de Terceiros', despesa: 120000.00 },
+      { rank: 4, nome: 'Salário', despesa: 110000.00 },
+      { rank: 5, nome: 'Amortização de Contrato', despesa: 60000.00 },
+      { rank: 6, nome: 'Aluguel', despesa: 50000.00 },
+      { rank: 7, nome: 'COMPRA DE MERCADORIA', despesa: 45000.00 },
+      { rank: 8, nome: 'Combustível/Abastecimento', despesa: 35000.00 },
+      { rank: 9, nome: 'INSS (Previdência Social/GPS)', despesa: 30000.00 },
+      { rank: 10, nome: 'Uso e Consumo', despesa: 25000.00 },
+    ],
+  },
+  fevereiro: {
+    empresas: [
+      { id: 'gvel', nome: 'GVel Diesel', faturamento: 1871920.91, receitas: 1850000.00, despesas: 1000000.00 },
+      { id: 'leves', nome: 'GVel Leves', faturamento: 0.00, receitas: 0.00, despesas: 0.00 },
+      { id: 'distribuidora', nome: 'GV Distribuidora', faturamento: 0.00, receitas: 0.00, despesas: 0.00 },
+      { id: 'transportes', nome: 'GV Transportes', faturamento: 202685.16, receitas: 202685.16, despesas: 169000.00 },
+      { id: 'investimento', nome: 'Investimento', faturamento: 0.00, receitas: 0.00, despesas: 500000.00 },
+    ],
+    topClientes: [
+      { rank: 1, nome: 'LOCALIZA VEICULOS ESPECIAIS S.A', faturamento: 1495800.00 },
+      { rank: 2, nome: 'J D COCENZO E CIA LTDA', faturamento: 145000.00 },
+      { rank: 3, nome: 'PEPSICO DO BRASIL LTDA', faturamento: 58000.00 },
+      { rank: 4, nome: 'VAMOS LOCACAO DE CAMINHOES, MAQUINAS E EQUIPAMENTOS S.A.', faturamento: 42000.00 },
+      { rank: 5, nome: 'FJ LOCACAO COMERCIO VEICULOS EQUIPAMENTO', faturamento: 36000.00 },
+    ],
+    topPlanosConta: [
+      { rank: 1, nome: '(-) Investimento da Empresa em Veículos', despesa: 500000.00 },
+      { rank: 2, nome: 'Compra de Peças', despesa: 420000.00 },
+      { rank: 3, nome: 'Serviços de Terceiros', despesa: 250000.00 },
+      { rank: 4, nome: 'Salário', despesa: 220000.00 },
+      { rank: 5, nome: 'Empréstimo Bancário', despesa: 180000.00 },
+      { rank: 6, nome: 'Amortização de Contrato', despesa: 110000.00 },
+      { rank: 7, nome: 'COMPRA DE MERCADORIA', despesa: 95000.00 },
+      { rank: 8, nome: 'Aluguel', despesa: 70000.00 },
+      { rank: 9, nome: 'Combustível/Abastecimento', despesa: 65000.00 },
+      { rank: 10, nome: 'INSS (Previdência Social/GPS)', despesa: 58000.00 },
+    ],
+  },
+  janeiro: {
+    empresas: [
+      { id: 'gvel', nome: 'GVel Diesel', faturamento: 6426396.31, receitas: 6250000.00, despesas: 3500000.00 },
+      { id: 'leves', nome: 'GVel Leves', faturamento: 0.00, receitas: 0.00, despesas: 0.00 },
+      { id: 'distribuidora', nome: 'GV Distribuidora', faturamento: 0.00, receitas: 0.00, despesas: 0.00 },
+      { id: 'transportes', nome: 'GV Transportes', faturamento: 169277.00, receitas: 169277.00, despesas: 160000.00 },
+      { id: 'investimento', nome: 'Investimento', faturamento: 0.00, receitas: 0.00, despesas: 2500000.00 },
+    ],
+    topClientes: [
+      { rank: 1, nome: 'LOCALIZA VEICULOS ESPECIAIS S.A', faturamento: 5125890.15 },
+      { rank: 2, nome: 'J D COCENZO E CIA LTDA', faturamento: 482500.00 },
+      { rank: 3, nome: 'PEPSICO DO BRASIL LTDA', faturamento: 185000.00 },
+      { rank: 4, nome: 'VAMOS LOCACAO DE CAMINHOES, MAQUINAS E EQUIPAMENTOS S.A.', faturamento: 142000.00 },
+      { rank: 5, nome: 'FJ LOCACAO COMERCIO VEICULOS EQUIPAMENTO', faturamento: 118000.00 },
+    ],
+    topPlanosConta: [
+      { rank: 1, nome: '(-) Investimento em Veículos e Implementos', despesa: 2500000.00 },
+      { rank: 2, nome: 'Compra de Peças', despesa: 1450000.00 },
+      { rank: 3, nome: 'Serviços de Terceiros', despesa: 820000.00 },
+      { rank: 4, nome: 'Salário', despesa: 380000.00 },
+      { rank: 5, nome: 'Amortização de Contrato', despesa: 310000.00 },
+      { rank: 6, nome: 'Empréstimo Bancário', despesa: 250000.00 },
+      { rank: 7, nome: 'COMPRA DE MERCADORIA', despesa: 120000.00 },
+      { rank: 8, nome: 'Combustível/Abastecimento', despesa: 95000.00 },
+      { rank: 9, nome: 'Aluguel', despesa: 70000.00 },
+      { rank: 10, nome: 'INSS (Previdência Social/GPS)', despesa: 65000.00 },
+    ],
+  },
 }
 
 const MESES_OPCOES = [
-  { id: 'todos', label: 'Todos os Meses (Maio a Julho / Consolidado)' },
+  { id: 'todos', label: 'Todos os Meses (Janeiro a Julho / Consolidado)' },
   { id: 'julho', label: 'Julho' },
   { id: 'junho', label: 'Junho' },
   { id: 'maio', label: 'Maio' },
+  { id: 'abril', label: 'Abril' },
+  { id: 'marco', label: 'Março' },
+  { id: 'fevereiro', label: 'Fevereiro' },
+  { id: 'janeiro', label: 'Janeiro' },
 ]
 
 export function Financeiro() {
@@ -189,6 +305,7 @@ export function Financeiro() {
   // Mês Ativo da base de dados (ou consolidação de todos os meses)
   const dadosMesAtivo = useMemo(() => {
     if (mesFiltro === 'todos') {
+      const listaMeses = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho']
       const empresasIds = ['gvel', 'leves', 'distribuidora', 'transportes', 'investimento']
       const empresas = empresasIds.map((id) => {
         const nome =
@@ -202,17 +319,17 @@ export function Financeiro() {
             ? 'GV Transportes'
             : 'Investimento'
 
-        const faturamento = ['maio', 'junho', 'julho'].reduce((acc, m) => {
+        const faturamento = listaMeses.reduce((acc, m) => {
           const emp = DADOS_MESES[m]?.empresas.find((e) => e.id === id)
           return acc + (emp?.faturamento || 0)
         }, 0)
 
-        const receitas = ['maio', 'junho', 'julho'].reduce((acc, m) => {
+        const receitas = listaMeses.reduce((acc, m) => {
           const emp = DADOS_MESES[m]?.empresas.find((e) => e.id === id)
           return acc + (emp?.receitas || 0)
         }, 0)
 
-        const despesas = ['maio', 'junho', 'julho'].reduce((acc, m) => {
+        const despesas = listaMeses.reduce((acc, m) => {
           const emp = DADOS_MESES[m]?.empresas.find((e) => e.id === id)
           return acc + (emp?.despesas || 0)
         }, 0)
@@ -222,7 +339,7 @@ export function Financeiro() {
 
       // Consolidação de Top Clientes
       const mapClientes: Record<string, number> = {}
-      ;['maio', 'junho', 'julho'].forEach((m) => {
+      listaMeses.forEach((m) => {
         DADOS_MESES[m]?.topClientes.forEach((cli) => {
           mapClientes[cli.nome] = (mapClientes[cli.nome] || 0) + cli.faturamento
         })
@@ -234,7 +351,7 @@ export function Financeiro() {
 
       // Consolidação de Top Planos de Contas
       const mapPlanos: Record<string, number> = {}
-      ;['maio', 'junho', 'julho'].forEach((m) => {
+      listaMeses.forEach((m) => {
         DADOS_MESES[m]?.topPlanosConta.forEach((p) => {
           mapPlanos[p.nome] = (mapPlanos[p.nome] || 0) + p.despesa
         })
@@ -301,9 +418,13 @@ export function Financeiro() {
   // Comparativo Mês a Mês (Evolutivo)
   const dadosComparativoMeses = useMemo(() => {
     const meses = [
-      { id: 'maio', label: 'MAIO 2026' },
-      { id: 'junho', label: 'JUNHO 2026' },
-      { id: 'julho', label: 'JULHO 2026' },
+      { id: 'janeiro', label: 'JAN 2026' },
+      { id: 'fevereiro', label: 'FEV 2026' },
+      { id: 'marco', label: 'MAR 2026' },
+      { id: 'abril', label: 'ABR 2026' },
+      { id: 'maio', label: 'MAI 2026' },
+      { id: 'junho', label: 'JUN 2026' },
+      { id: 'julho', label: 'JUL 2026' },
     ]
 
     return meses.map((m) => {
@@ -965,7 +1086,7 @@ export function Financeiro() {
                 COMPARATIVO EVOLUTIVO MÊS A MÊS — {empresaFiltro === 'TODAS' ? 'GRUPO VEL' : empresaFiltro.toUpperCase()}
               </h3>
               <p className="text-xs text-secondary font-medium lowercase">
-                Evolução comparativa de faturamento, receitas e despesas ao longo dos meses (Maio, Junho e Julho)
+                Evolução comparativa de faturamento, receitas e despesas ao longo do ano (Janeiro a Julho / 2026)
               </p>
             </div>
           </div>
@@ -1001,7 +1122,7 @@ export function Financeiro() {
             </div>
 
             <Badge tone="neutral" className="text-[11px] font-bold border-border/30 text-white">
-              MAIO · JUNHO · JULHO
+              JAN · FEV · MAR · ABR · MAI · JUN · JUL
             </Badge>
           </div>
         </div>
@@ -1314,10 +1435,13 @@ export function Financeiro() {
 
             <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
               {[
-                { mes: 'Julho / 2026', status: 'Apuração Aberta (Atual)', fat: 'R$ 3.498.769,64', rec: 'R$ 5.423.588,73', desp: 'R$ 5.623.982,53', tag: 'EM ABERTO', tagTone: 'warning' },
-                { mes: 'Junho / 2026', status: 'Fechamento Consolidado', fat: 'R$ 3.320.140,00', rec: 'R$ 5.180.200,00', desp: 'R$ 4.950.100,00', tag: 'CONCLUÍDO', tagTone: 'success' },
-                { mes: 'Maio / 2026', status: 'Fechamento Consolidado', fat: 'R$ 3.190.500,00', rec: 'R$ 4.890.300,00', desp: 'R$ 4.710.250,00', tag: 'CONCLUÍDO', tagTone: 'success' },
-                { mes: 'Abril / 2026', status: 'Fechamento Consolidado', fat: 'R$ 2.980.400,00', rec: 'R$ 4.620.100,00', desp: 'R$ 4.500.800,00', tag: 'CONCLUÍDO', tagTone: 'success' },
+                { mes: 'Julho / 2026', status: 'Apuração Aberta (Atual)', fat: 'R$ 4.071.713,83', rec: 'R$ 6.003.286,13', desp: 'R$ 5.823.982,53', tag: 'EM ABERTO', tagTone: 'warning' },
+                { mes: 'Junho / 2026', status: 'Fechamento Consolidado', fat: 'R$ 3.935.729,16', rec: 'R$ 4.501.605,61', desp: 'R$ 4.556.820,03', tag: 'CONCLUÍDO', tagTone: 'success' },
+                { mes: 'Maio / 2026', status: 'Fechamento Consolidado', fat: 'R$ 3.056.636,95', rec: 'R$ 2.698.802,76', desp: 'R$ 3.414.090,52', tag: 'CONCLUÍDO', tagTone: 'success' },
+                { mes: 'Abril / 2026', status: 'Fechamento Consolidado', fat: 'R$ 1.221.524,45', rec: 'R$ 1.221.524,45', desp: 'R$ 1.080.000,00', tag: 'CONCLUÍDO', tagTone: 'success' },
+                { mes: 'Março / 2026', status: 'Fechamento Consolidado', fat: 'R$ 1.108.791,10', rec: 'R$ 1.105.972,64', desp: 'R$ 589.000,00', tag: 'CONCLUÍDO', tagTone: 'success' },
+                { mes: 'Fevereiro / 2026', status: 'Fechamento Consolidado', fat: 'R$ 2.074.606,07', rec: 'R$ 2.052.685,16', desp: 'R$ 1.669.000,00', tag: 'CONCLUÍDO', tagTone: 'success' },
+                { mes: 'Janeiro / 2026', status: 'Fechamento Consolidado', fat: 'R$ 6.595.673,31', rec: 'R$ 6.419.277,00', desp: 'R$ 6.160.000,00', tag: 'CONCLUÍDO', tagTone: 'success' },
               ].map((item, idx) => (
                 <div key={idx} className="p-3 rounded-2xl border border-border/20 bg-background/60 flex items-center justify-between">
                   <div>
