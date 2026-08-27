@@ -44,7 +44,7 @@ const schema = z
     motorista: z.string().optional(),
     dataHoraEntrada: z.string().min(1, 'Informe a data/hora de entrada'),
     kmEntrada: z.number().int('KM inválido').min(0, 'KM inválido').optional(),
-    observacoes: z.string().trim().min(1, 'Informe as observações'),
+    observacoes: z.string().optional(),
   })
   .superRefine((values, ctx) => {
     if (values.veiculoId !== NOVO_VEICULO) return
@@ -210,10 +210,10 @@ export function RegistrarEntrada() {
                 ano: values.ano && !Number.isNaN(values.ano) ? values.ano : new Date().getFullYear(),
                 patioId: values.patioId,
                 statusId: values.statusId || undefined,
-                motorista: values.motorista,
+                motorista: values.motorista || undefined,
                 dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
-                kmEntrada: values.kmEntrada,
-                observacoes: values.observacoes,
+                kmEntrada: values.kmEntrada || undefined,
+                observacoes: values.observacoes?.trim() || undefined,
               },
               fotosEntrada,
             )
@@ -222,10 +222,10 @@ export function RegistrarEntrada() {
                 veiculoId: values.veiculoId,
                 patioId: values.patioId,
                 statusId: values.statusId || undefined,
-                motorista: values.motorista,
+                motorista: values.motorista || undefined,
                 dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
-                kmEntrada: values.kmEntrada,
-                observacoes: values.observacoes,
+                kmEntrada: values.kmEntrada || undefined,
+                observacoes: values.observacoes?.trim() || undefined,
               },
               fotosEntrada,
             )
@@ -501,9 +501,10 @@ export function RegistrarEntrada() {
 
             <div>
               <Label htmlFor="observacoes">
-                Observações<Req />
+                Observações
+                <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>
               </Label>
-              <Textarea id="observacoes" {...register('observacoes')} />
+              <Textarea id="observacoes" placeholder="Opcional" {...register('observacoes')} />
               <FieldError message={errors.observacoes?.message} />
             </div>
 

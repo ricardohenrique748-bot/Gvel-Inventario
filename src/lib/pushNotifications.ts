@@ -8,7 +8,7 @@ import {
 import { Capacitor } from '@capacitor/core'
 import { supabase } from '@/lib/supabase'
 
-export const GVEL_NOTIFICATION_CHANNEL_ID = 'gvel_alertas_channel_v2'
+export const GVEL_NOTIFICATION_CHANNEL_ID = 'gvel_alertas_channel_v3'
 
 /**
  * Inicializa e registra o push remoto FCM (para receber notificações com o app fechado)
