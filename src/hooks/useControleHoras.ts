@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { obterNomeCompletoMembro, buscarFuncaoPorNome } from '@/constants/equipe'
+import { obterNomeCompletoMembro, buscarFuncaoPorNome, normalizarFuncao } from '@/constants/equipe'
 
 export interface ControleHorasItem {
   id: string
@@ -18,14 +18,45 @@ export interface ControleHorasItem {
   } | null
 }
 
-function calcularMinutosHorarios(horaInicio?: string | null, horaFim?: string | null): number {
-  if (!horaInicio || !horaFim) return 0
+function calcularMinutosComDatas(
+  horaInicio?: string | null,
+  horaFim?: string | null,
+  dataInicio?: string | null,
+  dataFim?: string | null,
+  createdAt?: string | null,
+): number {
+  if (!horaInicio) return 0
+  const dInicioStr = dataInicio || (createdAt ? new Date(createdAt).toISOString().slice(0, 10) : '')
+
+  // Se tem início apontado mas ainda não tem fim, calcula a permanência / tempo em andamento
+  if (!horaFim) {
+    if (dInicioStr) {
+      const dt1 = new Date(`${dInicioStr}T${horaInicio}:00`)
+      if (!isNaN(dt1.getTime())) {
+        const diff = Math.round((Date.now() - dt1.getTime()) / 60000)
+        return Math.max(1, diff)
+      }
+    }
+    return 1 // ao menos 1 minuto apontado para refletir atividade em andamento
+  }
+
+  // Se tem início e fim com datas completas:
+  if (dInicioStr && dataFim) {
+    const dt1 = new Date(`${dInicioStr}T${horaInicio}:00`)
+    const dt2 = new Date(`${dataFim}T${horaFim}:00`)
+    if (!isNaN(dt1.getTime()) && !isNaN(dt2.getTime())) {
+      const diff = Math.round((dt2.getTime() - dt1.getTime()) / 60000)
+      if (diff >= 0) return Math.max(1, diff)
+    }
+  }
+
+  // Fallback HH:mm
   const [h1, m1] = horaInicio.split(':').map(Number)
   const [h2, m2] = horaFim.split(':').map(Number)
-  if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) return 0
+  if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) return 1
   let min = h2 * 60 + m2 - (h1 * 60 + m1)
   if (min < 0) min += 24 * 60
-  return min
+  return Math.max(1, min)
 }
 
 function normalizarSetor(secaoId?: string | null, osSetor?: string | null, patioNome?: string | null): string {
@@ -55,7 +86,7 @@ export function useControleHoras() {
     try {
       setLoading(true)
 
-      // 1. Busca atividades individuais do checklist (onde estão os apontamentos reais de horas por atividade)
+      // 1. Busca atividades individuais do checklist
       const { data: itensList, error: itensError } = await supabase
         .from('checklist_itens')
         .select(`
@@ -65,6 +96,8 @@ export function useControleHoras() {
           secao_id,
           label,
           checked,
+          data_inicio,
+          data_fim,
           hora_inicio,
           hora_fim,
           mecanico,
@@ -79,7 +112,7 @@ export function useControleHoras() {
 
       if (itensError) throw itensError
 
-      // 2. Busca dados gerais da O.S (para responsáveis gerais e contagem de veículos atendidos)
+      // 2. Busca dados gerais da O.S
       const { data: osList, error: osError } = await supabase
         .from('checklist_os')
         .select(`
@@ -90,6 +123,8 @@ export function useControleHoras() {
           setor,
           status_os,
           created_at,
+          data_hora_abertura,
+          data_hora_fechamento,
           movimentacao:movimentacoes(
             veiculo:veiculos(placa),
             status_manutencao:status_manutencao(nome),
@@ -119,28 +154,37 @@ export function useControleHoras() {
         }
 
         const mec = obterNomeCompletoMembro(mecBruto)
-        const func = osGeral?.funcao || buscarFuncaoPorNome(mec) || 'MECANICO'
+        const func = normalizarFuncao(buscarFuncaoPorNome(mec) || (it.secao_id === 'funilaria' ? 'FUNILEIRO' : osGeral?.funcao) || 'MECÂNICO')
 
-        // Se o item tem horários apontados ou está marcado
-        const temHorarios = Boolean(it.hora_inicio && it.hora_fim)
+        // Se o item tem horários apontados, está marcado ou tem mecânico próprio apontado
+        const temHorarios = Boolean(it.hora_inicio || it.hora_fim)
         const isChecked = Boolean(it.checked)
+        const temMecanicoProprio = Boolean(it.mecanico && it.mecanico.trim())
 
-        if (temHorarios || isChecked) {
-          const minutos = calcularMinutosHorarios(it.hora_inicio, it.hora_fim)
+        if (temHorarios || isChecked || temMecanicoProprio) {
+          const minutos = calcularMinutosComDatas(it.hora_inicio, it.hora_fim, it.data_inicio, it.data_fim, it.created_at)
           const movItem = it.movimentacao as unknown as { patio?: { nome?: string } }
           const osMovItem = osGeral?.movimentacao as unknown as { patio?: { nome?: string } }
           const patioNome = movItem?.patio?.nome || osMovItem?.patio?.nome
           const setor = normalizarSetor(it.secao_id, osGeral?.setor, patioNome)
 
+          const dataAbertura = it.hora_inicio
+            ? `${it.data_inicio || new Date(it.created_at).toISOString().slice(0, 10)}T${it.hora_inicio}`
+            : it.created_at
+
+          const dataFechamento = it.hora_fim
+            ? `${it.data_fim || new Date(it.created_at).toISOString().slice(0, 10)}T${it.hora_fim}`
+            : null
+
           combinados.push({
             id: it.id,
             descricao: it.label || 'ATIVIDADE CHECKLIST',
             mecanico_executor: mec,
-            funcao: func.trim().toUpperCase(),
+            funcao: func,
             setor,
             data_hora: it.created_at,
-            data_hora_abertura: it.hora_inicio ? `${new Date(it.created_at).toISOString().slice(0, 10)}T${it.hora_inicio}` : it.created_at,
-            data_hora_fechamento: it.hora_fim ? `${new Date(it.created_at).toISOString().slice(0, 10)}T${it.hora_fim}` : null,
+            data_hora_abertura: dataAbertura,
+            data_hora_fechamento: dataFechamento,
             minutos_atividade: minutos,
             movimentacao: it.movimentacao as unknown as ControleHorasItem['movimentacao'],
           })
@@ -149,7 +193,7 @@ export function useControleHoras() {
         }
       }
 
-      // Para movimentações que NÃO tiveram atividades individuais com horário, adiciona a O.S para contabilizar o veículo atendendo, com 0 minutos
+      // Para movimentações que NÃO tiveram atividades individuais com horário, adiciona a O.S para contabilizar o veículo atendendo
       for (const os of osList ?? []) {
         if (movimentacoesComAtividades.has(os.movimentacao_id)) continue
 
@@ -159,7 +203,7 @@ export function useControleHoras() {
         }
 
         const mec = obterNomeCompletoMembro(mecBruto)
-        const func = os.funcao || buscarFuncaoPorNome(mec) || 'MECANICO'
+        const func = normalizarFuncao(buscarFuncaoPorNome(mec) || os.funcao || 'MECÂNICO')
 
         const movOS = os.movimentacao as unknown as { patio?: { nome?: string } }
         const patioNome = movOS?.patio?.nome
@@ -169,11 +213,11 @@ export function useControleHoras() {
           id: os.id,
           descricao: `O.S - ${os.status_os || 'MANUTENÇÃO GERAL'}`,
           mecanico_executor: mec,
-          funcao: func.trim().toUpperCase(),
+          funcao: func,
           setor,
           data_hora: os.created_at,
-          data_hora_abertura: os.created_at,
-          data_hora_fechamento: null,
+          data_hora_abertura: os.data_hora_abertura || os.created_at,
+          data_hora_fechamento: os.data_hora_fechamento || null,
           minutos_atividade: 0,
           movimentacao: os.movimentacao as unknown as ControleHorasItem['movimentacao'],
         })
@@ -190,23 +234,22 @@ export function useControleHoras() {
 
   useEffect(() => {
     refetch()
-  }, [refetch])
 
-  // Sincronização Realtime com as tabelas
-  useEffect(() => {
-    const channelName = `controle_horas_realtime_${Math.random().toString(36).slice(2, 8)}`
+    // Realtime listeners
     const channel = supabase
-      .channel(channelName)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, () => refetch())
+      .channel('controle_horas_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_os' }, () => refetch())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'movimentacao_historico' }, () => refetch())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'checklist_itens' }, () => refetch())
       .subscribe()
+
+    const handleLocalUpdate = () => refetch()
+    window.addEventListener('checklist_updated', handleLocalUpdate)
 
     return () => {
       supabase.removeChannel(channel)
+      window.removeEventListener('checklist_updated', handleLocalUpdate)
     }
   }, [refetch])
 
   return { itens, loading, error, refetch }
 }
-

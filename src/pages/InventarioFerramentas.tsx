@@ -3211,8 +3211,8 @@ function ModalFerramenta({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 uppercase backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl border border-border/10 bg-surface p-6 shadow-2xl animate-scale-in">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="w-full max-w-md max-h-[92vh] flex flex-col rounded-3xl border border-border/10 bg-surface p-6 shadow-2xl animate-scale-in">
+        <div className="mb-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
               {tipoFerramenta === 'especial' ? <Wrench className="h-5 w-5" /> : <Hammer className="h-5 w-5" />}
@@ -3229,229 +3229,232 @@ function ModalFerramenta({
           </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-xl text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {erro && <p className="mb-4 text-sm text-status-danger uppercase font-bold">{erro}</p>}
+        {erro && <p className="mb-3 text-xs text-status-danger uppercase font-bold bg-status-danger/10 p-2.5 rounded-xl border border-status-danger/20 shrink-0">{erro}</p>}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Tipo de Ferramenta */}
-          <div>
-            <Label className="uppercase font-bold text-xs">TIPO DE FERRAMENTA *</Label>
-            <div className="grid grid-cols-2 gap-2 mt-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setTipoFerramenta('comum')
-                  if (categoria === 'SACADORES E EXTRATORES') setCategoria('GERAL')
-                }}
-                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold uppercase transition-all cursor-pointer ${
-                  tipoFerramenta === 'comum'
-                    ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
-                    : 'bg-background border-border/20 text-secondary hover:text-foreground'
-                }`}
-              >
-                <Hammer className="h-4 w-4" />
-                CONVENCIONAL
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTipoFerramenta('especial')
-                  if (categoria === 'GERAL') setCategoria('SACADORES E EXTRATORES')
-                }}
-                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold uppercase transition-all cursor-pointer ${
-                  tipoFerramenta === 'especial'
-                    ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
-                    : 'bg-background border-border/20 text-secondary hover:text-foreground'
-                }`}
-              >
-                <Wrench className="h-4 w-4" />
-                ESPECIAL
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="nome" className="uppercase font-bold">NOME DA FERRAMENTA *</Label>
-            <Input
-              id="nome"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder={tipoFerramenta === 'especial' ? 'EX: SACADOR DE BICO, SCANNER DIESEL...' : 'EX: CHAVE DE IMPACTO 1/2, SOQUETE 24MM...'}
-              required
-              className="uppercase font-medium"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            {/* Tipo de Ferramenta */}
             <div>
-              <Label htmlFor="codigo" className="uppercase font-bold">CÓDIGO / PATRIMÔNIO</Label>
-              <Input
-                id="codigo"
-                value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
-                placeholder="EX: FER-012"
-                className="uppercase font-medium"
-              />
-            </div>
-            <div>
-              <Label htmlFor="categoria" className="uppercase font-bold">CATEGORIA</Label>
-              <Input
-                id="categoria"
-                list="lista-categorias-sugeridas"
-                value={categoria}
-                onChange={(e) => setCategoria(e.target.value)}
-                placeholder={tipoFerramenta === 'especial' ? 'EX: SACADORES E EXTRATORES' : 'EX: PNEUMÁTICA'}
-                className="uppercase font-medium"
-              />
-              <datalist id="lista-categorias-sugeridas">
-                {(tipoFerramenta === 'especial' ? CATEGORIAS_ESPECIAIS : CATEGORIAS_FERRAMENTAS)
-                  .filter((c) => c !== 'TODAS')
-                  .map((cat) => (
-                    <option key={cat} value={cat} />
-                  ))}
-              </datalist>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="qtd" className="uppercase font-bold">QUANTIDADE TOTAL</Label>
-              <Input
-                id="qtd"
-                type="number"
-                min="1"
-                value={quantidadeTotal}
-                onChange={(e) => setQuantidadeTotal(e.target.value)}
-                required
-                className="font-medium"
-              />
-            </div>
-            <div>
-              <Label htmlFor="local" className="uppercase font-bold">LOCALIZAÇÃO / GAVETA</Label>
-              <Input
-                id="local"
-                value={localizacao}
-                onChange={(e) => setLocalizacao(e.target.value)}
-                placeholder="EX: ARMÁRIO 02"
-                className="uppercase font-medium"
-              />
-            </div>
-          </div>
-
-          {/* FOTO DA FERRAMENTA */}
-          <div className="space-y-2 rounded-2xl border border-border/20 bg-background/40 p-3.5">
-            <Label className="uppercase font-bold text-xs text-secondary flex items-center justify-between">
-              <span>FOTO DA FERRAMENTA</span>
-              {fotoUrl && <span className="text-[10px] text-emerald-400 font-black">FOTO SELECIONADA</span>}
-            </Label>
-
-            {/* Inputs Ocultos de Arquivo */}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleFotoSelecionada}
-            />
-            <input
-              ref={galeriaInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFotoSelecionada}
-            />
-
-            {fotoUrl ? (
-              <div className="relative flex items-center gap-3 rounded-xl border border-border/30 bg-surface/80 p-2.5">
-                <img
-                  src={fotoUrl}
-                  alt="Foto da Ferramenta"
-                  className="h-16 w-16 rounded-xl object-cover border border-border/30 bg-background shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-foreground truncate">IMAGEM ANEXADA</p>
-                  <p className="text-[10px] text-secondary mt-0.5">
-                    {fotoFile ? `${(fotoFile.size / 1024).toFixed(0)} KB (Pronta p/ salvar)` : 'Imagem vinculada'}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <button
-                      type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="text-[10px] font-bold text-primary hover:underline"
-                    >
-                      Trocar foto
-                    </button>
-                  </div>
-                </div>
+              <Label className="uppercase font-bold text-xs">TIPO DE FERRAMENTA *</Label>
+              <div className="grid grid-cols-2 gap-2 mt-1.5">
                 <button
                   type="button"
                   onClick={() => {
-                    setFotoUrl('')
-                    setFotoFile(null)
+                    setTipoFerramenta('comum')
+                    if (categoria === 'SACADORES E EXTRATORES') setCategoria('GERAL')
                   }}
-                  className="rounded-xl p-2 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer"
-                  title="Remover foto"
+                  className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold uppercase transition-all cursor-pointer ${
+                    tipoFerramenta === 'comum'
+                      ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                      : 'bg-background border-border/20 text-secondary hover:text-foreground'
+                  }`}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Hammer className="h-4 w-4" />
+                  CONVENCIONAL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoFerramenta('especial')
+                    if (categoria === 'GERAL') setCategoria('SACADORES E EXTRATORES')
+                  }}
+                  className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold uppercase transition-all cursor-pointer ${
+                    tipoFerramenta === 'especial'
+                      ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                      : 'bg-background border-border/20 text-secondary hover:text-foreground'
+                  }`}
+                >
+                  <Wrench className="h-4 w-4" />
+                  ESPECIAL
                 </button>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={processandoFoto}
-                  onClick={() => cameraInputRef.current?.click()}
-                  className="gap-2 text-xs font-bold border-border/30 hover:border-primary/40 text-foreground"
-                >
-                  {processandoFoto ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  ) : (
-                    <Camera className="h-4 w-4 text-primary" />
-                  )}
-                  <span>CÂMERA</span>
-                </Button>
+            </div>
 
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={processandoFoto}
-                  onClick={() => galeriaInputRef.current?.click()}
-                  className="gap-2 text-xs font-bold border-border/30 hover:border-primary/40 text-foreground"
-                >
-                  {processandoFoto ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  ) : (
-                    <ImageIcon className="h-4 w-4 text-primary" />
-                  )}
-                  <span>GALERIA</span>
-                </Button>
+            <div>
+              <Label htmlFor="nome" className="uppercase font-bold">NOME DA FERRAMENTA *</Label>
+              <Input
+                id="nome"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder={tipoFerramenta === 'especial' ? 'EX: SACADOR DE BICO, SCANNER DIESEL...' : 'EX: CHAVE DE IMPACTO 1/2, SOQUETE 24MM...'}
+                required
+                className="uppercase font-medium"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="codigo" className="uppercase font-bold">CÓDIGO / PATRIMÔNIO</Label>
+                <Input
+                  id="codigo"
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value)}
+                  placeholder="EX: FER-012"
+                  className="uppercase font-medium"
+                />
               </div>
-            )}
+              <div>
+                <Label htmlFor="categoria" className="uppercase font-bold">CATEGORIA</Label>
+                <Input
+                  id="categoria"
+                  list="lista-categorias-sugeridas"
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                  placeholder={tipoFerramenta === 'especial' ? 'EX: SACADORES E EXTRATORES' : 'EX: PNEUMÁTICA'}
+                  className="uppercase font-medium"
+                />
+                <datalist id="lista-categorias-sugeridas">
+                  {(tipoFerramenta === 'especial' ? CATEGORIAS_ESPECIAIS : CATEGORIAS_FERRAMENTAS)
+                    .filter((c) => c !== 'TODAS')
+                    .map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
+                </datalist>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="qtd" className="uppercase font-bold">QUANTIDADE TOTAL</Label>
+                <Input
+                  id="qtd"
+                  type="number"
+                  min="1"
+                  value={quantidadeTotal}
+                  onChange={(e) => setQuantidadeTotal(e.target.value)}
+                  required
+                  className="font-medium"
+                />
+              </div>
+              <div>
+                <Label htmlFor="local" className="uppercase font-bold">LOCALIZAÇÃO / GAVETA</Label>
+                <Input
+                  id="local"
+                  value={localizacao}
+                  onChange={(e) => setLocalizacao(e.target.value)}
+                  placeholder="EX: ARMÁRIO 02"
+                  className="uppercase font-medium"
+                />
+              </div>
+            </div>
+
+            {/* FOTO DA FERRAMENTA */}
+            <div className="space-y-2 rounded-2xl border border-border/20 bg-background/40 p-3.5">
+              <Label className="uppercase font-bold text-xs text-secondary flex items-center justify-between">
+                <span>FOTO DA FERRAMENTA</span>
+                {fotoUrl && <span className="text-[10px] text-emerald-400 font-black">FOTO SELECIONADA</span>}
+              </Label>
+
+              {/* Inputs Ocultos de Arquivo */}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleFotoSelecionada}
+              />
+              <input
+                ref={galeriaInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFotoSelecionada}
+              />
+
+              {fotoUrl ? (
+                <div className="relative flex items-center gap-3 rounded-xl border border-border/30 bg-surface/80 p-2.5">
+                  <img
+                    src={fotoUrl}
+                    alt="Foto da Ferramenta"
+                    className="h-16 w-16 rounded-xl object-cover border border-border/30 bg-background shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-foreground truncate">IMAGEM ANEXADA</p>
+                    <p className="text-[10px] text-secondary mt-0.5">
+                      {fotoFile ? `${(fotoFile.size / 1024).toFixed(0)} KB (Pronta p/ salvar)` : 'Imagem vinculada'}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                      >
+                        Trocar foto
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFotoUrl('')
+                      setFotoFile(null)
+                    }}
+                    className="rounded-xl p-2 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer"
+                    title="Remover foto"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={processandoFoto}
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="gap-2 text-xs font-bold border-border/30 hover:border-primary/40 text-foreground"
+                  >
+                    {processandoFoto ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    ) : (
+                      <Camera className="h-4 w-4 text-primary" />
+                    )}
+                    <span>CÂMERA</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={processandoFoto}
+                    onClick={() => galeriaInputRef.current?.click()}
+                    className="gap-2 text-xs font-bold border-border/30 hover:border-primary/40 text-foreground"
+                  >
+                    {processandoFoto ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4 text-primary" />
+                    )}
+                    <span>GALERIA</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="obs" className="uppercase font-bold">OBSERVAÇÕES</Label>
+              <Input
+                id="obs"
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                placeholder="MARCA, ESTADO DE CONSERVAÇÃO, ETC."
+                className="uppercase font-medium"
+              />
+            </div>
           </div>
 
-          <div>
-            <Label htmlFor="obs" className="uppercase font-bold">OBSERVAÇÕES</Label>
-            <Input
-              id="obs"
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="MARCA, ESTADO DE CONSERVAÇÃO, ETC."
-              className="uppercase font-medium"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-border/10">
+          {/* Rodapé fixo do Modal */}
+          <div className="flex justify-end gap-2 pt-3 mt-2 border-t border-border/10 shrink-0 bg-surface">
             <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="uppercase font-semibold">
               CANCELAR
             </Button>
-            <Button type="submit" disabled={salvando} className="uppercase font-bold">
+            <Button type="submit" disabled={salvando} className="uppercase font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20">
               {salvando ? 'SALVANDO...' : ferramenta ? 'SALVAR ALTERAÇÕES' : 'CADASTRAR'}
             </Button>
           </div>

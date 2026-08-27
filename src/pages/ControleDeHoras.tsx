@@ -39,6 +39,10 @@ function inicioAbertura(item: ControleHorasItem) {
   return item.data_hora_abertura ?? item.data_hora
 }
 
+function fimFechamento(item: ControleHorasItem) {
+  return item.data_hora_fechamento ?? item.data_hora_abertura ?? item.data_hora
+}
+
 function dataLocalYMD(iso: string) {
   const date = new Date(iso)
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset())
@@ -117,9 +121,13 @@ export function ControleDeHoras() {
       }
       if (filtros.funcao && item.funcao !== filtros.funcao) return false
       if (filtros.setor && item.setor !== filtros.setor) return false
-      const dataRef = dataLocalYMD(inicioAbertura(item))
-      if (filtros.dataInicio && dataRef < filtros.dataInicio) return false
-      if (filtros.dataFim && dataRef > filtros.dataFim) return false
+      
+      const dataInicioItem = dataLocalYMD(inicioAbertura(item))
+      const dataFimItem = dataLocalYMD(fimFechamento(item))
+
+      // Valida se o período da atividade sobrepõe o filtro de datas
+      if (filtros.dataInicio && dataFimItem < filtros.dataInicio) return false
+      if (filtros.dataFim && dataInicioItem > filtros.dataFim) return false
       return true
     })
   }, [itens, filtros])

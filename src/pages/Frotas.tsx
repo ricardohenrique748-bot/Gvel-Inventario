@@ -83,6 +83,7 @@ const schemaVeiculo = z.object({
   marcaId: z.string().min(1, 'Selecione a marca'),
   modeloId: z.string().min(1, 'Selecione o modelo'),
   vencimentoDocumento: z.string().optional(),
+  vencimentoSeguro: z.string().optional(),
   dataUltimaPreventiva: z.string().optional(),
   kmUltimaPreventiva: z.number().optional(),
   intervaloPreventivaKm: z.number().optional(),
@@ -108,7 +109,8 @@ export interface ItemFrotaCadastrada {
   renavam?: string
   categoria?: string
   situacao: 'operante' | 'inoperante'
-  vencimentoDocumento?: string // YYYY-MM-DD
+  vencimentoDocumento?: string // YYYY-MM-DD (Licenciamento CRLV)
+  vencimentoSeguro?: string // YYYY-MM-DD (Seguro da Frota / Apólice)
   dataUltimaPreventiva?: string // Data da última preventiva
   kmUltimaPreventiva?: number // KM registrado na última preventiva
   intervaloPreventivaKm?: number // A cada quantos KM faz preventiva (ex: 10000)
@@ -263,6 +265,7 @@ export function Frotas() {
                 clienteNome: base.clienteNome || v.clienteNome,
                 clienteId: base.clienteId || v.clienteId,
                 vencimentoDocumento: v.vencimentoDocumento || base.vencimentoDocumento,
+                vencimentoSeguro: v.vencimentoSeguro || base.vencimentoSeguro,
                 observacoes: v.observacoes || base.observacoes,
               })
             } else {
@@ -307,7 +310,9 @@ export function Frotas() {
   const [busca, setBusca] = useState('')
   const [tipoFiltro, setTipoFiltro] = useState<string>('todos')
   const [clienteFiltro, setClienteFiltro] = useState<string>('todos')
-  const [alertaFiltro, setAlertaFiltro] = useState<'todos' | 'preventiva_atrasada' | 'doc_a_vencer' | 'doc_vencido'>('todos')
+  const [alertaFiltro, setAlertaFiltro] = useState<
+    'todos' | 'preventiva_atrasada' | 'doc_a_vencer' | 'doc_vencido' | 'seguro_a_vencer' | 'seguro_vencido'
+  >('todos')
 
   // Filtros dos Gráficos do Dashboard
   const [filtroGraficoKm, setFiltroGraficoKm] = useState<'top12' | 'top20' | 'criticos' | 'todos'>('top12')
@@ -389,7 +394,7 @@ export function Frotas() {
     return set
   }, [movimentacoes])
 
-  // Helper para status do documento
+  // Helper para status do documento (CRLV / Licenciamento)
   function getStatusDocumento(dataStr?: string) {
     if (!dataStr) return { status: 'nao_informado', label: 'NÃO INFORMADO', dias: null }
     try {
@@ -404,6 +409,26 @@ export function Frotas() {
         return { status: 'a_vencer', label: dias === 0 ? 'VENCE HOJE' : `VENCE EM ${dias}D`, dias }
       }
       return { status: 'em_dia', label: `EM DIA (${format(dataDoc, 'dd/MM/yyyy')})`, dias }
+    } catch {
+      return { status: 'nao_informado', label: 'DATA INVÁLIDA', dias: null }
+    }
+  }
+
+  // Helper para status do seguro (Apólice)
+  function getStatusSeguro(dataStr?: string) {
+    if (!dataStr) return { status: 'nao_informado', label: 'SEM SEGURO INFORMADO', dias: null }
+    try {
+      const dataSeg = parseISO(dataStr)
+      const hoje = startOfDay(new Date())
+      const dias = differenceInDays(dataSeg, hoje)
+
+      if (dias < 0) {
+        return { status: 'vencido', label: `VENCIDO (${Math.abs(dias)}D ATRÁS)`, dias }
+      }
+      if (dias <= 30) {
+        return { status: 'a_vencer', label: dias === 0 ? 'VENCE HOJE' : `VENCE EM ${dias}D`, dias }
+      }
+      return { status: 'em_dia', label: `VIGENTE (${format(dataSeg, 'dd/MM/yyyy')})`, dias }
     } catch {
       return { status: 'nao_informado', label: 'DATA INVÁLIDA', dias: null }
     }
@@ -635,6 +660,10 @@ export function Frotas() {
     let preventivaAtrasada = 0
     let docAVencer = 0
     let docVencido = 0
+    let docEmDia = 0
+    let seguroAVencer = 0
+    let seguroVencido = 0
+    let seguroEmDia = 0
 
     frotas.forEach((v) => {
       if (v.situacao === 'operante') operantes++
@@ -648,6 +677,12 @@ export function Frotas() {
       const statusDoc = getStatusDocumento(v.vencimentoDocumento)
       if (statusDoc.status === 'vencido') docVencido++
       else if (statusDoc.status === 'a_vencer') docAVencer++
+      else if (statusDoc.status === 'em_dia') docEmDia++
+
+      const statusSeg = getStatusSeguro(v.vencimentoSeguro || v.vencimentoDocumento)
+      if (statusSeg.status === 'vencido') seguroVencido++
+      else if (statusSeg.status === 'a_vencer') seguroAVencer++
+      else if (statusSeg.status === 'em_dia') seguroEmDia++
     })
 
     const foraDoPatio = total - noPatio
@@ -661,6 +696,10 @@ export function Frotas() {
       preventivaAtrasada,
       docAVencer,
       docVencido,
+      docEmDia,
+      seguroAVencer,
+      seguroVencido,
+      seguroEmDia,
     }
   }, [frotas, placasNoPatio, ultimasKmsPorPlaca])
 
@@ -770,6 +809,12 @@ export function Frotas() {
       } else if (alertaFiltro === 'doc_vencido') {
         const st = getStatusDocumento(v.vencimentoDocumento)
         if (st.status !== 'vencido') return false
+      } else if (alertaFiltro === 'seguro_a_vencer') {
+        const st = getStatusSeguro(v.vencimentoSeguro || v.vencimentoDocumento)
+        if (st.status !== 'a_vencer') return false
+      } else if (alertaFiltro === 'seguro_vencido') {
+        const st = getStatusSeguro(v.vencimentoSeguro || v.vencimentoDocumento)
+        if (st.status !== 'vencido') return false
       }
 
       if (!busca.trim()) return true
@@ -831,6 +876,7 @@ export function Frotas() {
       marcaId: '',
       modeloId: '',
       vencimentoDocumento: '',
+      vencimentoSeguro: '',
       dataUltimaPreventiva: '',
       kmUltimaPreventiva: undefined,
       intervaloPreventivaKm: 10000,
@@ -855,6 +901,7 @@ export function Frotas() {
       marcaId: '',
       modeloId: '',
       vencimentoDocumento: v.vencimentoDocumento || '',
+      vencimentoSeguro: v.vencimentoSeguro || '',
       dataUltimaPreventiva: v.dataUltimaPreventiva || v.vencimentoPreventiva || '',
       kmUltimaPreventiva: v.kmUltimaPreventiva,
       intervaloPreventivaKm: v.intervaloPreventivaKm || 10000,
@@ -885,6 +932,7 @@ export function Frotas() {
       marcaNome: marcaObj?.nome || '',
       modeloNome: modeloObj?.nome || '',
       vencimentoDocumento: values.vencimentoDocumento || undefined,
+      vencimentoSeguro: values.vencimentoSeguro || undefined,
       dataUltimaPreventiva: values.dataUltimaPreventiva || undefined,
       kmUltimaPreventiva: values.kmUltimaPreventiva || undefined,
       intervaloPreventivaKm: values.intervaloPreventivaKm || 10000,
@@ -1105,72 +1153,102 @@ export function Frotas() {
       {/* ========================================================================= */}
       {abaPrincipal === 'dashboard' && (
         <div className="space-y-6">
-          {/* Indicadores Principais em Cards */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            <Card className="p-4 sm:p-5 border-border/30 bg-surface/90">
+          {/* Indicadores Principais em Cards (5 Cards Especializados) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+            {/* Total da Frota */}
+            <Card className="p-4 border-border/30 bg-surface/90">
               <div className="flex items-center justify-between text-secondary">
-                <span className="text-[11px] font-black uppercase tracking-wider">TOTAL DA FROTA</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+                <span className="text-[10px] font-black uppercase tracking-wider">TOTAL DA FROTA</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
                   <Truck className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-foreground">{metricasFrota.total}</p>
-              <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-secondary">
+              <p className="mt-2.5 text-3xl font-black font-mono text-foreground">{metricasFrota.total}</p>
+              <div className="mt-1.5 flex items-center justify-between text-[10px] font-bold text-secondary">
                 <span className="text-emerald-400 font-black">● {metricasFrota.operantes} OPERANTES</span>
                 <span className="text-amber-400 font-black">● {metricasFrota.inoperantes} INOP.</span>
               </div>
             </Card>
 
-            <Card className="p-4 sm:p-5 border-blue-500/20 bg-surface/90">
+            {/* Status no Pátio */}
+            <Card className="p-4 border-blue-500/20 bg-surface/90">
               <div className="flex items-center justify-between text-blue-400">
-                <span className="text-[11px] font-black uppercase tracking-wider">STATUS NO PÁTIO</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                <span className="text-[10px] font-black uppercase tracking-wider">STATUS NO PÁTIO</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
                   <MapPin className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-blue-400">{metricasFrota.noPatio}</p>
-              <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-secondary">
+              <p className="mt-2.5 text-3xl font-black font-mono text-blue-400">{metricasFrota.noPatio}</p>
+              <div className="mt-1.5 flex items-center justify-between text-[10px] font-bold text-secondary">
                 <span className="text-blue-300">NO PÁTIO AGORA</span>
                 <span className="text-foreground/70">{metricasFrota.foraDoPatio} EM ROTA</span>
               </div>
             </Card>
 
+            {/* Preventivas Atrasadas */}
             <Card
               onClick={() => {
                 setAlertaFiltro('preventiva_atrasada')
                 navigate('/frotas?aba=veiculos')
               }}
-              className="p-4 sm:p-5 border-red-500/30 bg-surface/90 cursor-pointer hover:border-red-500/60 transition-colors"
+              className="p-4 border-red-500/30 bg-surface/90 cursor-pointer hover:border-red-500/60 transition-colors"
             >
               <div className="flex items-center justify-between text-red-400">
-                <span className="text-[11px] font-black uppercase tracking-wider">PREVENTIVAS ATRASADAS</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 text-red-400 border border-red-500/20">
+                <span className="text-[10px] font-black uppercase tracking-wider">PREVENTIVAS</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-500/10 text-red-400 border border-red-500/20">
                   <AlertOctagon className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-red-400">{metricasFrota.preventivaAtrasada}</p>
-              <p className="mt-1 text-xs text-red-300/80 font-medium">REVISÕES EXPIRADAS ➔</p>
+              <p className="mt-2.5 text-3xl font-black font-mono text-red-400">{metricasFrota.preventivaAtrasada}</p>
+              <div className="mt-1.5 flex items-center justify-between text-[10px] font-bold text-secondary">
+                <span className="text-red-400 font-bold">{metricasFrota.preventivaAtrasada} ATRASADAS</span>
+                <span className="text-emerald-400 font-bold">{metricasFrota.total - metricasFrota.preventivaAtrasada} EM DIA</span>
+              </div>
             </Card>
 
+            {/* Licenciamento (CRLV) */}
             <Card
               onClick={() => {
-                setAlertaFiltro('doc_vencido')
+                setAlertaFiltro(metricasFrota.docVencido > 0 ? 'doc_vencido' : 'doc_a_vencer')
                 navigate('/frotas?aba=veiculos')
               }}
-              className="p-4 sm:p-5 border-rose-600/30 bg-surface/90 cursor-pointer hover:border-rose-600/60 transition-colors"
+              className="p-4 border-amber-500/30 bg-surface/90 cursor-pointer hover:border-amber-500/60 transition-colors"
             >
-              <div className="flex items-center justify-between text-rose-500">
-                <span className="text-[11px] font-black uppercase tracking-wider">CRLV VENCIDO / VENCENDO</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600/10 text-rose-500 border border-rose-600/20">
-                  <FileX className="h-4 w-4" />
+              <div className="flex items-center justify-between text-amber-400">
+                <span className="text-[10px] font-black uppercase tracking-wider">LICENCIAMENTO (CRLV)</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <Clock className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-rose-500">
+              <p className="mt-2.5 text-3xl font-black font-mono text-amber-400">
                 {metricasFrota.docVencido + metricasFrota.docAVencer}
               </p>
-              <div className="mt-1 text-[10px] text-secondary font-bold flex justify-between">
+              <div className="mt-1.5 text-[10px] text-secondary font-bold flex justify-between">
                 <span className="text-rose-400">{metricasFrota.docVencido} VENCIDOS</span>
                 <span className="text-amber-400">{metricasFrota.docAVencer} A VENCER</span>
+              </div>
+            </Card>
+
+            {/* Seguro da Frota */}
+            <Card
+              onClick={() => {
+                setAlertaFiltro(metricasFrota.seguroVencido > 0 ? 'seguro_vencido' : 'seguro_a_vencer')
+                navigate('/frotas?aba=veiculos')
+              }}
+              className="p-4 border-indigo-500/30 bg-surface/90 cursor-pointer hover:border-indigo-500/60 transition-colors"
+            >
+              <div className="flex items-center justify-between text-indigo-400">
+                <span className="text-[10px] font-black uppercase tracking-wider">SEGURO DA FROTA</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <ShieldCheck className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-2.5 text-3xl font-black font-mono text-indigo-400">
+                {metricasFrota.seguroVencido + metricasFrota.seguroAVencer}
+              </p>
+              <div className="mt-1.5 text-[10px] text-secondary font-bold flex justify-between">
+                <span className="text-rose-400">{metricasFrota.seguroVencido} VENCIDOS</span>
+                <span className="text-indigo-300">{metricasFrota.seguroEmDia} VIGENTES</span>
               </div>
             </Card>
           </div>
@@ -1516,86 +1594,110 @@ export function Frotas() {
       {/* ========================================================================= */}
       {abaPrincipal === 'veiculos' && (
         <div className="space-y-6">
-          {/* Cards de Indicadores da Frota */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {/* Cards de Indicadores da Frota (5 Filtros Rápidos) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             {/* Total da Frota */}
             <button
               type="button"
               onClick={() => setAlertaFiltro('todos')}
-              className={`text-left p-4 sm:p-5 rounded-2xl border transition-all duration-200 ${
+              className={`text-left p-4 rounded-2xl border transition-all duration-200 ${
                 alertaFiltro === 'todos'
                   ? 'border-primary/50 bg-primary/10 shadow-lg shadow-primary/5 ring-1 ring-primary/40'
                   : 'border-border/30 bg-surface/90 hover:border-border/60'
               }`}
             >
               <div className="flex items-center justify-between text-secondary">
-                <span className="text-[11px] font-black uppercase tracking-wider">TOTAL DA FROTA</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+                <span className="text-[10px] font-black uppercase tracking-wider">TOTAL DA FROTA</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
                   <Truck className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-foreground">{metricasFrota.total}</p>
-              <p className="mt-1 text-xs text-secondary font-medium">VEÍCULOS CADASTRADOS</p>
+              <p className="mt-2.5 text-3xl font-black font-mono text-foreground">{metricasFrota.total}</p>
+              <p className="mt-1 text-[11px] text-secondary font-medium">VEÍCULOS CADASTRADOS</p>
             </button>
 
             {/* Preventiva Atrasada */}
             <button
               type="button"
               onClick={() => setAlertaFiltro(alertaFiltro === 'preventiva_atrasada' ? 'todos' : 'preventiva_atrasada')}
-              className={`text-left p-4 sm:p-5 rounded-2xl border transition-all duration-200 ${
+              className={`text-left p-4 rounded-2xl border transition-all duration-200 ${
                 alertaFiltro === 'preventiva_atrasada'
                   ? 'border-red-500 bg-red-500/15 shadow-lg shadow-red-500/10 ring-1 ring-red-500'
                   : 'border-red-500/30 bg-surface/90 hover:border-red-500/50'
               }`}
             >
               <div className="flex items-center justify-between text-red-400">
-                <span className="text-[11px] font-black uppercase tracking-wider">PREVENTIVA ATRASADA</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 text-red-400 border border-red-500/20">
+                <span className="text-[10px] font-black uppercase tracking-wider">PREVENTIVA ATRASADA</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-500/10 text-red-400 border border-red-500/20">
                   <AlertOctagon className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-red-400">{metricasFrota.preventivaAtrasada}</p>
-              <p className="mt-1 text-xs text-red-300/80 font-medium">REVISÕES FORA DO PRAZO</p>
+              <p className="mt-2.5 text-3xl font-black font-mono text-red-400">{metricasFrota.preventivaAtrasada}</p>
+              <p className="mt-1 text-[11px] text-red-300/80 font-medium">REVISÕES FORA DO PRAZO</p>
             </button>
 
-            {/* Documento a Vencer */}
+            {/* Licenciamento (CRLV) */}
             <button
               type="button"
-              onClick={() => setAlertaFiltro(alertaFiltro === 'doc_a_vencer' ? 'todos' : 'doc_a_vencer')}
-              className={`text-left p-4 sm:p-5 rounded-2xl border transition-all duration-200 ${
-                alertaFiltro === 'doc_a_vencer'
+              onClick={() => setAlertaFiltro(alertaFiltro === 'doc_vencido' ? 'todos' : 'doc_vencido')}
+              className={`text-left p-4 rounded-2xl border transition-all duration-200 ${
+                alertaFiltro === 'doc_vencido' || alertaFiltro === 'doc_a_vencer'
                   ? 'border-amber-500 bg-amber-500/15 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500'
                   : 'border-amber-500/30 bg-surface/90 hover:border-amber-500/50'
               }`}
             >
               <div className="flex items-center justify-between text-amber-400">
-                <span className="text-[11px] font-black uppercase tracking-wider">DOCUMENTO A VENCER</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <span className="text-[10px] font-black uppercase tracking-wider">LICENCIAMENTO (CRLV)</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
                   <Clock className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-amber-400">{metricasFrota.docAVencer}</p>
-              <p className="mt-1 text-xs text-amber-300/80 font-medium">VENCE EM ATÉ 30 DIAS</p>
+              <p className="mt-2.5 text-3xl font-black font-mono text-amber-400">
+                {metricasFrota.docVencido + metricasFrota.docAVencer}
+              </p>
+              <p className="mt-1 text-[11px] text-amber-300/80 font-medium">
+                {metricasFrota.docVencido} VENC. · {metricasFrota.docAVencer} A VENCER
+              </p>
             </button>
 
-            {/* Documento Vencido */}
+            {/* Seguro da Frota */}
             <button
               type="button"
-              onClick={() => setAlertaFiltro(alertaFiltro === 'doc_vencido' ? 'todos' : 'doc_vencido')}
-              className={`text-left p-4 sm:p-5 rounded-2xl border transition-all duration-200 ${
-                alertaFiltro === 'doc_vencido'
-                  ? 'border-rose-600 bg-rose-600/15 shadow-lg shadow-rose-600/10 ring-1 ring-rose-600'
-                  : 'border-rose-600/30 bg-surface/90 hover:border-rose-600/50'
+              onClick={() => setAlertaFiltro(alertaFiltro === 'seguro_vencido' ? 'todos' : 'seguro_vencido')}
+              className={`text-left p-4 rounded-2xl border transition-all duration-200 ${
+                alertaFiltro === 'seguro_vencido' || alertaFiltro === 'seguro_a_vencer'
+                  ? 'border-indigo-500 bg-indigo-500/15 shadow-lg shadow-indigo-500/10 ring-1 ring-indigo-500'
+                  : 'border-indigo-500/30 bg-surface/90 hover:border-indigo-500/50'
               }`}
             >
-              <div className="flex items-center justify-between text-rose-500">
-                <span className="text-[11px] font-black uppercase tracking-wider">DOCUMENTO VENCIDO</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600/10 text-rose-500 border border-rose-600/20">
-                  <FileX className="h-4 w-4" />
+              <div className="flex items-center justify-between text-indigo-400">
+                <span className="text-[10px] font-black uppercase tracking-wider">SEGURO DA FROTA</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <ShieldCheck className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-rose-500">{metricasFrota.docVencido}</p>
-              <p className="mt-1 text-xs text-rose-300/80 font-medium">EXPIRADO / REGULARIZAR</p>
+              <p className="mt-2.5 text-3xl font-black font-mono text-indigo-400">
+                {metricasFrota.seguroVencido + metricasFrota.seguroAVencer}
+              </p>
+              <p className="mt-1 text-[11px] text-indigo-300/80 font-medium">
+                {metricasFrota.seguroVencido} VENC. · {metricasFrota.seguroEmDia} VIGENTES
+              </p>
+            </button>
+
+            {/* Status no Pátio */}
+            <button
+              type="button"
+              onClick={() => setAlertaFiltro('todos')}
+              className="text-left p-4 rounded-2xl border border-blue-500/30 bg-surface/90 hover:border-blue-500/50 transition-all"
+            >
+              <div className="flex items-center justify-between text-blue-400">
+                <span className="text-[10px] font-black uppercase tracking-wider">STATUS NO PÁTIO</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <MapPin className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-2.5 text-3xl font-black font-mono text-blue-400">{metricasFrota.noPatio}</p>
+              <p className="mt-1 text-[11px] text-blue-300/80 font-medium">{metricasFrota.foraDoPatio} EM ROTA</p>
             </button>
           </div>
 
@@ -1629,8 +1731,10 @@ export function Frotas() {
               >
                 <option value="todos">STATUS: TODOS</option>
                 <option value="preventiva_atrasada">⚠️ PREVENTIVAS ATRASADAS</option>
-                <option value="doc_a_vencer">⏳ DOCS A VENCER (30D)</option>
-                <option value="doc_vencido">🛑 DOCS VENCIDOS</option>
+                <option value="doc_vencido">🛑 LICENCIAMENTO VENCIDO</option>
+                <option value="doc_a_vencer">⏳ LICENCIAMENTO A VENCER (30D)</option>
+                <option value="seguro_vencido">🛑 SEGURO VENCIDO</option>
+                <option value="seguro_a_vencer">⏳ SEGURO A VENCER (30D)</option>
               </select>
 
               <select
@@ -1674,18 +1778,14 @@ export function Frotas() {
           ) : (
             <div className="overflow-hidden rounded-2xl border border-border/25 bg-surface/80 shadow-sm backdrop-blur-sm">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm uppercase">
+                <table className="w-full text-left text-xs uppercase">
                   <thead className="border-b border-border/15 bg-surface/95 text-[11px] font-black text-secondary uppercase tracking-wider">
                     <tr>
-                      <th className="px-4 py-3.5">PLACA</th>
-                      <th className="px-4 py-3.5">MODELO / MARCA</th>
-                      <th className="px-4 py-3.5">SETOR / RESPONSÁVEL</th>
-                      <th className="px-4 py-3.5">CLIENTE</th>
-                      <th className="px-4 py-3.5">ÚLTIMA PREVENTIVA (KM / DATA)</th>
-                      <th className="px-4 py-3.5">STATUS PREVENTIVA</th>
-                      <th className="px-4 py-3.5">DOCUMENTO / CRLV</th>
-                      <th className="px-4 py-3.5">SITUAÇÃO</th>
-                      <th className="px-4 py-3.5 text-right">AÇÕES</th>
+                      <th className="px-4 py-3">VEÍCULO / PLACA</th>
+                      <th className="px-4 py-3">SETOR & RESPONSÁVEL</th>
+                      <th className="px-4 py-3">MANUTENÇÃO PREVENTIVA</th>
+                      <th className="px-4 py-3">DOCUMENTAÇÃO & SEGURO</th>
+                      <th className="px-3 py-3 text-right">AÇÕES</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/10 font-medium">
@@ -1693,134 +1793,138 @@ export function Frotas() {
                       const estaNoPatio = placasNoPatio.has(v.placa.toUpperCase().trim())
                       const statusPrev = getStatusPreventiva(v)
                       const statusDoc = getStatusDocumento(v.vencimentoDocumento)
+                      const statusSeg = getStatusSeguro(v.vencimentoSeguro || v.vencimentoDocumento)
 
                       return (
                         <tr key={v.id} className="hover:bg-surface-hover/40 transition-colors group">
-                          {/* Placa */}
-                          <td className="px-4 py-3.5">
+                          {/* Veículo / Placa */}
+                          <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono font-black text-primary text-sm flex items-center gap-1.5">
+                              <span className="font-mono font-black text-primary text-sm flex items-center gap-1.5 tracking-wider">
                                 <span>{v.tipoVeiculo === 'MOTO' ? '🏍️' : v.tipo === 'leve' ? '🚗' : '🚛'}</span>
                                 <span>{v.placa}</span>
                               </span>
-                              {estaNoPatio && (
-                                <span className="rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.2 text-[9px] font-black">
-                                  NO PÁTIO
-                                </span>
-                              )}
+                              <div className="flex items-center gap-1">
+                                {v.situacao === 'operante' ? (
+                                  <span className="rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-black">
+                                    OPERANTE
+                                  </span>
+                                ) : (
+                                  <span className="rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 text-[9px] font-black">
+                                    INOPERANTE
+                                  </span>
+                                )}
+                                {estaNoPatio && (
+                                  <span className="rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 text-[9px] font-black">
+                                    NO PÁTIO
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-foreground font-bold mt-0.5">
+                              {v.marcaNome ? `${v.marcaNome} ` : ''}{v.modeloNome || '—'} {v.ano ? `· ${v.ano}` : ''}
                             </div>
                           </td>
 
-                          {/* Modelo / Marca */}
-                          <td className="px-4 py-3.5">
-                            <div className="font-bold text-foreground text-xs leading-snug">
-                              {v.modeloNome || '—'}
-                            </div>
-                            <div className="text-[11px] text-secondary font-semibold">
-                              {v.marcaNome || '—'} · <span className="text-[10px] font-mono">{v.tipoVeiculo || tipoVeiculoLabel(v.tipo)}</span>
-                            </div>
-                          </td>
-
-                          {/* Setor / Responsável */}
-                          <td className="px-4 py-3.5">
+                          {/* Setor & Responsável */}
+                          <td className="px-4 py-3">
                             {v.setor ? (
-                              <div className="font-black text-xs text-primary flex items-center gap-1">
-                                <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 text-[10px]">
+                              <div className="inline-flex items-center gap-1">
+                                <span className="px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 text-primary text-[10px] font-black">
                                   {v.setor}
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-secondary/50 text-xs font-mono">—</span>
+                              <span className="text-secondary/40 text-[10px] font-mono">—</span>
                             )}
-                            <div className="text-[11px] text-secondary font-bold flex items-center gap-1 mt-0.5">
-                              {v.responsavel ? (
-                                <>
-                                  <User className="h-3 w-3 text-secondary/70 shrink-0" />
-                                  <span className="truncate max-w-[140px]">{v.responsavel}</span>
-                                </>
+                            <div className="text-[11px] text-secondary font-bold flex items-center gap-1.5 mt-1">
+                              <User className="h-3 w-3 text-secondary/70 shrink-0" />
+                              <span className="truncate max-w-[170px]">{v.responsavel || 'NÃO ATRIBUÍDO'}</span>
+                            </div>
+                          </td>
+
+                          {/* Manutenção Preventiva */}
+                          <td className="px-4 py-3">
+                            <div>
+                              {statusPrev.status === 'atrasada' ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-red-500/15 border border-red-500/30 px-2 py-0.5 text-[10px] font-black text-red-400">
+                                  <AlertOctagon className="h-3 w-3" />
+                                  {statusPrev.label}
+                                </span>
+                              ) : statusPrev.status === 'proxima' ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-black text-amber-400">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {statusPrev.label}
+                                </span>
+                              ) : statusPrev.status === 'em_dia' ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  {statusPrev.label}
+                                </span>
                               ) : (
-                                <span className="text-secondary/40 text-[10px]">SEM RESPONSÁVEL</span>
+                                <span className="text-[10px] text-secondary/50 font-semibold">— NÃO INFORMADA</span>
                               )}
                             </div>
-                          </td>
-
-                          {/* Cliente */}
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-1.5 text-xs text-foreground font-semibold">
-                              <Building2 className="h-3.5 w-3.5 text-secondary shrink-0" />
-                              <span className="truncate max-w-[180px]">{v.clienteNome || '—'}</span>
+                            <div className="text-[10px] text-secondary font-mono mt-1">
+                              {v.kmUltimaPreventiva ? `${v.kmUltimaPreventiva.toLocaleString('pt-BR')} KM` : ''}
+                              {v.kmUltimaPreventiva && v.dataUltimaPreventiva ? ' · ' : ''}
+                              {v.dataUltimaPreventiva ? format(parseISO(v.dataUltimaPreventiva), 'dd/MM/yyyy') : ''}
                             </div>
                           </td>
 
-                          {/* Dados da Última Preventiva */}
-                          <td className="px-4 py-3.5">
-                            <div className="text-xs font-mono font-bold text-foreground">
-                              {v.kmUltimaPreventiva ? `${v.kmUltimaPreventiva.toLocaleString('pt-BR')} KM` : '—'}
+                          {/* Documento & Seguro */}
+                          <td className="px-4 py-3">
+                            <div className="space-y-1">
+                              {/* CRLV */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-bold text-secondary w-9">CRLV:</span>
+                                {statusDoc.status === 'vencido' ? (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-rose-600/15 border border-rose-600/30 px-1.5 py-0.5 text-[9px] font-black text-rose-500">
+                                    <FileX className="h-2.5 w-2.5" />
+                                    {statusDoc.label}
+                                  </span>
+                                ) : statusDoc.status === 'a_vencer' ? (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-black text-amber-400">
+                                    <Clock className="h-2.5 w-2.5" />
+                                    {statusDoc.label}
+                                  </span>
+                                ) : statusDoc.status === 'em_dia' ? (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
+                                    <CheckCircle2 className="h-2.5 w-2.5" />
+                                    {statusDoc.label}
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] text-secondary/50 font-semibold">—</span>
+                                )}
+                              </div>
+
+                              {/* Seguro */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-bold text-secondary w-9">SEG:</span>
+                                {statusSeg.status === 'vencido' ? (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-rose-600/15 border border-rose-600/30 px-1.5 py-0.5 text-[9px] font-black text-rose-500">
+                                    <ShieldCheck className="h-2.5 w-2.5" />
+                                    {statusSeg.label}
+                                  </span>
+                                ) : statusSeg.status === 'a_vencer' ? (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-indigo-500/15 border border-indigo-500/30 px-1.5 py-0.5 text-[9px] font-black text-indigo-400">
+                                    <ShieldCheck className="h-2.5 w-2.5" />
+                                    {statusSeg.label}
+                                  </span>
+                                ) : statusSeg.status === 'em_dia' ? (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
+                                    <ShieldCheck className="h-2.5 w-2.5" />
+                                    {statusSeg.label}
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] text-secondary/50 font-semibold">— NÃO INFORMADO</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-[10px] text-secondary font-semibold">
-                              {v.dataUltimaPreventiva ? format(parseISO(v.dataUltimaPreventiva), 'dd/MM/yyyy') : 'DATA NÃO INFORMADA'}
-                            </div>
-                          </td>
-
-                          {/* Status da Preventiva */}
-                          <td className="px-4 py-3.5">
-                            {statusPrev.status === 'atrasada' ? (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-red-500/15 border border-red-500/30 px-2 py-0.5 text-[10px] font-black text-red-400">
-                                <AlertOctagon className="h-3 w-3" />
-                                {statusPrev.label}
-                              </span>
-                            ) : statusPrev.status === 'proxima' ? (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-black text-amber-400">
-                                <AlertTriangle className="h-3 w-3" />
-                                {statusPrev.label}
-                              </span>
-                            ) : statusPrev.status === 'em_dia' ? (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                                <CheckCircle2 className="h-3 w-3" />
-                                {statusPrev.label}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-secondary/60 font-semibold">— NÃO INFORMADA</span>
-                            )}
-                          </td>
-
-                          {/* Documento / CRLV */}
-                          <td className="px-4 py-3.5">
-                            {statusDoc.status === 'vencido' ? (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-rose-600/15 border border-rose-600/30 px-2 py-0.5 text-[10px] font-black text-rose-500">
-                                <FileX className="h-3 w-3" />
-                                {statusDoc.label}
-                              </span>
-                            ) : statusDoc.status === 'a_vencer' ? (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-black text-amber-400">
-                                <Clock className="h-3 w-3" />
-                                {statusDoc.label}
-                              </span>
-                            ) : statusDoc.status === 'em_dia' ? (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                                <CheckCircle2 className="h-3 w-3" />
-                                {statusDoc.label}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-secondary/60 font-semibold">— NÃO INFORMADO</span>
-                            )}
-                          </td>
-
-                          {/* Situação */}
-                          <td className="px-4 py-3.5">
-                            {v.situacao === 'operante' ? (
-                              <Badge tone="success" className="text-[9px] font-black">
-                                OPERANTE
-                              </Badge>
-                            ) : (
-                              <Badge tone="warning" className="text-[9px] font-black">
-                                INOPERANTE
-                              </Badge>
-                            )}
                           </td>
 
                           {/* Ações */}
-                          <td className="px-4 py-3.5 text-right">
+                          <td className="px-3 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
@@ -2365,14 +2469,26 @@ export function Frotas() {
                   </div>
                 </div>
 
-                <div className="pt-1">
-                  <Label htmlFor="vencimentoDocumento">Vencimento do Documento (CRLV)</Label>
-                  <Input
-                    id="vencimentoDocumento"
-                    type="date"
-                    {...register('vencimentoDocumento')}
-                    className="mt-1 text-xs font-mono"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <Label htmlFor="vencimentoDocumento">Vencimento Licenciamento (CRLV)</Label>
+                    <Input
+                      id="vencimentoDocumento"
+                      type="date"
+                      {...register('vencimentoDocumento')}
+                      className="mt-1 text-xs font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="vencimentoSeguro">Vencimento do Seguro (Apólice)</Label>
+                    <Input
+                      id="vencimentoSeguro"
+                      type="date"
+                      {...register('vencimentoSeguro')}
+                      className="mt-1 text-xs font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 

@@ -4,36 +4,36 @@ export interface MembroEquipe {
 }
 
 export const EQUIPE_GVEL: MembroEquipe[] = [
-  { nome: 'DAVID JONATAS DANTAS DOS SANTOS', funcao: 'AJUDANTE GERAL' },
+  { nome: 'DAVID JONATAS DANTAS DOS SANTOS', funcao: 'MECÂNICO' },
   { nome: 'ELISMAR BATISTA DE ALMEIDA', funcao: 'ELETRICISTA' },
   { nome: 'EVERTON NUNES ROSA FRANCISCO', funcao: 'POLIDOR' },
-  { nome: 'GABRIEL HENRIQUE CHAIM FAUSTINO', funcao: 'MECANICO DIESEL' },
-  { nome: 'GABRIEL THOMAS MARQUES TEIXEIRA', funcao: 'MONTADOR' },
+  { nome: 'GABRIEL HENRIQUE CHAIM FAUSTINO', funcao: 'MECÂNICO' },
+  { nome: 'GABRIEL THOMAS MARQUES TEIXEIRA', funcao: 'FUNILEIRO' },
   { nome: 'GUILHERME BOCALON BUENO', funcao: 'POLIDOR' },
-  { nome: 'GUILHERME SILVA SACOMANO', funcao: 'MECANICO DIESEL B' },
+  { nome: 'GUILHERME SILVA SACOMANO', funcao: 'MECÂNICO' },
   { nome: 'HELIO DE OLIVEIRA MACHADO', funcao: 'PINTOR AUTOMOTIVO' },
   { nome: 'JOAO PAULO MARTINS DAS NEVES', funcao: 'ELETRICISTA' },
   { nome: 'JOAO VITOR DE SOUZA LIMA', funcao: 'POLIDOR' },
   { nome: 'JOAO VITOR MARQUES TEIXEIRA', funcao: 'FUNILEIRO' },
-  { nome: 'JOAO VITOR PONTEL MARTINS', funcao: 'AJUDANTE GERAL' },
+  { nome: 'JOAO VITOR PONTEL MARTINS', funcao: 'MECÂNICO' },
   { nome: 'JOSE ULISSES RODRIGUES', funcao: 'PINTOR AUTOMOTIVO' },
-  { nome: 'KAUA NUNES IRALA CONSTANTE', funcao: 'AJUDANTE GERAL' },
-  { nome: 'KAUE CAIRES DE SOUZA', funcao: 'AJUDANTE GERAL' },
+  { nome: 'KAUA NUNES IRALA CONSTANTE', funcao: 'MECÂNICO' },
+  { nome: 'KAUE CAIRES DE SOUZA', funcao: 'MECÂNICO' },
   { nome: 'LEONARDO SANTOS NASCIMENTO', funcao: 'POLIDOR' },
   { nome: 'LUIS ANTONIO SILVA E SILVA', funcao: 'FUNILEIRO' },
-  { nome: 'LUIS FERNANDO PEREIRA GARCIA', funcao: 'MECANICO B' },
-  { nome: 'MAICOM EVERTON PEREIRA FERREIRA', funcao: 'MECANICO A' },
-  { nome: 'MATHEUS DIAS DE AGUIAR', funcao: 'MECANICO DIESEL B' },
-  { nome: 'MAURICIO INACIO DA SILVA', funcao: 'AUX MECANICO' },
-  { nome: 'RIAN ROBSON DA SILVA', funcao: 'AJUDANTE GERAL' },
-  { nome: 'WELLINTON DE OLIVEIRA MARQUES', funcao: 'MECANICO A' },
-  { nome: 'FELIPE TAVARES NADOTTI', funcao: 'MECANICO DIESEL' },
-  { nome: 'JOSE AUGUSTO SATURNINO DE SOUZA', funcao: 'AJUDANTE GERAL' },
-  { nome: 'JOSE LINO LEANI', funcao: 'MECANICO DIESEL' },
-  { nome: 'RAI MILLER LEMOS DE ASSIS', funcao: 'MECANICO DIESEL' },
-  { nome: 'ROBERT ALVES DE FRANCA', funcao: 'AUX MECANICO' },
-  { nome: 'CRISTIANO FERREIRA DE OLIVEIRA', funcao: 'TECNICO EM MANUTENCAO' },
-  { nome: 'MAGAIVER DE LIMA LOPES', funcao: 'MECANICO DIESEL' },
+  { nome: 'LUIS FERNANDO PEREIRA GARCIA', funcao: 'MECÂNICO' },
+  { nome: 'MAICOM EVERTON PEREIRA FERREIRA', funcao: 'MECÂNICO' },
+  { nome: 'MATHEUS DIAS DE AGUIAR', funcao: 'MECÂNICO' },
+  { nome: 'MAURICIO INACIO DA SILVA', funcao: 'MECÂNICO' },
+  { nome: 'RIAN ROBSON DA SILVA', funcao: 'MECÂNICO' },
+  { nome: 'WELLINTON DE OLIVEIRA MARQUES', funcao: 'MECÂNICO' },
+  { nome: 'FELIPE TAVARES NADOTTI', funcao: 'MECÂNICO' },
+  { nome: 'JOSE AUGUSTO SATURNINO DE SOUZA', funcao: 'MECÂNICO' },
+  { nome: 'JOSE LINO LEANI', funcao: 'MECÂNICO' },
+  { nome: 'RAI MILLER LEMOS DE ASSIS', funcao: 'MECÂNICO' },
+  { nome: 'ROBERT ALVES DE FRANCA', funcao: 'MECÂNICO' },
+  { nome: 'CRISTIANO FERREIRA DE OLIVEIRA', funcao: 'MECÂNICO' },
+  { nome: 'MAGAIVER DE LIMA LOPES', funcao: 'MECÂNICO' },
 ]
 
 export const FUNCOES_EQUIPE = Array.from(new Set(EQUIPE_GVEL.map((m) => m.funcao))).sort()
@@ -43,6 +43,28 @@ export function removerAcentos(texto: string): string {
   return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
+// Normaliza cargos antigos (Ajudante Geral, Aux Mecânico, Mecânico Diesel, Técnico, Montador, etc.) para MECÂNICO
+export function normalizarFuncao(funcao?: string | null): string {
+  if (!funcao) return ''
+  const upper = removerAcentos(funcao.trim().toUpperCase())
+  if (
+    upper.includes('AJUDANTE') ||
+    upper.includes('AUX') ||
+    upper.includes('MECANICO') ||
+    upper.includes('MECÂNICO') ||
+    upper.includes('DIESEL') ||
+    upper.includes('TECNICO') ||
+    upper.includes('MONTADOR')
+  ) {
+    return 'MECÂNICO'
+  }
+  if (upper.includes('ELETRIC')) return 'ELETRICISTA'
+  if (upper.includes('FUNIL')) return 'FUNILEIRO'
+  if (upper.includes('PINT')) return 'PINTOR AUTOMOTIVO'
+  if (upper.includes('POLID')) return 'POLIDOR'
+  return funcao.trim().toUpperCase()
+}
+
 export function buscarFuncaoPorNome(nome: string): string | undefined {
   if (!nome) return undefined
   const norm = removerAcentos(nome.trim().toLowerCase())
@@ -50,7 +72,7 @@ export function buscarFuncaoPorNome(nome: string): string | undefined {
     const mNorm = removerAcentos(m.nome.toLowerCase())
     return mNorm === norm || norm.includes(mNorm) || mNorm.includes(norm)
   })
-  return encontrado?.funcao
+  return encontrado ? normalizarFuncao(encontrado.funcao) : undefined
 }
 
 export function obterNomeCompletoMembro(nome: string): string {

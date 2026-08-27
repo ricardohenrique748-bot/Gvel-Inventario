@@ -32,7 +32,7 @@ import {
 } from '@/lib/format'
 import { differenceInMinutes } from 'date-fns'
 import type { MovimentacaoComVeiculo } from '@/lib/types'
-import { EQUIPE_GVEL, FUNCOES_EQUIPE, buscarFuncaoPorNome, obterNomeCompletoMembro } from '@/constants/equipe'
+import { EQUIPE_GVEL, FUNCOES_EQUIPE, buscarFuncaoPorNome, obterNomeCompletoMembro, normalizarFuncao } from '@/constants/equipe'
 
 // ─── Tipos exportados (usados pelo hook de migração) ─────────────────────────
 
@@ -199,7 +199,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
   useEffect(() => {
     const mecNome = obterNomeCompletoMembro(osData.mecanico)
     setMecanico(mecNome)
-    setFuncao(osData.funcao || buscarFuncaoPorNome(mecNome) || '')
+    setFuncao(normalizarFuncao(osData.funcao) || buscarFuncaoPorNome(mecNome) || '')
     setSetor(osData.setor)
     setStatusOS(osData.statusOS || 'EM ANDAMENTO')
     setDataHoraAbertura(osData.dataHoraAbertura)
@@ -255,6 +255,19 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     }
     return soma
   }, [itemsDB])
+
+  const todosMecanicosApontados = useMemo(() => {
+    const set = new Set<string>()
+    if (mecanico && mecanico.trim()) {
+      set.add(obterNomeCompletoMembro(mecanico))
+    }
+    Object.values(itemsDB).forEach((it) => {
+      if (it.mecanico && it.mecanico.trim()) {
+        set.add(obterNomeCompletoMembro(it.mecanico))
+      }
+    })
+    return Array.from(set)
+  }, [mecanico, itemsDB])
 
   const calculoHorasGeral = useMemo(() => {
     if (!dataHoraAbertura) return { texto: 'AGUARDANDO ABERTURA', minutos: 0, status: 'pendente' as const }
@@ -578,7 +591,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             </Label>
             <Select
               id="mecanico-funcao"
-              value={funcao}
+              value={normalizarFuncao(funcao)}
               onChange={(e) => handleFuncaoChange(e.target.value)}
               className="!h-10 !text-xs !px-3 uppercase font-bold text-foreground border-border/40 focus:border-primary bg-surface"
             >
@@ -588,9 +601,6 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                   {f}
                 </option>
               ))}
-              {funcao && !FUNCOES_EQUIPE.includes(funcao) && (
-                <option value={funcao}>{funcao}</option>
-              )}
             </Select>
           </div>
 
@@ -640,6 +650,27 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
             />
           </div>
         </div>
+
+        {/* Exibição de Todos os Mecânicos Apontados na O.S */}
+        {todosMecanicosApontados.length > 0 && (
+          <div className="pt-3 border-t border-border/15 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-black text-secondary uppercase tracking-wider flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 text-primary" />
+              MECÂNICOS APONTADOS NESTA O.S ({todosMecanicosApontados.length}):
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {todosMecanicosApontados.map((mecNome) => (
+                <span
+                  key={mecNome}
+                  className="inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 uppercase"
+                >
+                  <User className="h-3 w-3" />
+                  {mecNome}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Campo Status da O.S */}
         <div className="pt-3 border-t border-border/15 space-y-2.5">
@@ -947,7 +978,17 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                               </span>
                               <select
                                 value={obterNomeCompletoMembro(data?.mecanico || '')}
-                                onChange={(e) => updateItemPatch(secao.id, item, { mecanico: e.target.value.toUpperCase() })}
+                                onChange={(e) => {
+                                  const val = e.target.value.toUpperCase()
+                                  const patch: Partial<ItemRow> = { mecanico: val }
+                                  if (val && !data?.hora_inicio) {
+                                    patch.hora_inicio = nowTimeString()
+                                    patch.data_inicio = data?.data || nowDateString()
+                                    patch.data = data?.data || nowDateString()
+                                    patch.checked = true
+                                  }
+                                  updateItemPatch(secao.id, item, patch)
+                                }}
                                 className="h-8 px-2.5 text-xs rounded-lg border border-border/40 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-primary flex-1 uppercase font-bold"
                               >
                                 <option value="">

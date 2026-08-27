@@ -16,6 +16,7 @@ export interface VeiculoFrotaBase {
   categoria?: string
   situacao: 'operante' | 'inoperante'
   vencimentoDocumento?: string
+  vencimentoSeguro?: string
   observacoes?: string
   createdAt: string
 }
