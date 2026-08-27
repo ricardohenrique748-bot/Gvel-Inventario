@@ -118,8 +118,12 @@ export function isRelatoriosAuthorized(userOrEmail?: string | Partial<Usuario> |
   return temPermissaoModulo({ email: userOrEmail }, 'relatorios')
 }
 
-export function isEstoqueAuthorized(userOrEmail?: string | Partial<Usuario> | null, _isNative = false): boolean {
+export function isEstoqueAuthorized(userOrEmail?: string | Partial<Usuario> | null, isNative = false): boolean {
   if (!userOrEmail) return false
+  const email = typeof userOrEmail === 'string' ? userOrEmail : userOrEmail.email
+  if (isNative) {
+    return (email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
+  }
   if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'estoque')
   return temPermissaoModulo({ email: userOrEmail }, 'estoque')
 }

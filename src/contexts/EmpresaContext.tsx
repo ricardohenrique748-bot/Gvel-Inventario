@@ -19,8 +19,40 @@ const EMPRESAS_PADRAO: Empresa[] = [
     nome: 'GVel Diesel',
     sistemaLabel: 'CENTER TRUCK',
     cor: '#E23B2E',
-    cnpj: '',
+    cnpj: '09.521.849/0001-90',
     observacoes: 'Empresa principal do Grupo GVEL',
+  },
+  {
+    id: 'gvel_diesel_transportes',
+    nome: 'G VEL DIESEL & TRANSPORTES LTDA',
+    sistemaLabel: 'CENTER TRUCK',
+    cor: '#E23B2E',
+    cnpj: '09.521.849/0001-90',
+    observacoes: 'Razão Social Matriz',
+  },
+  {
+    id: 'gvel_leves',
+    nome: 'GVel Leves',
+    sistemaLabel: 'FROTA LEVE',
+    cor: '#1E3A5F',
+    cnpj: '',
+    observacoes: 'Frota Leve do Grupo GVEL',
+  },
+  {
+    id: 'gv_distribuidora',
+    nome: 'GV Distribuidora',
+    sistemaLabel: 'DISTRIBUIDORA',
+    cor: '#1B6B3A',
+    cnpj: '',
+    observacoes: 'Distribuidora do Grupo GVEL',
+  },
+  {
+    id: 'gv_transportes',
+    nome: 'GV Transportes',
+    sistemaLabel: 'TRANSPORTES',
+    cor: '#D4540A',
+    cnpj: '',
+    observacoes: 'Transportes do Grupo GVEL',
   },
 ]
 
@@ -29,7 +61,13 @@ function loadEmpresas(): Empresa[] {
     const saved = localStorage.getItem(STORAGE_EMPRESAS_KEY)
     if (saved) {
       const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Faz merge garantindo que as empresas padrão e as customizadas existam
+        const map = new Map<string, Empresa>()
+        EMPRESAS_PADRAO.forEach((e) => map.set(e.id, e))
+        parsed.forEach((e: Empresa) => map.set(e.id, e))
+        return Array.from(map.values())
+      }
     }
   } catch {}
   return EMPRESAS_PADRAO
