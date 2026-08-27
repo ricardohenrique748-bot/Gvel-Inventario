@@ -180,6 +180,20 @@ export function RegistrarEntrada() {
       })),
     }
 
+    const temFoto = Boolean(
+      fotos.frente?.file ||
+      fotos.ladoEsquerdo?.file ||
+      fotos.ladoDireito?.file ||
+      fotos.traseira?.file ||
+      fotos.painel?.file ||
+      fotosExtras.length > 0
+    )
+
+    if (!temFoto) {
+      setSubmitError('É obrigatório adicionar pelo menos uma foto do veículo.')
+      return
+    }
+
     try {
       const mov =
         values.veiculoId === NOVO_VEICULO
@@ -496,8 +510,8 @@ export function RegistrarEntrada() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label className="mb-0">
-                  Fotos do veículo
-                  <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>
+                  Fotos do veículo<Req />
+                  <span className="ml-1.5 text-xs text-status-danger font-semibold">(obrigatório)</span>
                 </Label>
                 <button
                   type="button"

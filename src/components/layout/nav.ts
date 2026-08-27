@@ -7,6 +7,7 @@ import {
   Clock,
   Wrench,
   Truck,
+  Car,
   Hammer,
   BarChart3,
   DollarSign,
@@ -42,7 +43,8 @@ export const navItems = [
     icon: Truck,
     children: [
       { to: '/frotas', label: 'Dashboard', icon: LayoutDashboard, end: true },
-      { to: '/frotas?aba=veiculos', label: 'Veículos', icon: Truck },
+      { to: '/frotas?categoria=leve', label: 'Frota Leve', icon: Car },
+      { to: '/frotas?categoria=pesado', label: 'Rodocaçamba', icon: Truck },
       { to: '/frotas?aba=checklist', label: 'Checklist', icon: ClipboardCheck },
     ],
   },

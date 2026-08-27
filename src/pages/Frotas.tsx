@@ -59,7 +59,111 @@ import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useAuth } from '@/contexts/AuthContext'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
-import { VEICULOS_FROTA_BASE, SETORES_FROTA_LEVE } from '@/data/veiculosFrotaPadrao'
+import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL } from '@/data/veiculosFrotaPadrao'
+
+export function isFrotaLeve(v: {
+  placa?: string
+  tipo?: string
+  tipoVeiculo?: string
+  modeloNome?: string
+  marcaNome?: string
+  categoria?: string
+  setor?: string
+  responsavel?: string
+}): boolean {
+  if (v.tipo === 'leve') return true
+
+  const placa = (v.placa || '').toUpperCase().trim()
+  if (FROTA_LEVE_OFICIAL.some((fl) => fl.placa.toUpperCase().trim() === placa)) {
+    return true
+  }
+
+  const tipoV = (v.tipoVeiculo || '').toUpperCase()
+  if (['CARRO', 'MOTO', 'CAMINHONETE', 'UTILITÁRIO', 'UTILITARIO', 'PASSAGEIRO', 'MOTOCICLETA'].includes(tipoV)) {
+    return true
+  }
+
+  const mod = (v.modeloNome || '').toUpperCase()
+  const cat = (v.categoria || '').toUpperCase()
+  const marca = (v.marcaNome || '').toUpperCase()
+
+  // Modelos de Frota Leve
+  if (
+    mod.includes('GOL') ||
+    mod.includes('ONIX') ||
+    mod.includes('STRADA') ||
+    mod.includes('TORO') ||
+    mod.includes('HILUX') ||
+    mod.includes('SAVEIRO') ||
+    mod.includes('MOBI') ||
+    mod.includes('COROLLA') ||
+    mod.includes('S10') ||
+    mod.includes('S-10') ||
+    mod.includes('AMAROK') ||
+    mod.includes('RANGER') ||
+    mod.includes('L200') ||
+    mod.includes('FIORINO') ||
+    mod.includes('KANGOO') ||
+    mod.includes('DOBLO') ||
+    mod.includes('PARTNER') ||
+    mod.includes('HB20') ||
+    mod.includes('ARGO') ||
+    mod.includes('POLO') ||
+    mod.includes('VOYAGE') ||
+    mod.includes('PRISMA') ||
+    mod.includes('CRONOS') ||
+    mod.includes('YARIS') ||
+    mod.includes('CIVIC') ||
+    mod.includes('FIT') ||
+    mod.includes('CITY') ||
+    mod.includes('RENEGADE') ||
+    mod.includes('COMPASS') ||
+    mod.includes('DUSTER') ||
+    mod.includes('KWID') ||
+    mod.includes('ECOSPORT') ||
+    mod.includes('TRACKER') ||
+    mod.includes('CRETA') ||
+    mod.includes('HR-V') ||
+    mod.includes('KICKS') ||
+    mod.includes('CG') ||
+    mod.includes('TITAN') ||
+    mod.includes('FAN') ||
+    mod.includes('BROS') ||
+    mod.includes('XRE') ||
+    mod.includes('BIZ') ||
+    mod.includes('POP') ||
+    mod.includes('FAZER') ||
+    mod.includes('FACTOR') ||
+    mod.includes('CROSSER') ||
+    mod.includes('LANDER') ||
+    mod.includes('NXR') ||
+    mod.includes('CB') ||
+    mod.includes('YBR')
+  ) {
+    return true
+  }
+
+  // Marcas de motos
+  if (marca.includes('HONDA') || marca.includes('YAMAHA') || marca.includes('SUZUKI') || marca.includes('SHINERAY')) {
+    return true
+  }
+
+  // Categorias leves
+  if (
+    cat.includes('PASSEIO') ||
+    cat.includes('MOTOCICLETA') ||
+    cat.includes('CICLOMOTOR') ||
+    cat.includes('MOTONETA') ||
+    cat.includes('CAMINHONETE') ||
+    cat.includes('UTILITARIO') ||
+    cat.includes('UTILITÁRIO') ||
+    cat.includes('PARTICULAR')
+  ) {
+    return true
+  }
+
+  return false
+}
 
 const anoAtual = new Date().getFullYear()
 
@@ -235,8 +339,15 @@ export function Frotas() {
   const isNative = isNativeApp()
   const [searchParams] = useSearchParams()
   const abaParam = searchParams.get('aba')
-  const abaPrincipal: 'dashboard' | 'veiculos' | 'checklist' =
-    isNative ? 'checklist' : abaParam === 'checklist' ? 'checklist' : abaParam === 'veiculos' ? 'veiculos' : 'dashboard'
+  const categoriaParam = searchParams.get('categoria')
+
+  const abaPrincipal: 'dashboard' | 'veiculos' | 'checklist' = isNative
+    ? 'checklist'
+    : abaParam === 'checklist'
+    ? 'checklist'
+    : abaParam === 'veiculos' || categoriaParam === 'leve' || categoriaParam === 'pesado'
+    ? 'veiculos'
+    : 'dashboard'
 
   // Lista de veículos de frotas
   const [frotas, setFrotas] = useState<ItemFrotaCadastrada[]>(() => {
@@ -246,11 +357,11 @@ export function Frotas() {
         const parsed = JSON.parse(salvo)
         if (Array.isArray(parsed) && parsed.length > 0) {
           const mapa = new Map<string, ItemFrotaCadastrada>()
-          // 1. Inserir todos os veículos padrão
-          VEICULOS_FROTA_BASE.forEach((v) => {
-            mapa.set(v.placa.toUpperCase().trim(), v as ItemFrotaCadastrada)
+          // 1. Inserir todos os veículos oficiais da Frota Leve
+          FROTA_LEVE_OFICIAL.forEach((v) => {
+            mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: 'leve' } as ItemFrotaCadastrada)
           })
-          // 2. Mesclar com as edições e cadastros existentes do localStorage garantindo tipo, setor e responsável corretos
+          // 2. Mesclar com as edições e novos cadastros manuais do usuário (excluindo os antigos mocks de pesados)
           parsed.forEach((v: ItemFrotaCadastrada) => {
             const placa = v.placa ? v.placa.toUpperCase().trim() : v.id
             const base = mapa.get(placa)
@@ -258,7 +369,7 @@ export function Frotas() {
               mapa.set(placa, {
                 ...base,
                 ...v,
-                tipo: v.tipo || base.tipo,
+                tipo: 'leve',
                 setor: v.setor || base.setor,
                 responsavel: v.responsavel || base.responsavel,
                 tipoVeiculo: v.tipoVeiculo || base.tipoVeiculo,
@@ -268,15 +379,18 @@ export function Frotas() {
                 vencimentoSeguro: v.vencimentoSeguro || base.vencimentoSeguro,
                 observacoes: v.observacoes || base.observacoes,
               })
-            } else {
+            } else if (v.id && !v.id.startsWith('frota_')) {
+              // Veículos criados manualmente pelo usuário
               mapa.set(placa, v)
             }
           })
-          return Array.from(mapa.values())
+          const resultado = Array.from(mapa.values())
+          localStorage.setItem(STORAGE_FROTAS_KEY, JSON.stringify(resultado))
+          return resultado
         }
       }
     } catch {}
-    return VEICULOS_FROTA_BASE as ItemFrotaCadastrada[]
+    return FROTA_LEVE_OFICIAL as ItemFrotaCadastrada[]
   })
 
   // Lista de Checklists realizados
@@ -308,11 +422,42 @@ export function Frotas() {
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [erroLista, setErroLista] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  const [categoriaFrota, setCategoriaFrota] = useState<'todos' | 'leve' | 'pesado'>(() => {
+    if (categoriaParam === 'leve') return 'leve'
+    if (categoriaParam === 'pesado') return 'pesado'
+    return 'todos'
+  })
+
+  useEffect(() => {
+    if (categoriaParam === 'leve') {
+      setCategoriaFrota('leve')
+    } else if (categoriaParam === 'pesado') {
+      setCategoriaFrota('pesado')
+    } else if (abaParam === 'dashboard' || (abaParam === 'veiculos' && !categoriaParam)) {
+      setCategoriaFrota('todos')
+    }
+  }, [categoriaParam, abaParam])
+
   const [tipoFiltro, setTipoFiltro] = useState<string>('todos')
   const [clienteFiltro, setClienteFiltro] = useState<string>('todos')
   const [alertaFiltro, setAlertaFiltro] = useState<
     'todos' | 'preventiva_atrasada' | 'doc_a_vencer' | 'doc_vencido' | 'seguro_a_vencer' | 'seguro_vencido'
   >('todos')
+
+  // Contagens e subconjunto filtrado por categoria (Leves vs Rodocaçamba/Pesados)
+  const contagemLeves = useMemo(() => frotas.filter((v) => isFrotaLeve(v)).length, [frotas])
+  const contagemPesados = useMemo(() => frotas.filter((v) => !isFrotaLeve(v)).length, [frotas])
+  const contagemTodos = frotas.length
+
+  const frotasCategoria = useMemo(() => {
+    if (categoriaFrota === 'leve') {
+      return frotas.filter((v) => isFrotaLeve(v))
+    }
+    if (categoriaFrota === 'pesado') {
+      return frotas.filter((v) => !isFrotaLeve(v))
+    }
+    return frotas
+  }, [frotas, categoriaFrota])
 
   // Filtros dos Gráficos do Dashboard
   const [filtroGraficoKm, setFiltroGraficoKm] = useState<'top12' | 'top20' | 'criticos' | 'todos'>('top12')
@@ -539,7 +684,7 @@ export function Frotas() {
   // 1. DADOS DO GRÁFICO 1: KM Restante para Preventiva por Placa (Veículos Motorizados)
   const dadosGraficoKmPreventiva = useMemo(() => {
     // Carretas e dollys não possuem odômetro de motor/KM
-    const motorizados = frotas.filter((v) => v.tipo !== 'carreta')
+    const motorizados = frotasCategoria.filter((v) => v.tipo !== 'carreta')
 
     const filtrados = motorizados.filter((v) => {
       if (filtroTipoGraficoKm === 'todos_motor') return true
@@ -578,7 +723,7 @@ export function Frotas() {
       return lista.slice(0, 20)
     }
     return lista
-  }, [frotas, ultimasKmsPorPlaca, filtroGraficoKm, filtroTipoGraficoKm])
+  }, [frotasCategoria, ultimasKmsPorPlaca, filtroGraficoKm, filtroTipoGraficoKm])
 
   // Distribuição da Frota por Categoria
   const distribuicaoCategorias = useMemo(() => {
@@ -587,14 +732,14 @@ export function Frotas() {
     let leve = 0
     let carreta = 0
 
-    frotas.forEach((v) => {
+    frotasCategoria.forEach((v) => {
       if (v.tipo === 'trator') trator++
       else if (v.tipo === 'pesado') pesado++
       else if (v.tipo === 'carreta') carreta++
       else leve++
     })
 
-    const total = frotas.length || 1
+    const total = frotasCategoria.length || 1
 
     return [
       { nome: 'Cavalos Trator', total: trator, pct: Math.round((trator / total) * 100), cor: '#6366f1', icone: '🚜', tipo: 'trator' },
@@ -602,7 +747,7 @@ export function Frotas() {
       { nome: 'Frota Leve / Utilitários', total: leve, pct: Math.round((leve / total) * 100), cor: '#3b82f6', icone: '🚗', tipo: 'leve' },
       { nome: 'Caminhões Pesados', total: pesado, pct: Math.round((pesado / total) * 100), cor: '#f59e0b', icone: '🚚', tipo: 'pesado' },
     ]
-  }, [frotas])
+  }, [frotasCategoria])
 
   // 2. DADOS DO GRÁFICO 2: Checklists Realizados por Pessoa (Motorista / Condutor)
   const dadosGraficoChecklistPessoa = useMemo(() => {
@@ -633,7 +778,7 @@ export function Frotas() {
   const dadosGraficoVencimentoDoc = useMemo(() => {
     const hoje = startOfDay(new Date())
 
-    return frotas
+    return frotasCategoria
       .filter((v) => Boolean(v.vencimentoDocumento))
       .map((v) => {
         const placa = v.placa.toUpperCase().trim()
@@ -649,11 +794,11 @@ export function Frotas() {
         }
       })
       .sort((a, b) => a.dias - b.dias)
-  }, [frotas])
+  }, [frotasCategoria])
 
   // Métricas da Frota
   const metricasFrota = useMemo(() => {
-    const total = frotas.length
+    const total = frotasCategoria.length
     let operantes = 0
     let inoperantes = 0
     let noPatio = 0
@@ -665,7 +810,7 @@ export function Frotas() {
     let seguroVencido = 0
     let seguroEmDia = 0
 
-    frotas.forEach((v) => {
+    frotasCategoria.forEach((v) => {
       if (v.situacao === 'operante') operantes++
       else inoperantes++
 
@@ -701,7 +846,7 @@ export function Frotas() {
       seguroVencido,
       seguroEmDia,
     }
-  }, [frotas, placasNoPatio, ultimasKmsPorPlaca])
+  }, [frotasCategoria, placasNoPatio, ultimasKmsPorPlaca])
 
   // Métricas do Checklist
   const metricasChecklist = useMemo(() => {
@@ -784,8 +929,20 @@ export function Frotas() {
 
   // Filtro de Veículos
   const veiculosFiltrados = useMemo(() => {
-    return frotas.filter((v) => {
-      if (tipoFiltro !== 'todos' && v.tipo !== tipoFiltro) return false
+    return frotasCategoria.filter((v) => {
+      // Garantia estrita: se estiver em Rodocaçamba, NUNCA passa veículo leve
+      if (categoriaFrota === 'pesado' && isFrotaLeve(v)) return false
+      // Se estiver em Frota Leve, NUNCA passa veículo pesado
+      if (categoriaFrota === 'leve' && !isFrotaLeve(v)) return false
+
+      if (tipoFiltro !== 'todos') {
+        if (categoriaFrota === 'leve') {
+          const matchSub = v.tipoVeiculo?.toUpperCase() === tipoFiltro.toUpperCase() || v.tipo === tipoFiltro
+          if (!matchSub) return false
+        } else {
+          if (v.tipo !== tipoFiltro) return false
+        }
+      }
 
       if (clienteFiltro !== 'todos') {
         const clienteSelecionado = clientes.find((c) => c.id === clienteFiltro)
@@ -842,7 +999,7 @@ export function Frotas() {
         tipoVeiculo.includes(termo)
       )
     })
-  }, [frotas, tipoFiltro, clienteFiltro, alertaFiltro, busca, ultimasKmsPorPlaca])
+  }, [frotasCategoria, categoriaFrota, tipoFiltro, clienteFiltro, alertaFiltro, busca, ultimasKmsPorPlaca])
 
   // Filtro de Checklists
   const checklistsFiltrados = useMemo(() => {
@@ -862,14 +1019,15 @@ export function Frotas() {
   // Handlers de Veículo
   function iniciarCriacaoVeiculo() {
     setEditandoId(null)
+    const tipoInicial = categoriaFrota === 'pesado' ? 'pesado' : 'leve'
     reset({
       clienteId: clienteFiltro !== 'todos' ? clienteFiltro : (clientes[0]?.id || ''),
-      tipo: 'leve',
-      tipoVeiculo: 'CARRO',
+      tipo: tipoInicial,
+      tipoVeiculo: tipoInicial === 'leve' ? 'CARRO' : '',
       situacao: 'operante',
       placa: '',
       cor: 'BRANCO',
-      setor: 'GV MANUTENÇÃO',
+      setor: tipoInicial === 'leve' ? 'GV MANUTENÇÃO' : '',
       responsavel: '',
       chassi: '',
       ano: anoAtual,
@@ -879,7 +1037,7 @@ export function Frotas() {
       vencimentoSeguro: '',
       dataUltimaPreventiva: '',
       kmUltimaPreventiva: undefined,
-      intervaloPreventivaKm: 10000,
+      intervaloPreventivaKm: tipoInicial === 'pesado' ? 20000 : 10000,
       observacoes: '',
     })
     setMostrarModalVeiculo(true)
@@ -904,7 +1062,7 @@ export function Frotas() {
       vencimentoSeguro: v.vencimentoSeguro || '',
       dataUltimaPreventiva: v.dataUltimaPreventiva || v.vencimentoPreventiva || '',
       kmUltimaPreventiva: v.kmUltimaPreventiva,
-      intervaloPreventivaKm: v.intervaloPreventivaKm || 10000,
+      intervaloPreventivaKm: v.intervaloPreventivaKm || (v.tipo === 'pesado' || v.tipo === 'trator' ? 20000 : 10000),
       observacoes: v.observacoes || '',
     })
     setMostrarModalVeiculo(true)
@@ -916,14 +1074,22 @@ export function Frotas() {
     const marcaObj = marcas.find((m) => m.id === values.marcaId)
     const modeloObj = modelos.find((m) => m.id === values.modeloId)
 
+    // Forçar a categoria correta conforme a aba ativa
+    let tipoCorreto = values.tipo
+    if (categoriaFrota === 'pesado') {
+      if (tipoCorreto === 'leve') tipoCorreto = 'pesado'
+    } else if (categoriaFrota === 'leve') {
+      tipoCorreto = 'leve'
+    }
+
     const novoItem: ItemFrotaCadastrada = {
-      id: editandoId || `frota_${Date.now()}`,
+      id: editandoId || `veic_${Date.now()}`,
       placa: values.placa.toUpperCase().trim(),
-      tipo: values.tipo,
-      tipoVeiculo: values.tipoVeiculo || (values.tipo === 'leve' ? 'CARRO' : undefined),
+      tipo: tipoCorreto,
+      tipoVeiculo: tipoCorreto === 'leve' ? (values.tipoVeiculo || 'CARRO') : undefined,
       cor: values.cor.toUpperCase().trim(),
-      setor: values.setor?.trim() ? values.setor.toUpperCase().trim() : undefined,
-      responsavel: values.responsavel?.trim() ? values.responsavel.toUpperCase().trim() : undefined,
+      setor: tipoCorreto === 'leve' && values.setor?.trim() ? values.setor.toUpperCase().trim() : undefined,
+      responsavel: tipoCorreto === 'leve' && values.responsavel?.trim() ? values.responsavel.toUpperCase().trim() : undefined,
       chassi: values.chassi?.trim() ? values.chassi.toUpperCase().trim() : undefined,
       situacao: values.situacao,
       ano: values.ano,
@@ -935,7 +1101,7 @@ export function Frotas() {
       vencimentoSeguro: values.vencimentoSeguro || undefined,
       dataUltimaPreventiva: values.dataUltimaPreventiva || undefined,
       kmUltimaPreventiva: values.kmUltimaPreventiva || undefined,
-      intervaloPreventivaKm: values.intervaloPreventivaKm || 10000,
+      intervaloPreventivaKm: values.intervaloPreventivaKm || (tipoCorreto === 'pesado' || tipoCorreto === 'trator' ? 20000 : 10000),
       observacoes: values.observacoes?.trim() || undefined,
       createdAt: new Date().toISOString(),
     }
@@ -1147,6 +1313,86 @@ export function Frotas() {
           </button>
         </div>
       )}
+
+      {/* SELETOR DE CATEGORIA DA FROTA: FROTA LEVE vs FROTA PESADA vs VISÃO CONSOLIDADA */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-surface/90 border border-border/30 rounded-2xl backdrop-blur-md shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setCategoriaFrota('leve')
+              setTipoFiltro('todos')
+            }}
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-black text-xs transition-all ${
+              categoriaFrota === 'leve'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 ring-2 ring-blue-400'
+                : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            <Car className="h-4 w-4" />
+            <span>FROTA LEVE</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                categoriaFrota === 'leve' ? 'bg-white/20 text-white' : 'bg-surface border border-border/40 text-secondary'
+              }`}
+            >
+              {contagemLeves}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCategoriaFrota('pesado')
+              setTipoFiltro('todos')
+            }}
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-black text-xs transition-all ${
+              categoriaFrota === 'pesado'
+                ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/25 ring-2 ring-amber-400'
+                : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            <Truck className="h-4 w-4" />
+            <span>RODOCAÇAMBA</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                categoriaFrota === 'pesado' ? 'bg-white/20 text-white' : 'bg-surface border border-border/40 text-secondary'
+              }`}
+            >
+              {contagemPesados}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCategoriaFrota('todos')
+              setTipoFiltro('todos')
+            }}
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-black text-xs transition-all ${
+              categoriaFrota === 'todos'
+                ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25 ring-2 ring-primary/40'
+                : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            <Building2 className="h-4 w-4" />
+            <span>VISÃO CONSOLIDADA</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                categoriaFrota === 'todos' ? 'bg-black/20 text-white' : 'bg-surface border border-border/40 text-secondary'
+              }`}
+            >
+              {contagemTodos}
+            </span>
+          </button>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2 text-[11px] font-bold text-secondary px-2">
+          {categoriaFrota === 'leve' && <span className="text-blue-400">🚗 EXIBINDO FROTA LEVE (CARROS, MOTOS E UTILITÁRIOS)</span>}
+          {categoriaFrota === 'pesado' && <span className="text-amber-400">🚛 EXIBINDO RODOCAÇAMBA (CAVALOS TRATOR, PESADOS E CARRETAS)</span>}
+          {categoriaFrota === 'todos' && <span>📊 EXIBINDO TODA A FROTA CONSOLIDADA</span>}
+        </div>
+      </div>
 
       {/* ========================================================================= */}
       {/* ABA 0: DASHBOARD GERENCIAL DA FROTA (COM OS 3 GRÁFICOS SOLICITADOS) */}
@@ -1755,11 +2001,30 @@ export function Frotas() {
                 onChange={(e) => setTipoFiltro(e.target.value)}
                 className="h-10 rounded-xl border border-border/25 bg-surface/90 px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none uppercase cursor-pointer"
               >
-                <option value="todos">TODOS OS TIPOS</option>
-                <option value="pesado">PESADOS / CAMINHÕES</option>
-                <option value="leve">LEVES / UTILITÁRIOS</option>
-                <option value="trator">TRATORES / CAVALOS</option>
-                <option value="carreta">CARRETAS / IMPLEMENTOS</option>
+                {categoriaFrota === 'leve' ? (
+                  <>
+                    <option value="todos">TODOS OS LEVES ({contagemLeves})</option>
+                    <option value="CARRO">CARROS</option>
+                    <option value="MOTO">MOTOS</option>
+                    <option value="CAMINHONETE">CAMINHONETES</option>
+                    <option value="UTILITÁRIO">UTILITÁRIOS</option>
+                  </>
+                ) : categoriaFrota === 'pesado' ? (
+                  <>
+                    <option value="todos">TODOS OS PESADOS ({contagemPesados})</option>
+                    <option value="trator">CAVALOS TRATOR</option>
+                    <option value="pesado">CAMINHÕES PESADOS</option>
+                    <option value="carreta">CARRETAS / DOLLYS</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="todos">TODOS OS TIPOS ({contagemTodos})</option>
+                    <option value="leve">FROTA LEVE / UTILITÁRIOS</option>
+                    <option value="pesado">CAMINHÕES PESADOS</option>
+                    <option value="trator">CAVALOS TRATOR</option>
+                    <option value="carreta">CARRETAS / DOLLYS</option>
+                  </>
+                )}
               </select>
             </div>
           </div>
