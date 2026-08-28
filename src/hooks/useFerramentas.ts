@@ -983,3 +983,95 @@ export async function excluirRetiradaFerramenta(retiradaId: string): Promise<voi
     console.warn('Retirada excluída localmente:', sbErr)
   }
 }
+
+export async function sincronizarTudoParaSupabase(): Promise<{ sucesso: boolean; mensagem: string; totalFerramentas: number; totalRetiradas: number }> {
+  try {
+    const locaisFerramentas = getFerramentasLocais()
+    const locaisRetiradas = getRetiradasLocais()
+
+    if (locaisFerramentas.length === 0 && locaisRetiradas.length === 0) {
+      return { sucesso: false, mensagem: 'Nenhum dado encontrado para sincronizar.', totalFerramentas: 0, totalRetiradas: 0 }
+    }
+
+    let gravadasFerramentas = 0
+    let gravadasRetiradas = 0
+
+    // 1. Sincronizar ferramentas
+    for (const f of locaisFerramentas) {
+      let observacoesFinal = f.observacoes?.trim() || ''
+      if (observacoesFinal) {
+        observacoesFinal = observacoesFinal.replace(/\[TIPO:.*?\]/g, '').replace(/\[FOTO:.*?\]/g, '').trim()
+      }
+      observacoesFinal = `[TIPO:${f.tipo_ferramenta || 'comum'}] ${observacoesFinal}`.trim()
+      if (f.foto_url) {
+        observacoesFinal = `${observacoesFinal} [FOTO:${f.foto_url}]`.trim()
+      }
+
+      const payload: any = {
+        codigo: f.codigo ? up(f.codigo) : null,
+        nome: up(f.nome),
+        categoria: f.categoria ? up(f.categoria) : 'GERAL',
+        tipo_ferramenta: f.tipo_ferramenta || 'comum',
+        quantidade_total: Number(f.quantidade_total) || 1,
+        quantidade_disponivel: Number(f.quantidade_disponivel) ?? Number(f.quantidade_total) ?? 1,
+        localizacao: f.localizacao ? up(f.localizacao) : null,
+        observacoes: observacoesFinal || null,
+        foto_url: f.foto_url || null,
+      }
+
+      // Se for UUID válido do Supabase, mantém o ID
+      const isUUID = f.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(f.id)
+      if (isUUID) {
+        payload.id = f.id
+      }
+
+      const { error } = await supabase.from('ferramentas').upsert(payload)
+      if (!error) {
+        gravadasFerramentas++
+      } else {
+        console.warn('Erro ao sincronizar ferramenta:', f.nome, error)
+      }
+    }
+
+    // 2. Sincronizar retiradas
+    for (const r of locaisRetiradas) {
+      const isUUID = r.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id)
+      const payload: any = {
+        placa: up(r.placa),
+        responsavel: up(r.responsavel),
+        quantidade: Number(r.quantidade) || 1,
+        data_hora_retirada: r.data_hora_retirada || new Date().toISOString(),
+        data_hora_devolucao: r.data_hora_devolucao || null,
+        status: r.status || 'em_uso',
+        observacoes_retirada: r.observacoes_retirada || null,
+        observacoes_devolucao: r.observacoes_devolucao || null,
+        foto_url: r.foto_url || r.foto_responsavel_url || null,
+        foto_responsavel_url: r.foto_responsavel_url || r.foto_url || null,
+      }
+      if (isUUID) payload.id = r.id
+      if (r.ferramenta_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.ferramenta_id)) {
+        payload.ferramenta_id = r.ferramenta_id
+      }
+
+      if (payload.ferramenta_id) {
+        const { error } = await supabase.from('ferramentas_retiradas').upsert(payload)
+        if (!error) gravadasRetiradas++
+      }
+    }
+
+    return {
+      sucesso: true,
+      mensagem: `Sincronização concluída com sucesso! ${gravadasFerramentas} ferramentas e ${gravadasRetiradas} retiradas sincronizadas no Supabase.`,
+      totalFerramentas: gravadasFerramentas,
+      totalRetiradas: gravadasRetiradas,
+    }
+  } catch (err: any) {
+    return {
+      sucesso: false,
+      mensagem: `Falha na sincronização: ${err?.message || 'Erro desconhecido'}`,
+      totalFerramentas: 0,
+      totalRetiradas: 0,
+    }
+  }
+}
+
