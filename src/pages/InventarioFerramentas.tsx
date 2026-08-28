@@ -32,7 +32,6 @@ import {
   ShieldAlert,
   CheckSquare,
   Square,
-  Cloud,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { isEstoqueAuthorized } from '@/components/layout/nav'
@@ -58,7 +57,6 @@ import {
   registrarDevolucaoFerramenta,
   reverterDevolucaoFerramenta,
   uploadFotoFerramenta,
-  sincronizarTudoParaSupabase,
 } from '@/hooks/useFerramentas'
 import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
@@ -429,8 +427,6 @@ export function InventarioFerramentas() {
 
   // Mensagens de erro/sucesso
   const [mensagemErro, setMensagemErro] = useState<string | null>(null)
-  const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null)
-  const [sincronizando, setSincronizando] = useState(false)
 
   // Seleção e Edição em Massa
   const [selecionados, setSelecionados] = useState<string[]>([])
