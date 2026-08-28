@@ -669,29 +669,6 @@ export function InventarioFerramentas() {
             <Button
               type="button"
               variant="secondary"
-              onClick={async () => {
-                setSincronizando(true)
-                setMensagemErro(null)
-                setMensagemSucesso(null)
-                const res = await sincronizarTudoParaSupabase()
-                setSincronizando(false)
-                if (res.sucesso) {
-                  setMensagemSucesso(res.mensagem)
-                  refetchFerramentas()
-                  refetchRetiradas()
-                } else {
-                  setMensagemErro(res.mensagem)
-                }
-              }}
-              disabled={sincronizando}
-              className="w-full sm:w-auto !px-3 !py-2 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 uppercase font-bold text-[11px] sm:text-xs gap-1.5"
-            >
-              {sincronizando ? <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400 shrink-0" /> : <Cloud className="h-3.5 w-3.5 text-emerald-400 shrink-0" />}
-              <span className="truncate">{sincronizando ? 'SALVANDO...' : 'SALVAR NO BANCO'}</span>
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
               onClick={() => {
                 setFerramentaSelecionadaParaRetirada(null)
                 setModalRetiradaAberto(true)
@@ -717,15 +694,6 @@ export function InventarioFerramentas() {
           </div>
         }
       />
-
-      {mensagemSucesso && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-400 flex items-center justify-between uppercase">
-          <span>{mensagemSucesso}</span>
-          <button onClick={() => setMensagemSucesso(null)} className="text-emerald-400 hover:opacity-75">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
 
       {mensagemErro && (
         <div className="rounded-xl border border-status-danger/30 bg-status-danger/10 p-4 text-sm text-status-danger flex items-center justify-between uppercase">

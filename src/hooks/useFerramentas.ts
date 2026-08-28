@@ -277,6 +277,7 @@ export function useFerramentas() {
         const locais = getFerramentasLocais()
         if (locais.length > 0) {
           setFerramentas(locais)
+          sincronizarTudoParaSupabase().catch(() => {})
         }
       }
     } catch (err) {
