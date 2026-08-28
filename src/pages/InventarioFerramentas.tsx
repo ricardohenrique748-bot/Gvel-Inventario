@@ -57,7 +57,6 @@ import {
   registrarDevolucaoFerramenta,
   reverterDevolucaoFerramenta,
   uploadFotoFerramenta,
-  restaurarCatalogoPadrao,
 } from '@/hooks/useFerramentas'
 import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
@@ -128,170 +127,10 @@ const CATEGORIAS_CONSUMO = [
   'DIVERSOS',
 ]
 
-const ITENS_CONSUMO_INICIAIS: ItemConsumo[] = [
-  {
-    id: 'c1',
-    codigo: 'LUB-001',
-    nome: 'DESENGRIPANTE SPRAY WD-40 (300ML)',
-    categoria: 'LUBRIFICANTES & QUÍMICOS',
-    unidade: 'UN',
-    quantidade_atual: 18,
-    quantidade_minima: 5,
-    localizacao: 'ARMÁRIO QUÍMICOS - PRAT. 1',
-    observacoes: 'Uso geral em desmontagens',
-    foto_url: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'c2',
-    codigo: 'LUB-002',
-    nome: 'GRAXA AZUL PARA ROLAMENTOS (POTE 1KG)',
-    categoria: 'LUBRIFICANTES & QUÍMICOS',
-    unidade: 'UN',
-    quantidade_atual: 6,
-    quantidade_minima: 3,
-    localizacao: 'ARMÁRIO QUÍMICOS - PRAT. 2',
-    observacoes: 'Linha pesada alta temperatura',
-    foto_url: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'c3',
-    codigo: 'FIX-010',
-    nome: 'ABRAÇADEIRA DE NYLON 200MM (PCT C/ 100)',
-    categoria: 'PARAFUSOS & FIXAÇÃO',
-    unidade: 'PCT',
-    quantidade_atual: 12,
-    quantidade_minima: 4,
-    localizacao: 'GAVETEIRO FIXAÇÃO - GAVETA 3',
-    observacoes: 'Preta resistente a UV',
-    foto_url: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'c4',
-    codigo: 'FIX-011',
-    nome: 'FITA ISOLANTE 3M 19MM X 20M',
-    categoria: 'ELÉTRICA & FUSÍVEIS',
-    unidade: 'RL',
-    quantidade_atual: 24,
-    quantidade_minima: 6,
-    localizacao: 'ARMÁRIO ELÉTRICA - PRAT. 1',
-    observacoes: 'Alta isolação antichama',
-    foto_url: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'c5',
-    codigo: 'ELT-005',
-    nome: 'TERMINAL ILHÓS PRÉ-ISOLADO 2.5MM (PCT 100)',
-    categoria: 'ELÉTRICA & FUSÍVEIS',
-    unidade: 'PCT',
-    quantidade_atual: 8,
-    quantidade_minima: 2,
-    localizacao: 'GAVETEIRO ELÉTRICA - GAVETA 1',
-    observacoes: 'Azul padrão 2.5mm',
-    foto_url: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'c6',
-    codigo: 'LIX-001',
-    nome: 'DISCO DE CORTE INOX 4.1/2" NORTON',
-    categoria: 'DISCOS & LIXAS',
-    unidade: 'UN',
-    quantidade_atual: 35,
-    quantidade_minima: 10,
-    localizacao: 'PRATELEIRA DE DISCOS',
-    observacoes: 'Espessura 1.0mm',
-    foto_url: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'c7',
-    codigo: 'EPI-001',
-    nome: 'LUVA NITRÍLICA RESISTENTE TAMANHO G (PAR)',
-    categoria: 'EPIS & PROTEÇÃO',
-    unidade: 'PAR',
-    quantidade_atual: 40,
-    quantidade_minima: 15,
-    localizacao: 'ARMÁRIO EPIS',
-    observacoes: 'Proteção contra óleos e solventes',
-    foto_url: null,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'c8',
-    codigo: 'LMP-001',
-    nome: 'ESTOPA BRANCA COSTURADA PARA LIMPEZA (FARDO 1KG)',
-    categoria: 'LIMPEZA & ESTOPAS',
-    unidade: 'KG',
-    quantidade_atual: 15,
-    quantidade_minima: 5,
-    localizacao: 'ÁREA DE LAVAGEM',
-    observacoes: '100% algodão',
-    foto_url: null,
-    created_at: new Date().toISOString(),
-  },
-]
+const ITENS_CONSUMO_INICIAIS: ItemConsumo[] = []
 
-const CAIXAS_INICIAIS: CaixaFerramenta[] = [
-  {
-    id: 'caixa_01',
-    nome: 'CAIXA 01 - MECÂNICA PESADA',
-    codigo: 'CX-001',
-    localizacao: 'BANCADA 01 / OFICINA',
-    status: 'disponivel',
-    foto_url: null,
-    itens: [
-      { id: '1', nome: 'JOGO DE CHAVES COMBINADAS 6MM A 32MM (GEDORE)', quantidade: 1 },
-      { id: '2', nome: 'CHAVE DE CATRACA 1/2 REVERSÍVEL COM EXTENSÃO', quantidade: 1 },
-      { id: '3', nome: 'JOGO DE SOQUETES SEXTAVADOS 10MM A 32MM', quantidade: 1 },
-      { id: '4', nome: 'ALICATE DE PRESSÃO MORDAÇA CURVA 10"', quantidade: 1 },
-      { id: '5', nome: 'ALICATE UNIVERSAL 8" ISOLADO 1000V', quantidade: 1 },
-      { id: '6', nome: 'MARTELO BOLA 500G COM CABO DE FIBRA', quantidade: 1 },
-      { id: '7', nome: 'TALHADEIRA 3/4" OCTOGONAL', quantidade: 2 },
-    ],
-    observacoes: 'Kit completo para desmontagem de eixos e suspensão',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'caixa_02',
-    nome: 'CAIXA 02 - ELÉTRICA & INJEÇÃO',
-    codigo: 'CX-002',
-    localizacao: 'ARMÁRIO ELÉTRICA / GAVETA A2',
-    status: 'disponivel',
-    foto_url: null,
-    itens: [
-      { id: '1', nome: 'MULTÍMETRO DIGITAL AUTOMOTIVO MINIPA COM TRUE RMS', quantidade: 1 },
-      { id: '2', nome: 'CANETA DE POLARIDADE 12V/24V COM DISPLAY', quantidade: 1 },
-      { id: '3', nome: 'ALICATE DECAPADOR E CRIMPADOR AUTOMÁTICO', quantidade: 1 },
-      { id: '4', nome: 'JOGO DE CHAVES DE FENDA E PHILLIPS ISOLADAS', quantidade: 1 },
-      { id: '5', nome: 'FERRO DE SOLDA 60W 110V/220V COM SUPORTE', quantidade: 1 },
-      { id: '6', nome: 'TESTADOR DE RELÉS AUTOMOTIVOS', quantidade: 1 },
-    ],
-    observacoes: 'Kit exclusivo para diagnóstico e chicotes elétricos',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'caixa_03',
-    nome: 'CAIXA 03 - PNEUMÁTICA & PNEUS',
-    codigo: 'CX-003',
-    localizacao: 'BOX DE PNEUS / PAREDE SUL',
-    status: 'disponivel',
-    foto_url: null,
-    itens: [
-      { id: '1', nome: 'CHAVE DE IMPACTO PNEUMÁTICA 3/4" PISTOLA', quantidade: 1 },
-      { id: '2', nome: 'SOQUETE DE IMPACTO 32MM LONGO PARA RODA', quantidade: 1 },
-      { id: '3', nome: 'SOQUETE DE IMPACTO 33MM LONGO PARA RODA', quantidade: 1 },
-      { id: '4', nome: 'CALIBRADOR DE PNEUS DIGITAL COM GATILHO', quantidade: 1 },
-      { id: '5', nome: 'ESPATULA PARA PNEU CAMINHÃO 30"', quantidade: 2 },
-      { id: '6', nome: 'ENGATE RÁPIDO PNEUMÁTICO 1/2"', quantidade: 2 },
-    ],
-    observacoes: 'Kit para socorro de borracharia e troca de rodas',
-    created_at: new Date().toISOString(),
-  },
-]
+const CAIXAS_INICIAIS: CaixaFerramenta[] = []
+
 
 const CATEGORIAS_FERRAMENTAS = [
   'TODAS',
@@ -823,19 +662,6 @@ export function InventarioFerramentas() {
         subtitle="CONTROLE DE FERRAMENTAS, CONSUMÍVEIS, CAIXAS E PATRIMÔNIO"
         actions={
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={async () => {
-                restaurarCatalogoPadrao()
-                await recarregarDados()
-              }}
-              title="Restaurar/Sincronizar catálogo oficial de ferramentas"
-              className="w-full sm:w-auto !px-3 !py-2 border-border/30 text-secondary hover:text-foreground uppercase font-bold text-[11px] sm:text-xs gap-1.5"
-            >
-              <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">RESTAURAR CATÁLOGO</span>
-            </Button>
             <Button
               type="button"
               variant="secondary"

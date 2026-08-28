@@ -121,35 +121,44 @@ export function mesclarComFerramentasPadrao(listaSalva: Ferramenta[]): Ferrament
   // 2. Sobrepor / mesclar com edições salvas e novas ferramentas cadastradas
   listaSalva.forEach((salva) => {
     if (excluidos.includes(salva.id)) return
+    if (salva.id && salva.id.startsWith('ferr_padrao_')) return // Limpar ferramentas mock antigas
 
     const f = formatarFerramentaComFoto(salva)
-    
-    // Tenta encontrar por ID
-    let base = mapa.get(f.id)
-    
-    // Se não encontrou por ID mas tem código cadastrado, tenta casar com código da base padrão
-    if (!base && f.codigo) {
-      const matchPadrao = FERRAMENTAS_BASE_PADRAO.find(
-        (p) => p.codigo && p.codigo.toUpperCase().trim() === f.codigo?.toUpperCase().trim()
-      )
-      if (matchPadrao) {
-        base = mapa.get(matchPadrao.id)
-      }
-    }
-
-    if (base) {
-      mapa.set(base.id, {
-        ...base,
-        ...f,
-        id: base.id, // Manter ID canônico
-        tipo_ferramenta: f.tipo_ferramenta !== undefined ? f.tipo_ferramenta : base.tipo_ferramenta,
-      })
-    } else {
-      mapa.set(f.id, f)
-    }
+    mapa.set(f.id, f)
   })
 
   return Array.from(mapa.values())
+}
+
+export async function zerarTodoEstoque(): Promise<void> {
+  try {
+    localStorage.removeItem(STORAGE_EXCLUIDAS_KEY)
+    localStorage.removeItem(STORAGE_FERRAMENTAS_KEY)
+    localStorage.removeItem(STORAGE_RETIRADAS_KEY)
+    localStorage.removeItem('gvel_inventario_caixas_v1')
+    localStorage.removeItem('gvel_inventario_consumo_v1')
+    localStorage.removeItem('gvel_inventario_baixas_consumo_v1')
+
+    localStorage.setItem(STORAGE_EXCLUIDAS_KEY, '[]')
+    localStorage.setItem(STORAGE_FERRAMENTAS_KEY, '[]')
+    localStorage.setItem(STORAGE_RETIRADAS_KEY, '[]')
+    localStorage.setItem('gvel_inventario_caixas_v1', '[]')
+    localStorage.setItem('gvel_inventario_consumo_v1', '[]')
+    localStorage.setItem('gvel_inventario_baixas_consumo_v1', '[]')
+  } catch (e) {
+    console.warn('Erro ao limpar localStorage:', e)
+  }
+
+  try {
+    // Tenta limpar dados do banco remoto se existirem
+    await supabase.from('ferramentas_retiradas').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await supabase.from('ferramentas').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+  } catch (sbErr) {
+    console.warn('Erro ao zerar ferramentas no Supabase:', sbErr)
+  }
+
+  window.dispatchEvent(new Event('ferramentas_updated'))
+  window.dispatchEvent(new Event('retiradas_updated'))
 }
 
 export function restaurarCatalogoPadrao(): Ferramenta[] {
