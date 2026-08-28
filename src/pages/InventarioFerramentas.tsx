@@ -30,6 +30,8 @@ import {
   Laptop,
   Sparkles,
   ShieldAlert,
+  CheckSquare,
+  Square,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { isEstoqueAuthorized } from '@/components/layout/nav'
@@ -47,12 +49,15 @@ import {
   criarFerramenta,
   atualizarFerramenta,
   excluirFerramenta,
+  atualizarFerramentasEmMassa,
+  excluirFerramentasEmMassa,
   registrarRetiradaFerramenta,
   atualizarRetiradaFerramenta,
   excluirRetiradaFerramenta,
   registrarDevolucaoFerramenta,
   reverterDevolucaoFerramenta,
   uploadFotoFerramenta,
+  restaurarCatalogoPadrao,
 } from '@/hooks/useFerramentas'
 import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
@@ -321,6 +326,28 @@ const CATEGORIAS_INSUMOS = [
   'GERAL',
 ]
 
+// Detecção robusta de ferramenta especial por tipo, categoria e palavras-chave
+export function isEspecial(f: Ferramenta): boolean {
+  if (f.tipo_ferramenta === 'especial') return true
+  if (f.tipo_ferramenta === 'comum') return false
+  const catUpper = (f.categoria || '').toUpperCase()
+  if (CATEGORIAS_ESPECIAIS.some((c) => c !== 'TODAS' && c !== 'GERAL' && catUpper === c)) return true
+  if (
+    catUpper.includes('ESPECIAL') ||
+    catUpper.includes('SACADOR') ||
+    catUpper.includes('EXTRATOR') ||
+    catUpper.includes('GABARITO') ||
+    catUpper.includes('TRAVA') ||
+    catUpper.includes('SCANNER') ||
+    catUpper.includes('TORQUIMETRO') ||
+    catUpper.includes('TORQUÍMETRO') ||
+    catUpper.includes('HIDRÁULICA PESADA') ||
+    catUpper.includes('MOTORES')
+  ) {
+    return true
+  }
+  return false
+}
 
 export type AbaEstoque = 'ferramentas' | 'especiais' | 'insumos' | 'em_uso' | 'historico' | 'caixas'
 
@@ -562,6 +589,14 @@ export function InventarioFerramentas() {
   // Mensagens de erro/sucesso
   const [mensagemErro, setMensagemErro] = useState<string | null>(null)
 
+  // Seleção e Edição em Massa
+  const [selecionados, setSelecionados] = useState<string[]>([])
+  const [modalEdicaoMassaAberto, setModalEdicaoMassaAberto] = useState(false)
+  const [edicaoMassaTipo, setEdicaoMassaTipo] = useState<'manter' | 'comum' | 'especial'>('manter')
+  const [edicaoMassaCategoria, setEdicaoMassaCategoria] = useState('')
+  const [edicaoMassaLocalizacao, setEdicaoMassaLocalizacao] = useState('')
+  const [salvandoMassa, setSalvandoMassa] = useState(false)
+
   // Métricas
   const metricas = useMemo(() => {
     const totalItens = ferramentas.reduce((acc, f) => acc + (f.quantidade_total || 0), 0)
@@ -584,30 +619,6 @@ export function InventarioFerramentas() {
   const [limiteCaixas, setLimiteCaixas] = useState(30)
   const [limiteConsumo, setLimiteConsumo] = useState(30)
   const [limiteHistoricoConsumo, setLimiteHistoricoConsumo] = useState(30)
-
-  // Detecção robusta de ferramenta especial por tipo, categoria e palavras-chave
-  const isEspecial = (f: Ferramenta) => {
-    if (f.tipo_ferramenta === 'especial') return true
-    const catUpper = (f.categoria || '').toUpperCase()
-    if (CATEGORIAS_ESPECIAIS.some((c) => c !== 'TODAS' && c !== 'GERAL' && catUpper === c)) return true
-    if (
-      catUpper.includes('ESPECIAL') ||
-      catUpper.includes('SACADOR') ||
-      catUpper.includes('EXTRATOR') ||
-      catUpper.includes('GABARITO') ||
-      catUpper.includes('TRAVA') ||
-      catUpper.includes('SCANNER') ||
-      catUpper.includes('TORQUIMETRO') ||
-      catUpper.includes('TORQUÍMETRO') ||
-      catUpper.includes('DIAGNOSTICO') ||
-      catUpper.includes('DIAGNÓSTICO') ||
-      catUpper.includes('HIDRÁULICA PESADA') ||
-      catUpper.includes('MOTORES')
-    ) {
-      return true
-    }
-    return false
-  }
 
   // Ferramentas comuns vs especiais vs insumos
   const ferramentasComuns = useMemo(() => {
@@ -708,6 +719,62 @@ export function InventarioFerramentas() {
     }
   }
 
+  // Manipuladores de Seleção e Edição em Massa
+  const todosVisiveisSelecionados =
+    ferramentasFiltradas.length > 0 &&
+    ferramentasFiltradas.slice(0, limiteExibicao).every((f) => selecionados.includes(f.id))
+
+  const toggleSelecionarTodosVisiveis = () => {
+    const visiveis = ferramentasFiltradas.slice(0, limiteExibicao).map((f) => f.id)
+    if (todosVisiveisSelecionados) {
+      setSelecionados((prev) => prev.filter((id) => !visiveis.includes(id)))
+    } else {
+      setSelecionados((prev) => Array.from(new Set([...prev, ...visiveis])))
+    }
+  }
+
+  const toggleSelecionarTodosGeral = () => {
+    const todos = ferramentasFiltradas.map((f) => f.id)
+    if (selecionados.length === todos.length && todos.length > 0) {
+      setSelecionados([])
+    } else {
+      setSelecionados(todos)
+    }
+  }
+
+  const toggleItemSelecionado = (id: string) => {
+    setSelecionados((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+  }
+
+  const handleSalvarEdicaoMassa = async () => {
+    if (selecionados.length === 0) return
+    setSalvandoMassa(true)
+    try {
+      const alteracoes: any = {}
+      if (edicaoMassaTipo !== 'manter') {
+        alteracoes.tipo_ferramenta = edicaoMassaTipo
+      }
+      if (edicaoMassaCategoria.trim()) {
+        alteracoes.categoria = edicaoMassaCategoria.trim()
+      }
+      if (edicaoMassaLocalizacao.trim()) {
+        alteracoes.localizacao = edicaoMassaLocalizacao.trim()
+      }
+
+      await atualizarFerramentasEmMassa(selecionados, alteracoes)
+      await recarregarDados()
+      setModalEdicaoMassaAberto(false)
+      setSelecionados([])
+      setEdicaoMassaTipo('manter')
+      setEdicaoMassaCategoria('')
+      setEdicaoMassaLocalizacao('')
+    } catch (err: any) {
+      setMensagemErro(err instanceof Error ? err.message : 'Erro ao editar ferramentas em massa.')
+    } finally {
+      setSalvandoMassa(false)
+    }
+  }
+
   // Reverter devolução / baixa (voltar para em uso)
   const handleReverterDevolucao = async (r: FerramentaRetirada) => {
     if (!confirm(`DESEJA RESTAURAR A RETIRADA DE "${r.ferramenta?.nome || 'FERRAMENTA'}" PARA O STATUS "EM USO NO MOMENTO"?`)) return
@@ -759,11 +826,24 @@ export function InventarioFerramentas() {
             <Button
               type="button"
               variant="secondary"
+              onClick={async () => {
+                restaurarCatalogoPadrao()
+                await recarregarDados()
+              }}
+              title="Restaurar/Sincronizar catálogo oficial de ferramentas"
+              className="w-full sm:w-auto !px-3 !py-2 border-border/30 text-secondary hover:text-foreground uppercase font-bold text-[11px] sm:text-xs gap-1.5"
+            >
+              <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">RESTAURAR CATÁLOGO</span>
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
               onClick={() => {
                 setFerramentaSelecionadaParaRetirada(null)
                 setModalRetiradaAberto(true)
               }}
-              className="w-full !px-3 !py-2 border-primary/30 text-foreground hover:border-primary uppercase font-bold text-[11px] sm:text-xs gap-1.5"
+              className="w-full sm:w-auto !px-3 !py-2 border-primary/30 text-foreground hover:border-primary uppercase font-bold text-[11px] sm:text-xs gap-1.5"
             >
               <ArrowUpRight className="h-3.5 w-3.5 text-primary shrink-0" />
               <span className="truncate">RETIRAR</span>
@@ -774,7 +854,7 @@ export function InventarioFerramentas() {
                 setFerramentaEditando(null)
                 setModalFerramentaAberto(true)
               }}
-              className="w-full !px-3 !py-2 uppercase font-bold text-[11px] sm:text-xs gap-1.5"
+              className="w-full sm:w-auto !px-3 !py-2 uppercase font-bold text-[11px] sm:text-xs gap-1.5 col-span-2 sm:col-span-1"
             >
               <Plus className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">
@@ -1086,6 +1166,21 @@ export function InventarioFerramentas() {
                 )}
               </div>
 
+              {/* Botão Selecionar Todos / Edição em Massa */}
+              <Button
+                type="button"
+                size="md"
+                variant={selecionados.length > 0 ? 'primary' : 'secondary'}
+                onClick={toggleSelecionarTodosGeral}
+                className={`!h-10 px-3 text-xs font-bold gap-1.5 uppercase border-border/30 transition-all ${
+                  selecionados.length > 0 ? 'bg-primary text-white shadow-md' : 'text-secondary hover:text-foreground'
+                }`}
+                title={selecionados.length === ferramentasFiltradas.length && ferramentasFiltradas.length > 0 ? 'Desmarcar todos' : 'Selecionar todas as ferramentas'}
+              >
+                {selecionados.length > 0 ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                <span>{selecionados.length > 0 ? `${selecionados.length} SELEC.` : 'SELECIONAR TUDO'}</span>
+              </Button>
+
               {/* Alternador Lista / Grade */}
               <div className="flex items-center rounded-2xl border border-border/25 bg-surface/90 p-1 shrink-0 shadow-sm">
                 <button
@@ -1137,8 +1232,17 @@ export function InventarioFerramentas() {
             <div className="space-y-2">
               {/* Desktop: Lista / Tabela de Estoque em Grid */}
               <div className="hidden md:block overflow-x-auto rounded-2xl border border-border/25 bg-surface/70 shadow-sm backdrop-blur-sm">
-                <div className="min-w-[960px]">
-                  <div className="grid grid-cols-[120px_minmax(220px,1fr)_140px_160px_110px_180px] items-center gap-3 border-b border-border/15 bg-surface/90 px-4 py-3 text-[11px] font-black text-secondary uppercase tracking-wider">
+                <div className="min-w-[1000px]">
+                  <div className="grid grid-cols-[40px_110px_minmax(220px,1fr)_140px_160px_110px_180px] items-center gap-3 border-b border-border/15 bg-surface/90 px-4 py-3 text-[11px] font-black text-secondary uppercase tracking-wider">
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={todosVisiveisSelecionados}
+                        onChange={toggleSelecionarTodosVisiveis}
+                        className="h-4 w-4 rounded border-border/40 bg-background text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer accent-primary"
+                        title="Selecionar visíveis"
+                      />
+                    </div>
                     <div>CÓDIGO</div>
                     <div>FERRAMENTA / DESCRIÇÃO</div>
                     <div>CATEGORIA</div>
@@ -1154,12 +1258,25 @@ export function InventarioFerramentas() {
                       const emUsoQtd = total - disp
                       const semEstoque = disp <= 0
                       const percentualDisp = Math.max(0, Math.min(100, Math.round((disp / total) * 100)))
+                      const isItemSelecionado = selecionados.includes(f.id)
 
                       return (
                         <div
                           key={f.id}
-                          className="grid grid-cols-[120px_minmax(220px,1fr)_140px_160px_110px_180px] items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover/30 group"
+                          className={`grid grid-cols-[40px_110px_minmax(220px,1fr)_140px_160px_110px_180px] items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover/30 group ${
+                            isItemSelecionado ? 'bg-primary/10 border-l-2 border-primary' : ''
+                          }`}
                         >
+                          {/* CHECKBOX */}
+                          <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isItemSelecionado}
+                              onChange={() => toggleItemSelecionado(f.id)}
+                              className="h-4 w-4 rounded border-border/40 bg-background text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer accent-primary"
+                            />
+                          </div>
+
                           {/* CÓDIGO & FOTO */}
                           <div className="flex items-center gap-2.5 min-w-0">
                             {f.foto_url ? (
@@ -1182,7 +1299,7 @@ export function InventarioFerramentas() {
                               </button>
                             ) : (
                               <div className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-border/20 bg-background text-secondary/50">
-                                <Hammer className="h-4 w-4" />
+                                {isEspecial(f) ? <Wrench className="h-4 w-4 text-primary" /> : <Hammer className="h-4 w-4" />}
                               </div>
                             )}
                             <span className="inline-flex rounded-lg bg-background border border-border/30 px-2 py-0.5 text-xs font-mono font-bold text-foreground truncate max-w-[85px]">
@@ -1300,21 +1417,33 @@ export function InventarioFerramentas() {
               </div>
 
               {/* Mobile: Lista Compacta e Fluida */}
+              {/* Mobile: Lista Compacta e Fluida */}
               <div className="md:hidden space-y-2.5">
                 {ferramentasFiltradas.slice(0, limiteExibicao).map((f) => {
                   const total = f.quantidade_total || 1
                   const disp = f.quantidade_disponivel || 0
                   const emUsoQtd = total - disp
                   const semEstoque = disp <= 0
+                  const isItemSelecionado = selecionados.includes(f.id)
 
                   return (
                     <div
                       key={f.id}
                       onClick={() => setFerramentaHistorico(f)}
-                      className="rounded-2xl border border-border/25 bg-surface/80 p-3.5 space-y-2.5 transition-all shadow-sm cursor-pointer hover:border-primary/40 active:scale-[0.99]"
+                      className={`rounded-2xl border p-3.5 space-y-2.5 transition-all shadow-sm cursor-pointer hover:border-primary/40 active:scale-[0.99] ${
+                        isItemSelecionado ? 'border-primary bg-primary/10' : 'border-border/25 bg-surface/80'
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-1.5">
+                          <div onClick={(e) => e.stopPropagation()} className="mr-1 flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={isItemSelecionado}
+                              onChange={() => toggleItemSelecionado(f.id)}
+                              className="h-4 w-4 rounded border-border/40 bg-background text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer accent-primary"
+                            />
+                          </div>
                           <span className="rounded-lg bg-background border border-border/30 px-2 py-0.5 text-[11px] font-mono font-bold text-foreground">
                             {f.codigo || 'S/ CÓD'}
                           </span>
@@ -1344,7 +1473,7 @@ export function InventarioFerramentas() {
                           </button>
                         ) : (
                           <div className="h-11 w-11 shrink-0 flex items-center justify-center rounded-xl bg-background border border-border/20 text-secondary/50">
-                            <Hammer className="h-5 w-5" />
+                            {isEspecial(f) ? <Wrench className="h-5 w-5 text-primary" /> : <Hammer className="h-5 w-5" />}
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
@@ -1434,18 +1563,31 @@ export function InventarioFerramentas() {
                   const emUsoQtd = total - disp
                   const semEstoque = disp <= 0
                   const percentualDisp = Math.max(0, Math.min(100, Math.round((disp / total) * 100)))
+                  const isItemSelecionado = selecionados.includes(f.id)
 
                   return (
                     <Card
                       key={f.id}
                       onClick={() => setFerramentaHistorico(f)}
-                      className="p-4 flex flex-col justify-between border border-border/25 bg-surface/80 hover:border-primary/40 transition-all shadow-sm group relative overflow-hidden cursor-pointer"
+                      className={`p-4 flex flex-col justify-between border transition-all shadow-sm group relative overflow-hidden cursor-pointer ${
+                        isItemSelecionado ? 'border-primary bg-primary/10 ring-1 ring-primary/40' : 'border-border/25 bg-surface/80 hover:border-primary/40'
+                      }`}
                     >
                       <div>
                         <div className="flex items-start justify-between gap-2 mb-2.5">
-                          <span className="rounded-lg bg-background border border-border/30 px-2 py-0.5 text-[11px] font-mono font-bold text-foreground">
-                            {f.codigo || 'S/ CÓD'}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <div onClick={(e) => e.stopPropagation()} className="flex items-center">
+                              <input
+                                type="checkbox"
+                                checked={isItemSelecionado}
+                                onChange={() => toggleItemSelecionado(f.id)}
+                                className="h-4 w-4 rounded border-border/40 bg-background text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer accent-primary"
+                              />
+                            </div>
+                            <span className="rounded-lg bg-background border border-border/30 px-2 py-0.5 text-[11px] font-mono font-bold text-foreground">
+                              {f.codigo || 'S/ CÓD'}
+                            </span>
+                          </div>
                           <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[10px] font-black text-secondary tracking-wider">
                             {f.categoria || 'GERAL'}
                           </span>
@@ -2650,6 +2792,222 @@ export function InventarioFerramentas() {
         </div>
       )}
 
+      {/* ==================== BARRA FLUTUANTE DE AÇÕES EM MASSA (CLEAN & COMPACTO) ==================== */}
+      {selecionados.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 sm:gap-3 rounded-full border border-white/15 bg-[#141417]/95 px-3.5 sm:px-5 py-2 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-2xl animate-fade-in-up">
+          {/* Contador de Selecionados */}
+          <div className="flex items-center gap-2 pr-2 border-r border-white/10 shrink-0">
+            <span className="flex h-6 min-w-6 px-1.5 items-center justify-center rounded-full bg-primary text-white text-[11px] font-black shadow-sm">
+              {selecionados.length}
+            </span>
+            <span className="text-[11px] font-black text-white uppercase tracking-wider hidden sm:inline">
+              {selecionados.length === 1 ? 'Item' : 'Itens'}
+            </span>
+          </div>
+
+          {/* Ações em Botões Pílula Clean */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                await atualizarFerramentasEmMassa(selecionados, { tipo_ferramenta: 'comum' })
+                await recarregarDados()
+                setSelecionados([])
+              }}
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white uppercase tracking-wider transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title="Mover para Convencional"
+            >
+              <Hammer className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden md:inline">Convencional</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                await atualizarFerramentasEmMassa(selecionados, { tipo_ferramenta: 'especial' })
+                await recarregarDados()
+                setSelecionados([])
+              }}
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white uppercase tracking-wider transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title="Mover para Especial"
+            >
+              <Wrench className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden md:inline">Especial</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setModalEdicaoMassaAberto(true)}
+              className="flex items-center gap-1.5 rounded-full bg-primary hover:bg-primary/90 px-3.5 py-1.5 text-[11px] font-bold text-white uppercase tracking-wider shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              <span>Editar</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                if (!confirm(`Deseja excluir as ${selecionados.length} ferramentas selecionadas?`)) return
+                try {
+                  await excluirFerramentasEmMassa(selecionados)
+                  await recarregarDados()
+                  setSelecionados([])
+                } catch (err: any) {
+                  setMensagemErro(err instanceof Error ? err.message : 'Erro ao excluir ferramentas.')
+                }
+              }}
+              className="flex items-center gap-1.5 rounded-full border border-status-danger/30 bg-status-danger/10 hover:bg-status-danger/20 px-3 py-1.5 text-[11px] font-bold text-status-danger uppercase tracking-wider transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title="Excluir selecionadas"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden md:inline">Excluir</span>
+            </button>
+          </div>
+
+          {/* Fechar / Desmarcar */}
+          <button
+            type="button"
+            onClick={() => setSelecionados([])}
+            className="rounded-full p-1.5 text-white/50 hover:text-white hover:bg-white/10 transition-colors ml-1 cursor-pointer"
+            title="Desmarcar todas"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ==================== MODAL: EDIÇÃO EM MASSA ==================== */}
+      {modalEdicaoMassaAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-border/30 bg-surface p-6 shadow-2xl animate-scale-in">
+            <div className="mb-4 flex items-center justify-between border-b border-border/20 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/20 text-xl font-black">
+                  ⚡
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-foreground uppercase tracking-wide">
+                    Edição em Massa
+                  </h3>
+                  <p className="text-xs text-secondary font-semibold">
+                    Alterando {selecionados.length} ferramentas selecionadas
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalEdicaoMassaAberto(false)}
+                className="rounded-xl p-1.5 text-secondary hover:text-foreground hover:bg-overlay/10"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleSalvarEdicaoMassa()
+              }}
+              className="space-y-4"
+            >
+              {/* Tipo de Ferramenta */}
+              <div>
+                <Label className="text-[11px] font-black uppercase tracking-wider text-secondary mb-1.5 block">
+                  Tipo de Ferramenta
+                </Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEdicaoMassaTipo('manter')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold uppercase transition-all ${
+                      edicaoMassaTipo === 'manter'
+                        ? 'border-primary bg-primary/15 text-primary'
+                        : 'border-border/30 bg-background text-secondary hover:border-primary/40'
+                    }`}
+                  >
+                    Manter Atual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEdicaoMassaTipo('comum')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold uppercase transition-all ${
+                      edicaoMassaTipo === 'comum'
+                        ? 'border-primary bg-primary/15 text-primary'
+                        : 'border-border/30 bg-background text-secondary hover:border-primary/40'
+                    }`}
+                  >
+                    Convencional
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEdicaoMassaTipo('especial')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold uppercase transition-all ${
+                      edicaoMassaTipo === 'especial'
+                        ? 'border-primary bg-primary/15 text-primary'
+                        : 'border-border/30 bg-background text-secondary hover:border-primary/40'
+                    }`}
+                  >
+                    Especial
+                  </button>
+                </div>
+              </div>
+
+              {/* Categoria em Massa */}
+              <div>
+                <Label htmlFor="massaCategoria" className="text-[11px] font-black uppercase tracking-wider text-secondary mb-1.5 block">
+                  Nova Categoria (Deixe vazio para manter atual)
+                </Label>
+                <Input
+                  id="massaCategoria"
+                  value={edicaoMassaCategoria}
+                  onChange={(e) => setEdicaoMassaCategoria(e.target.value.toUpperCase())}
+                  placeholder="EX: MEDIÇÃO E DIAGNÓSTICO, CHAVES..."
+                  className="font-bold text-xs"
+                />
+              </div>
+
+              {/* Localização em Massa */}
+              <div>
+                <Label htmlFor="massaLocalizacao" className="text-[11px] font-black uppercase tracking-wider text-secondary mb-1.5 block">
+                  Nova Localização (Deixe vazio para manter atual)
+                </Label>
+                <Input
+                  id="massaLocalizacao"
+                  value={edicaoMassaLocalizacao}
+                  onChange={(e) => setEdicaoMassaLocalizacao(e.target.value.toUpperCase())}
+                  placeholder="EX: BANCADA 02 / OFICINA PESADOS"
+                  className="font-bold text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border/10">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setModalEdicaoMassaAberto(false)}
+                  className="!h-9 px-4 text-xs font-semibold uppercase"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={salvandoMassa}
+                  className="!h-9 px-5 text-xs font-bold uppercase bg-primary text-white hover:bg-primary/90 gap-1.5"
+                >
+                  {salvandoMassa ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> APLICANDO...
+                    </>
+                  ) : (
+                    `APLICAR A ${selecionados.length} ITENS`
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ==================== MODAL: NOVO / EDITAR ITEM DE CONSUMO ==================== */}
       {modalItemConsumoAberto && (
         <ModalItemConsumo
@@ -3104,24 +3462,7 @@ function ModalFerramenta({
   const [tipoFerramenta, setTipoFerramenta] = useState<'comum' | 'especial'>(() => {
     if (ferramenta) {
       if (ferramenta.tipo_ferramenta) return ferramenta.tipo_ferramenta
-      const cat = (ferramenta.categoria || '').toUpperCase()
-      if (
-        cat.includes('ESPECIAL') ||
-        cat.includes('SACADOR') ||
-        cat.includes('EXTRATOR') ||
-        cat.includes('GABARITO') ||
-        cat.includes('TRAVA') ||
-        cat.includes('SCANNER') ||
-        cat.includes('TORQUIMETRO') ||
-        cat.includes('TORQUÍMETRO') ||
-        cat.includes('DIAGNOSTICO') ||
-        cat.includes('DIAGNÓSTICO') ||
-        cat.includes('HIDRÁULICA PESADA') ||
-        cat.includes('MOTORES')
-      ) {
-        return 'especial'
-      }
-      return 'comum'
+      return isEspecial(ferramenta) ? 'especial' : 'comum'
     }
     return tipoInicial
   })

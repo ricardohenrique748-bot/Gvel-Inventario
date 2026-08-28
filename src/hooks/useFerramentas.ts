@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
+import { FERRAMENTAS_BASE_PADRAO } from '@/data/ferramentasPadrao'
 import type { Ferramenta, FerramentaRetirada, StatusRetiradaFerramenta } from '@/lib/types'
 
 export const STORAGE_FERRAMENTAS_KEY = 'gvel_inventario_ferramentas_v1'
 export const STORAGE_RETIRADAS_KEY = 'gvel_inventario_retiradas_v1'
+export const STORAGE_EXCLUIDAS_KEY = 'gvel_inventario_ferramentas_excluidas_v1'
 
 const CATEGORIAS_ESPECIAIS_KEYWORDS = [
   'ESPECIAL',
@@ -22,11 +24,29 @@ const CATEGORIAS_ESPECIAIS_KEYWORDS = [
   'ESPECIAL MOTORES',
 ]
 
+export function getIdsExcluidos(): string[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_EXCLUIDAS_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return []
+}
+
+export function adicionarIdExcluido(id: string) {
+  try {
+    const excluidos = getIdsExcluidos()
+    if (!excluidos.includes(id)) {
+      excluidos.push(id)
+      localStorage.setItem(STORAGE_EXCLUIDAS_KEY, JSON.stringify(excluidos))
+    }
+  } catch {}
+}
+
 export function formatarFerramentaComFoto(f: any): Ferramenta {
   if (!f) return f
   let foto_url: string | null = f.foto_url || null
   let observacoes: string | null = f.observacoes || null
-  let tipo_ferramenta: 'comum' | 'especial' = f.tipo_ferramenta || 'comum'
+  let tipo_ferramenta: 'comum' | 'especial' | undefined = f.tipo_ferramenta
 
   if (observacoes && observacoes.includes('[TIPO:')) {
     const matchTipo = observacoes.match(/\[TIPO:(.*?)\]/)
@@ -44,9 +64,14 @@ export function formatarFerramentaComFoto(f: any): Ferramenta {
     }
   }
 
-  const catUpper = (f.categoria || '').toUpperCase()
-  if (CATEGORIAS_ESPECIAIS_KEYWORDS.some((kw) => catUpper.includes(kw))) {
-    tipo_ferramenta = 'especial'
+  // Heurística de fallback SOMENTE se tipo_ferramenta não foi explicitamente definido
+  if (!tipo_ferramenta) {
+    const catUpper = (f.categoria || '').toUpperCase()
+    if (CATEGORIAS_ESPECIAIS_KEYWORDS.some((kw) => catUpper.includes(kw))) {
+      tipo_ferramenta = 'especial'
+    } else {
+      tipo_ferramenta = 'comum'
+    }
   }
 
   return {
@@ -80,26 +105,82 @@ export function formatarRetiradaComFoto(r: any): FerramentaRetirada {
 }
 
 // ----------------------------------------------------
-// Helpers de LocalStorage
+// Helpers de LocalStorage e Mesclagem com Catálogo Padrão
 // ----------------------------------------------------
+export function mesclarComFerramentasPadrao(listaSalva: Ferramenta[]): Ferramenta[] {
+  const excluidos = getIdsExcluidos()
+  const mapa = new Map<string, Ferramenta>()
+
+  // 1. Inserir catálogo base padrão que não foi excluído
+  FERRAMENTAS_BASE_PADRAO.forEach((item) => {
+    if (!excluidos.includes(item.id)) {
+      mapa.set(item.id, formatarFerramentaComFoto(item))
+    }
+  })
+
+  // 2. Sobrepor / mesclar com edições salvas e novas ferramentas cadastradas
+  listaSalva.forEach((salva) => {
+    if (excluidos.includes(salva.id)) return
+
+    const f = formatarFerramentaComFoto(salva)
+    
+    // Tenta encontrar por ID
+    let base = mapa.get(f.id)
+    
+    // Se não encontrou por ID mas tem código cadastrado, tenta casar com código da base padrão
+    if (!base && f.codigo) {
+      const matchPadrao = FERRAMENTAS_BASE_PADRAO.find(
+        (p) => p.codigo && p.codigo.toUpperCase().trim() === f.codigo?.toUpperCase().trim()
+      )
+      if (matchPadrao) {
+        base = mapa.get(matchPadrao.id)
+      }
+    }
+
+    if (base) {
+      mapa.set(base.id, {
+        ...base,
+        ...f,
+        id: base.id, // Manter ID canônico
+        tipo_ferramenta: f.tipo_ferramenta !== undefined ? f.tipo_ferramenta : base.tipo_ferramenta,
+      })
+    } else {
+      mapa.set(f.id, f)
+    }
+  })
+
+  return Array.from(mapa.values())
+}
+
+export function restaurarCatalogoPadrao(): Ferramenta[] {
+  try {
+    localStorage.removeItem(STORAGE_EXCLUIDAS_KEY)
+    localStorage.removeItem(STORAGE_FERRAMENTAS_KEY)
+  } catch {}
+  const lista = FERRAMENTAS_BASE_PADRAO.map(formatarFerramentaComFoto)
+  salvarFerramentasLocais(lista)
+  return lista
+}
+
 export function getFerramentasLocais(): Ferramenta[] {
   try {
     const raw = localStorage.getItem(STORAGE_FERRAMENTAS_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(formatarFerramentaComFoto)
+      if (Array.isArray(parsed)) {
+        return mesclarComFerramentasPadrao(parsed)
       }
     }
   } catch (err) {
     console.error('Erro ao ler ferramentas locais:', err)
   }
-  return []
+  return mesclarComFerramentasPadrao([])
 }
 
 export function salvarFerramentasLocais(lista: Ferramenta[]): void {
   try {
-    localStorage.setItem(STORAGE_FERRAMENTAS_KEY, JSON.stringify(lista))
+    const formatadas = lista.map(formatarFerramentaComFoto)
+    localStorage.setItem(STORAGE_FERRAMENTAS_KEY, JSON.stringify(formatadas))
     window.dispatchEvent(new Event('ferramentas_updated'))
   } catch (err) {
     console.error('Erro ao salvar ferramentas locais:', err)
@@ -131,8 +212,43 @@ export function salvarRetiradasLocais(lista: FerramentaRetirada[]): void {
 }
 
 // ----------------------------------------------------
-// Hook de Listagem de Ferramentas (Supabase com Cache Local)
+// Hook de Listagem de Ferramentas (Supabase com Cache Local e Paginação Completa)
 // ----------------------------------------------------
+export async function fetchTodasFerramentasSupabase(): Promise<Ferramenta[]> {
+  const todas: any[] = []
+  let page = 0
+  const pageSize = 1000
+  let temMais = true
+
+  while (temMais) {
+    const from = page * pageSize
+    const to = from + pageSize - 1
+    const { data, error } = await supabase
+      .from('ferramentas')
+      .select('*')
+      .order('nome', { ascending: true })
+      .range(from, to)
+
+    if (error) {
+      console.warn('Erro ao buscar página de ferramentas do Supabase:', error)
+      break
+    }
+
+    if (data && data.length > 0) {
+      todas.push(...data)
+      if (data.length < pageSize) {
+        temMais = false
+      } else {
+        page++
+      }
+    } else {
+      temMais = false
+    }
+  }
+
+  return todas.map(formatarFerramentaComFoto)
+}
+
 export function useFerramentas() {
   const [ferramentas, setFerramentas] = useState<Ferramenta[]>(() => getFerramentasLocais())
   const [loading, setLoading] = useState(false)
@@ -141,13 +257,10 @@ export function useFerramentas() {
   const refetch = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, error: sbError } = await supabase
-        .from('ferramentas')
-        .select('*')
-        .order('nome', { ascending: true })
+      const remotas = await fetchTodasFerramentasSupabase()
 
-      if (!sbError && data && data.length > 0) {
-        const formatadas = data.map(formatarFerramentaComFoto)
+      if (remotas && remotas.length > 0) {
+        const formatadas = mesclarComFerramentasPadrao(remotas)
         setFerramentas(formatadas)
         localStorage.setItem(STORAGE_FERRAMENTAS_KEY, JSON.stringify(formatadas))
         setError(null)
@@ -280,11 +393,12 @@ export async function criarFerramenta(input: CriarFerramentaInput): Promise<Ferr
   const total = Number(input.quantidade_total) || 1
   
   let observacoesFinal = input.observacoes?.trim() || ''
-  if (input.tipo_ferramenta === 'especial') {
-    observacoesFinal = `[TIPO:especial] ${observacoesFinal}`.trim()
+  if (observacoesFinal) {
+    observacoesFinal = observacoesFinal.replace(/\[TIPO:.*?\]/g, '').replace(/\[FOTO:.*?\]/g, '').trim()
   }
+  observacoesFinal = `[TIPO:${input.tipo_ferramenta || 'comum'}] ${observacoesFinal}`.trim()
   if (input.foto_url) {
-    observacoesFinal = observacoesFinal ? `${observacoesFinal} [FOTO:${input.foto_url}]` : `[FOTO:${input.foto_url}]`
+    observacoesFinal = `${observacoesFinal} [FOTO:${input.foto_url}]`.trim()
   }
 
   const payload: any = {
@@ -329,7 +443,7 @@ export async function criarFerramenta(input: CriarFerramentaInput): Promise<Ferr
   })
 
   const locais = getFerramentasLocais()
-  salvarFerramentasLocais([novaFerramenta, ...locais])
+  salvarFerramentasLocais([novaFerramenta, ...locais.filter((f) => f.id !== novaFerramenta.id)])
   return novaFerramenta
 }
 
@@ -348,11 +462,12 @@ export async function atualizarFerramenta(id: string, input: AtualizarFerramenta
   const novoTotal = Number(input.quantidade_total) || 1
 
   let observacoesFinal = input.observacoes?.trim() || ''
-  if (input.tipo_ferramenta === 'especial') {
-    observacoesFinal = `[TIPO:especial] ${observacoesFinal}`.trim()
+  if (observacoesFinal) {
+    observacoesFinal = observacoesFinal.replace(/\[TIPO:.*?\]/g, '').replace(/\[FOTO:.*?\]/g, '').trim()
   }
+  observacoesFinal = `[TIPO:${input.tipo_ferramenta || 'comum'}] ${observacoesFinal}`.trim()
   if (input.foto_url) {
-    observacoesFinal = observacoesFinal ? `${observacoesFinal} [FOTO:${input.foto_url}]` : `[FOTO:${input.foto_url}]`
+    observacoesFinal = `${observacoesFinal} [FOTO:${input.foto_url}]`.trim()
   }
 
   // 1. Tenta atualizar no Supabase
@@ -386,7 +501,7 @@ export async function atualizarFerramenta(id: string, input: AtualizarFerramenta
     }
 
     if (data) {
-      const formatada = formatarFerramentaComFoto(data)
+      const formatada = formatarFerramentaComFoto({ ...data, tipo_ferramenta: input.tipo_ferramenta })
       const locais = getFerramentasLocais()
       const idx = locais.findIndex((f) => f.id === id)
       if (idx >= 0) {
@@ -424,8 +539,10 @@ export async function atualizarFerramenta(id: string, input: AtualizarFerramenta
 
   if (atualIndex >= 0) {
     locais[atualIndex] = atualizado
-    salvarFerramentasLocais(locais)
+  } else {
+    locais.push(atualizado)
   }
+  salvarFerramentasLocais(locais)
   return formatarFerramentaComFoto(atualizado)
 }
 
@@ -436,6 +553,8 @@ export async function excluirFerramenta(id: string): Promise<void> {
     throw new Error('Não é possível excluir uma ferramenta que possui unidades em uso no momento.')
   }
 
+  adicionarIdExcluido(id)
+
   const locais = getFerramentasLocais().filter((f) => f.id !== id)
   salvarFerramentasLocais(locais)
 
@@ -443,6 +562,79 @@ export async function excluirFerramenta(id: string): Promise<void> {
     await supabase.from('ferramentas').delete().eq('id', id)
   } catch (sbErr) {
     console.warn('Excluído localmente (Supabase indisponível):', sbErr)
+  }
+}
+
+export interface EdicaoMassaInput {
+  tipo_ferramenta?: 'comum' | 'especial'
+  categoria?: string
+  localizacao?: string
+}
+
+export async function atualizarFerramentasEmMassa(
+  ids: string[],
+  alteracoes: EdicaoMassaInput
+): Promise<void> {
+  if (!ids || ids.length === 0) return
+
+  const locais = getFerramentasLocais()
+  const atualizadas: Ferramenta[] = []
+
+  for (const f of locais) {
+    if (ids.includes(f.id)) {
+      let obs = f.observacoes || ''
+      const tipoNovo = alteracoes.tipo_ferramenta !== undefined ? alteracoes.tipo_ferramenta : f.tipo_ferramenta || 'comum'
+
+      if (alteracoes.tipo_ferramenta !== undefined) {
+        obs = obs.replace(/\[TIPO:.*?\]/g, '').trim()
+        obs = `[TIPO:${tipoNovo}] ${obs}`.trim()
+      }
+
+      const itemAtualizado: Ferramenta = {
+        ...f,
+        tipo_ferramenta: tipoNovo,
+        categoria: alteracoes.categoria ? up(alteracoes.categoria) : f.categoria,
+        localizacao: alteracoes.localizacao !== undefined ? (alteracoes.localizacao ? up(alteracoes.localizacao) : null) : f.localizacao,
+        observacoes: obs || null,
+      }
+      atualizadas.push(itemAtualizado)
+
+      // Atualiza também no Supabase de forma não bloqueante
+      try {
+        const payload: any = {
+          categoria: itemAtualizado.categoria,
+          localizacao: itemAtualizado.localizacao,
+          observacoes: itemAtualizado.observacoes,
+          tipo_ferramenta: itemAtualizado.tipo_ferramenta,
+        }
+        supabase.from('ferramentas').update(payload).eq('id', f.id).then(() => {})
+      } catch {}
+    } else {
+      atualizadas.push(f)
+    }
+  }
+
+  salvarFerramentasLocais(atualizadas)
+}
+
+export async function excluirFerramentasEmMassa(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return
+
+  const retiradas = getRetiradasLocais()
+  const emUso = retiradas.find((r) => ids.includes(r.ferramenta_id) && r.status === 'em_uso')
+  if (emUso) {
+    throw new Error('Algumas ferramentas selecionadas possuem unidades em uso no momento e não podem ser excluídas.')
+  }
+
+  ids.forEach(adicionarIdExcluido)
+
+  const locais = getFerramentasLocais().filter((f) => !ids.includes(f.id))
+  salvarFerramentasLocais(locais)
+
+  try {
+    await supabase.from('ferramentas').delete().in('id', ids)
+  } catch (sbErr) {
+    console.warn('Excluídas localmente:', sbErr)
   }
 }
 
