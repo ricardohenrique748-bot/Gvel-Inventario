@@ -121,7 +121,6 @@ export function mesclarComFerramentasPadrao(listaSalva: Ferramenta[]): Ferrament
   // 2. Sobrepor / mesclar com edições salvas e novas ferramentas cadastradas
   listaSalva.forEach((salva) => {
     if (excluidos.includes(salva.id)) return
-    if (salva.id && salva.id.startsWith('ferr_padrao_')) return // Limpar ferramentas mock antigas
 
     const f = formatarFerramentaComFoto(salva)
     mapa.set(f.id, f)
