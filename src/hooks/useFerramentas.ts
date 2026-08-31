@@ -41,6 +41,23 @@ export function adicionarIdExcluido(id: string) {
   } catch {}
 }
 
+// Uma exclusão só é gravada depois que o Supabase confirma a exclusão (ver
+// excluirFerramenta), então, a partir de agora, um id "excluído" nunca deveria
+// aparecer numa busca nova do servidor. Se aparecer mesmo assim (ex: resquício
+// de uma versão antiga do app que excluía só localmente), a exclusão estava
+// errada — libera o item de volta sozinho, sem precisar de botão manual.
+function reconciliarExcluidosComRemotas(remotas: Ferramenta[]): void {
+  try {
+    const excluidos = getIdsExcluidos()
+    if (excluidos.length === 0) return
+    const idsRemotos = new Set(remotas.map((r) => r.id))
+    const aindaValidos = excluidos.filter((id) => !idsRemotos.has(id))
+    if (aindaValidos.length !== excluidos.length) {
+      localStorage.setItem(STORAGE_EXCLUIDAS_KEY, JSON.stringify(aindaValidos))
+    }
+  } catch {}
+}
+
 export function formatarFerramentaComFoto(f: any): Ferramenta {
   if (!f) return f
   let foto_url: string | null = f.foto_url || null
@@ -270,6 +287,11 @@ export function useFerramentas() {
     setLoading(true)
     try {
       const remotas = await fetchTodasFerramentasSupabase()
+
+      if (remotas && remotas.length > 0) {
+        reconciliarExcluidosComRemotas(remotas)
+      }
+
       const locais = getFerramentasLocais()
 
       if (remotas && remotas.length > 0) {
