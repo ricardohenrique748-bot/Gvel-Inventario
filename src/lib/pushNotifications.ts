@@ -121,6 +121,30 @@ export async function solicitarPermissaoNotificacoes(): Promise<boolean> {
   return false
 }
 
+/**
+ * Só consulta o status atual da permissão, sem pedir de novo. No Android, a
+ * tela de Configurações usava `Notification.permission` (API do navegador)
+ * pra decidir se mostra o aviso "permissão não ativada" — isso não existe
+ * de verdade no app nativo, então o aviso nunca refletia a permissão real do
+ * LocalNotifications/Android.
+ */
+export async function verificarPermissaoNotificacoes(): Promise<'granted' | 'denied' | 'default'> {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const status = await LocalNotifications.checkPermissions()
+      if (status.display === 'granted') return 'granted'
+      if (status.display === 'denied') return 'denied'
+      return 'default'
+    }
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission
+    }
+  } catch (e) {
+    console.warn('[PushNotifications] Erro ao verificar permissão:', e)
+  }
+  return 'default'
+}
+
 export async function dispararPushLocal(titulo: string, mensagem: string, linkUrl?: string) {
   try {
     // 1. No Android / iOS nativo (APK)
@@ -129,6 +153,18 @@ export async function dispararPushLocal(titulo: string, mensagem: string, linkUr
       let status = await LocalNotifications.checkPermissions()
       if (status.display !== 'granted') {
         status = await LocalNotifications.requestPermissions()
+      }
+
+      // Sem isso, se a permissão foi negada, o schedule() abaixo falha
+      // silenciosamente (cai no catch de fora) e nunca aparece nada na barra
+      // de notificações — mas o resto do app (sininho, contador) continua
+      // funcionando normal, porque isso é estado local do React, não depende
+      // de permissão nenhuma. Por isso parecia que "só o sininho funciona".
+      if (status.display !== 'granted') {
+        console.warn(
+          '[PushNotifications] Permissão de notificação NÃO concedida no Android — nada será exibido na barra do sistema. Ative manualmente em Ajustes > Apps > Estrutura - GV > Notificações.',
+        )
+        return
       }
 
       await LocalNotifications.schedule({

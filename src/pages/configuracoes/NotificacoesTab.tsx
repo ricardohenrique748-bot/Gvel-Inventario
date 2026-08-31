@@ -15,7 +15,8 @@ import { Button } from '@/components/ui/Button'
 import { Input, Label, Textarea } from '@/components/ui/Input'
 import { useNotificacoes, type ConfigNotificacoes } from '@/contexts/NotificacoesContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { solicitarPermissaoNotificacoes } from '@/lib/pushNotifications'
+import { solicitarPermissaoNotificacoes, verificarPermissaoNotificacoes } from '@/lib/pushNotifications'
+import { Capacitor } from '@capacitor/core'
 
 function Toggle({
   checked,
@@ -112,18 +113,15 @@ export function NotificacoesTab() {
   const patioBloqueado = !formConfig.pushAtivo || !formConfig.alertaPatioAtivo
 
   const [permissaoStatus, setPermissaoStatus] = useState<string>('default')
+  const isNativo = Capacitor.isNativePlatform()
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setPermissaoStatus(Notification.permission)
-    }
+    verificarPermissaoNotificacoes().then(setPermissaoStatus)
   }, [])
 
   async function handleSolicitarPermissao() {
     const granted = await solicitarPermissaoNotificacoes()
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setPermissaoStatus(Notification.permission)
-    }
+    setPermissaoStatus(await verificarPermissaoNotificacoes())
     if (granted) {
       dispararNotificacaoTeste()
       setTesteDisparado(true)
@@ -142,11 +140,19 @@ export function NotificacoesTab() {
             </div>
             <div>
               <p className="text-xs font-black text-amber-300">
-                PERMISSÃO DE NOTIFICAÇÕES NÃO ATIVADA NO NAVEGADOR
+                {isNativo ? 'PERMISSÃO DE NOTIFICAÇÕES NÃO ATIVADA NO APARELHO' : 'PERMISSÃO DE NOTIFICAÇÕES NÃO ATIVADA NO NAVEGADOR'}
               </p>
               <p className="text-[11px] text-secondary normal-case mt-0.5">
-                Para receber alertas mesmo com a página em segundo plano ou em outra aba, permita as notificações.
+                {isNativo
+                  ? 'Sem essa permissão, os alertas aparecem só dentro do app (sininho), mas não como notificação na barra do Android.'
+                  : 'Para receber alertas mesmo com a página em segundo plano ou em outra aba, permita as notificações.'}
               </p>
+              {isNativo && permissaoStatus === 'denied' && (
+                <p className="text-[11px] text-amber-300 normal-case mt-1.5 font-semibold">
+                  Já foi negada uma vez — o botão abaixo pode não abrir o pedido de novo. Se não funcionar, ative manualmente em:
+                  Ajustes do Android → Apps → Estrutura - GV → Notificações.
+                </p>
+              )}
             </div>
           </div>
           <Button
