@@ -244,6 +244,8 @@ export async function fetchTodasFerramentasSupabase(): Promise<Ferramenta[]> {
   return todas.map(formatarFerramentaComFoto)
 }
 
+const REGEX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export function mesclarRemotasComLocais(remotas: Ferramenta[], locais: Ferramenta[]): Ferramenta[] {
   const excluidos = getIdsExcluidos()
   const mapa = new Map<string, Ferramenta>()
@@ -259,10 +261,16 @@ export function mesclarRemotasComLocais(remotas: Ferramenta[], locais: Ferrament
   remotas.forEach((rem) => {
     if (excluidos.includes(rem.id)) return
     const f = formatarFerramentaComFoto(rem)
-    
+
     let chaveAlvo = rem.id
     if (!mapa.has(rem.id)) {
+      // Só tenta "casar" com um item local que ainda não tem id real do
+      // Supabase (criado offline, id tipo "ferr_..."). Casar por código/nome
+      // contra itens que JÁ são linhas reais do banco é o que causava itens
+      // diferentes com o mesmo código (ex: várias latas "TEKBOND") ou mesmo
+      // nome se sobrescreverem e sumirem da lista.
       for (const [idLoc, locObj] of mapa.entries()) {
+        if (REGEX_UUID.test(idLoc)) continue
         if (rem.codigo && locObj.codigo && rem.codigo === locObj.codigo) {
           chaveAlvo = idLoc
           break
