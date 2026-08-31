@@ -1426,6 +1426,7 @@ export function Frotas() {
       )}
 
       {/* SELETOR DE CATEGORIA DA FROTA: FROTA LEVE vs FROTA PESADA vs VISÃO CONSOLIDADA */}
+      {abaPrincipal !== 'checklist' && (
       <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-surface/90 border border-border/30 rounded-2xl backdrop-blur-md shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -1504,6 +1505,7 @@ export function Frotas() {
           {categoriaFrota === 'todos' && <span>📊 EXIBINDO TODA A FROTA CONSOLIDADA</span>}
         </div>
       </div>
+      )}
 
       {/* ========================================================================= */}
       {/* ABA 0: DASHBOARD GERENCIAL DA FROTA (COM OS 3 GRÁFICOS SOLICITADOS) */}

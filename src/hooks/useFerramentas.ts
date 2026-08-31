@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
-import { FERRAMENTAS_BASE_PADRAO } from '@/data/ferramentasPadrao'
 import type { Ferramenta, FerramentaRetirada, StatusRetiradaFerramenta } from '@/lib/types'
 
 export const STORAGE_FERRAMENTAS_KEY = 'gvel_inventario_ferramentas_v1'
@@ -105,30 +104,8 @@ export function formatarRetiradaComFoto(r: any): FerramentaRetirada {
 }
 
 // ----------------------------------------------------
-// Helpers de LocalStorage e Mesclagem com Catálogo Padrão
+// Helpers de LocalStorage
 // ----------------------------------------------------
-export function mesclarComFerramentasPadrao(listaSalva: Ferramenta[]): Ferramenta[] {
-  const excluidos = getIdsExcluidos()
-  const mapa = new Map<string, Ferramenta>()
-
-  // 1. Inserir catálogo base padrão que não foi excluído
-  FERRAMENTAS_BASE_PADRAO.forEach((item) => {
-    if (!excluidos.includes(item.id)) {
-      mapa.set(item.id, formatarFerramentaComFoto(item))
-    }
-  })
-
-  // 2. Sobrepor / mesclar com edições salvas e novas ferramentas cadastradas
-  listaSalva.forEach((salva) => {
-    if (excluidos.includes(salva.id)) return
-
-    const f = formatarFerramentaComFoto(salva)
-    mapa.set(f.id, f)
-  })
-
-  return Array.from(mapa.values())
-}
-
 export async function zerarTodoEstoque(): Promise<void> {
   try {
     localStorage.removeItem(STORAGE_EXCLUIDAS_KEY)
@@ -160,29 +137,35 @@ export async function zerarTodoEstoque(): Promise<void> {
   window.dispatchEvent(new Event('retiradas_updated'))
 }
 
-export function restaurarCatalogoPadrao(): Ferramenta[] {
+// Limpa apenas o cache local (itens ocultos/excluídos e cache de leitura),
+// SEM apagar nada no Supabase. Útil quando itens reais somem da tela por
+// terem sido marcados como excluídos apenas localmente em algum momento.
+export function limparCacheLocalFerramentas(): void {
   try {
     localStorage.removeItem(STORAGE_EXCLUIDAS_KEY)
     localStorage.removeItem(STORAGE_FERRAMENTAS_KEY)
-  } catch {}
-  const lista = FERRAMENTAS_BASE_PADRAO.map(formatarFerramentaComFoto)
-  salvarFerramentasLocais(lista)
-  return lista
+  } catch (e) {
+    console.warn('Erro ao limpar cache local de ferramentas:', e)
+  }
+  window.dispatchEvent(new Event('ferramentas_updated'))
 }
 
 export function getFerramentasLocais(): Ferramenta[] {
+  const excluidos = getIdsExcluidos()
   try {
     const raw = localStorage.getItem(STORAGE_FERRAMENTAS_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
-        return mesclarComFerramentasPadrao(parsed)
+        return parsed
+          .filter((item) => !item.id?.startsWith('ferr_padrao_') && !excluidos.includes(item.id))
+          .map(formatarFerramentaComFoto)
       }
     }
   } catch (err) {
     console.error('Erro ao ler ferramentas locais:', err)
   }
-  return mesclarComFerramentasPadrao([])
+  return []
 }
 
 export function salvarFerramentasLocais(lista: Ferramenta[]): void {
@@ -257,6 +240,40 @@ export async function fetchTodasFerramentasSupabase(): Promise<Ferramenta[]> {
   return todas.map(formatarFerramentaComFoto)
 }
 
+export function mesclarRemotasComLocais(remotas: Ferramenta[], locais: Ferramenta[]): Ferramenta[] {
+  const excluidos = getIdsExcluidos()
+  const mapa = new Map<string, Ferramenta>()
+
+  // 1. Manter todos os itens locais válidos (incluindo os originados do catálogo base)
+  locais.forEach((loc) => {
+    if (!excluidos.includes(loc.id)) {
+      mapa.set(loc.id, formatarFerramentaComFoto(loc))
+    }
+  })
+
+  // 2. Mesclar/atualizar com dados vindos do Supabase
+  remotas.forEach((rem) => {
+    if (excluidos.includes(rem.id)) return
+    const f = formatarFerramentaComFoto(rem)
+    
+    let chaveAlvo = rem.id
+    if (!mapa.has(rem.id)) {
+      for (const [idLoc, locObj] of mapa.entries()) {
+        if (rem.codigo && locObj.codigo && rem.codigo === locObj.codigo) {
+          chaveAlvo = idLoc
+          break
+        } else if (rem.nome && locObj.nome && rem.nome.toUpperCase() === locObj.nome.toUpperCase()) {
+          chaveAlvo = idLoc
+          break
+        }
+      }
+    }
+    mapa.set(chaveAlvo, f)
+  })
+
+  return Array.from(mapa.values())
+}
+
 export function useFerramentas() {
   const [ferramentas, setFerramentas] = useState<Ferramenta[]>(() => getFerramentasLocais())
   const [loading, setLoading] = useState(false)
@@ -266,17 +283,17 @@ export function useFerramentas() {
     setLoading(true)
     try {
       const remotas = await fetchTodasFerramentasSupabase()
+      const locais = getFerramentasLocais()
 
       if (remotas && remotas.length > 0) {
-        const formatadas = mesclarComFerramentasPadrao(remotas)
-        setFerramentas(formatadas)
-        localStorage.setItem(STORAGE_FERRAMENTAS_KEY, JSON.stringify(formatadas))
+        const limpasRemotas = remotas.filter(r => !r.id?.startsWith('ferr_padrao_'))
+        const mescladas = mesclarRemotasComLocais(limpasRemotas, locais)
+        setFerramentas(mescladas)
+        localStorage.setItem(STORAGE_FERRAMENTAS_KEY, JSON.stringify(mescladas))
         setError(null)
       } else {
-        const locais = getFerramentasLocais()
         if (locais.length > 0) {
           setFerramentas(locais)
-          sincronizarTudoParaSupabase().catch(() => {})
         }
       }
     } catch (err) {
