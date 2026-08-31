@@ -1,8 +1,9 @@
-import { useRef, type ChangeEvent } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import { Camera, X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import type { StatusChecklist } from '@/lib/types'
 import type { ChecklistItemState } from './types'
+import { comprimirImagem } from '@/lib/imagem'
 
 interface Props {
   label: string
@@ -18,16 +19,23 @@ const statusOptions: { value: StatusChecklist; label: string; activeClass: strin
 
 export function ChecklistItemRow({ label, value, onChange }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [comprimindo, setComprimindo] = useState(false)
 
   function setStatus(status: StatusChecklist) {
     onChange({ ...value, status })
   }
 
-  function handleFile(e: ChangeEvent<HTMLInputElement>) {
+  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
-    onChange({ ...value, fotoFile: file, fotoPreviewUrl: URL.createObjectURL(file) })
     e.target.value = ''
+    if (!file) return
+    setComprimindo(true)
+    try {
+      const comprimida = await comprimirImagem(file)
+      onChange({ ...value, fotoFile: comprimida, fotoPreviewUrl: URL.createObjectURL(comprimida) })
+    } finally {
+      setComprimindo(false)
+    }
   }
 
   function removeFoto() {
@@ -41,7 +49,8 @@ export function ChecklistItemRow({ label, value, onChange }: Props) {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary hover:text-foreground"
+          disabled={comprimindo}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary hover:text-foreground disabled:opacity-50"
           aria-label="Anexar foto"
         >
           <Camera className="h-4 w-4" />

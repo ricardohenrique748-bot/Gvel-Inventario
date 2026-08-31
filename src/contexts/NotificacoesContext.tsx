@@ -380,7 +380,6 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
       // 3. Alertas de Gestão de Frotas (KM da Preventiva, Data e Documentos CRLV)
       try {
         const rawFrotas = localStorage.getItem('gvel_frotas_cadastradas_v1')
-        const rawChecklists = localStorage.getItem('gvel_frotas_checklists_v1')
 
         if (rawFrotas) {
           const frotas: Array<{
@@ -395,17 +394,22 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
             vencimentoDocumento?: string
           }> = JSON.parse(rawFrotas)
 
-          // Mapeia última KM informada nos checklists para cada placa
+          // Mapeia última KM informada nos checklists (Supabase) para cada placa
           const ultimasKms = new Map<string, number>()
-          if (rawChecklists) {
-            const chks: Array<{ placa: string; kmAtual: number; dataHora: string }> = JSON.parse(rawChecklists)
-            chks.forEach((chk) => {
-              if (chk.placa && chk.kmAtual > 0) {
+          try {
+            const { data: chks } = await supabase
+              .from('checklists_frota')
+              .select('placa, km_atual')
+              .gt('km_atual', 0)
+            ;(chks || []).forEach((chk: { placa: string; km_atual: number }) => {
+              if (chk.placa && chk.km_atual > 0) {
                 const p = chk.placa.toUpperCase().trim()
                 const atual = ultimasKms.get(p) || 0
-                if (chk.kmAtual > atual) ultimasKms.set(p, chk.kmAtual)
+                if (chk.km_atual > atual) ultimasKms.set(p, chk.km_atual)
               }
             })
+          } catch (chkErr) {
+            console.warn('Falha ao buscar KM dos checklists da frota para notificações:', chkErr)
           }
 
           const hoje = startOfDay(new Date())

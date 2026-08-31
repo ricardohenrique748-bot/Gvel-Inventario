@@ -3,16 +3,8 @@ import { upsertVeiculo } from './useVeiculos'
 import { getChecklistParaTipo } from '@/data/checklistSchema'
 import { itemKey, type InspecaoWizardState } from '@/pages/inspecao/types'
 import { up } from '@/lib/text'
+import { dataUrlParaBlob } from '@/lib/imagem'
 import type { StatusChecklist } from '@/lib/types'
-
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [meta, base64] = dataUrl.split(',')
-  const mime = meta.match(/:(.*?);/)?.[1] ?? 'image/png'
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new Blob([bytes], { type: mime })
-}
 
 export async function salvarInspecao(state: InspecaoWizardState) {
   const veiculo = await upsertVeiculo({
@@ -25,7 +17,7 @@ export async function salvarInspecao(state: InspecaoWizardState) {
 
   let assinaturaUrl: string | null = null
   if (state.assinaturaDataUrl) {
-    const blob = dataUrlToBlob(state.assinaturaDataUrl)
+    const blob = dataUrlParaBlob(state.assinaturaDataUrl)
     const path = `${state.id}.png`
     const { error } = await supabase.storage.from(ASSINATURAS_BUCKET).upload(path, blob, {
       contentType: 'image/png',
@@ -37,42 +29,43 @@ export async function salvarInspecao(state: InspecaoWizardState) {
   }
 
   const secoes = getChecklistParaTipo(state.tipo)
-  const itensParaSalvar: {
-    secao: string
-    item: string
-    status: StatusChecklist
-    observacao: string | null
-    foto_url: string | null
-  }[] = []
+  const itensComStatus = secoes.flatMap((secao) =>
+    secao.itens
+      .map((item) => ({ secao, item, itemState: state.itens[itemKey(secao.id, item.id)] }))
+      .filter((x) => x.itemState?.status),
+  )
 
-  for (const secao of secoes) {
-    for (const item of secao.itens) {
-      const key = itemKey(secao.id, item.id)
-      const itemState = state.itens[key]
-      if (!itemState?.status) continue
-
+  // Sobe todas as fotos dos itens em paralelo (antes ia uma de cada vez, o que
+  // deixava salvar uma inspeção com vários itens fotografados bem lento). A foto
+  // é só evidência opcional do item — se uma falhar, não trava o resto da inspeção.
+  const itensParaSalvar = await Promise.all(
+    itensComStatus.map(async ({ secao, item, itemState }) => {
       let fotoUrl: string | null = null
-      if (itemState.fotoFile) {
-        const ext = itemState.fotoFile.type === 'image/png' ? 'png' : 'jpg'
-        const path = `${state.id}/${key}.${ext}`
-        const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, itemState.fotoFile, {
-          contentType: itemState.fotoFile.type,
-          upsert: true,
-        })
-        if (!error) {
-          fotoUrl = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+      if (itemState!.fotoFile) {
+        try {
+          const ext = itemState!.fotoFile.type === 'image/png' ? 'png' : 'jpg'
+          const path = `${state.id}/${itemKey(secao.id, item.id)}.${ext}`
+          const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, itemState!.fotoFile, {
+            contentType: itemState!.fotoFile.type,
+            upsert: true,
+          })
+          if (!error) {
+            fotoUrl = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+          }
+        } catch (err) {
+          console.warn(`Falha ao enviar foto do item "${item.label}":`, err)
         }
       }
 
-      itensParaSalvar.push({
+      return {
         secao: secao.nome,
         item: item.label,
-        status: itemState.status,
-        observacao: up(itemState.observacao),
+        status: itemState!.status!,
+        observacao: up(itemState!.observacao),
         foto_url: fotoUrl,
-      })
-    }
-  }
+      }
+    }),
+  )
 
   const statusGeral: StatusChecklist = itensParaSalvar.some((i) => i.status === 'nao_conforme')
     ? 'nao_conforme'

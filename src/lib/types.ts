@@ -201,3 +201,51 @@ export interface FerramentaRetirada {
   veiculo?: VeiculoComRelacoes
 }
 
+export interface ItemChecagem {
+  id: string
+  categoria: string
+  nome: string
+  status: 'conforme' | 'nao_conforme' | 'nao_se_aplica'
+  observacao?: string
+}
+
+export interface FotosVistoria {
+  painel?: string            // Foto do Painel / Hodômetro
+  capo?: string              // Foto do Capô aberto / Motor
+  interna?: string           // Foto da Interna do Veículo
+  frente?: string            // Foto da Frente do Veículo
+  ladoEsquerdo?: string      // Foto do Lado Esquerdo
+  traseira?: string          // Foto da Traseira do Veículo
+  ladoDireito?: string       // Foto do Lado Direito
+  pneuDiantEsq?: string      // Foto do Pneu Dianteiro Esquerdo
+  pneuDiantDir?: string      // Foto do Pneu Dianteiro Direito
+  pneuTrasEsq?: string       // Foto do Pneu Traseiro Esquerdo
+  pneuTrasDir?: string       // Foto do Pneu Traseiro Direito
+}
+
+export interface StatusPreventivaChecklist {
+  status: 'em_dia' | 'proxima' | 'vencida' | 'sem_dados'
+  kmUltima?: number
+  kmLimite?: number
+  kmRestante?: number
+  kmRodados?: number
+  mensagem: string
+}
+
+export interface RegistroChecklist {
+  id: string
+  veiculoId: string
+  placa: string
+  modeloNome?: string
+  clienteNome?: string
+  motoristaNome: string
+  inspetorNome: string
+  kmAtual: number
+  resultado: 'aprovado' | 'aprovado_com_ressalvas' | 'reprovado'
+  statusPreventiva?: StatusPreventivaChecklist
+  itens: ItemChecagem[]
+  fotos?: FotosVistoria
+  observacoesGerais?: string
+  dataHora: string
+}
+

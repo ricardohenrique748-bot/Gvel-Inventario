@@ -31,3 +31,13 @@ export async function comprimirImagem(file: File): Promise<File> {
     return file
   }
 }
+
+/** Converte uma dataURL (ex: "data:image/jpeg;base64,...") em Blob para upload. */
+export function dataUrlParaBlob(dataUrl: string): Blob {
+  const [meta, base64] = dataUrl.split(',')
+  const mime = meta.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
+  const binario = atob(base64)
+  const bytes = new Uint8Array(binario.length)
+  for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
+}

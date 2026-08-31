@@ -59,6 +59,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
 import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL, FROTA_PESADA_OFICIAL } from '@/data/veiculosFrotaPadrao'
+import type { ItemChecagem, FotosVistoria, StatusPreventivaChecklist, RegistroChecklist } from '@/lib/types'
+import {
+  useChecklistsFrota,
+  criarChecklistFrota,
+  excluirChecklistFrota,
+} from '@/hooks/useChecklistsFrota'
 
 export function isFrotaLeve(v: {
   placa?: string
@@ -237,54 +243,6 @@ export interface ItemFrotaCadastrada {
   createdAt: string
 }
 
-export interface ItemChecagem {
-  id: string
-  categoria: string
-  nome: string
-  status: 'conforme' | 'nao_conforme' | 'nao_se_aplica'
-  observacao?: string
-}
-
-export interface FotosVistoria {
-  painel?: string            // Foto do Painel / Hodômetro
-  capo?: string              // Foto do Capô aberto / Motor
-  interna?: string           // Foto da Interna do Veículo
-  frente?: string            // Foto da Frente do Veículo
-  ladoEsquerdo?: string      // Foto do Lado Esquerdo
-  traseira?: string          // Foto da Traseira do Veículo
-  ladoDireito?: string       // Foto do Lado Direito
-  pneuDiantEsq?: string      // Foto do Pneu Dianteiro Esquerdo
-  pneuDiantDir?: string      // Foto do Pneu Dianteiro Direito
-  pneuTrasEsq?: string       // Foto do Pneu Traseiro Esquerdo
-  pneuTrasDir?: string       // Foto do Pneu Traseiro Direito
-}
-
-export interface StatusPreventivaChecklist {
-  status: 'em_dia' | 'proxima' | 'vencida' | 'sem_dados'
-  kmUltima?: number
-  kmLimite?: number
-  kmRestante?: number
-  kmRodados?: number
-  mensagem: string
-}
-
-export interface RegistroChecklist {
-  id: string
-  veiculoId: string
-  placa: string
-  modeloNome?: string
-  clienteNome?: string
-  motoristaNome: string
-  inspetorNome: string
-  kmAtual: number
-  resultado: 'aprovado' | 'aprovado_com_ressalvas' | 'reprovado'
-  statusPreventiva?: StatusPreventivaChecklist
-  itens: ItemChecagem[]
-  fotos?: FotosVistoria
-  observacoesGerais?: string
-  dataHora: string
-}
-
 const ITENS_PADRAO_CHECKLIST = [
   // Pneus & Rodas
   { id: '1', categoria: 'PNEUS & RODAS', nome: 'Calibragem e estado dos pneus', status: 'conforme' },
@@ -312,7 +270,6 @@ const ITENS_PADRAO_CHECKLIST = [
 ] as const
 
 const STORAGE_FROTAS_KEY = 'gvel_frotas_cadastradas_v1'
-const STORAGE_CHECKLISTS_KEY = 'gvel_frotas_checklists_v1'
 
 function comprimirFoto(file: File, maxWidth = 1000, quality = 0.72): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -424,27 +381,16 @@ export function Frotas() {
     return [...FROTA_LEVE_OFICIAL, ...FROTA_PESADA_OFICIAL] as ItemFrotaCadastrada[]
   })
 
-  // Lista de Checklists realizados
-  const [checklists, setChecklists] = useState<RegistroChecklist[]>(() => {
-    try {
-      const salvo = localStorage.getItem(STORAGE_CHECKLISTS_KEY)
-      if (salvo) return JSON.parse(salvo)
-    } catch {}
-    return []
-  })
+  // Lista de Checklists realizados (Supabase — com migração automática dos
+  // registros antigos que ficavam só no localStorage)
+  const { checklists, loading: carregandoChecklists, refetch: refetchChecklists } = useChecklistsFrota()
+  const [salvandoChecklist, setSalvandoChecklist] = useState(false)
 
   function salvarFrotas(novas: ItemFrotaCadastrada[]) {
     setFrotas(novas)
     try {
       localStorage.setItem(STORAGE_FROTAS_KEY, JSON.stringify(novas))
       window.dispatchEvent(new Event('frota_updated'))
-    } catch {}
-  }
-
-  function salvarChecklists(novos: RegistroChecklist[]) {
-    setChecklists(novos)
-    try {
-      localStorage.setItem(STORAGE_CHECKLISTS_KEY, JSON.stringify(novos))
     } catch {}
   }
 
@@ -1286,7 +1232,7 @@ export function Frotas() {
     }
   }
 
-  function handleSalvarChecklist(e: React.FormEvent) {
+  async function handleSalvarChecklist(e: React.FormEvent) {
     e.preventDefault()
     if (!veiculoChecklistId) {
       alert('Selecione um veículo da frota.')
@@ -1311,30 +1257,39 @@ export function Frotas() {
       resFinal = 'aprovado_com_ressalvas'
     }
 
-    const novoChecklist: RegistroChecklist = {
-      id: `chk_${Date.now()}`,
-      veiculoId: veiculoChecklistId,
-      placa: veiculo?.placa || 'PLACA',
-      modeloNome: veiculo?.modeloNome,
-      clienteNome: veiculo?.clienteNome,
-      motoristaNome: motoristaChecklist.toUpperCase().trim(),
-      inspetorNome: inspetor.toUpperCase(),
-      kmAtual: Number(kmChecklist) || 0,
-      resultado: resFinal,
-      statusPreventiva: comparacaoPreventivaChecklist,
-      itens: itensChecklistForm,
-      fotos: fotosChecklist,
-      observacoesGerais: obsChecklist.trim() || undefined,
-      dataHora: new Date().toISOString(),
+    setSalvandoChecklist(true)
+    try {
+      await criarChecklistFrota({
+        veiculoId: veiculoChecklistId,
+        placa: veiculo?.placa || 'PLACA',
+        modeloNome: veiculo?.modeloNome,
+        clienteNome: veiculo?.clienteNome,
+        motoristaNome: motoristaChecklist.toUpperCase().trim(),
+        inspetorNome: inspetor.toUpperCase(),
+        kmAtual: Number(kmChecklist) || 0,
+        resultado: resFinal,
+        statusPreventiva: comparacaoPreventivaChecklist,
+        itens: itensChecklistForm,
+        fotos: fotosChecklist,
+        observacoesGerais: obsChecklist.trim() || undefined,
+      })
+      await refetchChecklists()
+      setMostrarModalNovoChecklist(false)
+    } catch (err) {
+      alert(err instanceof Error ? `Não foi possível salvar o checklist: ${err.message}` : 'Não foi possível salvar o checklist. Verifique sua conexão e tente novamente.')
+    } finally {
+      setSalvandoChecklist(false)
     }
-
-    salvarChecklists([novoChecklist, ...checklists])
-    setMostrarModalNovoChecklist(false)
   }
 
-  function handleExcluirChecklist(id: string) {
+  async function handleExcluirChecklist(id: string) {
     if (!confirm('Deseja excluir este registro de checklist?')) return
-    salvarChecklists(checklists.filter((c) => c.id !== id))
+    try {
+      await excluirChecklistFrota(id)
+      await refetchChecklists()
+    } catch (err) {
+      alert(err instanceof Error ? `Não foi possível excluir: ${err.message}` : 'Não foi possível excluir o checklist.')
+    }
   }
 
   const totalFotosTiradas = [
@@ -2576,7 +2531,12 @@ export function Frotas() {
           </div>
 
           {/* Listagem de Checklists */}
-          {checklistsFiltrados.length === 0 ? (
+          {carregandoChecklists && checklistsFiltrados.length === 0 ? (
+            <Card className="p-12 text-center">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
+              <p className="mt-3 text-xs font-semibold text-secondary">CARREGANDO CHECKLISTS…</p>
+            </Card>
+          ) : checklistsFiltrados.length === 0 ? (
             <Card className="p-12 text-center">
               <ClipboardCheck className="mx-auto mb-3 h-10 w-10 text-secondary/40" />
               <p className="text-base font-bold text-foreground">NENHUM CHECKLIST REGISTRADO</p>
@@ -4142,16 +4102,18 @@ export function Frotas() {
                   type="button"
                   variant="secondary"
                   onClick={() => setMostrarModalNovoChecklist(false)}
+                  disabled={salvandoChecklist}
                   className="!h-10 px-5 text-xs font-semibold"
                 >
                   Cancelar
                 </Button>
                 <Button
                   type="submit"
-                  className="!h-10 px-6 text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 flex items-center gap-1.5"
+                  disabled={salvandoChecklist}
+                  className="!h-10 px-6 text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 flex items-center gap-1.5 disabled:opacity-60"
                 >
                   <CheckCircle2 className="h-4 w-4" />
-                  Salvar Checklist
+                  {salvandoChecklist ? 'Salvando…' : 'Salvar Checklist'}
                 </Button>
               </div>
             </form>
