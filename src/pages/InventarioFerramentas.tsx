@@ -57,7 +57,6 @@ import {
   registrarDevolucaoFerramenta,
   reverterDevolucaoFerramenta,
   uploadFotoFerramenta,
-  limparCacheLocalFerramentas,
 } from '@/hooks/useFerramentas'
 import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
@@ -547,15 +546,6 @@ export function InventarioFerramentas() {
     await Promise.all([refetchFerramentas(), refetchRetiradas()])
   }
 
-  // Limpa apenas o cache local (não apaga nada do servidor) e recarrega do Supabase.
-  // Corrige o caso de itens reais sumirem da lista por terem ficado marcados
-  // como "excluídos" só no navegador.
-  const handleRestaurarCacheLocal = async () => {
-    if (!confirm('ISSO VAI LIMPAR O CACHE LOCAL DESTE NAVEGADOR E RECARREGAR TUDO DIRETO DO SERVIDOR. NENHUM DADO SERÁ APAGADO. CONTINUAR?')) return
-    limparCacheLocalFerramentas()
-    await recarregarDados()
-  }
-
   // Deletar ferramenta
   const handleExcluirFerramenta = async (f: Ferramenta) => {
     if (!confirm(`DESEJA REALMENTE EXCLUIR A FERRAMENTA "${f.nome.toUpperCase()}" DO CATÁLOGO?`)) return
@@ -672,18 +662,6 @@ export function InventarioFerramentas() {
         subtitle="CONTROLE DE FERRAMENTAS, CONSUMÍVEIS, CAIXAS E PATRIMÔNIO"
         actions={
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
-            {abaAtiva === 'estoque' && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleRestaurarCacheLocal}
-                title="Limpa o cache local deste navegador e recarrega tudo do servidor (não apaga nada)"
-                className="w-full sm:w-auto !px-3 !py-2 border-border/30 text-secondary hover:text-foreground uppercase font-bold text-[11px] sm:text-xs gap-1.5 col-span-2 sm:col-span-1"
-              >
-                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">RECARREGAR DO SERVIDOR</span>
-              </Button>
-            )}
             <Button
               type="button"
               variant="secondary"

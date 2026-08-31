@@ -137,19 +137,6 @@ export async function zerarTodoEstoque(): Promise<void> {
   window.dispatchEvent(new Event('retiradas_updated'))
 }
 
-// Limpa apenas o cache local (itens ocultos/excluídos e cache de leitura),
-// SEM apagar nada no Supabase. Útil quando itens reais somem da tela por
-// terem sido marcados como excluídos apenas localmente em algum momento.
-export function limparCacheLocalFerramentas(): void {
-  try {
-    localStorage.removeItem(STORAGE_EXCLUIDAS_KEY)
-    localStorage.removeItem(STORAGE_FERRAMENTAS_KEY)
-  } catch (e) {
-    console.warn('Erro ao limpar cache local de ferramentas:', e)
-  }
-  window.dispatchEvent(new Event('ferramentas_updated'))
-}
-
 export function getFerramentasLocais(): Ferramenta[] {
   const excluidos = getIdsExcluidos()
   try {
@@ -311,8 +298,16 @@ export function useFerramentas() {
       const locais = getFerramentasLocais()
       if (locais.length > 0) setFerramentas(locais)
     }
+    // Se a página carregou sem internet (ou o Supabase ficou fora do ar por um
+    // instante), refaz a busca sozinho assim que a conexão voltar — sem precisar
+    // de botão manual.
+    const handleOnline = () => refetch()
     window.addEventListener('ferramentas_updated', handleUpdate)
-    return () => window.removeEventListener('ferramentas_updated', handleUpdate)
+    window.addEventListener('online', handleOnline)
+    return () => {
+      window.removeEventListener('ferramentas_updated', handleUpdate)
+      window.removeEventListener('online', handleOnline)
+    }
   }, [refetch])
 
   return { ferramentas, loading, error, refetch }
@@ -579,16 +574,21 @@ export async function excluirFerramenta(id: string): Promise<void> {
     throw new Error('Não é possível excluir uma ferramenta que possui unidades em uso no momento.')
   }
 
-  adicionarIdExcluido(id)
+  // Só marca como excluído (escondendo da tela pra sempre) depois de confirmar
+  // que a exclusão realmente aconteceu no servidor — senão, se a exclusão no
+  // Supabase falhar (rede caiu, etc.), o item continua existindo lá mas fica
+  // escondido só neste aparelho para sempre, sem forma de saber que sumiu.
+  try {
+    const { error } = await supabase.from('ferramentas').delete().eq('id', id)
+    if (error) throw error
+  } catch (sbErr) {
+    console.error('Erro ao excluir ferramenta no Supabase:', sbErr)
+    throw new Error('Não foi possível excluir agora. Verifique sua conexão e tente novamente.')
+  }
 
+  adicionarIdExcluido(id)
   const locais = getFerramentasLocais().filter((f) => f.id !== id)
   salvarFerramentasLocais(locais)
-
-  try {
-    await supabase.from('ferramentas').delete().eq('id', id)
-  } catch (sbErr) {
-    console.warn('Excluído localmente (Supabase indisponível):', sbErr)
-  }
 }
 
 export interface EdicaoMassaInput {
@@ -652,16 +652,19 @@ export async function excluirFerramentasEmMassa(ids: string[]): Promise<void> {
     throw new Error('Algumas ferramentas selecionadas possuem unidades em uso no momento e não podem ser excluídas.')
   }
 
-  ids.forEach(adicionarIdExcluido)
+  // Mesmo motivo do excluirFerramenta: só esconde da tela depois de confirmar
+  // que a exclusão aconteceu de verdade no servidor.
+  try {
+    const { error } = await supabase.from('ferramentas').delete().in('id', ids)
+    if (error) throw error
+  } catch (sbErr) {
+    console.error('Erro ao excluir ferramentas no Supabase:', sbErr)
+    throw new Error('Não foi possível excluir agora. Verifique sua conexão e tente novamente.')
+  }
 
+  ids.forEach(adicionarIdExcluido)
   const locais = getFerramentasLocais().filter((f) => !ids.includes(f.id))
   salvarFerramentasLocais(locais)
-
-  try {
-    await supabase.from('ferramentas').delete().in('id', ids)
-  } catch (sbErr) {
-    console.warn('Excluídas localmente:', sbErr)
-  }
 }
 
 export interface RegistrarRetiradaInput {
