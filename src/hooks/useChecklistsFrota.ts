@@ -8,23 +8,14 @@ import type { RegistroChecklist, ItemChecagem, FotosVistoria, StatusPreventivaCh
 // sem aparecer em outro aparelho. Agora vai para o Supabase, no mesmo
 // padrão usado pelas Inspeções (useInspecao.ts).
 
-const CAMPOS_FOTO: (keyof FotosVistoria)[] = [
-  'painel', 'capo', 'interna', 'frente', 'ladoEsquerdo',
-  'traseira', 'ladoDireito', 'pneuDiantEsq', 'pneuDiantDir', 'pneuTrasEsq', 'pneuTrasDir',
-]
+const CAMPOS_FOTO: (keyof FotosVistoria)[] = ['painel', 'frente', 'ladoEsquerdo', 'traseira', 'ladoDireito']
 
 const COLUNA_FOTO: Record<keyof FotosVistoria, string> = {
   painel: 'foto_painel_url',
-  capo: 'foto_capo_url',
-  interna: 'foto_interna_url',
   frente: 'foto_frente_url',
   ladoEsquerdo: 'foto_lado_esquerdo_url',
   traseira: 'foto_traseira_url',
   ladoDireito: 'foto_lado_direito_url',
-  pneuDiantEsq: 'foto_pneu_diant_esq_url',
-  pneuDiantDir: 'foto_pneu_diant_dir_url',
-  pneuTrasEsq: 'foto_pneu_tras_esq_url',
-  pneuTrasDir: 'foto_pneu_tras_dir_url',
 }
 
 function mapRowParaRegistro(row: any): RegistroChecklist {
@@ -149,16 +140,10 @@ export async function criarChecklistFrota(
     mensagem_preventiva: input.statusPreventiva?.mensagem || null,
     observacoes_gerais: input.observacoesGerais || null,
     foto_painel_url: fotoUrls.painel || null,
-    foto_capo_url: fotoUrls.capo || null,
-    foto_interna_url: fotoUrls.interna || null,
     foto_frente_url: fotoUrls.frente || null,
     foto_lado_esquerdo_url: fotoUrls.ladoEsquerdo || null,
     foto_traseira_url: fotoUrls.traseira || null,
     foto_lado_direito_url: fotoUrls.ladoDireito || null,
-    foto_pneu_diant_esq_url: fotoUrls.pneuDiantEsq || null,
-    foto_pneu_diant_dir_url: fotoUrls.pneuDiantDir || null,
-    foto_pneu_tras_esq_url: fotoUrls.pneuTrasEsq || null,
-    foto_pneu_tras_dir_url: fotoUrls.pneuTrasDir || null,
     data_hora: dataHora,
   }
 

@@ -22,8 +22,6 @@ import {
   ShieldCheck,
   Eye,
   Camera,
-  Wrench,
-  Check,
   Disc,
   Users,
   AlertTriangle,
@@ -49,7 +47,7 @@ import { PageHeader } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Input, Label, FieldError, Select } from '@/components/ui/Input'
+import { Input, Label, FieldError, Select, Textarea } from '@/components/ui/Input'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
 import { TipoVeiculoRadioGroup } from '@/components/TipoVeiculoRadioGroup'
 import { useClientes } from '@/hooks/useClientes'
@@ -59,7 +57,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
 import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL, FROTA_PESADA_OFICIAL } from '@/data/veiculosFrotaPadrao'
-import type { ItemChecagem, FotosVistoria, StatusPreventivaChecklist, RegistroChecklist } from '@/lib/types'
+import type { FotosVistoria, StatusPreventivaChecklist, RegistroChecklist } from '@/lib/types'
 import {
   useChecklistsFrota,
   criarChecklistFrota,
@@ -242,32 +240,6 @@ export interface ItemFrotaCadastrada {
   observacoes?: string
   createdAt: string
 }
-
-const ITENS_PADRAO_CHECKLIST = [
-  // Pneus & Rodas
-  { id: '1', categoria: 'PNEUS & RODAS', nome: 'Calibragem e estado dos pneus', status: 'conforme' },
-  { id: '2', categoria: 'PNEUS & RODAS', nome: 'Pneu estepe e ferramentas', status: 'conforme' },
-  { id: '3', categoria: 'PNEUS & RODAS', nome: 'Aperto das porcas das rodas', status: 'conforme' },
-
-  // Iluminação
-  { id: '4', categoria: 'ILUMINAÇÃO & ELÉTRICA', nome: 'Faróis alto e baixo', status: 'conforme' },
-  { id: '5', categoria: 'ILUMINAÇÃO & ELÉTRICA', nome: 'Lanternas e luzes de freio', status: 'conforme' },
-  { id: '6', categoria: 'ILUMINAÇÃO & ELÉTRICA', nome: 'Setas e pisca-alerta', status: 'conforme' },
-  { id: '7', categoria: 'ILUMINAÇÃO & ELÉTRICA', nome: 'Luz de ré e alarme sonoro', status: 'conforme' },
-
-  // Fluidos & Mecânica
-  { id: '8', categoria: 'FLUIDOS & MOTOR', nome: 'Nível de óleo do motor', status: 'conforme' },
-  { id: '9', categoria: 'FLUIDOS & MOTOR', nome: 'Nível da água / líquido do radiador', status: 'conforme' },
-  { id: '10', categoria: 'FLUIDOS & MOTOR', nome: 'Freios e freio de estacionamento', status: 'conforme' },
-  { id: '11', categoria: 'FLUIDOS & MOTOR', nome: 'Inexistência de vazamentos visíveis', status: 'conforme' },
-
-  // Segurança & Cabine
-  { id: '12', categoria: 'SEGURANÇA & CABINE', nome: 'Cintos de segurança operantes', status: 'conforme' },
-  { id: '13', categoria: 'SEGURANÇA & CABINE', nome: 'Extintor de incêndio na validade', status: 'conforme' },
-  { id: '14', categoria: 'SEGURANÇA & CABINE', nome: 'Limpadores de para-brisa e esguicho', status: 'conforme' },
-  { id: '15', categoria: 'SEGURANÇA & CABINE', nome: 'Retrovisores e vidros íntegros', status: 'conforme' },
-  { id: '16', categoria: 'SEGURANÇA & CABINE', nome: 'Documentação de bordo e CRLV', status: 'conforme' },
-] as const
 
 const STORAGE_FROTAS_KEY = 'gvel_frotas_cadastradas_v1'
 
@@ -463,14 +435,6 @@ export function Frotas() {
   const [resultadoChecklist, setResultadoChecklist] = useState<'aprovado' | 'aprovado_com_ressalvas' | 'reprovado'>('aprovado')
   const [obsChecklist, setObsChecklist] = useState('')
   const [fotosChecklist, setFotosChecklist] = useState<FotosVistoria>({})
-  const [itensChecklistForm, setItensChecklistForm] = useState<ItemChecagem[]>(() =>
-    ITENS_PADRAO_CHECKLIST.map((it) => ({
-      id: it.id,
-      categoria: it.categoria,
-      nome: it.nome,
-      status: 'conforme',
-    })),
-  )
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -484,16 +448,10 @@ export function Frotas() {
 
   // Refs de inputs de arquivo para disparar a câmera
   const inputFotoPainelRef = useRef<HTMLInputElement>(null)
-  const inputFotoCapoRef = useRef<HTMLInputElement>(null)
-  const inputFotoInternaRef = useRef<HTMLInputElement>(null)
   const inputFotoFrenteRef = useRef<HTMLInputElement>(null)
   const inputFotoLadoEsquerdoRef = useRef<HTMLInputElement>(null)
   const inputFotoTraseiraRef = useRef<HTMLInputElement>(null)
   const inputFotoLadoDireitoRef = useRef<HTMLInputElement>(null)
-  const inputFotoPneuDiantEsqRef = useRef<HTMLInputElement>(null)
-  const inputFotoPneuDiantDirRef = useRef<HTMLInputElement>(null)
-  const inputFotoPneuTrasEsqRef = useRef<HTMLInputElement>(null)
-  const inputFotoPneuTrasDirRef = useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -1209,14 +1167,6 @@ export function Frotas() {
     setResultadoChecklist('aprovado')
     setObsChecklist('')
     setFotosChecklist({})
-    setItensChecklistForm(
-      ITENS_PADRAO_CHECKLIST.map((it) => ({
-        id: it.id,
-        categoria: it.categoria,
-        nome: it.nome,
-        status: 'conforme',
-      })),
-    )
     setMostrarModalNovoChecklist(true)
   }
 
@@ -1246,11 +1196,7 @@ export function Frotas() {
     const veiculo = frotas.find((f) => f.id === veiculoChecklistId)
     const inspetor = perfil?.nome || user?.email || 'INSPETOR'
 
-    const temNaoConforme = itensChecklistForm.some((it) => it.status === 'nao_conforme')
     let resFinal = resultadoChecklist
-    if (temNaoConforme && resultadoChecklist === 'aprovado') {
-      resFinal = 'aprovado_com_ressalvas'
-    }
 
     // Se a preventiva estiver vencida por KM, sugerir ressalva caso esteja como aprovado direto
     if (comparacaoPreventivaChecklist.status === 'vencida' && resFinal === 'aprovado') {
@@ -1269,7 +1215,7 @@ export function Frotas() {
         kmAtual: Number(kmChecklist) || 0,
         resultado: resFinal,
         statusPreventiva: comparacaoPreventivaChecklist,
-        itens: itensChecklistForm,
+        itens: [],
         fotos: fotosChecklist,
         observacoesGerais: obsChecklist.trim() || undefined,
       })
@@ -1294,16 +1240,10 @@ export function Frotas() {
 
   const totalFotosTiradas = [
     fotosChecklist.painel,
-    fotosChecklist.capo,
-    fotosChecklist.interna,
     fotosChecklist.frente,
     fotosChecklist.ladoEsquerdo,
     fotosChecklist.traseira,
     fotosChecklist.ladoDireito,
-    fotosChecklist.pneuDiantEsq,
-    fotosChecklist.pneuDiantDir,
-    fotosChecklist.pneuTrasEsq,
-    fotosChecklist.pneuTrasDir,
   ].filter(Boolean).length
 
   return (
@@ -2567,16 +2507,10 @@ export function Frotas() {
                       const dataFormatada = format(parseISO(chk.dataHora), "dd/MM/yyyy 'às' HH:mm")
                       const fotosQtd = [
                         chk.fotos?.painel,
-                        chk.fotos?.capo,
-                        chk.fotos?.interna,
                         chk.fotos?.frente,
                         chk.fotos?.ladoEsquerdo,
                         chk.fotos?.traseira,
                         chk.fotos?.ladoDireito,
-                        chk.fotos?.pneuDiantEsq,
-                        chk.fotos?.pneuDiantDir,
-                        chk.fotos?.pneuTrasEsq,
-                        chk.fotos?.pneuTrasDir,
                       ].filter(Boolean).length
 
                       return (
@@ -2631,7 +2565,7 @@ export function Frotas() {
                             {fotosQtd > 0 ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                                 <Camera className="h-3 w-3" />
-                                {fotosQtd}/6 FOTOS
+                                {fotosQtd}/5 FOTOS
                               </span>
                             ) : (
                               <span className="text-[10px] text-secondary/50 font-semibold">— SEM FOTOS</span>
@@ -3332,36 +3266,36 @@ export function Frotas() {
               </div>
 
               {/* ========================================================================= */}
-              {/* SEÇÃO 2: FOTOS OBRIGATÓRIAS DE VISTORIA (11 FOTOS) */}
+              {/* SEÇÃO 2: FOTOS OBRIGATÓRIAS DE VISTORIA (5 FOTOS) */}
               {/* ========================================================================= */}
               <div className="rounded-2xl border border-border/25 bg-surface/80 p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Camera className="h-4 w-4 text-primary animate-pulse" />
                     <span className="text-xs font-black text-foreground uppercase tracking-wide">
-                      2. FOTOS DA VISTORIA COMPLETA
+                      2. FOTOS DA VISTORIA
                     </span>
                   </div>
                   <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-md ${
-                    totalFotosTiradas === 11
+                    totalFotosTiradas === 5
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                       : 'bg-primary/20 text-primary'
                   }`}>
-                    {totalFotosTiradas}/11 CAPTURADAS
+                    {totalFotosTiradas}/5 CAPTURADAS
                   </span>
                 </div>
                 <p className="text-[11px] text-secondary normal-case leading-relaxed">
-                  Tire as fotos da vistoria: painel/km, motor/capô, interna/cabine, 4 lados do veículo e os 4 pneus:
+                  Tire as fotos da vistoria: painel/km, frente, lado esquerdo, traseira e lado direito:
                 </p>
 
-                {/* Subseção A: Compartimento & Cabine */}
+                {/* Fotos do Veículo */}
                 <div>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-wider block mb-2">
-                    A. COMPARTIMENTO & INSTRUMENTOS
+                    FOTOS DO VEÍCULO
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Foto 1: Painel */}
-                    <div className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                    {/* Painel */}
+                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
                       fotosChecklist.painel
                         ? 'border-emerald-500/40 bg-emerald-500/5'
                         : 'border-border/30 bg-surface/80 hover:border-primary/40'
@@ -3374,36 +3308,32 @@ export function Frotas() {
                         className="hidden"
                         onChange={(e) => handleUploadFoto('painel', e)}
                       />
-                      <div className="flex items-center justify-between w-full mb-2">
-                        <span className="text-[10px] font-black text-foreground flex items-center gap-1">
-                          <Gauge className="h-3 w-3 text-primary" /> PAINEL / KM
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                          <Gauge className="h-2.5 w-2.5 text-primary" /> PAINEL
                         </span>
-                        {fotosChecklist.painel ? (
-                          <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
-                            <Check className="h-2.5 w-2.5" /> OK
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-bold text-secondary">PENDENTE</span>
+                        {fotosChecklist.painel && (
+                          <span className="text-[8px] font-black text-emerald-400">✓</span>
                         )}
                       </div>
 
                       {fotosChecklist.painel ? (
-                        <div className="relative w-full h-24 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
                           <img src={fotosChecklist.painel} alt="Painel" className="w-full h-full object-cover" />
                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
                             <button
                               type="button"
                               onClick={() => inputFotoPainelRef.current?.click()}
-                              className="p-1 rounded bg-white text-black text-[9px] font-bold"
+                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
                             >
                               Trocar
                             </button>
                             <button
                               type="button"
                               onClick={() => setFotosChecklist((prev) => ({ ...prev, painel: undefined }))}
-                              className="p-1 rounded bg-red-600 text-white text-[9px] font-bold"
+                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-2.5 w-2.5" />
                             </button>
                           </div>
                         </div>
@@ -3411,140 +3341,14 @@ export function Frotas() {
                         <button
                           type="button"
                           onClick={() => inputFotoPainelRef.current?.click()}
-                          className="w-full h-24 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
                         >
-                          <Camera className="h-5 w-5" />
-                          <span className="text-[10px] font-bold">FOTO PAINEL</span>
+                          <Camera className="h-4 w-4" />
+                          <span className="text-[9px] font-bold">PAINEL</span>
                         </button>
                       )}
                     </div>
 
-                    {/* Foto 2: Capô Aberto */}
-                    <div className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
-                      fotosChecklist.capo
-                        ? 'border-emerald-500/40 bg-emerald-500/5'
-                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                    }`}>
-                      <input
-                        ref={inputFotoCapoRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => handleUploadFoto('capo', e)}
-                      />
-                      <div className="flex items-center justify-between w-full mb-2">
-                        <span className="text-[10px] font-black text-foreground flex items-center gap-1">
-                          <Wrench className="h-3 w-3 text-amber-400" /> CAPÔ / MOTOR
-                        </span>
-                        {fotosChecklist.capo ? (
-                          <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
-                            <Check className="h-2.5 w-2.5" /> OK
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-bold text-secondary">PENDENTE</span>
-                        )}
-                      </div>
-
-                      {fotosChecklist.capo ? (
-                        <div className="relative w-full h-24 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                          <img src={fotosChecklist.capo} alt="Capô" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => inputFotoCapoRef.current?.click()}
-                              className="p-1 rounded bg-white text-black text-[9px] font-bold"
-                            >
-                              Trocar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setFotosChecklist((prev) => ({ ...prev, capo: undefined }))}
-                              className="p-1 rounded bg-red-600 text-white text-[9px] font-bold"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => inputFotoCapoRef.current?.click()}
-                          className="w-full h-24 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                        >
-                          <Camera className="h-5 w-5" />
-                          <span className="text-[10px] font-bold">FOTO CAPÔ</span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Foto 3: Interna do Veículo */}
-                    <div className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
-                      fotosChecklist.interna
-                        ? 'border-emerald-500/40 bg-emerald-500/5'
-                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                    }`}>
-                      <input
-                        ref={inputFotoInternaRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => handleUploadFoto('interna', e)}
-                      />
-                      <div className="flex items-center justify-between w-full mb-2">
-                        <span className="text-[10px] font-black text-foreground flex items-center gap-1">
-                          <Car className="h-3 w-3 text-cyan-400" /> INTERNA / CABINE
-                        </span>
-                        {fotosChecklist.interna ? (
-                          <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded">
-                            <Check className="h-2.5 w-2.5" /> OK
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-bold text-secondary">PENDENTE</span>
-                        )}
-                      </div>
-
-                      {fotosChecklist.interna ? (
-                        <div className="relative w-full h-24 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                          <img src={fotosChecklist.interna} alt="Interna do Veículo" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => inputFotoInternaRef.current?.click()}
-                              className="p-1 rounded bg-white text-black text-[9px] font-bold"
-                            >
-                              Trocar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setFotosChecklist((prev) => ({ ...prev, interna: undefined }))}
-                              className="p-1 rounded bg-red-600 text-white text-[9px] font-bold"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => inputFotoInternaRef.current?.click()}
-                          className="w-full h-24 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                        >
-                          <Camera className="h-5 w-5" />
-                          <span className="text-[10px] font-bold">FOTO INTERNA</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Subseção B: Exterior do Veículo (4 Lados) */}
-                <div>
-                  <span className="text-[10px] font-black text-secondary uppercase tracking-wider block mb-2">
-                    B. EXTERIOR DO VEÍCULO (CARROCERIA)
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {/* Frente */}
                     <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
                       fotosChecklist.frente
@@ -3766,316 +3570,12 @@ export function Frotas() {
                     </div>
                   </div>
                 </div>
-
-                {/* Subseção C: Os 4 Pneus do Veículo */}
-                <div>
-                  <span className="text-[10px] font-black text-secondary uppercase tracking-wider block mb-2">
-                    C. FOTOS DOS 4 PNEUS (DIANTEIROS E TRASEIROS)
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    {/* Pneu 1: Dianteiro Esquerdo */}
-                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
-                      fotosChecklist.pneuDiantEsq
-                        ? 'border-emerald-500/40 bg-emerald-500/5'
-                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                    }`}>
-                      <input
-                        ref={inputFotoPneuDiantEsqRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => handleUploadFoto('pneuDiantEsq', e)}
-                      />
-                      <div className="flex items-center justify-between w-full mb-1.5">
-                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
-                          <Disc className="h-2.5 w-2.5 text-blue-400" /> DIANT. ESQ.
-                        </span>
-                        {fotosChecklist.pneuDiantEsq && (
-                          <span className="text-[8px] font-black text-emerald-400">✓</span>
-                        )}
-                      </div>
-
-                      {fotosChecklist.pneuDiantEsq ? (
-                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                          <img src={fotosChecklist.pneuDiantEsq} alt="Pneu DE" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => inputFotoPneuDiantEsqRef.current?.click()}
-                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
-                            >
-                              Trocar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setFotosChecklist((prev) => ({ ...prev, pneuDiantEsq: undefined }))}
-                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
-                            >
-                              <Trash2 className="h-2.5 w-2.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => inputFotoPneuDiantEsqRef.current?.click()}
-                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                        >
-                          <Camera className="h-4 w-4" />
-                          <span className="text-[9px] font-bold">DIANT. ESQ.</span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Pneu 2: Dianteiro Direito */}
-                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
-                      fotosChecklist.pneuDiantDir
-                        ? 'border-emerald-500/40 bg-emerald-500/5'
-                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                    }`}>
-                      <input
-                        ref={inputFotoPneuDiantDirRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => handleUploadFoto('pneuDiantDir', e)}
-                      />
-                      <div className="flex items-center justify-between w-full mb-1.5">
-                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
-                          <Disc className="h-2.5 w-2.5 text-blue-400" /> DIANT. DIR.
-                        </span>
-                        {fotosChecklist.pneuDiantDir && (
-                          <span className="text-[8px] font-black text-emerald-400">✓</span>
-                        )}
-                      </div>
-
-                      {fotosChecklist.pneuDiantDir ? (
-                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                          <img src={fotosChecklist.pneuDiantDir} alt="Pneu DD" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => inputFotoPneuDiantDirRef.current?.click()}
-                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
-                            >
-                              Trocar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setFotosChecklist((prev) => ({ ...prev, pneuDiantDir: undefined }))}
-                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
-                            >
-                              <Trash2 className="h-2.5 w-2.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => inputFotoPneuDiantDirRef.current?.click()}
-                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                        >
-                          <Camera className="h-4 w-4" />
-                          <span className="text-[9px] font-bold">DIANT. DIR.</span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Pneu 3: Traseiro Esquerdo */}
-                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
-                      fotosChecklist.pneuTrasEsq
-                        ? 'border-emerald-500/40 bg-emerald-500/5'
-                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                    }`}>
-                      <input
-                        ref={inputFotoPneuTrasEsqRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => handleUploadFoto('pneuTrasEsq', e)}
-                      />
-                      <div className="flex items-center justify-between w-full mb-1.5">
-                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
-                          <Disc className="h-2.5 w-2.5 text-blue-400" /> TRAS. ESQ.
-                        </span>
-                        {fotosChecklist.pneuTrasEsq && (
-                          <span className="text-[8px] font-black text-emerald-400">✓</span>
-                        )}
-                      </div>
-
-                      {fotosChecklist.pneuTrasEsq ? (
-                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                          <img src={fotosChecklist.pneuTrasEsq} alt="Pneu TE" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => inputFotoPneuTrasEsqRef.current?.click()}
-                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
-                            >
-                              Trocar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setFotosChecklist((prev) => ({ ...prev, pneuTrasEsq: undefined }))}
-                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
-                            >
-                              <Trash2 className="h-2.5 w-2.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => inputFotoPneuTrasEsqRef.current?.click()}
-                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                        >
-                          <Camera className="h-4 w-4" />
-                          <span className="text-[9px] font-bold">TRAS. ESQ.</span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Pneu 4: Traseiro Direito */}
-                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
-                      fotosChecklist.pneuTrasDir
-                        ? 'border-emerald-500/40 bg-emerald-500/5'
-                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                    }`}>
-                      <input
-                        ref={inputFotoPneuTrasDirRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => handleUploadFoto('pneuTrasDir', e)}
-                      />
-                      <div className="flex items-center justify-between w-full mb-1.5">
-                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
-                          <Disc className="h-2.5 w-2.5 text-blue-400" /> TRAS. DIR.
-                        </span>
-                        {fotosChecklist.pneuTrasDir && (
-                          <span className="text-[8px] font-black text-emerald-400">✓</span>
-                        )}
-                      </div>
-
-                      {fotosChecklist.pneuTrasDir ? (
-                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                          <img src={fotosChecklist.pneuTrasDir} alt="Pneu TD" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => inputFotoPneuTrasDirRef.current?.click()}
-                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
-                            >
-                              Trocar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setFotosChecklist((prev) => ({ ...prev, pneuTrasDir: undefined }))}
-                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
-                            >
-                              <Trash2 className="h-2.5 w-2.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => inputFotoPneuTrasDirRef.current?.click()}
-                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                        >
-                          <Camera className="h-4 w-4" />
-                          <span className="text-[9px] font-bold">TRAS. DIR.</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
               </div>
 
-              {/* SEÇÃO 3: ITENS DE VERIFICAÇÃO VEICULAR */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-border/10 pb-2">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    3. ITENS DE VERIFICAÇÃO VEICULAR
-                  </h3>
-                  <span className="text-[10px] text-secondary font-bold">SELECIONE O STATUS</span>
-                </div>
-
-                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
-                  {itensChecklistForm.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl border border-border/15 bg-overlay/5 hover:border-border/30 transition-colors"
-                    >
-                      <div>
-                        <span className="text-[9px] font-black text-secondary uppercase tracking-wider">
-                          {item.categoria}
-                        </span>
-                        <p className="text-xs font-bold text-foreground">{item.nome}</p>
-                      </div>
-
-                      {/* Alternador de Status */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const novos = [...itensChecklistForm]
-                            novos[index].status = 'conforme'
-                            setItensChecklistForm(novos)
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
-                            item.status === 'conforme'
-                              ? 'bg-emerald-500 text-white shadow-sm'
-                              : 'bg-surface text-secondary hover:text-foreground border border-border/20'
-                          }`}
-                        >
-                          CONFORME
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const novos = [...itensChecklistForm]
-                            novos[index].status = 'nao_conforme'
-                            setItensChecklistForm(novos)
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
-                            item.status === 'nao_conforme'
-                              ? 'bg-rose-600 text-white shadow-sm'
-                              : 'bg-surface text-secondary hover:text-foreground border border-border/20'
-                          }`}
-                        >
-                          AVARIA / NÃO
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const novos = [...itensChecklistForm]
-                            novos[index].status = 'nao_se_aplica'
-                            setItensChecklistForm(novos)
-                          }}
-                          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                            item.status === 'nao_se_aplica'
-                              ? 'bg-overlay/20 text-foreground border border-border/40'
-                              : 'bg-surface text-secondary/60 hover:text-secondary border border-border/10'
-                          }`}
-                        >
-                          N/A
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* SEÇÃO 4: RESULTADO E OBSERVAÇÕES */}
+              {/* SEÇÃO 3: RESULTADO E OBSERVAÇÕES */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div>
-                  <Label htmlFor="chkResultado">4. Parecer / Conclusão *</Label>
+                  <Label htmlFor="chkResultado">3. Parecer / Conclusão *</Label>
                   <Select
                     id="chkResultado"
                     value={resultadoChecklist}
@@ -4090,12 +3590,13 @@ export function Frotas() {
 
                 <div>
                   <Label htmlFor="chkObs">Observações / Ressalvas</Label>
-                  <Input
+                  <Textarea
                     id="chkObs"
                     placeholder="Descreva detalhes ou avarias encontradas..."
                     value={obsChecklist}
                     onChange={(e) => setObsChecklist(e.target.value)}
-                    className="mt-1 text-xs"
+                    rows={4}
+                    className="mt-1 text-xs resize-none"
                   />
                 </div>
               </div>
@@ -4236,40 +3737,6 @@ export function Frotas() {
                       </div>
                     )}
 
-                    {/* Capô */}
-                    {checklistVisualizando.fotos.capo ? (
-                      <div
-                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.capo!, titulo: 'FOTO DO CAPÔ ABERTO / MOTOR' })}
-                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
-                      >
-                        <img src={checklistVisualizando.fotos.capo} alt="Capô" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
-                          CAPÔ / MOTOR
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
-                        SEM FOTO DO CAPÔ
-                      </div>
-                    )}
-
-                    {/* Interna */}
-                    {checklistVisualizando.fotos.interna ? (
-                      <div
-                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.interna!, titulo: 'FOTO DA INTERNA / CABINE' })}
-                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
-                      >
-                        <img src={checklistVisualizando.fotos.interna} alt="Interna" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
-                          INTERNA / CABINE
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
-                        SEM FOTO INTERNA
-                      </div>
-                    )}
-
                     {/* Frente */}
                     {checklistVisualizando.fotos.frente ? (
                       <div
@@ -4338,78 +3805,12 @@ export function Frotas() {
                       </div>
                     )}
 
-                    {/* Pneu Diant. Esq. */}
-                    {checklistVisualizando.fotos.pneuDiantEsq ? (
-                      <div
-                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.pneuDiantEsq!, titulo: 'FOTO DO PNEU DIANTEIRO ESQUERDO' })}
-                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
-                      >
-                        <img src={checklistVisualizando.fotos.pneuDiantEsq} alt="Pneu DE" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
-                          PNEU DIANT. ESQ.
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
-                        SEM PNEU DIANT. ESQ.
-                      </div>
-                    )}
-
-                    {/* Pneu Diant. Dir. */}
-                    {checklistVisualizando.fotos.pneuDiantDir ? (
-                      <div
-                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.pneuDiantDir!, titulo: 'FOTO DO PNEU DIANTEIRO DIREITO' })}
-                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
-                      >
-                        <img src={checklistVisualizando.fotos.pneuDiantDir} alt="Pneu DD" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
-                          PNEU DIANT. DIR.
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
-                        SEM PNEU DIANT. DIR.
-                      </div>
-                    )}
-
-                    {/* Pneu Tras. Esq. */}
-                    {checklistVisualizando.fotos.pneuTrasEsq ? (
-                      <div
-                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.pneuTrasEsq!, titulo: 'FOTO DO PNEU TRASEIRO ESQUERDO' })}
-                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
-                      >
-                        <img src={checklistVisualizando.fotos.pneuTrasEsq} alt="Pneu TE" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
-                          PNEU TRAS. ESQ.
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
-                        SEM PNEU TRAS. ESQ.
-                      </div>
-                    )}
-
-                    {/* Pneu Tras. Dir. */}
-                    {checklistVisualizando.fotos.pneuTrasDir ? (
-                      <div
-                        onClick={() => setFotoZoom({ url: checklistVisualizando.fotos!.pneuTrasDir!, titulo: 'FOTO DO PNEU TRASEIRO DIREITO' })}
-                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
-                      >
-                        <img src={checklistVisualizando.fotos.pneuTrasDir} alt="Pneu TD" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                        <span className="absolute bottom-1 left-1 right-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
-                          PNEU TRAS. DIR.
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="h-24 rounded-xl border border-dashed border-border/20 flex flex-col items-center justify-center text-secondary/40 text-[8px] font-bold">
-                        SEM PNEU TRAS. DIR.
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
 
-              {/* Lista dos Itens */}
+              {/* Lista dos Itens (checklists antigos, salvos antes da simplificação) */}
+              {checklistVisualizando.itens.length > 0 && (
               <div className="space-y-2">
                 <span className="text-[11px] font-black text-secondary uppercase tracking-wider">
                   ITENS AUDITADOS
@@ -4442,6 +3843,7 @@ export function Frotas() {
                   ))}
                 </div>
               </div>
+              )}
 
               {checklistVisualizando.observacoesGerais && (
                 <div className="p-3.5 rounded-xl border border-border/15 bg-overlay/5">

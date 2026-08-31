@@ -1,9 +1,28 @@
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
+import logoIcon from '@/assets/logo-icon.png'
 
 const A4_WIDTH_MM = 210
 const A4_HEIGHT_MM = 297
 const MARGIN_MM = 8
+
+/**
+ * Espera todas as imagens dentro do elemento terminarem de carregar/decodificar
+ * antes do html2canvas tirar o "print" — sem isso a logo (e outras fotos
+ * embutidas no relatório) podem sair em branco se ainda não tiverem carregado.
+ */
+async function aguardarImagens(element: HTMLElement): Promise<void> {
+  const imagens = Array.from(element.querySelectorAll('img'))
+  await Promise.all(
+    imagens.map((img) => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve()
+      return new Promise<void>((resolve) => {
+        img.addEventListener('load', () => resolve(), { once: true })
+        img.addEventListener('error', () => resolve(), { once: true })
+      })
+    }),
+  )
+}
 
 /**
  * Renderiza um elemento HTML (fora da árvore visível) em um PDF A4,
@@ -11,6 +30,8 @@ const MARGIN_MM = 8
  * que uma página.
  */
 export async function elementToPdf(element: HTMLElement): Promise<jsPDF> {
+  await aguardarImagens(element)
+
   const canvas = await html2canvas(element, {
     scale: 2,
     backgroundColor: '#ffffff',
@@ -80,7 +101,7 @@ export function reportHeaderHtml(subtitle: string, numero?: string) {
   return `
     <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #E23B2E;padding-bottom:12px;margin-bottom:16px;">
       <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:40px;height:40px;border-radius:8px;background:#2B2B2B;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px;">GV</div>
+        <img src="${logoIcon}" alt="Center Truck" style="width:44px;height:44px;border-radius:8px;object-fit:contain;" />
         <div>
           <div style="font-weight:bold;font-size:16px;color:#2B2B2B;letter-spacing:0.5px;">CENTER TRUCK</div>
           <div style="font-size:10px;color:#777;text-transform:uppercase;letter-spacing:1px;">Gvel Diesel</div>

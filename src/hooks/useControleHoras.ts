@@ -18,6 +18,36 @@ export interface ControleHorasItem {
   } | null
 }
 
+/**
+ * Soma os minutos entre duas datas descontando qualquer trecho que caia num
+ * domingo (a oficina não trabalha domingo, então esse tempo não deve contar
+ * como horas de atividade, mesmo que a atividade tenha ficado em aberto
+ * atravessando o fim de semana).
+ */
+function minutosExcluindoDomingo(inicio: Date, fim: Date): number {
+  if (fim <= inicio) return 0
+  let totalMs = fim.getTime() - inicio.getTime()
+
+  let cursor = new Date(inicio)
+  cursor.setHours(0, 0, 0, 0)
+  while (cursor < fim) {
+    const proximoDia = new Date(cursor)
+    proximoDia.setDate(proximoDia.getDate() + 1)
+
+    if (cursor.getDay() === 0) {
+      const inicioSobreposicao = cursor > inicio ? cursor : inicio
+      const fimSobreposicao = proximoDia < fim ? proximoDia : fim
+      if (fimSobreposicao > inicioSobreposicao) {
+        totalMs -= fimSobreposicao.getTime() - inicioSobreposicao.getTime()
+      }
+    }
+
+    cursor = proximoDia
+  }
+
+  return Math.max(0, Math.round(totalMs / 60000))
+}
+
 function calcularMinutosComDatas(
   horaInicio?: string | null,
   horaFim?: string | null,
@@ -33,8 +63,7 @@ function calcularMinutosComDatas(
     if (dInicioStr) {
       const dt1 = new Date(`${dInicioStr}T${horaInicio}:00`)
       if (!isNaN(dt1.getTime())) {
-        const diff = Math.round((Date.now() - dt1.getTime()) / 60000)
-        return Math.max(1, diff)
+        return minutosExcluindoDomingo(dt1, new Date())
       }
     }
     return 1 // ao menos 1 minuto apontado para refletir atividade em andamento
@@ -44,13 +73,18 @@ function calcularMinutosComDatas(
   if (dInicioStr && dataFim) {
     const dt1 = new Date(`${dInicioStr}T${horaInicio}:00`)
     const dt2 = new Date(`${dataFim}T${horaFim}:00`)
-    if (!isNaN(dt1.getTime()) && !isNaN(dt2.getTime())) {
-      const diff = Math.round((dt2.getTime() - dt1.getTime()) / 60000)
-      if (diff >= 0) return Math.max(1, diff)
+    if (!isNaN(dt1.getTime()) && !isNaN(dt2.getTime()) && dt2 >= dt1) {
+      return minutosExcluindoDomingo(dt1, dt2)
     }
   }
 
-  // Fallback HH:mm
+  // Fallback HH:mm (sem data de fim confiável). Se ao menos a data de início
+  // é conhecida e cai num domingo, não conta nada.
+  if (dInicioStr) {
+    const dataReferencia = new Date(`${dInicioStr}T00:00:00`)
+    if (!isNaN(dataReferencia.getTime()) && dataReferencia.getDay() === 0) return 0
+  }
+
   const [h1, m1] = horaInicio.split(':').map(Number)
   const [h2, m2] = horaFim.split(':').map(Number)
   if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) return 1
@@ -136,7 +170,6 @@ export function useControleHoras() {
       if (osError) throw osError
 
       const combinados: ControleHorasItem[] = []
-      const movimentacoesComAtividades = new Set<string>()
 
       // Mapa auxiliar de dados de O.S por movimentação
       const osMap = new Map<string, (typeof osList)[number]>()
@@ -188,39 +221,7 @@ export function useControleHoras() {
             minutos_atividade: minutos,
             movimentacao: it.movimentacao as unknown as ControleHorasItem['movimentacao'],
           })
-
-          movimentacoesComAtividades.add(it.movimentacao_id)
         }
-      }
-
-      // Para movimentações que NÃO tiveram atividades individuais com horário, adiciona a O.S para contabilizar o veículo atendendo
-      for (const os of osList ?? []) {
-        if (movimentacoesComAtividades.has(os.movimentacao_id)) continue
-
-        const mecBruto = (os.mecanico || '').trim().toUpperCase()
-        if (!mecBruto || mecBruto === '—' || mecBruto === '-' || mecBruto === 'SEM NOME' || mecBruto === 'OPCIONAL') {
-          continue
-        }
-
-        const mec = obterNomeCompletoMembro(mecBruto)
-        const func = normalizarFuncao(buscarFuncaoPorNome(mec) || os.funcao || 'MECÂNICO')
-
-        const movOS = os.movimentacao as unknown as { patio?: { nome?: string } }
-        const patioNome = movOS?.patio?.nome
-        const setor = normalizarSetor(null, os.setor, patioNome)
-
-        combinados.push({
-          id: os.id,
-          descricao: `O.S - ${os.status_os || 'MANUTENÇÃO GERAL'}`,
-          mecanico_executor: mec,
-          funcao: func,
-          setor,
-          data_hora: os.created_at,
-          data_hora_abertura: os.data_hora_abertura || os.created_at,
-          data_hora_fechamento: os.data_hora_fechamento || null,
-          minutos_atividade: 0,
-          movimentacao: os.movimentacao as unknown as ControleHorasItem['movimentacao'],
-        })
       }
 
       setItens(combinados)

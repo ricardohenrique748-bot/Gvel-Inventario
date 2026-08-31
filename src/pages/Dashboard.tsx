@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/Badge'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
+import { useEtapasNoPeriodo } from '@/hooks/useHistoricoMovimentacao'
 import { permanenciaEmMinutos, formatMinutosParaTexto } from '@/lib/format'
 import { CHART_ENTRADA, CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
 import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
@@ -69,6 +70,13 @@ export function Dashboard() {
     modeloId: filters.modeloId,
     patioId: filters.patioId,
   })
+
+  // Mudanças de etapa (setor/trajeto) registradas dentro do mesmo período —
+  // mostradas separadamente das entradas novas no pátio.
+  const { etapas: etapasPeriodo, loading: loadingEtapas } = useEtapasNoPeriodo(
+    filters.dataInicio ? `${filters.dataInicio}T00:00:00` : undefined,
+    filters.dataFim ? `${filters.dataFim}T23:59:59` : undefined,
+  )
 
   // Determina se o filtro representa um único dia ou um intervalo
   const umDiaSelecionado =
@@ -175,6 +183,28 @@ export function Dashboard() {
     return [...porCliente.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [stats.saidasFiltradas])
 
+  // Uma linha por veículo (mantém só a etapa mais recente do dia, caso tenha
+  // mudado de setor mais de uma vez), agrupado por cliente igual às entradas.
+  const etapasHojeAgrupadas = useMemo(() => {
+    const porVeiculo = new Map<string, (typeof etapasPeriodo)[number]>()
+    for (const e of etapasPeriodo) {
+      const atual = porVeiculo.get(e.movimentacao_id)
+      if (!atual || new Date(e.data_hora).getTime() > new Date(atual.data_hora).getTime()) {
+        porVeiculo.set(e.movimentacao_id, e)
+      }
+    }
+    const lista = [...porVeiculo.values()]
+    const porCliente = new Map<string, typeof lista>()
+    for (const e of lista) {
+      const nome = e.movimentacao.veiculo?.cliente?.nome ?? 'Sem cliente'
+      if (!porCliente.has(nome)) porCliente.set(nome, [])
+      porCliente.get(nome)!.push(e)
+    }
+    return [...porCliente.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [etapasPeriodo])
+
+  const totalEtapasHoje = etapasHojeAgrupadas.reduce((acc, [, l]) => acc + l.length, 0)
+
   const [painelAberto, setPainelAberto] = useState<'no_patio' | 'entradas_hoje' | 'saidas_hoje' | null>(null)
 
   const loading = loadingNoPatio || loadingPeriodo
@@ -256,51 +286,106 @@ export function Dashboard() {
           <CardHeader>
             <CardTitle>{loadingPeriodo ? 'Carregando…' : `${stats.entradasHoje} entrada(s) — ${labelEntradas.toLowerCase()}`}</CardTitle>
           </CardHeader>
-          <CardContent>
-            {!loadingPeriodo && entradasHojeAgrupadas.length === 0 ? (
-              <p className="text-sm text-secondary">Nenhuma entrada registrada no período selecionado.</p>
-            ) : (
-              <div className="space-y-4">
-                {entradasHojeAgrupadas.map(([cliente, movs]) => (
-                  <div key={cliente}>
-                    <p className="mb-2 text-sm font-medium text-secondary">{cliente}</p>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {movs.map((m) => (
-                        <Link
-                          key={m.id}
-                          to={`/veiculos/${m.veiculo_id}`}
-                          className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
-                        >
-                          {primeiraFotoMovimentacao(m) ? (
-                            <img
-                              src={urlMiniatura(primeiraFotoMovimentacao(m)!, 112)}
-                              onError={aoFalharMiniatura(primeiraFotoMovimentacao(m)!)}
-                              alt={`Foto — ${m.veiculo?.placa}`}
-                              loading="lazy"
-                              decoding="async"
-                              width={56}
-                              height={56}
-                              className="h-14 w-14 shrink-0 rounded-lg object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
-                              <Truck className="h-6 w-6" />
+          <CardContent className="space-y-6">
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-secondary">
+                Novas entradas no pátio ({stats.entradasHoje})
+              </p>
+              {!loadingPeriodo && entradasHojeAgrupadas.length === 0 ? (
+                <p className="text-sm text-secondary">Nenhuma entrada nova registrada no período selecionado.</p>
+              ) : (
+                <div className="space-y-4">
+                  {entradasHojeAgrupadas.map(([cliente, movs]) => (
+                    <div key={cliente}>
+                      <p className="mb-2 text-sm font-medium text-secondary">{cliente}</p>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {movs.map((m) => (
+                          <Link
+                            key={m.id}
+                            to={`/veiculos/${m.veiculo_id}`}
+                            className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
+                          >
+                            {primeiraFotoMovimentacao(m) ? (
+                              <img
+                                src={urlMiniatura(primeiraFotoMovimentacao(m)!, 112)}
+                                onError={aoFalharMiniatura(primeiraFotoMovimentacao(m)!)}
+                                alt={`Foto — ${m.veiculo?.placa}`}
+                                loading="lazy"
+                                decoding="async"
+                                width={56}
+                                height={56}
+                                className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
+                                <Truck className="h-6 w-6" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
+                              <p className="text-sm text-secondary">
+                                {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                              </p>
+                              <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
                             </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
-                            <p className="text-sm text-secondary">
-                              {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
-                            </p>
-                            <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
-                          </div>
-                        </Link>
-                      ))}
+                          </Link>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-border/10 pt-5">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-secondary">
+                Mudança de etapa ({totalEtapasHoje})
+              </p>
+              {!loadingEtapas && etapasHojeAgrupadas.length === 0 ? (
+                <p className="text-sm text-secondary">Nenhuma mudança de etapa registrada no período selecionado.</p>
+              ) : (
+                <div className="space-y-4">
+                  {etapasHojeAgrupadas.map(([cliente, etapas]) => (
+                    <div key={cliente}>
+                      <p className="mb-2 text-sm font-medium text-secondary">{cliente}</p>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {etapas.map((e) => (
+                          <Link
+                            key={e.id}
+                            to={`/veiculos/${e.movimentacao.veiculo_id}`}
+                            className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
+                          >
+                            {primeiraFotoMovimentacao(e.movimentacao) ? (
+                              <img
+                                src={urlMiniatura(primeiraFotoMovimentacao(e.movimentacao)!, 112)}
+                                onError={aoFalharMiniatura(primeiraFotoMovimentacao(e.movimentacao)!)}
+                                alt={`Foto — ${e.movimentacao.veiculo?.placa}`}
+                                loading="lazy"
+                                decoding="async"
+                                width={56}
+                                height={56}
+                                className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
+                                <Truck className="h-6 w-6" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-foreground font-medium">{e.movimentacao.veiculo?.placa}</p>
+                              <p className="text-sm text-secondary">
+                                {e.movimentacao.veiculo?.marca?.nome} {e.movimentacao.veiculo?.modelo?.nome}
+                              </p>
+                              <p className="text-sm text-secondary truncate">Etapa: {e.descricao}</p>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

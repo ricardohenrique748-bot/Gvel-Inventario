@@ -232,8 +232,9 @@ export function VeiculoDetalhe() {
                   key={m.id}
                   className="flex flex-col gap-1 rounded-xl bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="text-sm">
+                  <div className="text-sm uppercase">
                     <p className="text-foreground">
+                      {m.veiculo?.placa ? `Placa: ${m.veiculo.placa} · ` : ''}
                       Entrada: {formatDateTime(m.data_hora_entrada)}
                       {m.patio?.nome ? ` · Pátio: ${m.patio.nome}` : ''}
                       {m.motorista ? ` · ${m.motorista}` : ''}

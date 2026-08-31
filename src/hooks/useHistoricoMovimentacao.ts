@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
+import { MOVIMENTACAO_COM_VEICULO } from '@/lib/queries'
+import type { MovimentacaoComVeiculo } from '@/lib/types'
 
 export interface HistoricoItem {
   id: string
@@ -49,6 +51,46 @@ export function useHistoricoMovimentacao(movimentacaoId: string | null | undefin
   }, [refetch])
 
   return { historico, loading, error, refetch }
+}
+
+export interface EtapaComMovimentacao extends HistoricoItem {
+  movimentacao: MovimentacaoComVeiculo
+}
+
+/**
+ * Busca as mudanças de etapa (movimentacao_historico) cuja data caiu dentro do
+ * período informado — usado para mostrar, junto das entradas novas do dia,
+ * quais veículos só mudaram de setor/etapa (sem ser uma entrada nova no pátio).
+ */
+export function useEtapasNoPeriodo(dataInicioISO?: string, dataFimISO?: string) {
+  const [etapas, setEtapas] = useState<EtapaComMovimentacao[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const refetch = useCallback(async () => {
+    if (!dataInicioISO || !dataFimISO) {
+      setEtapas([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('movimentacao_historico')
+      .select(`*, movimentacao:movimentacoes(${MOVIMENTACAO_COM_VEICULO})`)
+      .gte('data_hora', dataInicioISO)
+      .lte('data_hora', dataFimISO)
+      .order('data_hora', { ascending: false })
+
+    if (!error) {
+      setEtapas((data as unknown as EtapaComMovimentacao[])?.filter((e) => e.movimentacao) ?? [])
+    }
+    setLoading(false)
+  }, [dataInicioISO, dataFimISO])
+
+  useEffect(() => {
+    refetch()
+  }, [refetch])
+
+  return { etapas, loading, refetch }
 }
 
 export interface AdicionarHistoricoInput {

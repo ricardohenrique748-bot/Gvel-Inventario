@@ -212,16 +212,10 @@ export interface ItemChecagem {
 
 export interface FotosVistoria {
   painel?: string            // Foto do Painel / Hodômetro
-  capo?: string              // Foto do Capô aberto / Motor
-  interna?: string           // Foto da Interna do Veículo
   frente?: string            // Foto da Frente do Veículo
   ladoEsquerdo?: string      // Foto do Lado Esquerdo
   traseira?: string          // Foto da Traseira do Veículo
   ladoDireito?: string       // Foto do Lado Direito
-  pneuDiantEsq?: string      // Foto do Pneu Dianteiro Esquerdo
-  pneuDiantDir?: string      // Foto do Pneu Dianteiro Direito
-  pneuTrasEsq?: string       // Foto do Pneu Traseiro Esquerdo
-  pneuTrasDir?: string       // Foto do Pneu Traseiro Direito
 }
 
 export interface StatusPreventivaChecklist {

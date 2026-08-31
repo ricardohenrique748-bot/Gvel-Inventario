@@ -77,7 +77,7 @@ export function FrotaPublica() {
     }
   }, [token])
 
-  const { clienteNome, porPatio, jaSaiu, totalGeral } = useMemo(() => {
+  const { clienteNome, porPatio, jaSaiu, totalNoPatio, totalGeral } = useMemo(() => {
     const listaCompleta = itens ?? []
     const clienteNome = listaCompleta[0]?.cliente_nome ?? ''
     const termoPlaca = buscaPlaca.trim().toUpperCase()
@@ -103,13 +103,14 @@ export function FrotaPublica() {
       clienteNome,
       porPatio: [...porPatioMap.values()].sort((a, b) => a.nome.localeCompare(b.nome)),
       jaSaiu,
+      totalNoPatio: noPatio.length,
       totalGeral: lista.length,
     }
   }, [itens, filtroSituacao, buscaPlaca])
 
   return (
     <div className="min-h-svh bg-background px-4 py-8">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex justify-center">
           <Logo size="md" />
         </div>
@@ -171,11 +172,16 @@ export function FrotaPublica() {
             )}
 
             {porPatio.length > 0 && (
-              <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Card className="border-primary/40 bg-primary/5 p-6">
+                  <p className="text-sm font-medium text-primary truncate">Total no pátio</p>
+                  <p className="mt-1 text-4xl font-bold text-foreground">{totalNoPatio}</p>
+                  <p className="text-xs text-secondary">{totalNoPatio === 1 ? 'caminhão' : 'caminhões'}</p>
+                </Card>
                 {porPatio.map((p) => (
-                  <Card key={p.nome} className="p-5">
+                  <Card key={p.nome} className="p-6">
                     <p className="text-sm text-secondary truncate">{p.nome}</p>
-                    <p className="mt-1 text-3xl font-semibold text-foreground">{p.veiculos.length}</p>
+                    <p className="mt-1 text-4xl font-bold text-foreground">{p.veiculos.length}</p>
                     <p className="text-xs text-secondary">{p.veiculos.length === 1 ? 'caminhão' : 'caminhões'}</p>
                   </Card>
                 ))}
