@@ -29,7 +29,7 @@ function FotoVeiculoMiniatura({ url, placa }: { url: string | null; placa: strin
     <img
       src={urlMiniatura(url, 72)}
       onError={aoFalharMiniatura(url)}
-      alt={`Frente — ${placa}`}
+      alt={`Foto — ${placa}`}
       loading="lazy"
       decoding="async"
       width={36}

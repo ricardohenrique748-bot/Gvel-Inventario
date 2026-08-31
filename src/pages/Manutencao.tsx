@@ -22,7 +22,7 @@ import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useStatusManutencao } from '@/hooks/useStatusManutencao'
 import { usePatios } from '@/hooks/usePatios'
 import { useOSStatusBatch } from '@/hooks/useOSStatusBatch'
-import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
+import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
 
 export function Manutencao() {
   const filtroInicial: FiltersValue = {
@@ -374,12 +374,12 @@ export function Manutencao() {
                         : 'border-border/40 bg-card hover:border-border hover:bg-overlay/5 active:scale-[0.99]'
                     }`}
                   >
-                    {/* Foto da Frente ou Ícone */}
-                    {m.foto_frente_url ? (
+                    {/* Foto do Veículo (qualquer ângulo disponível) ou Ícone */}
+                    {primeiraFotoMovimentacao(m) ? (
                       <img
-                        src={urlMiniatura(m.foto_frente_url, 112)}
-                        onError={aoFalharMiniatura(m.foto_frente_url)}
-                        alt={`Frente — ${m.veiculo?.placa}`}
+                        src={urlMiniatura(primeiraFotoMovimentacao(m)!, 112)}
+                        onError={aoFalharMiniatura(primeiraFotoMovimentacao(m)!)}
+                        alt={`Foto — ${m.veiculo?.placa}`}
                         loading="lazy"
                         decoding="async"
                         width={56}
@@ -491,11 +491,11 @@ export function Manutencao() {
                 <Card className="p-4 bg-background border-border/60 uppercase shadow-lg">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex items-center gap-3.5">
-                      {selecionado.foto_frente_url ? (
+                      {primeiraFotoMovimentacao(selecionado) ? (
                         <img
-                          src={urlMiniatura(selecionado.foto_frente_url, 128)}
-                          onError={aoFalharMiniatura(selecionado.foto_frente_url)}
-                          alt={`Frente — ${selecionado.veiculo?.placa}`}
+                          src={urlMiniatura(primeiraFotoMovimentacao(selecionado)!, 128)}
+                          onError={aoFalharMiniatura(primeiraFotoMovimentacao(selecionado)!)}
+                          alt={`Foto — ${selecionado.veiculo?.placa}`}
                           width={64}
                           height={64}
                           className="h-16 w-16 shrink-0 rounded-xl object-cover border border-border/30"

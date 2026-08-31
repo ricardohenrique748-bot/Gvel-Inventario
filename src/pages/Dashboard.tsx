@@ -27,7 +27,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { permanenciaEmMinutos, formatMinutosParaTexto } from '@/lib/format'
 import { CHART_ENTRADA, CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
-import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
+import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
 
 export function Dashboard() {
   const { theme } = useTheme()
@@ -271,11 +271,11 @@ export function Dashboard() {
                           to={`/veiculos/${m.veiculo_id}`}
                           className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
                         >
-                          {m.foto_frente_url ? (
+                          {primeiraFotoMovimentacao(m) ? (
                             <img
-                              src={urlMiniatura(m.foto_frente_url, 112)}
-                              onError={aoFalharMiniatura(m.foto_frente_url)}
-                              alt={`Frente — ${m.veiculo?.placa}`}
+                              src={urlMiniatura(primeiraFotoMovimentacao(m)!, 112)}
+                              onError={aoFalharMiniatura(primeiraFotoMovimentacao(m)!)}
+                              alt={`Foto — ${m.veiculo?.placa}`}
                               loading="lazy"
                               decoding="async"
                               width={56}
@@ -325,11 +325,11 @@ export function Dashboard() {
                           to={`/veiculos/${m.veiculo_id}`}
                           className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
                         >
-                          {m.foto_frente_url ? (
+                          {primeiraFotoMovimentacao(m) ? (
                             <img
-                              src={urlMiniatura(m.foto_frente_url, 112)}
-                              onError={aoFalharMiniatura(m.foto_frente_url)}
-                              alt={`Frente — ${m.veiculo?.placa}`}
+                              src={urlMiniatura(primeiraFotoMovimentacao(m)!, 112)}
+                              onError={aoFalharMiniatura(primeiraFotoMovimentacao(m)!)}
+                              alt={`Foto — ${m.veiculo?.placa}`}
                               loading="lazy"
                               decoding="async"
                               width={56}

@@ -14,7 +14,7 @@ import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
 import { obterLinkPublico } from '@/hooks/useClientes'
 import { permanenciaEmMinutos, formatMinutosParaTexto, formatDate, formatDateTime } from '@/lib/format'
 import { generatePdfFromHtml, reportHeaderHtml, reportFooterHtml } from '@/lib/pdf'
-import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
+import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 
 function FotoVeiculoMiniatura({ url, placa }: { url: string | null; placa: string | undefined }) {
@@ -29,7 +29,7 @@ function FotoVeiculoMiniatura({ url, placa }: { url: string | null; placa: strin
     <img
       src={urlMiniatura(url, 96)}
       onError={aoFalharMiniatura(url)}
-      alt={`Frente — ${placa ?? ''}`}
+      alt={`Foto — ${placa ?? ''}`}
       loading="lazy"
       decoding="async"
       width={48}
@@ -281,7 +281,7 @@ export function Relatorios() {
                                 className="flex items-center justify-between gap-2 rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
                               >
                                 <div className="flex items-center gap-3">
-                                  <FotoVeiculoMiniatura url={m.foto_frente_url} placa={m.veiculo?.placa} />
+                                  <FotoVeiculoMiniatura url={primeiraFotoMovimentacao(m)} placa={m.veiculo?.placa} />
                                   <div>
                                     <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
                                     <p className="text-sm text-secondary">
@@ -311,7 +311,7 @@ export function Relatorios() {
                           to={`/veiculos/${m.veiculo_id}`}
                           className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 hover:bg-surface-hover"
                         >
-                          <FotoVeiculoMiniatura url={m.foto_frente_url} placa={m.veiculo?.placa} />
+                          <FotoVeiculoMiniatura url={primeiraFotoMovimentacao(m)} placa={m.veiculo?.placa} />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
                               <p className="text-foreground font-medium">{m.veiculo?.placa}</p>

@@ -149,6 +149,7 @@ export interface FrotaPublicaItem {
   status: StatusMovimentacao
   status_manutencao: string | null
   operante: boolean
+  /** Apesar do nome, é a melhor foto disponível (get_frota_publica faz COALESCE entre todos os ângulos). */
   foto_frente_url: string | null
   data_hora_entrada: string
   data_hora_saida: string | null

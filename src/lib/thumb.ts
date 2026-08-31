@@ -23,3 +23,26 @@ export function aoFalharMiniatura(urlOriginal: string) {
     if (e.currentTarget.src !== urlOriginal) e.currentTarget.src = urlOriginal
   }
 }
+
+/**
+ * Escolhe uma foto pra representar a movimentação numa miniatura única (listas,
+ * dashboard, etc). Antes essas telas mostravam só `foto_frente_url` e ficavam
+ * sem nenhuma miniatura quando o inspetor não tirou a foto da frente mas tirou
+ * as outras — agora cai pro primeiro ângulo disponível.
+ */
+export function primeiraFotoMovimentacao(m: {
+  foto_frente_url?: string | null
+  foto_lado_esquerdo_url?: string | null
+  foto_lado_direito_url?: string | null
+  foto_traseira_url?: string | null
+  foto_painel_url?: string | null
+}): string | null {
+  return (
+    m.foto_frente_url ||
+    m.foto_lado_esquerdo_url ||
+    m.foto_lado_direito_url ||
+    m.foto_traseira_url ||
+    m.foto_painel_url ||
+    null
+  )
+}
