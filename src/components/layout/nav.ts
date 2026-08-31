@@ -11,7 +11,6 @@ import {
   Hammer,
   BarChart3,
   DollarSign,
-  UserCheck,
   ClipboardCheck,
   Package,
   Boxes,
@@ -61,7 +60,6 @@ export const navItems = [
     ],
   },
   { to: '/financeiro', label: 'Financeiro', icon: DollarSign },
-  { to: '/rh', label: 'RH', icon: UserCheck },
   {
     to: '/configuracoes',
     label: 'Configurações',

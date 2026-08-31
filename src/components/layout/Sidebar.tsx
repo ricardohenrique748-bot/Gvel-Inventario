@@ -139,7 +139,6 @@ export function Sidebar() {
   const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao')
   const canAccessInventarioCaminhoes = isModuloAuthorized(userRef, 'inventario_caminhoes')
   const canAccessFrotas = isModuloAuthorized(userRef, 'frotas')
-  const canAccessRH = isModuloAuthorized(userRef, 'rh')
   const canAccessConfiguracoes = isAdmin || isModuloAuthorized(userRef, 'configuracoes')
   const location = useLocation()
 
@@ -178,7 +177,6 @@ export function Sidebar() {
         if (item.to === '/inventario-ferramentas') return canAccessEstoque
         if (item.to === '/financeiro') return canAccessFinanceiro
         if (item.to === '/kanban') return canAccessKanban
-        if (item.to === '/rh') return canAccessRH
         if (item.to === '/configuracoes') return canAccessConfiguracoes || canAccessRelatorios
         return true
       })
@@ -219,7 +217,6 @@ export function Sidebar() {
     canAccessManutencao,
     canAccessInventarioCaminhoes,
     canAccessFrotas,
-    canAccessRH,
     canAccessConfiguracoes,
   ])
 
