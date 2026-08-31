@@ -15,14 +15,23 @@ import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarca
 import { usePatios, criarPatio } from '@/hooks/usePatios'
 import { useStatusManutencao, criarStatusManutencao } from '@/hooks/useStatusManutencao'
 import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
-import { registrarEntrada, type FotosEntrada } from '@/hooks/useMovimentacoes'
-import { Plus, X } from 'lucide-react'
+import { registrarEntrada, type FotosEntrada, type RegistrarEntradaInput } from '@/hooks/useMovimentacoes'
+import { Plus, X, RotateCcw, Trash2, FileClock } from 'lucide-react'
 import { FotoInput } from '@/components/FotoInput'
 import { nowLocalInputValue } from '@/lib/format'
 import { ANGULOS_FOTO, type AnguloFoto } from '@/lib/fotos'
 import { type FotoExtraItem } from '@/lib/fotosExtras'
 import { comprimirImagem } from '@/lib/imagem'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
+import {
+  salvarRascunhoEntrada,
+  listarRascunhosEntrada,
+  removerRascunhoEntrada,
+  atualizarErroRascunhoEntrada,
+  type RascunhoEntrada,
+} from '@/lib/rascunhosEntrada'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 const NOVO_VEICULO = '__novo__'
 const anoAtual = new Date().getFullYear()
@@ -89,10 +98,80 @@ type FormValues = z.infer<typeof schema>
 export function RegistrarEntrada() {
   const navigate = useNavigate()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitAviso, setSubmitAviso] = useState<string | null>(null)
   const [fotos, setFotos] = useState<Partial<Record<AnguloFoto, { file: File; previewUrl: string }>>>({})
   const [fotosExtras, setFotosExtras] = useState<FotoExtraItem[]>([])
   const inputFotoExtraRef = useRef<HTMLInputElement>(null)
   const [comprimindoExtra, setComprimindoExtra] = useState(false)
+
+  const [rascunhos, setRascunhos] = useState<RascunhoEntrada[]>([])
+  const [rascunhoEnviandoId, setRascunhoEnviandoId] = useState<string | null>(null)
+
+  const carregarRascunhos = async () => {
+    try {
+      setRascunhos(await listarRascunhosEntrada())
+    } catch (err) {
+      console.warn('Não foi possível ler rascunhos de entrada:', err)
+    }
+  }
+
+  // Retorna o id do veículo se conseguiu enviar, ou null se ainda falhou.
+  // Não navega — quem chama decide o que fazer com o resultado (a tentativa
+  // manual navega até o veículo, a automática em segundo plano não).
+  async function tentarEnviarRascunho(rascunho: RascunhoEntrada): Promise<string | null> {
+    try {
+      const mov = await registrarEntrada(rascunho.input, rascunho.fotos)
+      await removerRascunhoEntrada(rascunho.id)
+      return mov.veiculo_id
+    } catch (err) {
+      const mensagem = err instanceof Error ? err.message : 'Não foi possível enviar o rascunho.'
+      await atualizarErroRascunhoEntrada(rascunho.id, mensagem)
+      return null
+    }
+  }
+
+  useEffect(() => {
+    carregarRascunhos()
+
+    // Quando a conexão voltar, tenta reenviar os rascunhos pendentes sozinho
+    // em segundo plano (sem navegar, sem interromper o que o usuário estiver
+    // fazendo na tela) — um por vez, pra não sobrecarregar uma conexão que
+    // acabou de voltar.
+    let cancelado = false
+    const handleOnline = async () => {
+      const pendentes = await listarRascunhosEntrada()
+      for (const r of pendentes) {
+        if (cancelado) return
+        await tentarEnviarRascunho(r)
+      }
+      if (!cancelado) await carregarRascunhos()
+    }
+    window.addEventListener('online', handleOnline)
+    return () => {
+      cancelado = true
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [])
+
+  async function handleTentarRascunho(rascunho: RascunhoEntrada) {
+    setRascunhoEnviandoId(rascunho.id)
+    try {
+      const veiculoId = await tentarEnviarRascunho(rascunho)
+      if (veiculoId) {
+        navigate(`/veiculos/${veiculoId}`)
+      } else {
+        await carregarRascunhos()
+      }
+    } finally {
+      setRascunhoEnviandoId(null)
+    }
+  }
+
+  async function handleExcluirRascunho(id: string) {
+    if (!confirm('Excluir este rascunho? A entrada preenchida e as fotos serão perdidas.')) return
+    await removerRascunhoEntrada(id)
+    await carregarRascunhos()
+  }
 
   const { clientes, refetch: refetchClientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
@@ -167,6 +246,7 @@ export function RegistrarEntrada() {
 
   async function onSubmit(values: FormValues) {
     setSubmitError(null)
+    setSubmitAviso(null)
 
     const fotosEntrada: FotosEntrada = {
       frente: fotos.frente?.file,
@@ -194,44 +274,53 @@ export function RegistrarEntrada() {
       return
     }
 
+    const input: RegistrarEntradaInput =
+      values.veiculoId === NOVO_VEICULO
+        ? {
+            placa: values.placa ?? `SEM-${Date.now()}`,
+            marcaId: values.marcaId ?? '',
+            modeloId: values.modeloId ?? '',
+            clienteId: values.clienteId,
+            tipo: values.tipo!,
+            cor: values.cor ?? '',
+            chassi: values.chassi,
+            operante: values.situacao ? values.situacao === 'operante' : true,
+            ano: values.ano && !Number.isNaN(values.ano) ? values.ano : new Date().getFullYear(),
+            patioId: values.patioId,
+            statusId: values.statusId || undefined,
+            motorista: values.motorista || undefined,
+            dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
+            kmEntrada: values.kmEntrada || undefined,
+            observacoes: values.observacoes?.trim() || undefined,
+          }
+        : {
+            veiculoId: values.veiculoId,
+            patioId: values.patioId,
+            statusId: values.statusId || undefined,
+            motorista: values.motorista || undefined,
+            dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
+            kmEntrada: values.kmEntrada || undefined,
+            observacoes: values.observacoes?.trim() || undefined,
+          }
+
     try {
-      const mov =
-        values.veiculoId === NOVO_VEICULO
-          ? await registrarEntrada(
-              {
-                placa: values.placa ?? `SEM-${Date.now()}`,
-                marcaId: values.marcaId ?? '',
-                modeloId: values.modeloId ?? '',
-                clienteId: values.clienteId,
-                tipo: values.tipo!,
-                cor: values.cor ?? '',
-                chassi: values.chassi,
-                operante: values.situacao ? values.situacao === 'operante' : true,
-                ano: values.ano && !Number.isNaN(values.ano) ? values.ano : new Date().getFullYear(),
-                patioId: values.patioId,
-                statusId: values.statusId || undefined,
-                motorista: values.motorista || undefined,
-                dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
-                kmEntrada: values.kmEntrada || undefined,
-                observacoes: values.observacoes?.trim() || undefined,
-              },
-              fotosEntrada,
-            )
-          : await registrarEntrada(
-              {
-                veiculoId: values.veiculoId,
-                patioId: values.patioId,
-                statusId: values.statusId || undefined,
-                motorista: values.motorista || undefined,
-                dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
-                kmEntrada: values.kmEntrada || undefined,
-                observacoes: values.observacoes?.trim() || undefined,
-              },
-              fotosEntrada,
-            )
+      const mov = await registrarEntrada(input, fotosEntrada)
       navigate(`/veiculos/${mov.veiculo_id}`)
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Não foi possível registrar a entrada.')
+      const mensagem = err instanceof Error ? err.message : 'Não foi possível registrar a entrada.'
+      try {
+        const nomeCliente = clientes.find((c) => c.id === values.clienteId)?.nome
+        const placaResumo = values.veiculoId === NOVO_VEICULO ? values.placa : veiculoSelecionado?.placa
+        const resumo = [placaResumo || 'PLACA NÃO INFORMADA', nomeCliente].filter(Boolean).join(' — ')
+        await salvarRascunhoEntrada(input, fotosEntrada, resumo, mensagem)
+        await carregarRascunhos()
+        setSubmitAviso(
+          'Não foi possível enviar agora (falha de conexão). Os dados e as fotos foram salvos como rascunho abaixo — tente novamente quando a internet melhorar.',
+        )
+      } catch (draftErr) {
+        console.error('Falha ao salvar rascunho local da entrada:', draftErr)
+        setSubmitError(mensagem)
+      }
     }
   }
 
@@ -246,8 +335,63 @@ export function RegistrarEntrada() {
     <div>
       <PageHeader title="Registrar entrada" subtitle="Novo veículo no pátio" back />
 
+      {rascunhos.length > 0 && (
+        <Card className="max-w-2xl mb-5 border-amber-500/30 bg-amber-500/5">
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 mb-3">
+              <FileClock className="h-4 w-4 text-amber-500 shrink-0" />
+              <p className="text-sm font-semibold text-foreground">
+                {rascunhos.length} entrada{rascunhos.length > 1 ? 's' : ''} pendente{rascunhos.length > 1 ? 's' : ''} de envio
+              </p>
+            </div>
+            <div className="space-y-2.5">
+              {rascunhos.map((r) => (
+                <div key={r.id} className="rounded-xl border border-border/10 bg-background p-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{r.resumo}</p>
+                      <p className="text-xs text-secondary mt-0.5">
+                        Salvo em {format(new Date(r.criadoEm), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </p>
+                      {r.ultimoErro && (
+                        <p className="text-xs text-status-danger mt-1">{r.ultimoErro}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleTentarRascunho(r)}
+                        disabled={rascunhoEnviandoId === r.id}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/20 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+                      >
+                        <RotateCcw className={`h-3.5 w-3.5 ${rascunhoEnviandoId === r.id ? 'animate-spin' : ''}`} />
+                        {rascunhoEnviandoId === r.id ? 'Enviando…' : 'Tentar enviar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExcluirRascunho(r.id)}
+                        disabled={rascunhoEnviandoId === r.id}
+                        className="flex items-center justify-center h-7 w-7 text-secondary hover:text-status-danger hover:bg-status-danger/10 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+                        aria-label="Excluir rascunho"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="max-w-2xl">
         <CardContent className="pt-6">
+          {submitAviso && (
+            <div className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+              {submitAviso}
+            </div>
+          )}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
             <Controller
               control={control}

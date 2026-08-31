@@ -123,7 +123,7 @@ interface RegistrarEntradaComum {
   observacoes?: string
 }
 
-type RegistrarEntradaInput =
+export type RegistrarEntradaInput =
   | (RegistrarEntradaComum & { veiculoId: string })
   | (RegistrarEntradaComum & {
       placa: string
@@ -149,31 +149,82 @@ export interface FotosEntrada {
 }
 
 async function getUsuarioAtualId() {
-  const { data, error } = await supabase.auth.getSession()
-  if (data.session?.user?.id) return data.session.user.id
-  if (error) console.error('getSession falhou ao resolver usuário atual:', error)
-  // Fallback: no WebView do app nativo a sessão local às vezes ainda não terminou
-  // de reidratar nesse ponto — getUser() revalida direto com o servidor.
-  const { data: userData, error: userError } = await supabase.auth.getUser()
-  if (userError) console.error('getUser falhou ao resolver usuário atual:', userError)
-  // Se isso também falhar (ex: token perdeu o refresh por o app nativo ter sido
-  // minimizado durante o fluxo de fotos), o banco preenche via trigger usando
-  // auth.uid() da própria requisição — ver migration 0032.
-  return userData.user?.id ?? null
-}
-
-export async function uploadFotoEntrada(movimentacaoId: string, campo: string, file: File) {
-  const ext = file.type === 'image/png' ? 'png' : 'jpg'
-  const path = `entrada/${movimentacaoId}/${campo}.${ext}`
-  const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
-    contentType: file.type,
-    upsert: true,
-  })
-  if (error) {
-    console.error('Erro ao fazer upload da foto:', error)
+  try {
+    const { data, error } = await supabase.auth.getSession()
+    if (data.session?.user?.id) return data.session.user.id
+    if (error) console.error('getSession falhou ao resolver usuário atual:', error)
+    // Fallback: no WebView do app nativo a sessão local às vezes ainda não terminou
+    // de reidratar nesse ponto — getUser() revalida direto com o servidor.
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    if (userError) console.error('getUser falhou ao resolver usuário atual:', userError)
+    return userData.user?.id ?? null
+  } catch (err) {
+    // Com internet fraca isso pode rejeitar em vez de retornar `error` — não pode
+    // derrubar o registro da movimentação por causa disso. O banco preenche via
+    // trigger usando auth.uid() da própria requisição — ver migration 0032.
+    console.error('Falha de rede ao resolver usuário atual:', err)
     return null
   }
-  return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
+function aguardar(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// Corre uma promise contra um limite de tempo. Em sinal fraco (mas não
+// totalmente offline) o pedido pode ficar "pendurado" muito mais tempo do
+// que o SO levaria pra desistir sozinho — sem isso a retentativa demoraria
+// demais pra perceber que precisa tentar de novo. O pedido original ainda
+// pode terminar em segundo plano; como o upload usa `upsert`, se ele
+// completar depois só sobrescreve o mesmo arquivo, sem problema.
+function comTimeout<T>(promise: Promise<T>, ms: number, mensagem: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(mensagem)), ms)),
+  ])
+}
+
+// Fotos são obrigatórias: se não conseguir subir, a movimentação não pode
+// ser salva sem elas. Mas com internet fraca uma única tentativa costuma
+// falhar por instabilidade passageira (não por estar realmente offline) —
+// então tenta de novo automaticamente antes de desistir de vez.
+const TENTATIVAS_UPLOAD_FOTO = 4
+const ESPERA_BASE_MS = 1200
+const TIMEOUT_POR_TENTATIVA_MS = 15000
+
+export async function uploadFotoEntrada(movimentacaoId: string, campo: string, file: File): Promise<string> {
+  const ext = file.type === 'image/png' ? 'png' : 'jpg'
+  const path = `entrada/${movimentacaoId}/${campo}.${ext}`
+
+  let ultimoErro: unknown = null
+  for (let tentativa = 1; tentativa <= TENTATIVAS_UPLOAD_FOTO; tentativa++) {
+    try {
+      const { error } = await comTimeout(
+        supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
+          contentType: file.type,
+          upsert: true,
+        }),
+        TIMEOUT_POR_TENTATIVA_MS,
+        `Tempo esgotado ao enviar a foto "${campo}"`,
+      )
+      if (!error) {
+        return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+      }
+      ultimoErro = error
+      console.warn(`Falha ao enviar foto "${campo}" (tentativa ${tentativa}/${TENTATIVAS_UPLOAD_FOTO}):`, error)
+    } catch (err) {
+      // Com internet fraca o próprio fetch pode rejeitar (ou estourar o timeout acima)
+      // em vez de retornar `error`.
+      ultimoErro = err
+      console.warn(`Falha de rede ao enviar foto "${campo}" (tentativa ${tentativa}/${TENTATIVAS_UPLOAD_FOTO}):`, err)
+    }
+    if (tentativa < TENTATIVAS_UPLOAD_FOTO) {
+      await aguardar(ESPERA_BASE_MS * tentativa) // 1.2s, 2.4s, 3.6s entre tentativas
+    }
+  }
+
+  console.error(`Não foi possível enviar a foto "${campo}" após ${TENTATIVAS_UPLOAD_FOTO} tentativas:`, ultimoErro)
+  throw new Error(`Não foi possível enviar a foto "${campo}". Verifique sua conexão e tente novamente.`)
 }
 
 export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: FotosEntrada) {
