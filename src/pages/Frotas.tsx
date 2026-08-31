@@ -3114,7 +3114,11 @@ export function Frotas() {
                       placeholder="DIGITE A PLACA, MODELO OU RESPONSÁVEL (EX: IXF4J63, SAVEIRO, TIAGO)..."
                       value={placaBuscaChecklist}
                       onFocus={() => {
-                        setDropdownPlacaAberto(true)
+                        // Só reabre a lista ao focar de novo se já tiver algo digitado —
+                        // não faz sentido abrir os 27 veículos de cara ao abrir o modal.
+                        if (placaBuscaChecklist.trim()) {
+                          setDropdownPlacaAberto(true)
+                        }
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
