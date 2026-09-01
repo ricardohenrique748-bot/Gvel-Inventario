@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Truck, LogIn, LogOut, Clock, FileSpreadsheet } from 'lucide-react'
+import { Truck, LogIn, LogOut, Clock, FileSpreadsheet, AlertTriangle, Settings, X } from 'lucide-react'
 import {
   ResponsiveContainer,
   BarChart,
@@ -28,12 +28,134 @@ import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { isAdminUsuario } from '@/lib/permissoes'
-import { useMovimentacoes } from '@/hooks/useMovimentacoes'
+import { useMovimentacoes, registrarSaida } from '@/hooks/useMovimentacoes'
 import { useStatusManutencao } from '@/hooks/useStatusManutencao'
 import { useEtapasNoPeriodo } from '@/hooks/useHistoricoMovimentacao'
-import { permanenciaEmMinutos, formatMinutosParaTexto, formatDate } from '@/lib/format'
+import { permanenciaEmMinutos, formatMinutosParaTexto, formatDate, formatDateTime } from '@/lib/format'
 import { CHART_ENTRADA, CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
 import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
+
+// Sinaliza veículos com mais de uma movimentação "no pátio" ao mesmo tempo —
+// normalmente causado por reenvio automático de rascunho de entrada com
+// internet fraca antes da correção de idempotência em registrarEntrada().
+type GrupoDuplicado = ReturnType<typeof useMovimentacoes>['movimentacoes']
+
+function useDuplicatasNoPatio(ativo: boolean) {
+  const { movimentacoes: todasNoPatio, refetch } = useMovimentacoes(ativo ? { status: 'no_patio' } : {})
+
+  const duplicatas = useMemo(() => {
+    if (!ativo) return []
+    const porVeiculo = new Map<string, GrupoDuplicado>()
+    for (const m of todasNoPatio) {
+      if (!m.veiculo_id) continue
+      if (!porVeiculo.has(m.veiculo_id)) porVeiculo.set(m.veiculo_id, [])
+      porVeiculo.get(m.veiculo_id)!.push(m)
+    }
+    return [...porVeiculo.values()]
+      .filter((lista) => lista.length > 1)
+      .map((lista) => [...lista].sort((a, b) => new Date(b.data_hora_entrada).getTime() - new Date(a.data_hora_entrada).getTime()))
+  }, [ativo, todasNoPatio])
+
+  return { duplicatas, refetch }
+}
+
+// Deixa o admin decidir qual registro duplicado fechar (marcar como saída) —
+// fica escondido atrás do ícone de engrenagem pra não poluir o Dashboard.
+function DuplicatasNoPatioModal({
+  duplicatas,
+  onFechar,
+  onAtualizar,
+}: {
+  duplicatas: GrupoDuplicado[]
+  onFechar: () => void
+  onAtualizar: () => void | Promise<void>
+}) {
+  const [processandoId, setProcessandoId] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function handleMarcarSaida(movId: string) {
+    if (
+      !confirm(
+        'Marcar esta movimentação como SAÍDA agora? Use isso pra fechar o registro duplicado, mantendo só o correto como "no pátio".',
+      )
+    ) {
+      return
+    }
+    setErro(null)
+    setProcessandoId(movId)
+    try {
+      await registrarSaida(movId)
+      await onAtualizar()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível fechar a movimentação.')
+    } finally {
+      setProcessandoId(null)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onFechar}>
+      <div
+        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl bg-surface p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-amber-400">
+            <AlertTriangle className="h-4 w-4" />
+            {duplicatas.length} veículo(s) com movimentação "no pátio" duplicada
+          </h3>
+          <button
+            type="button"
+            onClick={onFechar}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-secondary hover:bg-background hover:text-foreground"
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {duplicatas.length === 0 ? (
+          <p className="text-sm text-secondary">Nenhuma duplicata encontrada no momento. 🎉</p>
+        ) : (
+          <>
+            <p className="text-sm text-secondary">
+              Esses veículos têm mais de uma entrada ativa ao mesmo tempo (geralmente reenvio automático com
+              internet fraca). Escolha qual registro está errado e marque como saída — mantenha só o correto.
+            </p>
+            {erro && <p className="text-sm text-status-danger">{erro}</p>}
+            <div className="space-y-4">
+              {duplicatas.map((grupo) => (
+                <div key={grupo[0].veiculo_id} className="rounded-xl bg-background p-3 space-y-2">
+                  <p className="text-foreground font-medium">{grupo[0].veiculo?.placa}</p>
+                  {grupo.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2"
+                    >
+                      <span className="text-sm text-secondary">
+                        Entrada: {formatDateTime(m.data_hora_entrada)} · Pátio: {m.patio?.nome || '—'}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="md"
+                        onClick={() => handleMarcarSaida(m.id)}
+                        disabled={processandoId === m.id}
+                        className="!h-8 !text-xs"
+                      >
+                        {processandoId === m.id ? 'Fechando…' : 'Marcar esta como saída'}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export function Dashboard() {
   const { theme } = useTheme()
@@ -249,6 +371,8 @@ export function Dashboard() {
   const totalEtapasHoje = etapasHojeAgrupadas.reduce((acc, [, l]) => acc + l.length, 0)
 
   const [painelAberto, setPainelAberto] = useState<'no_patio' | 'entradas_hoje' | 'saidas_hoje' | null>(null)
+  const [duplicatasAbertas, setDuplicatasAbertas] = useState(false)
+  const { duplicatas, refetch: refetchDuplicatas } = useDuplicatasNoPatio(isAdmin)
 
   const loading = loadingNoPatio || loadingPeriodo
 
@@ -289,13 +413,38 @@ export function Dashboard() {
         subtitle="Visão geral do pátio"
         actions={
           isAdmin && (
-            <Button variant="secondary" onClick={handleExportarExcel} disabled={loadingNoPatio || noPatio.length === 0}>
-              <FileSpreadsheet className="h-4 w-4" />
-              Exportar Excel
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                size="icon"
+                onClick={() => setDuplicatasAbertas(true)}
+                aria-label="Movimentações duplicadas"
+                title="Movimentações duplicadas"
+                className="relative"
+              >
+                <Settings className="h-4 w-4" />
+                {duplicatas.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
+                    {duplicatas.length}
+                  </span>
+                )}
+              </Button>
+              <Button variant="secondary" onClick={handleExportarExcel} disabled={loadingNoPatio || noPatio.length === 0}>
+                <FileSpreadsheet className="h-4 w-4" />
+                Exportar Excel
+              </Button>
+            </>
           )
         }
       />
+
+      {isAdmin && duplicatasAbertas && (
+        <DuplicatasNoPatioModal
+          duplicatas={duplicatas}
+          onFechar={() => setDuplicatasAbertas(false)}
+          onAtualizar={refetchDuplicatas}
+        />
+      )}
 
       <div className="mb-6 space-y-3">
         <FiltersBar

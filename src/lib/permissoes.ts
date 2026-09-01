@@ -121,6 +121,7 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
       { id: 'config_empresas', label: 'Empresas', descricao: 'Cadastro e gestão de empresas do Grupo GVEL' },
       { id: 'config_clientes', label: 'Clientes', descricao: 'Cadastro e gerenciamento de clientes e contatos' },
       { id: 'config_frota', label: 'Frota', descricao: 'Modelos, marcas e veículos da frota' },
+      { id: 'config_patios', label: 'Pátios', descricao: 'Cadastro de pátios/setores e correção de duplicatas' },
       { id: 'config_usuarios', label: 'Usuários & Permissões', descricao: 'Gerenciar contas, senhas e permissões de acesso' },
       { id: 'config_notificacoes', label: 'Notificações', descricao: 'Preferências de alertas e avisos sonoros' },
     ],

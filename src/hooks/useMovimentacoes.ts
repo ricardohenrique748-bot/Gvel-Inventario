@@ -227,7 +227,18 @@ export async function uploadFotoEntrada(movimentacaoId: string, campo: string, f
   throw new Error(`Não foi possível enviar a foto "${campo}". Verifique sua conexão e tente novamente.`)
 }
 
-export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: FotosEntrada) {
+/**
+ * @param movimentacaoIdExistente Reaproveita o mesmo id entre tentativas do mesmo
+ * rascunho (ver rascunhosEntrada.ts) — com internet fraca a inserção pode ter
+ * sido bem-sucedida no servidor mesmo o cliente recebendo erro; sem um id
+ * estável, cada nova tentativa gerava um id aleatório e criava uma segunda
+ * movimentação "no pátio" duplicada pro mesmo veículo.
+ */
+export async function registrarEntrada(
+  input: RegistrarEntradaInput,
+  fotos?: FotosEntrada,
+  movimentacaoIdExistente?: string,
+) {
   const veiculoId =
     'veiculoId' in input
       ? input.veiculoId
@@ -245,7 +256,7 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
           })
         ).id
 
-  const movimentacaoId = crypto.randomUUID()
+  const movimentacaoId = movimentacaoIdExistente ?? crypto.randomUUID()
 
   // Processa uploads das fotos padrão e extras em paralelo
   const [usuarioId, fotoFrenteUrl, fotoLadoEsquerdoUrl, fotoLadoDireitoUrl, fotoTraseiraUrl, fotoPainelUrl, fotosExtrasProcessadas] =
@@ -278,25 +289,31 @@ export async function registrarEntrada(input: RegistrarEntradaInput, fotos?: Fot
   const extrasValidas = (fotosExtrasProcessadas || []).filter((f): f is { url: string; label: string | undefined } => f !== null)
   const observacoesComExtras = embutirFotosExtras(input.observacoes, extrasValidas)
 
+  // upsert (não insert) — se essa mesma movimentacaoId já foi gravada numa
+  // tentativa anterior que pareceu falhar pro cliente, reenviar só reescreve
+  // a mesma linha em vez de criar uma segunda entrada "no pátio".
   const { data, error } = await supabase
     .from('movimentacoes')
-    .insert({
-      id: movimentacaoId,
-      veiculo_id: veiculoId,
-      patio_id: input.patioId,
-      status_id: input.statusId || null,
-      motorista: up(input.motorista),
-      data_hora_entrada: input.dataHoraEntrada,
-      km_entrada: input.kmEntrada,
-      observacoes: up(observacoesComExtras),
-      status: 'no_patio',
-      foto_frente_url: fotoFrenteUrl,
-      foto_lado_esquerdo_url: fotoLadoEsquerdoUrl,
-      foto_lado_direito_url: fotoLadoDireitoUrl,
-      foto_traseira_url: fotoTraseiraUrl,
-      foto_painel_url: fotoPainelUrl,
-      usuario_entrada_id: usuarioId,
-    })
+    .upsert(
+      {
+        id: movimentacaoId,
+        veiculo_id: veiculoId,
+        patio_id: input.patioId,
+        status_id: input.statusId || null,
+        motorista: up(input.motorista),
+        data_hora_entrada: input.dataHoraEntrada,
+        km_entrada: input.kmEntrada,
+        observacoes: up(observacoesComExtras),
+        status: 'no_patio',
+        foto_frente_url: fotoFrenteUrl,
+        foto_lado_esquerdo_url: fotoLadoEsquerdoUrl,
+        foto_lado_direito_url: fotoLadoDireitoUrl,
+        foto_traseira_url: fotoTraseiraUrl,
+        foto_painel_url: fotoPainelUrl,
+        usuario_entrada_id: usuarioId,
+      },
+      { onConflict: 'id' },
+    )
     .select()
     .single()
 

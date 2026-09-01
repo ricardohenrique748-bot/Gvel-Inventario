@@ -3,10 +3,11 @@ import { PageHeader } from '@/components/layout/Header'
 import { useAuth } from '@/contexts/AuthContext'
 import { ClientesTab } from '@/pages/configuracoes/ClientesTab'
 import { FrotaTab } from '@/pages/configuracoes/FrotaTab'
+import { PatiosTab } from '@/pages/configuracoes/PatiosTab'
 import { UsuariosTab } from '@/pages/configuracoes/UsuariosTab'
 import { NotificacoesTab } from '@/pages/configuracoes/NotificacoesTab'
 import { EmpresasTab } from '@/pages/configuracoes/EmpresasTab'
-import { Users, Truck, UserCheck, Bell, Building2, ShieldAlert } from 'lucide-react'
+import { Users, Truck, UserCheck, Bell, Building2, ShieldAlert, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { temPermissaoModulo } from '@/lib/permissoes'
 
@@ -14,6 +15,7 @@ const ALL_TABS = [
   { id: 'empresas', subId: 'config_empresas', label: 'Empresas', icon: Building2 },
   { id: 'clientes', subId: 'config_clientes', label: 'Clientes', icon: Users },
   { id: 'frota', subId: 'config_frota', label: 'Frota', icon: Truck },
+  { id: 'patios', subId: 'config_patios', label: 'Pátios', icon: MapPin },
   { id: 'usuarios', subId: 'config_usuarios', label: 'Usuários', icon: UserCheck },
   { id: 'notificacoes', subId: 'config_notificacoes', label: 'Notificações', icon: Bell },
 ] as const
@@ -116,6 +118,7 @@ export function Configuracoes() {
         {tab === 'empresas' && <EmpresasTab />}
         {tab === 'clientes' && <ClientesTab />}
         {tab === 'frota' && <FrotaTab />}
+        {tab === 'patios' && <PatiosTab />}
         {tab === 'usuarios' && <UsuariosTab />}
         {tab === 'notificacoes' && <NotificacoesTab />}
       </div>

@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { LogOut, X } from 'lucide-react'
+import { LogOut, X, User } from 'lucide-react'
 import { PageHeader } from '@/components/layout/Header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -13,11 +13,82 @@ import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { TrajetoAtualCard } from '@/components/TrajetoAtualCard'
 import { useVeiculoDetalhe } from '@/hooks/useVeiculos'
 import { registrarSaida } from '@/hooks/useMovimentacoes'
+import { useChecklistOS } from '@/hooks/useChecklistOS'
+import { obterNomeCompletoMembro, formatarNomeSobrenome } from '@/constants/equipe'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { extrairFotosExtras } from '@/lib/fotosExtras'
 import type { Movimentacao } from '@/lib/types'
+
+function MecanicosAtividadesCard({ movimentacaoId }: { movimentacaoId: string }) {
+  const { osData, items, loading } = useChecklistOS(movimentacaoId)
+
+  if (loading) return null
+
+  const mecanicoPrincipal = osData.mecanico ? obterNomeCompletoMembro(osData.mecanico) : ''
+  const atividadesComMecanico = Object.values(items)
+    .filter((item) => item.mecanico && item.mecanico.trim())
+    .sort((a, b) => (a.data_inicio || '').localeCompare(b.data_inicio || '') || (a.hora_inicio || '').localeCompare(b.hora_inicio || ''))
+
+  if (!mecanicoPrincipal && atividadesComMecanico.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Mecânico(s) e atividades</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-secondary">Nenhum mecânico apontado ainda no checklist de manutenção.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Mecânico(s) e atividades</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {mecanicoPrincipal && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-bold uppercase text-blue-400">
+              <User className="h-3.5 w-3.5" />
+              {formatarNomeSobrenome(mecanicoPrincipal)}
+            </span>
+            {osData.funcao && <span className="text-xs uppercase text-secondary">{osData.funcao}</span>}
+            {osData.statusOS && <Badge tone={osData.dataHoraFechamento ? 'success' : 'warning'}>{osData.statusOS}</Badge>}
+          </div>
+        )}
+
+        {atividadesComMecanico.length > 0 && (
+          <div className="space-y-2">
+            {atividadesComMecanico.map((item) => (
+              <div
+                key={item.item_id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-background px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{item.label}</p>
+                  <p className="text-xs text-secondary">{formatarNomeSobrenome(obterNomeCompletoMembro(item.mecanico))}</p>
+                </div>
+                <Badge tone={item.checked ? 'success' : item.hora_inicio ? 'warning' : 'neutral'}>
+                  {item.hora_inicio && item.hora_fim
+                    ? `${item.hora_inicio}–${item.hora_fim}`
+                    : item.hora_inicio
+                      ? 'Em andamento'
+                      : item.checked
+                        ? 'Concluído'
+                        : 'Pendente'}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 const FOTOS_MOVIMENTACAO: { campo: keyof Movimentacao; label: string }[] = [
   { campo: 'foto_frente_url', label: 'Frente' },
@@ -334,6 +405,13 @@ export function VeiculoDetalhe() {
           )}
         </CardContent>
       </Card>
+
+      {/* — Mecânico(s) e atividades apontados no checklist de manutenção — */}
+      {movimentacaoAtiva && (
+        <div className="mt-6">
+          <MecanicosAtividadesCard movimentacaoId={movimentacaoAtiva.id} />
+        </div>
+      )}
 
       {/* — Modal de foto ampliada — */}
       {fotoAmpliada && (

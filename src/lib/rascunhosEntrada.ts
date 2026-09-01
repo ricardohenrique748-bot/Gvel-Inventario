@@ -16,6 +16,10 @@ export interface RascunhoEntrada {
   input: RegistrarEntradaInput
   fotos: FotosEntrada
   ultimoErro?: string
+  /** Id fixo da movimentação, reaproveitado em toda tentativa de reenvio deste
+   * rascunho — evita criar uma segunda entrada "no pátio" caso a tentativa
+   * anterior tenha, na verdade, sido gravada no servidor. */
+  movimentacaoId: string
 }
 
 function abrirBanco(): Promise<IDBDatabase> {
@@ -40,11 +44,12 @@ export async function salvarRascunhoEntrada(
   input: RegistrarEntradaInput,
   fotos: FotosEntrada,
   resumo: string,
-  ultimoErro?: string,
+  ultimoErro: string | undefined,
+  movimentacaoId: string,
 ): Promise<string> {
   const db = await abrirBanco()
   const id = `rascunho_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-  const registro: RascunhoEntrada = { id, criadoEm: new Date().toISOString(), resumo, input, fotos, ultimoErro }
+  const registro: RascunhoEntrada = { id, criadoEm: new Date().toISOString(), resumo, input, fotos, ultimoErro, movimentacaoId }
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite')
     tx.objectStore(STORE_NAME).put(registro)

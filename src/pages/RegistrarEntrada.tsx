@@ -120,7 +120,7 @@ export function RegistrarEntrada() {
   // manual navega até o veículo, a automática em segundo plano não).
   async function tentarEnviarRascunho(rascunho: RascunhoEntrada): Promise<string | null> {
     try {
-      const mov = await registrarEntrada(rascunho.input, rascunho.fotos)
+      const mov = await registrarEntrada(rascunho.input, rascunho.fotos, rascunho.movimentacaoId)
       await removerRascunhoEntrada(rascunho.id)
       return mov.veiculo_id
     } catch (err) {
@@ -303,8 +303,14 @@ export function RegistrarEntrada() {
             observacoes: values.observacoes?.trim() || undefined,
           }
 
+    // Gerado uma única vez aqui e reaproveitado em qualquer reenvio deste
+    // rascunho — se a tentativa atual falhar do lado do cliente mas o
+    // servidor já tiver gravado a movimentação, o reenvio com o mesmo id
+    // regrava a mesma linha em vez de criar uma segunda entrada duplicada.
+    const movimentacaoId = crypto.randomUUID()
+
     try {
-      const mov = await registrarEntrada(input, fotosEntrada)
+      const mov = await registrarEntrada(input, fotosEntrada, movimentacaoId)
       navigate(`/veiculos/${mov.veiculo_id}`)
     } catch (err) {
       const mensagem = err instanceof Error ? err.message : 'Não foi possível registrar a entrada.'
@@ -312,7 +318,7 @@ export function RegistrarEntrada() {
         const nomeCliente = clientes.find((c) => c.id === values.clienteId)?.nome
         const placaResumo = values.veiculoId === NOVO_VEICULO ? values.placa : veiculoSelecionado?.placa
         const resumo = [placaResumo || 'PLACA NÃO INFORMADA', nomeCliente].filter(Boolean).join(' — ')
-        await salvarRascunhoEntrada(input, fotosEntrada, resumo, mensagem)
+        await salvarRascunhoEntrada(input, fotosEntrada, resumo, mensagem, movimentacaoId)
         await carregarRascunhos()
         setSubmitAviso(
           'Não foi possível enviar agora (falha de conexão). Os dados e as fotos foram salvos como rascunho abaixo — tente novamente quando a internet melhorar.',
