@@ -15,6 +15,8 @@ import { useVeiculoDetalhe } from '@/hooks/useVeiculos'
 import { registrarSaida } from '@/hooks/useMovimentacoes'
 import { useChecklistOS } from '@/hooks/useChecklistOS'
 import { obterNomeCompletoMembro, formatarNomeSobrenome } from '@/constants/equipe'
+import { useAuth } from '@/contexts/AuthContext'
+import { isAdminUsuario } from '@/lib/permissoes'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
@@ -122,6 +124,8 @@ function agoraInputValue() {
 
 export function VeiculoDetalhe() {
   const { id } = useParams<{ id: string }>()
+  const { perfil, user } = useAuth()
+  const isAdmin = isAdminUsuario(perfil, user?.email)
   const { veiculo, historico, loading, refetch } = useVeiculoDetalhe(id)
   const [confirmandoSaida, setConfirmandoSaida] = useState(false)
   const [erroSaida, setErroSaida] = useState<string | null>(null)
@@ -406,8 +410,8 @@ export function VeiculoDetalhe() {
         </CardContent>
       </Card>
 
-      {/* — Mecânico(s) e atividades apontados no checklist de manutenção — */}
-      {movimentacaoAtiva && (
+      {/* — Mecânico(s) e atividades apontados no checklist de manutenção (só admin) — */}
+      {isAdmin && movimentacaoAtiva && (
         <div className="mt-6">
           <MecanicosAtividadesCard movimentacaoId={movimentacaoAtiva.id} />
         </div>
