@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { isAdminUsuario } from '@/lib/permissoes'
 import { useMovimentacoes, registrarSaida } from '@/hooks/useMovimentacoes'
 import { useStatusManutencao } from '@/hooks/useStatusManutencao'
+import { useOSStatusBatch } from '@/hooks/useOSStatusBatch'
 import { useEtapasNoPeriodo } from '@/hooks/useHistoricoMovimentacao'
 import { permanenciaEmMinutos, formatMinutosParaTexto, formatDate, formatDateTime } from '@/lib/format'
 import { CHART_ENTRADA, CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
@@ -376,12 +377,17 @@ export function Dashboard() {
 
   const loading = loadingNoPatio || loadingPeriodo
 
+  // Mecânico(s) apontados no checklist de manutenção de cada veículo no pátio —
+  // usado só na exportação em Excel (mesma fonte do card "Mecânico(s) e atividades").
+  const movimentacaoIdsNoPatio = useMemo(() => noPatio.map((m) => m.id), [noPatio])
+  const { getStatus: getStatusOS } = useOSStatusBatch(movimentacaoIdsNoPatio)
+
   // Exporta a lista de veículos no pátio (respeitando os filtros ativos, incluindo
   // setor/oficina) com quantos dias cada um já está parado — só admin vê o botão.
   // Gera CSV (abre direto no Excel) em vez de puxar uma lib de .xlsx: evita
   // dependência com CVE conhecida no pacote npm e não precisamos de formatação.
   function handleExportarExcel() {
-    const cabecalho = ['Placa', 'Marca/Modelo', 'Cliente', 'Pátio', 'Setor/Oficina', 'Data de entrada', 'Dias na oficina']
+    const cabecalho = ['Placa', 'Marca/Modelo', 'Cliente', 'Pátio', 'Setor/Oficina', 'Data de entrada', 'Dias na oficina', 'Mecânico(s)']
     const linhas = noPatio.map((m) => [
       m.veiculo?.placa ?? '',
       `${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`.trim(),
@@ -390,6 +396,7 @@ export function Dashboard() {
       m.status_manutencao?.nome ?? '',
       formatDate(m.data_hora_entrada),
       String(Math.floor(permanenciaEmMinutos(m.data_hora_entrada) / 1440)),
+      getStatusOS(m.id).mecanico ?? '',
     ])
 
     const escapar = (valor: string) => `"${valor.replace(/"/g, '""')}"`
