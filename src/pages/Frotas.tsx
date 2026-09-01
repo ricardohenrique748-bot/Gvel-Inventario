@@ -3030,7 +3030,11 @@ export function Frotas() {
               </button>
             </div>
 
-            <form onSubmit={handleSalvarChecklist} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+            {/* Rodapé (Cancelar/Salvar) fica fora da área com scroll, sempre visível — antes ele
+                era o último item dentro do form com scroll e sumia da tela em telas pequenas
+                (ou com o teclado aberto no APK), sem indicação de que precisava rolar pra baixo. */}
+            <form onSubmit={handleSalvarChecklist} className="flex flex-1 flex-col min-h-0">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
               {/* ========================================================================= */}
               {/* SEÇÃO 1: DADOS DO VEÍCULO (BUSCA DE PLACA EM PRIMEIRO), CONDUTOR E KM */}
               {/* ========================================================================= */}
@@ -3614,27 +3618,28 @@ export function Frotas() {
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Rodapé */}
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-border/15">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setMostrarModalNovoChecklist(false)}
-                  disabled={salvandoChecklist}
-                  className="!h-10 px-5 text-xs font-semibold"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={salvandoChecklist}
-                  className="!h-10 px-6 text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 flex items-center gap-1.5 disabled:opacity-60"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  {salvandoChecklist ? 'Salvando…' : 'Salvar Checklist'}
-                </Button>
-              </div>
+            {/* Rodapé — fixo fora do scroll, sempre visível */}
+            <div className="flex shrink-0 justify-end gap-2.5 border-t border-border/15 bg-surface px-4 py-3.5 sm:px-6">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setMostrarModalNovoChecklist(false)}
+                disabled={salvandoChecklist}
+                className="!h-10 px-5 text-xs font-semibold"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={salvandoChecklist}
+                className="!h-10 px-6 text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 flex items-center gap-1.5 disabled:opacity-60"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {salvandoChecklist ? 'Salvando…' : 'Salvar Checklist'}
+              </Button>
+            </div>
             </form>
           </div>
         </div>
