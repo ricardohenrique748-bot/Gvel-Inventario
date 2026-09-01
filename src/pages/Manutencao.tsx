@@ -44,13 +44,14 @@ export function Manutencao() {
       ? parseISO(filters.dataInicio)
       : null
 
-  // Busca movimentações com base nos filtros — busca todos os veículos atualmente no pátio
-  const {
-    movimentacoes: periodo,
-    loading,
-    refetch,
-  } = useMovimentacoes({
-    status: 'no_patio',
+  // Com um período selecionado, o histórico fica completo (inclusive
+  // veículos que já saíram do pátio) para trazer qualquer O.S daquela
+  // janela. Sem período, ainda assim trazemos os veículos que já saíram mas
+  // tiveram a O.S finalizada — só não puxamos os que saíram sem finalizar
+  // nada, pra não virar uma lista infinita de histórico morto.
+  const periodoAtivo = Boolean(filters.dataInicio || filters.dataFim)
+
+  const filtrosComuns = {
     dataInicio: filters.dataInicio ? `${filters.dataInicio}T00:00:00` : undefined,
     dataFim: filters.dataFim ? `${filters.dataFim}T23:59:59` : undefined,
     search: filters.search,
@@ -58,43 +59,72 @@ export function Manutencao() {
     marcaId: filters.marcaId,
     modeloId: filters.modeloId,
     patioId: filters.patioId,
-  })
+  }
 
-  // Veículos ativos no pátio para contagens
-  const veiculosNoPatio = useMemo(() => {
-    return periodo.filter((m) => m.status === 'no_patio')
-  }, [periodo])
+  // Veículos atualmente no pátio — sempre buscados, independente de período
+  const {
+    movimentacoes: veiculosNoPatio,
+    loading: loadingNoPatio,
+    refetch: refetchNoPatio,
+  } = useMovimentacoes({ ...filtrosComuns, status: 'no_patio' })
+
+  // Veículos que já saíram do pátio — buscados sempre, para permitir trazer
+  // ao menos as O.S finalizadas mesmo sem período selecionado; sem período
+  // limitamos a busca aos mais recentes para não carregar todo o histórico.
+  const {
+    movimentacoes: veiculosQueSairam,
+    loading: loadingSaiu,
+    refetch: refetchSaiu,
+  } = useMovimentacoes({ ...filtrosComuns, status: 'saiu', limit: periodoAtivo ? undefined : 150 })
+
+  const periodo = useMemo(
+    () => [...veiculosNoPatio, ...veiculosQueSairam],
+    [veiculosNoPatio, veiculosQueSairam],
+  )
+  const loading = loadingNoPatio || loadingSaiu
+  const refetch = async () => {
+    await Promise.all([refetchNoPatio(), refetchSaiu()])
+  }
 
   // IDs para buscar status das O.S no Supabase (com Realtime)
-  const veiculoIds = useMemo(() => veiculosNoPatio.map((m) => m.id), [veiculosNoPatio])
+  const veiculoIds = useMemo(() => periodo.map((m) => m.id), [periodo])
   const { getStatus } = useOSStatusBatch(veiculoIds)
 
+  // Pool de candidatos à lista/contadores: todo mundo que está no pátio +
+  // quem já saiu mas teve a O.S finalizada. Com período ativo, entra também
+  // quem já saiu sem finalizar (o usuário pediu explicitamente aquela janela).
+  const poolCandidatos = useMemo(() => {
+    return periodo.filter((m) => {
+      if (m.status === 'no_patio') return true
+      if (periodoAtivo) return true
+      const st = getStatus(m.id)
+      return st.iniciada && st.fechada
+    })
+  }, [periodo, periodoAtivo, getStatus])
+
   const osEmAndamentoCount = useMemo(() => {
-    return veiculosNoPatio.filter((m) => {
+    return poolCandidatos.filter((m) => {
       const st = getStatus(m.id)
       return st.iniciada && !st.fechada
     }).length
-  }, [veiculosNoPatio, getStatus])
+  }, [poolCandidatos, getStatus])
 
   const osFinalizadasCount = useMemo(() => {
-    return veiculosNoPatio.filter((m) => {
+    return poolCandidatos.filter((m) => {
       const st = getStatus(m.id)
       return st.iniciada && st.fechada
     }).length
-  }, [veiculosNoPatio, getStatus])
+  }, [poolCandidatos, getStatus])
 
   const osAguardandoCount = useMemo(() => {
-    return veiculosNoPatio.filter((m) => !getStatus(m.id).iniciada).length
-  }, [veiculosNoPatio, getStatus])
+    return poolCandidatos.filter((m) => !getStatus(m.id).iniciada).length
+  }, [poolCandidatos, getStatus])
 
   const osIniciadasCount = osEmAndamentoCount + osFinalizadasCount
 
   // Filtra as movimentações com base em todos os critérios
   const entradas = useMemo(() => {
-    return periodo.filter((m) => {
-      // Garante que só exibe veículos presentes no pátio
-      if (m.status === 'saiu') return false
-
+    return poolCandidatos.filter((m) => {
       // Filtro de OS
       if (osFiltro !== 'todos') {
         const st = getStatus(m.id)
@@ -116,7 +146,7 @@ export function Manutencao() {
 
       return true
     })
-  }, [periodo, umDiaSelecionado, statusFiltro, osFiltro, getStatus])
+  }, [poolCandidatos, umDiaSelecionado, statusFiltro, osFiltro, getStatus])
 
   // Seleciona a primeira entrada automaticamente se nenhuma estiver selecionada
   useEffect(() => {
@@ -195,7 +225,7 @@ export function Manutencao() {
                   : 'bg-surface text-secondary hover:text-foreground border border-border/30'
               }`}
             >
-              TODOS ({veiculosNoPatio.length})
+              TODOS ({poolCandidatos.length})
             </button>
             <button
               type="button"
@@ -249,10 +279,10 @@ export function Manutencao() {
                     : 'bg-surface text-secondary hover:text-foreground border border-border/30'
                 }`}
               >
-                TODOS ({veiculosNoPatio.length})
+                TODOS ({poolCandidatos.length})
               </button>
               {patios.map((p) => {
-                const count = veiculosNoPatio.filter((m) => m.patio_id === p.id).length
+                const count = poolCandidatos.filter((m) => m.patio_id === p.id).length
                 return (
                   <button
                     key={p.id}
@@ -438,6 +468,11 @@ export function Manutencao() {
                             ⏳ AGUARDANDO O.S
                           </Badge>
                         )}
+                        {m.status === 'saiu' && (
+                          <Badge tone="neutral" className="!text-[10px] !py-0.5 !px-2 uppercase font-bold tracking-wide bg-secondary/10 text-secondary border border-border/40">
+                            🚪 SAIU DO PÁTIO
+                          </Badge>
+                        )}
                       </div>
 
                       <p className="text-xs font-bold text-foreground truncate uppercase">
@@ -450,9 +485,12 @@ export function Manutencao() {
                       </p>
 
                       <div className="mt-2 flex items-center justify-between text-[11px] text-secondary/80 border-t border-border/20 pt-1.5 uppercase font-bold">
-                        <span>ENTRADA: {format(new Date(m.data_hora_entrada), 'dd/MM HH:mm')}</span>
+                        <span>
+                          ENTRADA: {format(new Date(m.data_hora_entrada), 'dd/MM HH:mm')}
+                          {m.data_hora_saida && ` · SAÍDA: ${format(new Date(m.data_hora_saida), 'dd/MM HH:mm')}`}
+                        </span>
                         <span className="text-primary font-bold">
-                          {isSelected ? '✓ ABERTO' : 'PREENCHER →'}
+                          {isSelected ? '✓ ABERTO' : m.status === 'saiu' ? 'VER →' : 'PREENCHER →'}
                         </span>
                       </div>
                     </div>

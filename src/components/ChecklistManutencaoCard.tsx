@@ -17,6 +17,8 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
+  PauseCircle,
+  PlayCircle,
 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -33,6 +35,7 @@ import {
 import { differenceInMinutes } from 'date-fns'
 import type { MovimentacaoComVeiculo } from '@/lib/types'
 import { EQUIPE_GVEL, FUNCOES_EQUIPE, buscarFuncaoPorNome, obterNomeCompletoMembro, normalizarFuncao } from '@/constants/equipe'
+import { minutosUteis } from '@/lib/horasUteis'
 
 // ─── Tipos exportados (usados pelo hook de migração) ─────────────────────────
 
@@ -138,20 +141,29 @@ function calcularDuracaoHorasMin(
   fim?: string,
   dataInicio?: string,
   dataFim?: string,
-): { minutos: number; texto: string; emAndamento?: boolean } | null {
+  minutosPausados?: number,
+  pausado?: boolean,
+): { minutos: number; texto: string; emAndamento?: boolean; pausado?: boolean } | null {
   if (!inicio) return null
 
-  // Se tem início apontado mas não tem fim, a atividade está em andamento!
+  // Se tem início apontado mas não tem fim, a atividade está em andamento
+  // (ou pausada, se o mecânico trocou de tarefa e ainda não retomou).
   if (!fim) {
+    if (pausado) return { minutos: 0, texto: 'PAUSADO', emAndamento: true, pausado: true }
     return { minutos: 0, texto: 'EM ANDAMENTO', emAndamento: true }
   }
+
+  const pausa = minutosPausados || 0
 
   if (dataInicio && dataFim) {
     const d1 = new Date(`${dataInicio}T${inicio}:00`)
     const d2 = new Date(`${dataFim}T${fim}:00`)
     if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
-      const diff = Math.round((d2.getTime() - d1.getTime()) / 60000)
-      if (diff >= 0) return { minutos: diff, texto: formatMinutosParaTexto(diff).toUpperCase(), emAndamento: false }
+      // Fim antes do início: intervalo inválido (erro de digitação), não um
+      // "virou a noite" — não soma nada em vez de assumir 24h a mais.
+      if (d2 < d1) return { minutos: 0, texto: formatMinutosParaTexto(0).toUpperCase(), emAndamento: false }
+      const liquido = Math.max(0, minutosUteis(d1, d2) - pausa)
+      return { minutos: liquido, texto: formatMinutosParaTexto(liquido).toUpperCase(), emAndamento: false }
     }
   }
 
@@ -160,6 +172,7 @@ function calcularDuracaoHorasMin(
   if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) return null
   let min = h2 * 60 + m2 - (h1 * 60 + m1)
   if (min < 0) min += 24 * 60
+  min = Math.max(0, min - pausa)
   return { minutos: min, texto: formatMinutosParaTexto(min).toUpperCase(), emAndamento: false }
 }
 
@@ -249,25 +262,26 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
     let soma = 0
     for (const data of Object.values(itemsDB)) {
       if (data.hora_inicio && data.hora_fim) {
-        const dur = calcularDuracaoHorasMin(data.hora_inicio, data.hora_fim, data.data_inicio || data.data, data.data_fim)
+        const dur = calcularDuracaoHorasMin(data.hora_inicio, data.hora_fim, data.data_inicio || data.data, data.data_fim, data.minutos_pausados)
         if (dur) soma += dur.minutos
       }
     }
     return soma
   }, [itemsDB])
 
+  // Só entra na lista quem de fato tem atividade apontada em algum item do
+  // checklist. O mecânico principal (responsável pela abertura da O.S) só
+  // aparece aqui se ele mesmo tiver realizado alguma atividade — caso
+  // contrário não deve ser contabilizado no indicador de performance.
   const todosMecanicosApontados = useMemo(() => {
     const set = new Set<string>()
-    if (mecanico && mecanico.trim()) {
-      set.add(obterNomeCompletoMembro(mecanico))
-    }
     Object.values(itemsDB).forEach((it) => {
       if (it.mecanico && it.mecanico.trim()) {
         set.add(obterNomeCompletoMembro(it.mecanico))
       }
     })
     return Array.from(set)
-  }, [mecanico, itemsDB])
+  }, [itemsDB])
 
   const calculoHorasGeral = useMemo(() => {
     if (!dataHoraAbertura) return { texto: 'AGUARDANDO ABERTURA', minutos: 0, status: 'pendente' as const }
@@ -384,7 +398,27 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
       hora_inicio: existing?.hora_inicio ?? '',
       hora_fim: existing?.hora_fim ?? '',
       mecanico: existing?.mecanico ?? '',
+      pausado: existing?.pausado ?? false,
+      pausa_inicio: existing?.pausa_inicio ?? '',
+      minutos_pausados: existing?.minutos_pausados ?? 0,
       ...patch,
+    }
+  }
+
+  /**
+   * Se a atividade estiver pausada, soma o tempo decorrido desde o início da
+   * pausa e devolve o patch que a retoma. Usado sempre que um horário de fim
+   * é definido, pra garantir que a pausa em aberto não fique perdida nem
+   * continue contando como tempo trabalhado.
+   */
+  function patchResumoSePausado(existing?: ItemRow): Partial<ItemRow> {
+    if (!existing?.pausado) return {}
+    const inicioPausaMs = existing.pausa_inicio ? new Date(existing.pausa_inicio).getTime() : Date.now()
+    const minutosDecorridos = Math.max(0, Math.round((Date.now() - inicioPausaMs) / 60000))
+    return {
+      pausado: false,
+      pausa_inicio: '',
+      minutos_pausados: (existing.minutos_pausados || 0) + minutosDecorridos,
     }
   }
 
@@ -862,7 +896,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                     const data = itemsDB[item.id]
                     const isChecked = Boolean(data?.checked)
                     const isExpanded = Boolean(expandedItems[item.id])
-                    const duracao = calcularDuracaoHorasMin(data?.hora_inicio, data?.hora_fim, data?.data_inicio || data?.data, data?.data_fim)
+                    const duracao = calcularDuracaoHorasMin(data?.hora_inicio, data?.hora_fim, data?.data_inicio || data?.data, data?.data_fim, data?.minutos_pausados, data?.pausado)
                     const mecanicoDoItem = obterNomeCompletoMembro(data?.mecanico || '')
 
                     return (
@@ -917,12 +951,14 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                     {duracao && (
                                       <span
                                         className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-md border shrink-0 uppercase ${
-                                          duracao.emAndamento
-                                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 animate-pulse'
-                                            : 'bg-primary/10 border-primary/25 text-primary'
+                                          duracao.pausado
+                                            ? 'bg-secondary/10 border-border/40 text-secondary'
+                                            : duracao.emAndamento
+                                              ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 animate-pulse'
+                                              : 'bg-primary/10 border-primary/25 text-primary'
                                         }`}
                                       >
-                                        <Clock className="h-3 w-3" />
+                                        {duracao.pausado ? <PauseCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
                                         {duracao.texto}
                                       </span>
                                     )}
@@ -1085,7 +1121,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                   <input
                                     type="time"
                                     value={data?.hora_fim || ''}
-                                    onChange={(e) => updateItemPatch(secao.id, item, { hora_fim: e.target.value })}
+                                    onChange={(e) => updateItemPatch(secao.id, item, { hora_fim: e.target.value, ...patchResumoSePausado(data) })}
                                     className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                                   />
                                   <button
@@ -1096,6 +1132,7 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                       updateItemPatch(secao.id, item, {
                                         hora_fim: hora,
                                         data_fim: data?.data_fim || hoje,
+                                        ...patchResumoSePausado(data),
                                       })
                                     }}
                                     className="text-[10px] text-primary hover:underline font-bold px-1 uppercase"
@@ -1103,6 +1140,36 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                     AGORA
                                   </button>
                                 </div>
+
+                                {/* Pausar / Retomar — só faz sentido pra atividade já iniciada e ainda não finalizada */}
+                                {data?.hora_inicio && !data?.hora_fim && (
+                                  <div className="flex items-center gap-1.5">
+                                    {data?.pausado ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => updateItemPatch(secao.id, item, patchResumoSePausado(data))}
+                                        className="inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-md border border-emerald-500/40 bg-emerald-500/15 text-emerald-400 uppercase transition-colors active:scale-95 cursor-pointer"
+                                      >
+                                        <PlayCircle className="h-3.5 w-3.5" />
+                                        RETOMAR
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => updateItemPatch(secao.id, item, { pausado: true, pausa_inicio: new Date().toISOString() })}
+                                        className="inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-md border border-amber-500/40 bg-amber-500/15 text-amber-400 uppercase transition-colors active:scale-95 cursor-pointer"
+                                      >
+                                        <PauseCircle className="h-3.5 w-3.5" />
+                                        PAUSAR
+                                      </button>
+                                    )}
+                                    {(data?.minutos_pausados ?? 0) > 0 && (
+                                      <span className="text-[10px] font-bold text-secondary uppercase">
+                                        PAUSADO ATÉ AGORA: {formatMinutosParaTexto(data!.minutos_pausados!).toUpperCase()}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
 
                                 {/* Botão para voltar a atividade para Em Andamento (limpar fim) */}
                                 {(data?.hora_fim || data?.data_fim) && (
@@ -1133,9 +1200,9 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
                                     <span>TEMPO GASTO: {duracao.texto}</span>
                                   </div>
                                 ) : duracao?.emAndamento ? (
-                                  <div className="text-xs font-bold text-amber-400 flex items-center gap-1 uppercase animate-pulse">
-                                    <Clock className="h-3.5 w-3.5" />
-                                    <span>STATUS: ATIVIDADE EM ANDAMENTO</span>
+                                  <div className={`text-xs font-bold flex items-center gap-1 uppercase ${duracao.pausado ? 'text-secondary' : 'text-amber-400 animate-pulse'}`}>
+                                    {duracao.pausado ? <PauseCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                                    <span>{duracao.pausado ? 'STATUS: ATIVIDADE PAUSADA' : 'STATUS: ATIVIDADE EM ANDAMENTO'}</span>
                                   </div>
                                 ) : (
                                   <div />

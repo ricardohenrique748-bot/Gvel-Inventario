@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { obterNomeCompletoMembro, buscarFuncaoPorNome, normalizarFuncao } from '@/constants/equipe'
+import { ehFimDeSemana, minutosUteis } from '@/lib/horasUteis'
 
 export interface ControleHorasItem {
   id: string
@@ -18,71 +19,41 @@ export interface ControleHorasItem {
   } | null
 }
 
-/**
- * Soma os minutos entre duas datas descontando qualquer trecho que caia num
- * domingo (a oficina não trabalha domingo, então esse tempo não deve contar
- * como horas de atividade, mesmo que a atividade tenha ficado em aberto
- * atravessando o fim de semana).
- */
-function minutosExcluindoDomingo(inicio: Date, fim: Date): number {
-  if (fim <= inicio) return 0
-  let totalMs = fim.getTime() - inicio.getTime()
-
-  let cursor = new Date(inicio)
-  cursor.setHours(0, 0, 0, 0)
-  while (cursor < fim) {
-    const proximoDia = new Date(cursor)
-    proximoDia.setDate(proximoDia.getDate() + 1)
-
-    if (cursor.getDay() === 0) {
-      const inicioSobreposicao = cursor > inicio ? cursor : inicio
-      const fimSobreposicao = proximoDia < fim ? proximoDia : fim
-      if (fimSobreposicao > inicioSobreposicao) {
-        totalMs -= fimSobreposicao.getTime() - inicioSobreposicao.getTime()
-      }
-    }
-
-    cursor = proximoDia
-  }
-
-  return Math.max(0, Math.round(totalMs / 60000))
-}
-
 function calcularMinutosComDatas(
   horaInicio?: string | null,
   horaFim?: string | null,
   dataInicio?: string | null,
   dataFim?: string | null,
   createdAt?: string | null,
+  minutosPausados?: number | null,
 ): number {
   if (!horaInicio) return 0
   const dInicioStr = dataInicio || (createdAt ? new Date(createdAt).toISOString().slice(0, 10) : '')
+  const pausado = minutosPausados || 0
 
-  // Se tem início apontado mas ainda não tem fim, calcula a permanência / tempo em andamento
-  if (!horaFim) {
-    if (dInicioStr) {
-      const dt1 = new Date(`${dInicioStr}T${horaInicio}:00`)
-      if (!isNaN(dt1.getTime())) {
-        return minutosExcluindoDomingo(dt1, new Date())
-      }
-    }
-    return 1 // ao menos 1 minuto apontado para refletir atividade em andamento
-  }
+  // Atividade ainda em andamento (sem horário de término apontado): não
+  // conta tempo aqui. O indicador de performance deve refletir as horas de
+  // atividade efetivamente concluídas, e não a permanência/duração da O.S
+  // (tempo decorrido desde o início até agora).
+  if (!horaFim) return 0
 
   // Se tem início e fim com datas completas:
   if (dInicioStr && dataFim) {
     const dt1 = new Date(`${dInicioStr}T${horaInicio}:00`)
     const dt2 = new Date(`${dataFim}T${horaFim}:00`)
-    if (!isNaN(dt1.getTime()) && !isNaN(dt2.getTime()) && dt2 >= dt1) {
-      return minutosExcluindoDomingo(dt1, dt2)
+    if (!isNaN(dt1.getTime()) && !isNaN(dt2.getTime())) {
+      // Fim antes do início: intervalo inválido (erro de digitação), não um
+      // "virou a noite" — não soma nada em vez de assumir 24h a mais.
+      if (dt2 < dt1) return 0
+      return Math.max(0, minutosUteis(dt1, dt2) - pausado)
     }
   }
 
   // Fallback HH:mm (sem data de fim confiável). Se ao menos a data de início
-  // é conhecida e cai num domingo, não conta nada.
+  // é conhecida e cai num sábado ou domingo, não conta nada.
   if (dInicioStr) {
     const dataReferencia = new Date(`${dInicioStr}T00:00:00`)
-    if (!isNaN(dataReferencia.getTime()) && dataReferencia.getDay() === 0) return 0
+    if (!isNaN(dataReferencia.getTime()) && ehFimDeSemana(dataReferencia)) return 0
   }
 
   const [h1, m1] = horaInicio.split(':').map(Number)
@@ -90,7 +61,7 @@ function calcularMinutosComDatas(
   if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) return 1
   let min = h2 * 60 + m2 - (h1 * 60 + m1)
   if (min < 0) min += 24 * 60
-  return Math.max(1, min)
+  return Math.max(0, min - pausado)
 }
 
 function normalizarSetor(secaoId?: string | null, osSetor?: string | null, patioNome?: string | null): string {
@@ -135,6 +106,7 @@ export function useControleHoras() {
           hora_inicio,
           hora_fim,
           mecanico,
+          minutos_pausados,
           created_at,
           movimentacao:movimentacoes(
             veiculo:veiculos(placa),
@@ -180,7 +152,12 @@ export function useControleHoras() {
       // Processa atividades individuais apontadas no checklist
       for (const it of itensList ?? []) {
         const osGeral = osMap.get(it.movimentacao_id)
-        const mecBruto = (it.mecanico || osGeral?.mecanico || '').trim().toUpperCase()
+        // Só credita a atividade a quem de fato a realizou (mecânico apontado
+        // no próprio item). O responsável principal da O.S não entra aqui por
+        // padrão — ele só é contabilizado se também tiver itens atribuídos a
+        // ele, evitando que quem apenas abriu a O.S receba horas de quem
+        // realmente executou o serviço.
+        const mecBruto = (it.mecanico || '').trim().toUpperCase()
 
         if (!mecBruto || mecBruto === '—' || mecBruto === '-' || mecBruto === 'SEM NOME' || mecBruto === 'OPCIONAL') {
           continue
@@ -195,7 +172,7 @@ export function useControleHoras() {
         const temMecanicoProprio = Boolean(it.mecanico && it.mecanico.trim())
 
         if (temHorarios || isChecked || temMecanicoProprio) {
-          const minutos = calcularMinutosComDatas(it.hora_inicio, it.hora_fim, it.data_inicio, it.data_fim, it.created_at)
+          const minutos = calcularMinutosComDatas(it.hora_inicio, it.hora_fim, it.data_inicio, it.data_fim, it.created_at, it.minutos_pausados)
           const movItem = it.movimentacao as unknown as { patio?: { nome?: string } }
           const osMovItem = osGeral?.movimentacao as unknown as { patio?: { nome?: string } }
           const patioNome = movItem?.patio?.nome || osMovItem?.patio?.nome

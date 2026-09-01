@@ -15,6 +15,7 @@ import {
   Package,
   Boxes,
   Briefcase,
+  UserCheck,
 } from 'lucide-react'
 
 export const navItems = [
@@ -60,6 +61,7 @@ export const navItems = [
     ],
   },
   { to: '/financeiro', label: 'Financeiro', icon: DollarSign },
+  { to: '/rh', label: 'Recursos Humanos (RH)', icon: UserCheck },
   {
     to: '/configuracoes',
     label: 'Configurações',
@@ -77,6 +79,7 @@ export const ADMIN_ONLY_ROUTES = [
   '/controle-horas',
   '/dashboard-gerencial',
   '/kanban',
+  '/kanban-vamos',
   '/financeiro',
   '/financeiro/conciliacao',
   '/financeiro/dre',
@@ -108,6 +111,12 @@ export function isFinanceiroAuthorized(userOrEmail?: string | Partial<Usuario> |
   if (!userOrEmail) return false
   if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'financeiro')
   return temPermissaoModulo({ email: userOrEmail }, 'financeiro')
+}
+
+export function isRhAuthorized(userOrEmail?: string | Partial<Usuario> | null): boolean {
+  if (!userOrEmail) return false
+  if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'rh')
+  return temPermissaoModulo({ email: userOrEmail }, 'rh')
 }
 
 export function isRelatoriosAuthorized(userOrEmail?: string | Partial<Usuario> | null): boolean {

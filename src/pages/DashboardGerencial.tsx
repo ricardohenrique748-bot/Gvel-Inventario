@@ -161,6 +161,14 @@ export function DashboardGerencial() {
       badge: 'PROCESSOS',
     },
     {
+      to: '/kanban-vamos',
+      title: 'KANBAN VAMOS',
+      desc: 'FLUXO DE ORÇAMENTOS DA FROTA VAMOS EM TEMPO REAL',
+      icon: Columns3,
+      tone: 'from-rose-500/20 to-rose-500/5 text-rose-500 border-rose-500/20',
+      badge: 'PROCESSOS',
+    },
+    {
       to: '/rh',
       title: 'RECURSOS HUMANOS (RH)',
       desc: 'QUADRO DE EQUIPE, MECÂNICOS E ESCALAS',

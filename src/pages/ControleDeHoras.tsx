@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { Clock, Truck, Timer, X } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Clock, Truck, Timer, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, Check } from 'lucide-react'
 import {
   ResponsiveContainer,
   BarChart,
@@ -16,7 +17,7 @@ import {
 import { PageHeader } from '@/components/layout/Header'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
-import { Select } from '@/components/ui/Input'
+import { Input, Select } from '@/components/ui/Input'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -31,6 +32,8 @@ interface Filtros {
   nome?: string
   funcao?: string
   setor?: string
+  horasMin?: number
+  horasMax?: number
   dataInicio?: string
   dataFim?: string
 }
@@ -68,6 +71,77 @@ function extrairMinutosItem(item: ControleHorasItem): number {
     return item.minutos_atividade
   }
   return 0
+}
+
+type CampoOrdenacao = 'nome' | 'descricao' | 'status' | 'placa' | 'horas'
+
+function valorOrdenacao(item: ControleHorasItem, campo: CampoOrdenacao): string | number {
+  switch (campo) {
+    case 'nome':
+      return obterNomeCompletoMembro(item.mecanico_executor || '')
+    case 'descricao':
+      return item.descricao || ''
+    case 'status':
+      return item.movimentacao?.status_manutencao?.nome || ''
+    case 'placa':
+      return item.movimentacao?.veiculo?.placa || ''
+    case 'horas':
+      return extrairMinutosItem(item)
+  }
+}
+
+/** Dropdown de filtro embutido no cabeçalho da coluna — abre um menu ancorado no botão via portal, pra não ser cortado pelo scroll horizontal da tabela. */
+function FiltroColuna({ ativo, children }: { ativo?: boolean; children: (fechar: () => void) => React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  const LARGURA_MENU = 220
+  const MARGEM_VIEWPORT = 8
+
+  function toggle() {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      // Ancora pela direita do botão e garante que o menu não vaze pra fora
+      // da tela — colunas perto da borda direita da tabela (ex: "Horas")
+      // senão ficavam com o painel cortado.
+      let left = rect.right - LARGURA_MENU
+      left = Math.min(left, window.innerWidth - LARGURA_MENU - MARGEM_VIEWPORT)
+      left = Math.max(left, MARGEM_VIEWPORT)
+      setCoords({ top: rect.bottom + 6, left })
+    }
+    setOpen((o) => !o)
+  }
+
+  return (
+    <span className="relative inline-flex">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={toggle}
+        title="Filtrar"
+        className={`flex h-5 w-5 items-center justify-center rounded transition-colors cursor-pointer ${
+          ativo ? 'text-primary' : 'text-secondary/70 hover:text-foreground'
+        }`}
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-[99998]" onClick={() => setOpen(false)} />
+            <div
+              style={{ position: 'fixed', top: coords.top, left: coords.left, width: LARGURA_MENU }}
+              className="z-[99999] rounded-xl border border-border/20 bg-surface text-left font-sans shadow-2xl shadow-black/40 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            >
+              {children(() => setOpen(false))}
+            </div>
+          </>,
+          document.body,
+        )}
+    </span>
+  )
 }
 
 function formatMinutosCompacto(minutos: number): string {
@@ -121,7 +195,11 @@ export function ControleDeHoras() {
       }
       if (filtros.funcao && item.funcao !== filtros.funcao) return false
       if (filtros.setor && item.setor !== filtros.setor) return false
-      
+
+      const minutosItem = extrairMinutosItem(item)
+      if (typeof filtros.horasMin === 'number' && !isNaN(filtros.horasMin) && minutosItem < filtros.horasMin * 60) return false
+      if (typeof filtros.horasMax === 'number' && !isNaN(filtros.horasMax) && minutosItem > filtros.horasMax * 60) return false
+
       const dataInicioItem = dataLocalYMD(inicioAbertura(item))
       const dataFimItem = dataLocalYMD(fimFechamento(item))
 
@@ -131,6 +209,33 @@ export function ControleDeHoras() {
       return true
     })
   }, [itens, filtros])
+
+  const [ordenacao, setOrdenacao] = useState<{ campo: CampoOrdenacao; dir: 'asc' | 'desc' } | null>(null)
+
+  function alternarOrdenacao(campo: CampoOrdenacao) {
+    setOrdenacao((prev) => {
+      if (prev?.campo === campo) return { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      return { campo, dir: 'asc' }
+    })
+  }
+
+  const itensOrdenados = useMemo(() => {
+    if (!ordenacao) return itensFiltrados
+    const { campo, dir } = ordenacao
+    const arr = [...itensFiltrados]
+    arr.sort((a, b) => {
+      const va = valorOrdenacao(a, campo)
+      const vb = valorOrdenacao(b, campo)
+      const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))
+      return dir === 'asc' ? cmp : -cmp
+    })
+    return arr
+  }, [itensFiltrados, ordenacao])
+
+  function iconeOrdenacao(campo: CampoOrdenacao) {
+    if (ordenacao?.campo !== campo) return <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+    return ordenacao.dir === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-primary" /> : <ArrowDown className="h-3.5 w-3.5 text-primary" />
+  }
 
   const stats = useMemo(() => {
     const placas = new Set<string>()
@@ -253,7 +358,15 @@ export function ControleDeHoras() {
       .slice(0, 8)
   }, [itensFiltrados])
 
-  const hasFiltros = Boolean(filtros.nome || filtros.funcao || filtros.setor || filtros.dataInicio || filtros.dataFim)
+  const hasFiltros = Boolean(
+    filtros.nome ||
+      filtros.funcao ||
+      filtros.setor ||
+      filtros.horasMin !== undefined ||
+      filtros.horasMax !== undefined ||
+      filtros.dataInicio ||
+      filtros.dataFim,
+  )
 
   return (
     <div className="uppercase">
@@ -305,6 +418,7 @@ export function ControleDeHoras() {
             placeholder="Selecionar período"
           />
         </div>
+
         {hasFiltros && (
           <button
             type="button"
@@ -683,16 +797,123 @@ export function ControleDeHoras() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border/10 text-left text-white font-bold">
-                    <th className="px-3 py-3 font-bold whitespace-nowrap text-white">Nome</th>
-                    <th className="px-3 py-3 font-bold text-white">Descrição</th>
-                    <th className="px-3 py-3 font-bold text-white">Status</th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap text-white">Placa</th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap text-white">Horas</th>
+                  <tr className="border-b border-border/10 text-left text-foreground font-bold">
+                    {(
+                      [
+                        ['nome', 'Nome'],
+                        ['descricao', 'Descrição'],
+                        ['status', 'Status'],
+                        ['placa', 'Placa'],
+                        ['horas', 'Horas'],
+                      ] as [CampoOrdenacao, string][]
+                    ).map(([campo, label]) => (
+                      <th key={campo} className="px-3 py-3 font-bold whitespace-nowrap text-foreground">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => alternarOrdenacao(campo)}
+                            className="inline-flex items-center gap-1 uppercase font-bold text-foreground hover:text-primary transition-colors cursor-pointer"
+                          >
+                            {label}
+                            {iconeOrdenacao(campo)}
+                          </button>
+
+                          {campo === 'nome' && (
+                            <FiltroColuna ativo={Boolean(filtros.nome)}>
+                              {(fechar) => (
+                                <div className="max-h-72 overflow-y-auto py-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      patch({ nome: undefined })
+                                      fechar()
+                                    }}
+                                    className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold uppercase transition-colors ${
+                                      !filtros.nome ? 'text-primary bg-primary/10' : 'text-secondary hover:bg-overlay/5 hover:text-foreground'
+                                    }`}
+                                  >
+                                    Todos os nomes
+                                    {!filtros.nome && <Check className="h-3.5 w-3.5 shrink-0" />}
+                                  </button>
+                                  {nomes.map((nome) => (
+                                    <button
+                                      key={nome}
+                                      type="button"
+                                      onClick={() => {
+                                        patch({ nome })
+                                        fechar()
+                                      }}
+                                      className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold uppercase transition-colors ${
+                                        filtros.nome === nome ? 'text-primary bg-primary/10' : 'text-secondary hover:bg-overlay/5 hover:text-foreground'
+                                      }`}
+                                    >
+                                      <span className="truncate">{nome}</span>
+                                      {filtros.nome === nome && <Check className="h-3.5 w-3.5 shrink-0" />}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </FiltroColuna>
+                          )}
+
+                          {campo === 'horas' && (
+                            <FiltroColuna ativo={filtros.horasMin !== undefined || filtros.horasMax !== undefined}>
+                              {(fechar) => (
+                                <div className="space-y-2.5 p-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold uppercase tracking-wide text-secondary">Horas mínimas</label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      step={0.5}
+                                      placeholder="Ex: 1"
+                                      value={filtros.horasMin ?? ''}
+                                      onChange={(e) => patch({ horasMin: e.target.value === '' ? undefined : Number(e.target.value) })}
+                                      className="!h-8 !text-xs normal-case"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold uppercase tracking-wide text-secondary">Horas máximas</label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      step={0.5}
+                                      placeholder="Ex: 8"
+                                      value={filtros.horasMax ?? ''}
+                                      onChange={(e) => patch({ horasMax: e.target.value === '' ? undefined : Number(e.target.value) })}
+                                      className="!h-8 !text-xs normal-case"
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1 border-t border-border/15">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        patch({ horasMin: undefined, horasMax: undefined })
+                                        fechar()
+                                      }}
+                                      className="text-[11px] font-bold uppercase text-secondary hover:text-red-400 transition-colors"
+                                    >
+                                      Limpar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={fechar}
+                                      className="text-[11px] font-bold uppercase text-primary hover:underline"
+                                    >
+                                      Aplicar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </FiltroColuna>
+                          )}
+                        </div>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {itensFiltrados.map((item) => (
+                  {itensOrdenados.map((item) => (
                     <tr key={item.id} className="border-b border-border/5 last:border-0">
                       <td className="px-3 py-3 font-medium text-foreground whitespace-nowrap">
                         {item.mecanico_executor || '—'}
@@ -718,7 +939,7 @@ export function ControleDeHoras() {
 
           {/* Mobile: cards */}
           <div className="md:hidden space-y-3">
-            {itensFiltrados.map((item) => (
+            {itensOrdenados.map((item) => (
               <Card key={item.id} className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">

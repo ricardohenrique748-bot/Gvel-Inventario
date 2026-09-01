@@ -5,7 +5,7 @@ import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench, Ch
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
-import { navItems, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized, isRelatoriosAuthorized, isEstoqueAuthorized, isModuloAuthorized } from './nav'
+import { navItems, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized, isRhAuthorized, isRelatoriosAuthorized, isEstoqueAuthorized, isModuloAuthorized } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa } from '@/contexts/EmpresaContext'
 import { cn } from '@/lib/cn'
@@ -134,6 +134,7 @@ export function Sidebar() {
   const canAccessKanban = isKanbanAuthorized(userRef)
   const canAccessDashboardGerencial = isDashboardGerencialAuthorized(userRef)
   const canAccessFinanceiro = isFinanceiroAuthorized(userRef)
+  const canAccessRh = isRhAuthorized(userRef)
   const canAccessRelatorios = isRelatoriosAuthorized(userRef)
   const canAccessEstoque = isEstoqueAuthorized(userRef, native)
   const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao')
@@ -176,6 +177,7 @@ export function Sidebar() {
         if (item.to === '/frotas') return canAccessFrotas
         if (item.to === '/inventario-ferramentas') return canAccessEstoque
         if (item.to === '/financeiro') return canAccessFinanceiro
+        if (item.to === '/rh') return canAccessRh
         if (item.to === '/kanban') return canAccessKanban
         if (item.to === '/configuracoes') return canAccessConfiguracoes || canAccessRelatorios
         return true
@@ -212,6 +214,7 @@ export function Sidebar() {
     canAccessKanban,
     canAccessDashboardGerencial,
     canAccessFinanceiro,
+    canAccessRh,
     canAccessRelatorios,
     canAccessEstoque,
     canAccessManutencao,

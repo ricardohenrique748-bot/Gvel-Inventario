@@ -34,6 +34,12 @@ export interface ItemRow {
   hora_inicio: string
   hora_fim: string
   mecanico: string
+  /** Atividade pausada agora (mecânico trocou pra outra tarefa) */
+  pausado?: boolean
+  /** ISO datetime de quando a pausa atual começou (vazio se não está pausado) */
+  pausa_inicio?: string
+  /** Soma de todos os minutos já pausados nesta atividade (não conta como horas trabalhadas) */
+  minutos_pausados?: number
 }
 
 export type ItemsMap = Record<string, ItemRow>
@@ -217,6 +223,9 @@ export function useChecklistOS(movimentacaoId: string) {
         hora_inicio: (r.hora_inicio as string) || '',
         hora_fim: (r.hora_fim as string) || '',
         mecanico: (r.mecanico as string) || '',
+        pausado: Boolean(r.pausado),
+        pausa_inicio: (r.pausa_inicio as string) || '',
+        minutos_pausados: Number(r.minutos_pausados) || 0,
       }
     }
     setItems(map)
@@ -284,6 +293,9 @@ export function useChecklistOS(movimentacaoId: string) {
       data_inicio: row.data_inicio ?? '',
       data_fim: row.data_fim ?? '',
       data: row.data ?? '',
+      pausado: row.pausado ?? false,
+      pausa_inicio: row.pausa_inicio ?? '',
+      minutos_pausados: row.minutos_pausados ?? 0,
     }
 
     setItems((prev) => ({ ...prev, [sanitizedRow.item_id]: sanitizedRow }))   // optimistic update
@@ -302,6 +314,9 @@ export function useChecklistOS(movimentacaoId: string) {
         hora_inicio: sanitizedRow.hora_inicio || null,
         hora_fim: sanitizedRow.hora_fim || null,
         mecanico: sanitizedRow.mecanico || null,
+        pausado: sanitizedRow.pausado ?? false,
+        pausa_inicio: sanitizedRow.pausa_inicio || null,
+        minutos_pausados: sanitizedRow.minutos_pausados ?? 0,
       }
 
       const { error } = await supabase.from('checklist_itens').upsert(payload, { onConflict: 'movimentacao_id,item_id' })
@@ -355,11 +370,14 @@ export function useChecklistOS(movimentacaoId: string) {
       hora_inicio: null as string | null,
       hora_fim: null as string | null,
       mecanico: null as string | null,
+      pausado: false,
+      pausa_inicio: null as string | null,
+      minutos_pausados: 0,
     }))
     setItems((prev) => {
       const next = { ...prev }
       for (const k of Object.keys(next)) {
-        next[k] = { ...next[k], checked: false, hora_inicio: '', hora_fim: '', mecanico: '' }
+        next[k] = { ...next[k], checked: false, hora_inicio: '', hora_fim: '', mecanico: '', pausado: false, pausa_inicio: '', minutos_pausados: 0 }
       }
       return next
     })

@@ -58,13 +58,10 @@ export function useOSStatusBatch(movimentacaoIds: string[]) {
         const setMecanicos = new Set<string>()
         const INVALIDOS = ['', '—', '-', 'SEM NOME', 'OPCIONAL']
 
-        if (row?.mecanico) {
-          const mecPrincipal = row.mecanico.trim().toUpperCase()
-          if (!INVALIDOS.includes(mecPrincipal)) {
-            setMecanicos.add(obterNomeCompletoMembro(mecPrincipal))
-          }
-        }
-
+        // O responsável principal (checklist_os.mecanico) só entra na lista de
+        // "mecânicos apontados" se ele mesmo tiver algum item de checklist
+        // atribuído a ele — quem apenas abriu a O.S sem executar nenhuma
+        // atividade não deve aparecer como um dos mecânicos que trabalharam.
         itensDaMov.forEach((it) => {
           if (it.mecanico) {
             const mecItem = it.mecanico.trim().toUpperCase()
@@ -76,17 +73,6 @@ export function useOSStatusBatch(movimentacaoIds: string[]) {
 
         // Fallback localStorage caso o banco ainda não tenha sincronizado
         try {
-          const infoRaw = localStorage.getItem(`checklist_info_${id}`)
-          if (infoRaw) {
-            const parsed = JSON.parse(infoRaw)
-            if (parsed.mecanico) {
-              const mec = parsed.mecanico.trim().toUpperCase()
-              if (!INVALIDOS.includes(mec)) {
-                setMecanicos.add(obterNomeCompletoMembro(mec))
-              }
-            }
-          }
-
           const itensRaw = localStorage.getItem(`checklist_${id}`)
           if (itensRaw) {
             const parsedItens = JSON.parse(itensRaw)
