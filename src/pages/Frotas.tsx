@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -2640,7 +2641,7 @@ export function Frotas() {
       {/* ========================================================================= */}
       {/* MODAL 1: CADASTRO / EDIÇÃO DE VEÍCULO DA FROTA */}
       {/* ========================================================================= */}
-      {mostrarModalVeiculo && (
+      {mostrarModalVeiculo && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
           <div className="w-full max-w-xl rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
             <div className="flex items-center justify-between border-b border-border/10 px-6 py-4">
@@ -2996,13 +2997,14 @@ export function Frotas() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* ========================================================================= */}
       {/* MODAL 2: NOVO CHECKLIST DE INSPEÇÃO COM COMPARADOR DE PREVENTIVA */}
       {/* ========================================================================= */}
-      {mostrarModalNovoChecklist && (
+      {mostrarModalNovoChecklist && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4 animate-fade-in">
           <div className="w-full max-w-2xl rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
             {/* Header */}
@@ -3642,13 +3644,14 @@ export function Frotas() {
             </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* ========================================================================= */}
       {/* MODAL 3: VISUALIZAR RELATÓRIO DO CHECKLIST COM GALERIA DE FOTOS */}
       {/* ========================================================================= */}
-      {checklistVisualizando && (
+      {checklistVisualizando && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
           <div className="w-full max-w-xl rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
             <div className="flex items-center justify-between border-b border-border/10 px-6 py-4">
@@ -3884,11 +3887,12 @@ export function Frotas() {
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* MODAL 4: ZOOM DE FOTO */}
-      {fotoZoom && (
+      {fotoZoom && createPortal(
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 animate-fade-in"
           onClick={() => setFotoZoom(null)}
@@ -3904,7 +3908,8 @@ export function Frotas() {
             <p className="text-white text-xs font-black uppercase mb-2 tracking-wide">{fotoZoom.titulo}</p>
             <img src={fotoZoom.url} alt={fotoZoom.titulo} className="rounded-xl max-w-full max-h-[80vh] object-contain shadow-2xl" />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
