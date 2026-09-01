@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { isEstoqueAuthorized } from '@/components/layout/nav'
+import { isAdminUsuario } from '@/lib/permissoes'
 import { CameraWebcamModal } from '@/components/CameraWebcamModal'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -261,6 +262,7 @@ export function InventarioFerramentas() {
   const { user, perfil, perfilLoading } = useAuth()
   const userRef = perfil || { email: user?.email }
   const canAccess = perfil?.nivel === 'admin' || isEstoqueAuthorized(userRef)
+  const isAdmin = isAdminUsuario(perfil, user?.email)
 
   const [searchParams, setSearchParams] = useSearchParams()
   const abaParam = searchParams.get('aba')
@@ -548,6 +550,10 @@ export function InventarioFerramentas() {
 
   // Deletar ferramenta
   const handleExcluirFerramenta = async (f: Ferramenta) => {
+    if (!isAdmin) {
+      setMensagemErro('SÓ ADMINISTRADORES PODEM EXCLUIR ITENS DO ESTOQUE.')
+      return
+    }
     if (!confirm(`DESEJA REALMENTE EXCLUIR A FERRAMENTA "${f.nome.toUpperCase()}" DO CATÁLOGO?`)) return
     try {
       setMensagemErro(null)
@@ -1227,17 +1233,19 @@ export function InventarioFerramentas() {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleExcluirFerramenta(f)
-                              }}
-                              className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer shrink-0"
-                              title="Excluir Ferramenta"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleExcluirFerramenta(f)
+                                }}
+                                className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer shrink-0"
+                                title="Excluir Ferramenta"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       )
@@ -1351,16 +1359,18 @@ export function InventarioFerramentas() {
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleExcluirFerramenta(f)
-                            }}
-                            className="p-1.5 rounded-lg text-secondary hover:text-red-400"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleExcluirFerramenta(f)
+                              }}
+                              className="p-1.5 rounded-lg text-secondary hover:text-red-400"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1503,16 +1513,18 @@ export function InventarioFerramentas() {
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleExcluirFerramenta(f)
-                            }}
-                            className="p-1.5 rounded-lg text-secondary hover:text-red-400"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleExcluirFerramenta(f)
+                              }}
+                              className="p-1.5 rounded-lg text-secondary hover:text-red-400"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </Card>
@@ -2093,20 +2105,22 @@ export function InventarioFerramentas() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              if (confirm(`Excluir a caixa "${caixa.nome}"?`)) {
-                                salvarCaixas(caixas.filter((c) => c.id !== caixa.id))
-                              }
-                            }}
-                            className="h-8 w-8 text-secondary hover:text-status-danger"
-                            title="Excluir Caixa"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {isAdmin && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                if (confirm(`Excluir a caixa "${caixa.nome}"?`)) {
+                                  salvarCaixas(caixas.filter((c) => c.id !== caixa.id))
+                                }
+                              }}
+                              className="h-8 w-8 text-secondary hover:text-status-danger"
+                              title="Excluir Caixa"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -2484,20 +2498,22 @@ export function InventarioFerramentas() {
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  if (confirm(`Deseja excluir o insumo "${item.nome}"?`)) {
-                                    salvarItensConsumo(itensConsumo.filter((i) => i.id !== item.id))
-                                  }
-                                }}
-                                className="h-8 w-8 text-secondary hover:text-red-400"
-                                title="Excluir Insumo"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    if (confirm(`Deseja excluir o insumo "${item.nome}"?`)) {
+                                      salvarItensConsumo(itensConsumo.filter((i) => i.id !== item.id))
+                                    }
+                                  }}
+                                  className="h-8 w-8 text-secondary hover:text-red-400"
+                                  title="Excluir Insumo"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </Card>
@@ -2674,24 +2690,26 @@ export function InventarioFerramentas() {
               <span>Editar</span>
             </button>
 
-            <button
-              type="button"
-              onClick={async () => {
-                if (!confirm(`Deseja excluir as ${selecionados.length} ferramentas selecionadas?`)) return
-                try {
-                  await excluirFerramentasEmMassa(selecionados)
-                  await recarregarDados()
-                  setSelecionados([])
-                } catch (err: any) {
-                  setMensagemErro(err instanceof Error ? err.message : 'Erro ao excluir ferramentas.')
-                }
-              }}
-              className="flex items-center gap-1.5 rounded-full border border-status-danger/30 bg-status-danger/10 hover:bg-status-danger/20 px-3 py-1.5 text-[11px] font-bold text-status-danger uppercase tracking-wider transition-all hover:scale-105 active:scale-95 cursor-pointer"
-              title="Excluir selecionadas"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">Excluir</span>
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!confirm(`Deseja excluir as ${selecionados.length} ferramentas selecionadas?`)) return
+                  try {
+                    await excluirFerramentasEmMassa(selecionados)
+                    await recarregarDados()
+                    setSelecionados([])
+                  } catch (err: any) {
+                    setMensagemErro(err instanceof Error ? err.message : 'Erro ao excluir ferramentas.')
+                  }
+                }}
+                className="flex items-center gap-1.5 rounded-full border border-status-danger/30 bg-status-danger/10 hover:bg-status-danger/20 px-3 py-1.5 text-[11px] font-bold text-status-danger uppercase tracking-wider transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                title="Excluir selecionadas"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">Excluir</span>
+              </button>
+            )}
           </div>
 
           {/* Fechar / Desmarcar */}
@@ -4791,6 +4809,8 @@ function ModalEditarRetirada({
   onClose: () => void
   onSucesso: () => Promise<void>
 }) {
+  const { perfil, user } = useAuth()
+  const isAdmin = isAdminUsuario(perfil, user?.email)
   const [ferramentaId, setFerramentaId] = useState(retirada.ferramenta_id)
   const [placa, setPlaca] = useState(retirada.placa || '')
   const [responsavel, setResponsavel] = useState(retirada.responsavel || '')
@@ -4891,6 +4911,10 @@ function ModalEditarRetirada({
   }
 
   const handleExcluir = async () => {
+    if (!isAdmin) {
+      setErro('SÓ ADMINISTRADORES PODEM EXCLUIR REGISTROS DE RETIRADA.')
+      return
+    }
     if (!confirm(`DESEJA REALMENTE EXCLUIR ESTE REGISTRO DE RETIRADA?\n\nSE A FERRAMENTA ESTIVER EM USO, A QUANTIDADE SERÁ RESTAURADA NO ESTOQUE AUTOMATICAMENTE.`)) {
       return
     }
@@ -5156,16 +5180,20 @@ function ModalEditarRetirada({
 
             {/* Rodapé de Botões */}
             <div className="pt-3 border-t border-border/10 flex items-center justify-between gap-2 shrink-0">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleExcluir}
-                disabled={salvando || excluindo}
-                className="text-xs border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500 uppercase font-bold gap-1"
-              >
-                {excluindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                EXCLUIR
-              </Button>
+              {isAdmin ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleExcluir}
+                  disabled={salvando || excluindo}
+                  className="text-xs border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500 uppercase font-bold gap-1"
+                >
+                  {excluindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  EXCLUIR
+                </Button>
+              ) : (
+                <div />
+              )}
 
               <div className="flex items-center gap-2">
                 <Button

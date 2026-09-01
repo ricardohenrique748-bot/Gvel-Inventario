@@ -19,6 +19,8 @@ import { usePatios, criarPatio } from '@/hooks/usePatios'
 import { atualizarPatioMovimentacao, atualizarStatusMovimentacao } from '@/hooks/useMovimentacoes'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
+import { useAuth } from '@/contexts/AuthContext'
+import { isAdminUsuario } from '@/lib/permissoes'
 import type { MovimentacaoComVeiculo, Movimentacao } from '@/lib/types'
 
 const SETOR_CRIAR = '__criar_setor__'
@@ -380,6 +382,8 @@ export function TrajetoAtualCard({
   onAtualizar,
   disableHeaderActions = false,
 }: TrajetoAtualCardProps) {
+  const { perfil, user } = useAuth()
+  const isAdmin = isAdminUsuario(perfil, user?.email)
   const [adicionandoEtapa, setAdicionandoEtapa] = useState(false)
   const [editandoEtapaId, setEditandoEtapaId] = useState<string | null>(null)
   const [erroEtapa, setErroEtapa] = useState<string | null>(null)
@@ -455,6 +459,10 @@ export function TrajetoAtualCard({
   }
 
   async function onExcluirEtapa(id: string) {
+    if (!isAdmin) {
+      alert('Só administradores podem remover etapas do trajeto.')
+      return
+    }
     if (!window.confirm('Tem certeza que deseja remover esta etapa do trajeto?')) return
     try {
       await excluirHistorico(id)
@@ -681,14 +689,16 @@ export function TrajetoAtualCard({
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => onExcluirEtapa(etapa.id)}
-                          className="rounded-lg p-1 text-secondary hover:bg-surface hover:text-status-danger transition-colors"
-                          title="Remover etapa"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => onExcluirEtapa(etapa.id)}
+                            className="rounded-lg p-1 text-secondary hover:bg-surface hover:text-status-danger transition-colors"
+                            title="Remover etapa"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </>
                     ) : undefined
                   }

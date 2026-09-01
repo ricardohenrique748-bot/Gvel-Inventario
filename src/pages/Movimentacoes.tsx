@@ -26,6 +26,8 @@ import { formatDateTime, formatPermanencia, toLocalInputValue } from '@/lib/form
 import { ANGULOS_FOTO, type AnguloFoto } from '@/lib/fotos'
 import { extrairFotosExtras, type FotoExtraItem } from '@/lib/fotosExtras'
 import { comprimirImagem } from '@/lib/imagem'
+import { useAuth } from '@/contexts/AuthContext'
+import { isAdminUsuario } from '@/lib/permissoes'
 import type { MovimentacaoComVeiculo } from '@/lib/types'
 
 const anoAtual = new Date().getFullYear()
@@ -61,6 +63,8 @@ const LIMITE_INICIAL = 300
 
 export function Movimentacoes() {
   const navigate = useNavigate()
+  const { perfil, user } = useAuth()
+  const isAdmin = isAdminUsuario(perfil, user?.email)
   const [filters, setFilters] = useState<FiltersValue>({})
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
@@ -129,6 +133,10 @@ export function Movimentacoes() {
   }
 
   async function handleExcluir(id: string, placa: string | undefined) {
+    if (!isAdmin) {
+      setErroLista('Só administradores podem excluir movimentações.')
+      return
+    }
     if (!confirm(`Excluir a movimentação de "${placa ?? 'veículo'}"? Essa ação não pode ser desfeita.`)) return
     setErroLista(null)
     setExcluindoId(id)
@@ -256,17 +264,19 @@ export function Movimentacoes() {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button
-                              type="button"
-                              variant="danger"
-                              size="icon"
-                              className="!h-8 !w-8"
-                              onClick={() => handleExcluir(m.id, m.veiculo?.placa)}
-                              disabled={excluindoId === m.id}
-                              aria-label={`Excluir movimentação de ${m.veiculo?.placa}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            {isAdmin && (
+                              <Button
+                                type="button"
+                                variant="danger"
+                                size="icon"
+                                className="!h-8 !w-8"
+                                onClick={() => handleExcluir(m.id, m.veiculo?.placa)}
+                                disabled={excluindoId === m.id}
+                                aria-label={`Excluir movimentação de ${m.veiculo?.placa}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -312,16 +322,18 @@ export function Movimentacoes() {
                     <Button type="button" variant="secondary" size="icon" onClick={() => setEditandoId(m.id)} aria-label="Editar">
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      size="icon"
-                      onClick={() => handleExcluir(m.id, m.veiculo?.placa)}
-                      disabled={excluindoId === m.id}
-                      aria-label="Excluir"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="icon"
+                        onClick={() => handleExcluir(m.id, m.veiculo?.placa)}
+                        disabled={excluindoId === m.id}
+                        aria-label="Excluir"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </Card>
             ))}

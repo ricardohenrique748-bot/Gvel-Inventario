@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Truck, LogIn, LogOut, Clock } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Truck, LogIn, LogOut, Clock, FileSpreadsheet } from 'lucide-react'
 import {
   ResponsiveContainer,
   BarChart,
@@ -20,18 +20,25 @@ import { ptBR } from 'date-fns/locale'
 import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { StatCard } from '@/components/ui/StatCard'
+import { Select } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { isAdminUsuario } from '@/lib/permissoes'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
+import { useStatusManutencao } from '@/hooks/useStatusManutencao'
 import { useEtapasNoPeriodo } from '@/hooks/useHistoricoMovimentacao'
-import { permanenciaEmMinutos, formatMinutosParaTexto } from '@/lib/format'
+import { permanenciaEmMinutos, formatMinutosParaTexto, formatDate } from '@/lib/format'
 import { CHART_ENTRADA, CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
 import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
 
 export function Dashboard() {
   const { theme } = useTheme()
+  const { perfil, user } = useAuth()
+  const isAdmin = isAdminUsuario(perfil, user?.email)
   const isDark = theme === 'dark'
   const textColor = isDark ? '#ffffff' : '#18181b'
   const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
@@ -50,9 +57,38 @@ export function Dashboard() {
     dataFim: format(new Date(), 'yyyy-MM-dd'),
   }), [])
 
-  const [filters, setFilters] = useState<FiltersValue>(filtroInicial)
+  // Filtros ficam sincronizados com a URL (?search=...&patioId=...) para que o botão
+  // "voltar" do navegador restaure o dashboard como estava, em vez de resetar tudo —
+  // sem isso, sair para outra página e voltar remonta o componente com os filtros padrão.
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const { movimentacoes: noPatio, loading: loadingNoPatio } = useMovimentacoes({
+  const [filters, setFilters] = useState<FiltersValue>(() => ({
+    search: searchParams.get('search') || undefined,
+    dataInicio: searchParams.get('dataInicio') || filtroInicial.dataInicio,
+    dataFim: searchParams.get('dataFim') || filtroInicial.dataFim,
+    clienteId: searchParams.get('clienteId') || undefined,
+    marcaId: searchParams.get('marcaId') || undefined,
+    modeloId: searchParams.get('modeloId') || undefined,
+    patioId: searchParams.get('patioId') || undefined,
+  }))
+  const [statusFiltro, setStatusFiltro] = useState(() => searchParams.get('statusFiltro') || '')
+  const { statusManutencao } = useStatusManutencao()
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (filters.search) params.set('search', filters.search)
+    if (filters.dataInicio) params.set('dataInicio', filters.dataInicio)
+    if (filters.dataFim) params.set('dataFim', filters.dataFim)
+    if (filters.clienteId) params.set('clienteId', filters.clienteId)
+    if (filters.marcaId) params.set('marcaId', filters.marcaId)
+    if (filters.modeloId) params.set('modeloId', filters.modeloId)
+    if (filters.patioId) params.set('patioId', filters.patioId)
+    if (statusFiltro) params.set('statusFiltro', statusFiltro)
+    setSearchParams(params, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, statusFiltro])
+
+  const { movimentacoes: noPatioBruto, loading: loadingNoPatio } = useMovimentacoes({
     status: 'no_patio',
     search: filters.search,
     clienteId: filters.clienteId,
@@ -60,6 +96,13 @@ export function Dashboard() {
     modeloId: filters.modeloId,
     patioId: filters.patioId,
   })
+
+  // Já vem filtrado por "no_patio" (nunca inclui veículos com status SAIU) —
+  // aqui só restringe ao setor/oficina escolhido (pesada, leve, funilaria, estética...).
+  const noPatio = useMemo(
+    () => (statusFiltro ? noPatioBruto.filter((m) => m.status_id === statusFiltro) : noPatioBruto),
+    [noPatioBruto, statusFiltro],
+  )
 
   const { movimentacoes: periodo, loading: loadingPeriodo } = useMovimentacoes({
     dataInicio: filters.dataInicio ? `${filters.dataInicio}T00:00:00` : undefined,
@@ -209,17 +252,77 @@ export function Dashboard() {
 
   const loading = loadingNoPatio || loadingPeriodo
 
+  // Exporta a lista de veículos no pátio (respeitando os filtros ativos, incluindo
+  // setor/oficina) com quantos dias cada um já está parado — só admin vê o botão.
+  // Gera CSV (abre direto no Excel) em vez de puxar uma lib de .xlsx: evita
+  // dependência com CVE conhecida no pacote npm e não precisamos de formatação.
+  function handleExportarExcel() {
+    const cabecalho = ['Placa', 'Marca/Modelo', 'Cliente', 'Pátio', 'Setor/Oficina', 'Data de entrada', 'Dias na oficina']
+    const linhas = noPatio.map((m) => [
+      m.veiculo?.placa ?? '',
+      `${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`.trim(),
+      m.veiculo?.cliente?.nome ?? '',
+      m.patio?.nome ?? '',
+      m.status_manutencao?.nome ?? '',
+      formatDate(m.data_hora_entrada),
+      String(Math.floor(permanenciaEmMinutos(m.data_hora_entrada) / 1440)),
+    ])
+
+    const escapar = (valor: string) => `"${valor.replace(/"/g, '""')}"`
+    const csv = [cabecalho, ...linhas].map((linha) => linha.map((v) => escapar(v)).join(';')).join('\r\n')
+
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `patio_${format(new Date(), 'yyyy-MM-dd')}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle="Visão geral do pátio" />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Visão geral do pátio"
+        actions={
+          isAdmin && (
+            <Button variant="secondary" onClick={handleExportarExcel} disabled={loadingNoPatio || noPatio.length === 0}>
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar Excel
+            </Button>
+          )
+        }
+      />
 
-      <div className="mb-6">
+      <div className="mb-6 space-y-3">
         <FiltersBar
           value={filters}
           onChange={setFilters}
           showSearch
-          onClear={() => setFilters(filtroInicial)}
+          onClear={() => {
+            setFilters(filtroInicial)
+            setStatusFiltro('')
+          }}
         />
+
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
+            Setor / oficina:
+          </span>
+          <div className="w-full sm:w-64">
+            <Select value={statusFiltro} onChange={(e) => setStatusFiltro(e.target.value)}>
+              <option value="">Todos os setores</option>
+              {statusManutencao.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-6">
@@ -265,14 +368,32 @@ export function Dashboard() {
                   <Link
                     key={m.id}
                     to={`/veiculos/${m.veiculo_id}`}
-                    className="block rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
+                    className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
                   >
-                    <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
-                    <p className="text-sm text-secondary">
-                      {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
-                    </p>
-                    <p className="text-sm text-secondary">{m.veiculo?.cliente?.nome}</p>
-                    <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
+                    {primeiraFotoMovimentacao(m) ? (
+                      <img
+                        src={urlMiniatura(primeiraFotoMovimentacao(m)!, 112)}
+                        onError={aoFalharMiniatura(primeiraFotoMovimentacao(m)!)}
+                        alt={`Foto — ${m.veiculo?.placa}`}
+                        loading="lazy"
+                        decoding="async"
+                        width={56}
+                        height={56}
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
+                        <Truck className="h-6 w-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
+                      <p className="text-sm text-secondary">
+                        {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                      </p>
+                      <p className="text-sm text-secondary">{m.veiculo?.cliente?.nome}</p>
+                      <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
+                    </div>
                   </Link>
                 ))}
               </div>
@@ -460,16 +581,34 @@ export function Dashboard() {
                   <Link
                     key={m.id}
                     to={`/veiculos/${m.veiculo_id}`}
-                    className="block rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
+                    className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
                   >
-                    <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
-                    <p className="text-sm text-secondary">
-                      {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
-                    </p>
-                    <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Badge tone="success">No pátio</Badge>
-                      <StatusManutencaoBadge status={m.status_manutencao} />
+                    {primeiraFotoMovimentacao(m) ? (
+                      <img
+                        src={urlMiniatura(primeiraFotoMovimentacao(m)!, 112)}
+                        onError={aoFalharMiniatura(primeiraFotoMovimentacao(m)!)}
+                        alt={`Foto — ${m.veiculo?.placa}`}
+                        loading="lazy"
+                        decoding="async"
+                        width={56}
+                        height={56}
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
+                        <Truck className="h-6 w-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
+                      <p className="text-sm text-secondary">
+                        {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+                      </p>
+                      <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Badge tone="success">No pátio</Badge>
+                        <StatusManutencaoBadge status={m.status_manutencao} />
+                      </div>
                     </div>
                   </Link>
                 ))}

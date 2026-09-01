@@ -54,6 +54,7 @@ import { useClientes } from '@/hooks/useClientes'
 import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useAuth } from '@/contexts/AuthContext'
+import { isAdminUsuario } from '@/lib/permissoes'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
 import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL, FROTA_PESADA_OFICIAL } from '@/data/veiculosFrotaPadrao'
@@ -273,6 +274,7 @@ function comprimirFoto(file: File, maxWidth = 1000, quality = 0.72): Promise<str
 
 export function Frotas() {
   const { user, perfil } = useAuth()
+  const isAdmin = isAdminUsuario(perfil, user?.email)
   const { clientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
   const { movimentacoes } = useMovimentacoes()
@@ -1131,6 +1133,10 @@ export function Frotas() {
   }
 
   async function handleExcluirVeiculo(id: string) {
+    if (!isAdmin) {
+      setErroLista('Só administradores podem excluir veículos da frota.')
+      return
+    }
     if (!confirm('Deseja realmente excluir este veículo da frota?')) return
     salvarFrotas(frotas.filter((f) => f.id !== id))
   }
@@ -1229,6 +1235,10 @@ export function Frotas() {
   }
 
   async function handleExcluirChecklist(id: string) {
+    if (!isAdmin) {
+      alert('Só administradores podem excluir registros de checklist.')
+      return
+    }
     if (!confirm('Deseja excluir este registro de checklist?')) return
     try {
       await excluirChecklistFrota(id)
@@ -2347,14 +2357,16 @@ export function Frotas() {
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => handleExcluirVeiculo(v.id)}
-                                className="rounded-lg p-1.5 text-secondary hover:text-status-danger hover:bg-status-danger/10 transition-colors"
-                                title="Excluir Veículo"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleExcluirVeiculo(v.id)}
+                                  className="rounded-lg p-1.5 text-secondary hover:text-status-danger hover:bg-status-danger/10 transition-colors"
+                                  title="Excluir Veículo"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -2602,14 +2614,16 @@ export function Frotas() {
                               >
                                 <Eye className="h-4 w-4" />
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => handleExcluirChecklist(chk.id)}
-                                className="rounded-lg p-1.5 text-secondary hover:text-status-danger hover:bg-status-danger/10 transition-colors"
-                                title="Excluir Checklist"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleExcluirChecklist(chk.id)}
+                                  className="rounded-lg p-1.5 text-secondary hover:text-status-danger hover:bg-status-danger/10 transition-colors"
+                                  title="Excluir Checklist"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

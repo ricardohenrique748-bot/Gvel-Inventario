@@ -13,6 +13,8 @@ import { useClientes } from '@/hooks/useClientes'
 import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
 import { useVeiculosPorCliente, upsertVeiculo, atualizarVeiculo, excluirVeiculo } from '@/hooks/useVeiculos'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
+import { useAuth } from '@/contexts/AuthContext'
+import { isAdminUsuario } from '@/lib/permissoes'
 import type { VeiculoComRelacoes } from '@/lib/types'
 
 const anoAtual = new Date().getFullYear()
@@ -36,6 +38,8 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function FrotaTab() {
+  const { perfil, user } = useAuth()
+  const isAdmin = isAdminUsuario(perfil, user?.email)
   const { clientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -128,6 +132,10 @@ export function FrotaTab() {
   }
 
   async function handleExcluir(id: string, placa: string) {
+    if (!isAdmin) {
+      setErroLista('Só administradores podem excluir veículos.')
+      return
+    }
     if (!confirm(`Excluir o veículo "${placa}"? Essa ação não pode ser desfeita.`)) return
     setErroLista(null)
     setExcluindoId(id)
@@ -317,16 +325,18 @@ export function FrotaTab() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="icon"
-                        onClick={() => handleExcluir(v.id, v.placa)}
-                        disabled={excluindoId === v.id}
-                        aria-label={`Excluir ${v.placa}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {isAdmin && (
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="icon"
+                          onClick={() => handleExcluir(v.id, v.placa)}
+                          disabled={excluindoId === v.id}
+                          aria-label={`Excluir ${v.placa}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                   <p className="text-sm text-secondary">

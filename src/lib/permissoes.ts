@@ -173,6 +173,21 @@ export function salvarPermissoesUsuario(emailOuId: string, modulos: string[]) {
 }
 
 /**
+ * Único critério de "é admin" do sistema — usado tanto para liberar módulos
+ * quanto para travar ações destrutivas (excluir) só para administradores.
+ * As duas contas hardcoded são donos do sistema e sempre contam como admin,
+ * mesmo que o campo `nivel` do cadastro não esteja marcado assim.
+ *
+ * `emailFallback` serve pro caso comum de telas que checam tanto o perfil
+ * (tabela usuarios, pode ainda estar carregando) quanto o `user.email` da
+ * sessão do Supabase Auth — ex: isAdminUsuario(perfil, user?.email).
+ */
+export function isAdminUsuario(usuario?: Partial<Usuario> | null, emailFallback?: string | null): boolean {
+  const email = (usuario?.email || emailFallback || '').toLowerCase().trim()
+  return usuario?.nivel === 'admin' || email === 'victor@gveldiesel.com' || email === 'ricardo_h.16@hotmail.com'
+}
+
+/**
  * Obtém os módulos permitidos para um usuário
  */
 export function getModulosUsuario(usuario?: Partial<Usuario> | null): string[] {
@@ -182,7 +197,7 @@ export function getModulosUsuario(usuario?: Partial<Usuario> | null): string[] {
   const chaveId = usuario.id || ''
 
   // Administrador tem acesso total a todos os módulos
-  if (usuario.nivel === 'admin' || chaveEmail === 'victor@gveldiesel.com' || chaveEmail === 'ricardo_h.16@hotmail.com') {
+  if (isAdminUsuario(usuario)) {
     return TODOS_MODULOS_IDS
   }
 
@@ -258,8 +273,7 @@ export function temPermissaoModulo(
   moduloId: string,
 ): boolean {
   if (!usuario) return false
-  const email = (usuario.email || '').toLowerCase().trim()
-  if (usuario.nivel === 'admin' || email === 'victor@gveldiesel.com' || email === 'ricardo_h.16@hotmail.com') {
+  if (isAdminUsuario(usuario)) {
     return true
   }
 

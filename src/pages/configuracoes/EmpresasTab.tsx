@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/Badge'
 import { useEmpresa } from '@/contexts/EmpresaContext'
 import type { Empresa } from '@/contexts/EmpresaContext'
 import { buscarCnpj, formatCnpj } from '@/lib/cnpj'
+import { useAuth } from '@/contexts/AuthContext'
+import { isAdminUsuario } from '@/lib/permissoes'
 
 const schema = z.object({
   nome: z.string().trim().min(1, 'Informe o nome da empresa'),
@@ -33,6 +35,8 @@ const CORES_PRESETS = [
 ]
 
 export function EmpresasTab() {
+  const { perfil, user } = useAuth()
+  const isAdmin = isAdminUsuario(perfil, user?.email)
   const { empresas, empresaAtiva, setEmpresaAtiva, adicionarEmpresa, atualizarEmpresa, excluirEmpresa } =
     useEmpresa()
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -141,6 +145,7 @@ export function EmpresasTab() {
   }
 
   function confirmarExclusao(id: string) {
+    if (!isAdmin) return
     excluirEmpresa(id)
     setExcluindoId(null)
     setSucesso('Empresa removida.')
@@ -403,7 +408,7 @@ export function EmpresasTab() {
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    {empresas.length > 1 && (
+                    {isAdmin && empresas.length > 1 && (
                       <>
                         {isExcluindo ? (
                           <div className="flex items-center gap-1.5 rounded-lg border border-status-error/30 bg-status-error/10 px-2.5 py-1">

@@ -8,6 +8,8 @@ import { Input, Label, FieldError } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useClientes, criarCliente, atualizarCliente, excluirCliente } from '@/hooks/useClientes'
 import { buscarCnpj, formatCpfCnpj } from '@/lib/cnpj'
+import { useAuth } from '@/contexts/AuthContext'
+import { isAdminUsuario } from '@/lib/permissoes'
 import type { Cliente } from '@/lib/types'
 
 const schema = z.object({
@@ -20,6 +22,8 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function ClientesTab() {
+  const { perfil, user } = useAuth()
+  const isAdmin = isAdminUsuario(perfil, user?.email)
   const { clientes, loading, refetch } = useClientes()
   const [mostrarForm, setMostrarForm] = useState(false)
   const [buscandoCnpj, setBuscandoCnpj] = useState(false)
@@ -82,6 +86,10 @@ export function ClientesTab() {
   }
 
   async function handleExcluir(id: string, nome: string) {
+    if (!isAdmin) {
+      setErroLista('Só administradores podem excluir clientes.')
+      return
+    }
     if (!confirm(`Excluir o cliente "${nome}"? Essa ação não pode ser desfeita.`)) return
     setErroLista(null)
     setExcluindoId(id)
@@ -201,16 +209,18 @@ export function ClientesTab() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="icon"
-                        onClick={() => handleExcluir(c.id, c.nome)}
-                        disabled={excluindoId === c.id}
-                        aria-label={`Excluir ${c.nome}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {isAdmin && (
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="icon"
+                          onClick={() => handleExcluir(c.id, c.nome)}
+                          disabled={excluindoId === c.id}
+                          aria-label={`Excluir ${c.nome}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ),
