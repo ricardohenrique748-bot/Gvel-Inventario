@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { format, subDays } from 'date-fns'
-import { FileDown, Share2, Check, X, Truck } from 'lucide-react'
+import { FileDown, FileSpreadsheet, Share2, Check, X, Truck } from 'lucide-react'
 import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -14,6 +14,7 @@ import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
 import { obterLinkPublico } from '@/hooks/useClientes'
 import { permanenciaEmMinutos, formatMinutosParaTexto, formatDate, formatDateTime } from '@/lib/format'
 import { generatePdfFromHtml, reportHeaderHtml, reportFooterHtml } from '@/lib/pdf'
+import { exportRowsToCsv } from '@/lib/csv'
 import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 
@@ -188,6 +189,21 @@ export function Relatorios() {
     }
   }
 
+  function handleExportarExcel() {
+    const headers = ['Placa', 'Marca', 'Modelo', 'Cliente', 'Pátio', 'Entrada', 'Saída', 'Status']
+    const rows = movimentacoes.map((m) => [
+      m.veiculo?.placa ?? '',
+      m.veiculo?.marca?.nome ?? '',
+      m.veiculo?.modelo?.nome ?? '',
+      m.veiculo?.cliente?.nome ?? '',
+      m.patio?.nome ?? '',
+      formatDateTime(m.data_hora_entrada),
+      m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '',
+      m.status === 'no_patio' ? 'No pátio' : 'Saiu',
+    ])
+    exportRowsToCsv(`relatorio-movimentacoes-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`, headers, rows)
+  }
+
   return (
     <div>
       <PageHeader
@@ -203,6 +219,10 @@ export function Relatorios() {
             >
               <Share2 className="h-4 w-4" />
               {sharing ? 'Gerando…' : 'Compartilhar'}
+            </Button>
+            <Button variant="secondary" onClick={handleExportarExcel} disabled={loading || movimentacoes.length === 0}>
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar Excel
             </Button>
             <Button onClick={handleExportarPdf} disabled={exporting || loading}>
               <FileDown className="h-4 w-4" />
