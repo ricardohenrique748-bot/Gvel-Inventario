@@ -106,11 +106,17 @@ export function obterNomeCompletoMembro(nome: string): string {
   if (norm.includes('elismar')) return 'ELISMAR BATISTA DE ALMEIDA'
   if (norm.includes('rian')) return 'RIAN ROBSON DA SILVA'
 
+  const normPartes = norm.split(/\s+/).filter(Boolean)
+
   const encontrado = EQUIPE_GVEL.find((m) => {
     const mNorm = removerAcentos(m.nome.toLowerCase())
     if (mNorm === norm) return true
     const partes = mNorm.split(' ')
-    return partes.includes(norm) || (norm.length >= 4 && mNorm.includes(norm))
+    if (partes.includes(norm) || (norm.length >= 4 && mNorm.includes(norm))) return true
+    // Nome digitado faltando uma palavra do meio (ex: "JOÃO VITOR TEIXEIRA"
+    // em vez de "JOÃO VITOR MARQUES TEIXEIRA") — casa se todas as palavras
+    // digitadas aparecem no nome completo, mesmo fora de ordem contígua.
+    return normPartes.length >= 2 && normPartes.every((p) => partes.includes(p))
   })
   return encontrado ? encontrado.nome : nome
 }

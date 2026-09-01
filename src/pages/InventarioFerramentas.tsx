@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { isEstoqueAuthorized } from '@/components/layout/nav'
+import { obterNomeCompletoMembro } from '@/constants/equipe'
 import { isAdminUsuario } from '@/lib/permissoes'
 import { CameraWebcamModal } from '@/components/CameraWebcamModal'
 import { format } from 'date-fns'
@@ -1602,7 +1603,7 @@ export function InventarioFerramentas() {
                           </div>
                           <h4 className="mt-2.5 text-sm font-bold text-foreground uppercase">{r.ferramenta?.nome || 'FERRAMENTA'}</h4>
                           <p className="text-xs text-secondary mt-1">
-                            RESPONSÁVEL: <strong className="text-foreground font-bold">{r.responsavel}</strong>
+                            RESPONSÁVEL: <strong className="text-foreground font-bold">{obterNomeCompletoMembro(r.responsavel)}</strong>
                           </p>
                           {r.observacoes_retirada && (
                             <p className="text-[11px] text-secondary italic mt-1 line-clamp-1">"{r.observacoes_retirada}"</p>
@@ -1671,7 +1672,7 @@ export function InventarioFerramentas() {
                             onClick={() =>
                               setFotoModalUrl({
                                 url: r.foto_responsavel_url || r.foto_url || '',
-                                titulo: `Foto do Responsável: ${r.responsavel}`,
+                                titulo: `Foto do Responsável: ${obterNomeCompletoMembro(r.responsavel)}`,
                               })
                             }
                             className="relative group shrink-0"
@@ -1679,7 +1680,7 @@ export function InventarioFerramentas() {
                           >
                             <img
                               src={r.foto_responsavel_url || r.foto_url || ''}
-                              alt={r.responsavel}
+                              alt={obterNomeCompletoMembro(r.responsavel)}
                               loading="lazy"
                               decoding="async"
                               className="h-9 w-9 rounded-full object-cover border-2 border-primary/40 group-hover:border-primary transition-all shadow-sm"
@@ -1690,11 +1691,11 @@ export function InventarioFerramentas() {
                           </button>
                         ) : (
                           <div className="h-9 w-9 rounded-full bg-surface border border-border/30 flex items-center justify-center text-xs font-black text-secondary shrink-0">
-                            {r.responsavel.slice(0, 2).toUpperCase()}
+                            {obterNomeCompletoMembro(r.responsavel).slice(0, 2).toUpperCase()}
                           </div>
                         )}
                         <p className="text-xs text-secondary uppercase font-medium">
-                          RESPONSÁVEL: <strong className="text-foreground font-bold">{r.responsavel}</strong>
+                          RESPONSÁVEL: <strong className="text-foreground font-bold">{obterNomeCompletoMembro(r.responsavel)}</strong>
                         </p>
                       </div>
 
@@ -1789,7 +1790,7 @@ export function InventarioFerramentas() {
                                 onClick={() =>
                                   setFotoModalUrl({
                                     url: r.foto_responsavel_url || r.foto_url || '',
-                                    titulo: `Foto do Responsável: ${r.responsavel}`,
+                                    titulo: `Foto do Responsável: ${obterNomeCompletoMembro(r.responsavel)}`,
                                   })
                                 }
                                 className="shrink-0"
@@ -1797,14 +1798,14 @@ export function InventarioFerramentas() {
                               >
                                 <img
                                   src={r.foto_responsavel_url || r.foto_url || ''}
-                                  alt={r.responsavel}
+                                  alt={obterNomeCompletoMembro(r.responsavel)}
                                   loading="lazy"
                                   decoding="async"
                                   className="h-6 w-6 rounded-full object-cover border border-primary/40 hover:scale-110 transition-transform"
                                 />
                               </button>
                             )}
-                            <span>{r.responsavel}</span>
+                            <span>{obterNomeCompletoMembro(r.responsavel)}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3 font-bold text-foreground">{r.quantidade}</td>
@@ -2046,7 +2047,7 @@ export function InventarioFerramentas() {
                             {caixa.responsavel && (
                               <div className="flex items-center justify-between">
                                 <span className="text-secondary font-semibold">RESPONSÁVEL:</span>
-                                <span className="font-bold text-foreground">{caixa.responsavel}</span>
+                                <span className="font-bold text-foreground">{obterNomeCompletoMembro(caixa.responsavel)}</span>
                               </div>
                             )}
                             {caixa.data_retirada && (
@@ -2584,14 +2585,14 @@ export function InventarioFerramentas() {
                                   onClick={() =>
                                     setFotoModalUrl({
                                       url: bx.foto_responsavel_url!,
-                                      titulo: `Responsável: ${bx.responsavel}`,
+                                      titulo: `Responsável: ${obterNomeCompletoMembro(bx.responsavel)}`,
                                     })
                                   }
                                   className="h-6 w-6 rounded-full overflow-hidden border border-primary/40 hover:scale-110 transition-transform cursor-pointer"
                                 >
                                   <img
                                     src={bx.foto_responsavel_url}
-                                    alt={bx.responsavel}
+                                    alt={obterNomeCompletoMembro(bx.responsavel)}
                                     loading="lazy"
                                     decoding="async"
                                     className="h-full w-full object-cover"
@@ -2600,7 +2601,7 @@ export function InventarioFerramentas() {
                               ) : (
                                 <span className="text-xs">👤</span>
                               )}
-                              <span>{bx.responsavel}</span>
+                              <span>{obterNomeCompletoMembro(bx.responsavel)}</span>
                             </div>
                           </td>
                           <td className="px-4 py-3 font-mono font-bold text-primary">
@@ -3227,7 +3228,7 @@ function ModalHistoricoFerramenta({
                         </span>
                         <span className="font-black text-foreground uppercase flex items-center gap-1.5 mt-0.5">
                           <span className="h-2 w-2 rounded-full bg-primary" />
-                          {r.responsavel || 'NÃO INFORMADO'}
+                          {r.responsavel ? obterNomeCompletoMembro(r.responsavel) : 'NÃO INFORMADO'}
                         </span>
                       </div>
 
@@ -4750,7 +4751,7 @@ function ModalDevolucao({
             PLACA DO CAMINHÃO: <strong className="text-primary font-mono font-bold">{retirada.placa}</strong>
           </p>
           <p>
-            RESPONSÁVEL: <strong className="text-foreground font-bold">{retirada.responsavel}</strong> ({retirada.quantidade} UN.)
+            RESPONSÁVEL: <strong className="text-foreground font-bold">{obterNomeCompletoMembro(retirada.responsavel)}</strong> ({retirada.quantidade} UN.)
           </p>
         </div>
 
