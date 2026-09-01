@@ -1805,64 +1805,70 @@ export function Frotas() {
                   <p className="text-xs font-bold text-foreground">NENHUM DOCUMENTO CADASTRADO</p>
                 </div>
               ) : (
-                <div className="h-72 w-full pt-2">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={dadosGraficoVencimentoDoc}
-                      margin={{ top: 20, right: 30, left: 10, bottom: 25 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                      <XAxis
-                        dataKey="placa"
-                        tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 11, fontWeight: 'bold' }}
-                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontFamily: 'monospace' }}
-                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                        tickLine={false}
-                        unit=" D"
-                      />
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (!active || !payload || !payload.length) return null
-                          const d = payload[0].payload
-                          return (
-                            <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
-                              <p className="font-mono font-black text-primary text-sm">
-                                🚛 {d.placa} · {d.modelo}
-                              </p>
-                              <div className="mt-1.5 space-y-1 text-[11px] font-mono">
-                                <p className="text-secondary">Data de Vencimento: <span className="font-bold text-white">{d.vencimento}</span></p>
-                                <p className={`font-black ${d.dias < 0 ? 'text-rose-500' : d.dias <= 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                  {d.dias < 0
-                                    ? `🛑 VENCIDO HÁ ${Math.abs(d.dias)} DIAS`
-                                    : d.dias === 0
-                                    ? '⚠️ VENCE HOJE!'
-                                    : `✅ VENCE EM ${d.dias} DIAS`}
-                                </p>
-                              </div>
-                            </div>
-                          )
-                        }}
-                      />
-                      <Bar dataKey="dias" radius={[6, 6, 0, 0]}>
-                        <LabelList
-                          dataKey="dias"
-                          position="top"
-                          formatter={(val: any) => `${val}D`}
-                          style={{ fill: '#cbd5e1', fontSize: '9px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                <div className="h-72 w-full pt-2 overflow-x-auto">
+                  <div style={{ minWidth: Math.max(500, dadosGraficoVencimentoDoc.length * 48), height: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={dadosGraficoVencimentoDoc}
+                        margin={{ top: 20, right: 16, left: 10, bottom: 55 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                        <XAxis
+                          dataKey="placa"
+                          tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontWeight: 'bold' }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                          tickLine={false}
+                          interval={0}
+                          angle={-40}
+                          textAnchor="end"
+                          height={60}
                         />
-                        {dadosGraficoVencimentoDoc.map((entry, index) => {
-                          let cor = '#10b981' // Verde (em dia)
-                          if (entry.dias < 0) cor = '#e11d48' // Vermelho escuro (vencido)
-                          else if (entry.dias <= 30) cor = '#f59e0b' // Laranja / Âmbar (a vencer)
-                          return <Cell key={`cell-doc-${index}`} fill={cor} />
-                        })}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                        <YAxis
+                          tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontFamily: 'monospace' }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                          tickLine={false}
+                          unit=" D"
+                        />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload || !payload.length) return null
+                            const d = payload[0].payload
+                            return (
+                              <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
+                                <p className="font-mono font-black text-primary text-sm">
+                                  🚛 {d.placa} · {d.modelo}
+                                </p>
+                                <div className="mt-1.5 space-y-1 text-[11px] font-mono">
+                                  <p className="text-secondary">Data de Vencimento: <span className="font-bold text-white">{d.vencimento}</span></p>
+                                  <p className={`font-black ${d.dias < 0 ? 'text-rose-500' : d.dias <= 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                    {d.dias < 0
+                                      ? `🛑 VENCIDO HÁ ${Math.abs(d.dias)} DIAS`
+                                      : d.dias === 0
+                                      ? '⚠️ VENCE HOJE!'
+                                      : `✅ VENCE EM ${d.dias} DIAS`}
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          }}
+                        />
+                        <Bar dataKey="dias" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                          <LabelList
+                            dataKey="dias"
+                            position="top"
+                            formatter={(val: any) => `${val}D`}
+                            style={{ fill: '#cbd5e1', fontSize: '9px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                          />
+                          {dadosGraficoVencimentoDoc.map((entry, index) => {
+                            let cor = '#10b981' // Verde (em dia)
+                            if (entry.dias < 0) cor = '#e11d48' // Vermelho escuro (vencido)
+                            else if (entry.dias <= 30) cor = '#f59e0b' // Laranja / Âmbar (a vencer)
+                            return <Cell key={`cell-doc-${index}`} fill={cor} />
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               )}
             </Card>
@@ -1887,70 +1893,76 @@ export function Frotas() {
                   </Badge>
                 </div>
 
-                <div className="h-72 w-full pt-2">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={dadosGraficoVencimentoTacografo}
-                      margin={{ top: 20, right: 30, left: 10, bottom: 25 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                      <XAxis
-                        dataKey="placa"
-                        tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 11, fontWeight: 'bold' }}
-                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontFamily: 'monospace' }}
-                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                        tickLine={false}
-                        unit=" D"
-                      />
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (!active || !payload || !payload.length) return null
-                          const d = payload[0].payload
-                          return (
-                            <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
-                              <p className="font-mono font-black text-purple-400 text-sm">
-                                ⏱️ {d.placa} · {d.modelo}
-                              </p>
-                              <div className="mt-1.5 space-y-1 text-[11px] font-mono">
-                                {d.numeroTacografo && (
-                                  <p className="text-secondary">Nº Tacógrafo: <span className="font-bold text-white">{d.numeroTacografo}</span></p>
-                                )}
-                                {d.emissao && (
-                                  <p className="text-secondary">Emissão / Ensaio: <span className="font-bold text-white">{d.emissao}</span></p>
-                                )}
-                                <p className="text-secondary">Vencimento: <span className="font-bold text-white">{d.vencimento}</span></p>
-                                <p className={`font-black ${d.dias < 0 ? 'text-rose-500' : d.dias <= 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                  {d.dias < 0
-                                    ? `🛑 VENCIDO HÁ ${Math.abs(d.dias)} DIAS`
-                                    : d.dias === 0
-                                    ? '⚠️ VENCE HOJE!'
-                                    : `✅ VENCE EM ${d.dias} DIAS`}
-                                </p>
-                              </div>
-                            </div>
-                          )
-                        }}
-                      />
-                      <Bar dataKey="dias" radius={[6, 6, 0, 0]}>
-                        <LabelList
-                          dataKey="dias"
-                          position="top"
-                          formatter={(val: any) => `${val}D`}
-                          style={{ fill: '#cbd5e1', fontSize: '9px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                <div className="h-72 w-full pt-2 overflow-x-auto">
+                  <div style={{ minWidth: Math.max(500, dadosGraficoVencimentoTacografo.length * 48), height: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={dadosGraficoVencimentoTacografo}
+                        margin={{ top: 20, right: 16, left: 10, bottom: 55 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                        <XAxis
+                          dataKey="placa"
+                          tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontWeight: 'bold' }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                          tickLine={false}
+                          interval={0}
+                          angle={-40}
+                          textAnchor="end"
+                          height={60}
                         />
-                        {dadosGraficoVencimentoTacografo.map((entry, index) => {
-                          let cor = '#10b981' // Verde (em dia)
-                          if (entry.dias < 0) cor = '#e11d48' // Vermelho escuro (vencido)
-                          else if (entry.dias <= 30) cor = '#f59e0b' // Laranja / Âmbar (a vencer)
-                          return <Cell key={`cell-tac-${index}`} fill={cor} />
-                        })}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                        <YAxis
+                          tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontFamily: 'monospace' }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                          tickLine={false}
+                          unit=" D"
+                        />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload || !payload.length) return null
+                            const d = payload[0].payload
+                            return (
+                              <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
+                                <p className="font-mono font-black text-purple-400 text-sm">
+                                  ⏱️ {d.placa} · {d.modelo}
+                                </p>
+                                <div className="mt-1.5 space-y-1 text-[11px] font-mono">
+                                  {d.numeroTacografo && (
+                                    <p className="text-secondary">Nº Tacógrafo: <span className="font-bold text-white">{d.numeroTacografo}</span></p>
+                                  )}
+                                  {d.emissao && (
+                                    <p className="text-secondary">Emissão / Ensaio: <span className="font-bold text-white">{d.emissao}</span></p>
+                                  )}
+                                  <p className="text-secondary">Vencimento: <span className="font-bold text-white">{d.vencimento}</span></p>
+                                  <p className={`font-black ${d.dias < 0 ? 'text-rose-500' : d.dias <= 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                    {d.dias < 0
+                                      ? `🛑 VENCIDO HÁ ${Math.abs(d.dias)} DIAS`
+                                      : d.dias === 0
+                                      ? '⚠️ VENCE HOJE!'
+                                      : `✅ VENCE EM ${d.dias} DIAS`}
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          }}
+                        />
+                        <Bar dataKey="dias" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                          <LabelList
+                            dataKey="dias"
+                            position="top"
+                            formatter={(val: any) => `${val}D`}
+                            style={{ fill: '#cbd5e1', fontSize: '9px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                          />
+                          {dadosGraficoVencimentoTacografo.map((entry, index) => {
+                            let cor = '#10b981' // Verde (em dia)
+                            if (entry.dias < 0) cor = '#e11d48' // Vermelho escuro (vencido)
+                            else if (entry.dias <= 30) cor = '#f59e0b' // Laranja / Âmbar (a vencer)
+                            return <Cell key={`cell-tac-${index}`} fill={cor} />
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </Card>
             )}
