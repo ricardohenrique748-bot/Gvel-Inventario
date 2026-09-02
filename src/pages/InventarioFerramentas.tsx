@@ -39,7 +39,8 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { isEstoqueAuthorized } from '@/components/layout/nav'
 import { obterNomeCompletoMembro } from '@/constants/equipe'
-import { frameBarrilPorPercentual, percentualBarril } from '@/lib/barril'
+import { percentualBarril } from '@/lib/barril'
+import { BarrilOleoSVG } from '@/components/BarrilOleoSVG'
 import { isAdminUsuario } from '@/lib/permissoes'
 import { CameraWebcamModal } from '@/components/CameraWebcamModal'
 import { format } from 'date-fns'
@@ -133,14 +134,6 @@ const STORAGE_BAIXAS_CONSUMO_KEY = 'gvel_inventario_baixas_consumo_v1'
 const CATEGORIAS_CONSUMO = [
   'TODAS',
   'LUBRIFICANTES & QUÍMICOS',
-  'PARAFUSOS & FIXAÇÃO',
-  'ELÉTRICA & FUSÍVEIS',
-  'DISCOS & LIXAS',
-  'VEDAÇÃO & ANÉIS',
-  'MANGUEIRAS & CONEXÕES',
-  'EPIS & PROTEÇÃO',
-  'LIMPEZA & ESTOPAS',
-  'DIVERSOS',
 ]
 
 const ITENS_CONSUMO_INICIAIS: ItemConsumo[] = []
@@ -935,7 +928,7 @@ export function InventarioFerramentas() {
           }`}
         >
           <Boxes className="h-4 w-4" />
-          USO E CONSUMO
+          INSUMOS
           <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
             abaAtiva === 'consumo' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
           }`}>
@@ -2574,26 +2567,13 @@ export function InventarioFerramentas() {
                               )}
                             </div>
 
-                            {/* Barril grande */}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setFotoModalUrl({
-                                  url: frameBarrilPorPercentual(pctBarril),
-                                  titulo: `${item.nome} — ${pctBarril}% RESTANTE`,
-                                })
-                              }
-                              className="cursor-pointer transition-transform hover:scale-105"
-                              title={`Nível do barril: ${pctBarril}%`}
-                            >
-                              <img
-                                src={frameBarrilPorPercentual(pctBarril)}
-                                alt={`${item.nome} — ${pctBarril}% restante`}
-                                loading="lazy"
-                                decoding="async"
-                                className="h-44 w-44 object-contain"
+                            {/* Barril grande (SVG vetorial — nível contínuo e sempre nítido) */}
+                            <div title={`Nível do barril: ${pctBarril}%`}>
+                              <BarrilOleoSVG
+                                percentual={pctBarril}
+                                className="h-44 w-44 origin-bottom animate-liquid-sway"
                               />
-                            </button>
+                            </div>
 
                             {(isZerado || isAlerta) && (
                               <div>
@@ -6416,10 +6396,9 @@ function ModalItemConsumo({
                 </p>
               </div>
               {Number(capacidadeMaxima) > 0 && (
-                <img
-                  src={frameBarrilPorPercentual(percentualBarril(Number(quantidadeAtual) || 0, Number(capacidadeMaxima)))}
-                  alt="Pré-visualização do nível do barril"
-                  className="h-16 w-16 shrink-0 object-contain"
+                <BarrilOleoSVG
+                  percentual={percentualBarril(Number(quantidadeAtual) || 0, Number(capacidadeMaxima))}
+                  className="h-16 w-16 shrink-0"
                 />
               )}
             </div>
