@@ -58,6 +58,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { isAdminUsuario } from '@/lib/permissoes'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
+import { getErrorMessage } from '@/lib/erros'
 import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL, FROTA_PESADA_OFICIAL } from '@/data/veiculosFrotaPadrao'
 import type { FotosVistoria, StatusPreventivaChecklist, RegistroChecklist } from '@/lib/types'
 import {
@@ -1229,7 +1230,7 @@ export function Frotas() {
       await refetchChecklists()
       setMostrarModalNovoChecklist(false)
     } catch (err) {
-      alert(err instanceof Error ? `Não foi possível salvar o checklist: ${err.message}` : 'Não foi possível salvar o checklist. Verifique sua conexão e tente novamente.')
+      alert(`Não foi possível salvar o checklist: ${getErrorMessage(err, 'verifique sua conexão e tente novamente.')}`)
     } finally {
       setSalvandoChecklist(false)
     }
