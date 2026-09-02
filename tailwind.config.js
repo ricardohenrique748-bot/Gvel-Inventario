@@ -79,6 +79,10 @@ export default {
           '0%, 100%': { transform: 'rotate(-1deg) skewX(-0.8deg)' },
           '50%': { transform: 'rotate(1deg) skewX(0.8deg)' },
         },
+        'liquid-rock': {
+          '0%, 100%': { transform: 'rotate(-3.5deg)' },
+          '50%': { transform: 'rotate(3.5deg)' },
+        },
       },
       animation: {
         'fade-in-up': 'fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both',
@@ -90,6 +94,7 @@ export default {
         'spin-slow-reverse': 'spin-slow-reverse 30s linear infinite',
         float: 'float 3s ease-in-out infinite',
         'liquid-sway': 'liquid-sway 4s ease-in-out infinite',
+        'liquid-rock': 'liquid-rock 2s ease-in-out infinite',
       },
     },
   },

@@ -108,6 +108,9 @@ export interface ItemConsumo {
    * item vira um "barril" e mostra o indicador visual de nível de líquido
    * em vez da foto genérica. */
   capacidade_maxima?: number | null
+  /** Quantidade de tambores no estoque (o barril desenhado mostra sempre
+   * o nível do tambor em uso — isso é só informativo, não entra no %). */
+  quantidade_tambores?: number | null
   localizacao: string | null
   observacoes: string | null
   foto_url: string | null
@@ -2597,6 +2600,11 @@ export function InventarioFerramentas() {
                               <p className="text-[10px] text-secondary font-bold mt-0.5">
                                 {pctBarril}% DE {item.capacidade_maxima} {item.unidade}
                               </p>
+                              {Boolean(item.quantidade_tambores && item.quantidade_tambores > 0) && (
+                                <p className="text-[10px] text-primary font-bold mt-0.5">
+                                  {item.quantidade_tambores} {item.quantidade_tambores === 1 ? 'TAMBOR' : 'TAMBORES'} EM ESTOQUE
+                                </p>
+                              )}
                             </div>
 
                             {item.localizacao && (
@@ -6167,6 +6175,7 @@ function ModalItemConsumo({
   const [quantidadeAtual, setQuantidadeAtual] = useState(item?.quantidade_atual ?? 10)
   const [quantidadeMinima, setQuantidadeMinima] = useState(item?.quantidade_minima ?? 3)
   const [capacidadeMaxima, setCapacidadeMaxima] = useState(item?.capacidade_maxima ?? 0)
+  const [quantidadeTambores, setQuantidadeTambores] = useState(item?.quantidade_tambores ?? 0)
 
   // Campo type="number" trata "." como separador decimal, então "1.000"
   // vira 1 em vez de 1000 — aqui tratamos "." e "," como separador de
@@ -6225,6 +6234,7 @@ function ModalItemConsumo({
         quantidade_atual: Number(quantidadeAtual) || 0,
         quantidade_minima: Number(quantidadeMinima) || 0,
         capacidade_maxima: Number(capacidadeMaxima) > 0 ? Number(capacidadeMaxima) : null,
+        quantidade_tambores: Number(quantidadeTambores) > 0 ? Number(quantidadeTambores) : null,
         localizacao: localizacao.trim() ? localizacao.trim().toUpperCase() : null,
         observacoes: observacoes.trim() ? observacoes.trim().toUpperCase() : null,
         foto_url: finalFotoUrl,
@@ -6401,6 +6411,23 @@ function ModalItemConsumo({
                   className="h-16 w-16 shrink-0"
                 />
               )}
+            </div>
+            <div>
+              <label htmlFor="qtdTambores" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+                Quantidade de Tambores em Estoque
+              </label>
+              <Input
+                id="qtdTambores"
+                type="number"
+                min="0"
+                placeholder="Ex: 3 (deixe 0 se não quiser mostrar)"
+                value={quantidadeTambores || ''}
+                onChange={(e) => setQuantidadeTambores(parseInteiroPtBr(e.target.value))}
+                className="font-mono text-base font-bold"
+              />
+              <p className="text-[10px] text-secondary font-medium mt-1">
+                Só informativo — o desenho do barril acima continua mostrando o nível do tambor em uso.
+              </p>
             </div>
           </div>
 

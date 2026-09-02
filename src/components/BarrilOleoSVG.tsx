@@ -63,15 +63,12 @@ export function BarrilOleoSVG({ percentual, className }: BarrilOleoSVGProps) {
           style={{ transition: 'y 0.5s ease-out, height 0.5s ease-out' }}
         />
         {pct > 0 && pct < 100 && (
-          <ellipse
-            cx="100"
-            cy={liquidTopY}
-            rx="70"
-            ry="6.5"
-            fill="#F8B24C"
-            opacity="0.9"
-            style={{ transition: 'cy 0.5s ease-out' }}
-          />
+          <g style={{ transform: `translateY(${liquidTopY}px)`, transition: 'transform 0.5s ease-out' }}>
+            <g className="animate-liquid-rock" style={{ transformOrigin: '100px 0px' }}>
+              <rect x="-90" y="-2" width="380" height="24" fill={`url(#${liquidGradId})`} />
+              <rect x="-90" y="-2" width="380" height="3" fill="#FFDDA0" opacity="0.85" />
+            </g>
+          </g>
         )}
       </g>
 
