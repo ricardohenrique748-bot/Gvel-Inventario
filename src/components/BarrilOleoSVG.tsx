@@ -85,6 +85,21 @@ export function BarrilOleoSVG({ percentual, className }: BarrilOleoSVGProps) {
         </g>
       ))}
 
+      {/* Logo "GV" estampado no meio do barril */}
+      <text
+        x="100"
+        y="139"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontFamily="Arial, Helvetica, sans-serif"
+        fontSize="30"
+        fontWeight="900"
+        fill="#1A1A1A"
+        fillOpacity="0.9"
+      >
+        GV
+      </text>
+
       {/* Tampa (topo) */}
       <ellipse cx="100" cy="38" rx="76" ry="19" fill="#C22626" stroke="#6E0D0D" strokeWidth="2" />
       <ellipse cx="100" cy="33" rx="56" ry="10" fill="#E0524A" opacity="0.6" />
