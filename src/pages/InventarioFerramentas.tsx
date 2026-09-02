@@ -32,10 +32,14 @@ import {
   ShieldAlert,
   CheckSquare,
   Square,
+  Folder,
+  FolderOpen,
+  ArrowLeft,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { isEstoqueAuthorized } from '@/components/layout/nav'
 import { obterNomeCompletoMembro } from '@/constants/equipe'
+import { frameBarrilPorPercentual, percentualBarril } from '@/lib/barril'
 import { isAdminUsuario } from '@/lib/permissoes'
 import { CameraWebcamModal } from '@/components/CameraWebcamModal'
 import { format } from 'date-fns'
@@ -70,6 +74,10 @@ export interface ItemCaixa {
   quantidade: number
 }
 
+export type SetorCaixa = 'LEVE' | 'PESADA' | 'FUNILARIA' | 'ESTETICA'
+
+export const SETORES_CAIXA: SetorCaixa[] = ['LEVE', 'PESADA', 'FUNILARIA', 'ESTETICA']
+
 export interface CaixaFerramenta {
   id: string
   nome: string
@@ -82,6 +90,8 @@ export interface CaixaFerramenta {
   responsavel?: string
   placa?: string
   data_retirada?: string
+  /** Pasta/setor da oficina onde essa caixa fica (LEVE, PESADA, FUNILARIA, ESTETICA). */
+  setor?: SetorCaixa | null
   created_at: string
 }
 
@@ -93,6 +103,10 @@ export interface ItemConsumo {
   unidade: string
   quantidade_atual: number
   quantidade_minima: number
+  /** Capacidade cheia (ex: 200 para um tambor de 200L). Se preenchida, o
+   * item vira um "barril" e mostra o indicador visual de nível de líquido
+   * em vez da foto genérica. */
+  capacidade_maxima?: number | null
   localizacao: string | null
   observacoes: string | null
   foto_url: string | null
@@ -309,6 +323,7 @@ export function InventarioFerramentas() {
   const [caixaEditando, setCaixaEditando] = useState<CaixaFerramenta | null>(null)
   const [modalRetiradaCaixaAberto, setModalRetiradaCaixaAberto] = useState(false)
   const [caixaParaRetirar, setCaixaParaRetirar] = useState<CaixaFerramenta | null>(null)
+  const [setorCaixaAtivo, setSetorCaixaAtivo] = useState<SetorCaixa | 'SEM_SETOR' | null>(null)
 
   // Uso e Consumo State
   const [itensConsumo, setItensConsumo] = useState<ItemConsumo[]>(ITENS_CONSUMO_INICIAIS)
@@ -337,21 +352,33 @@ export function InventarioFerramentas() {
     setCaixas(novasCaixas)
     try {
       localStorage.setItem(STORAGE_CAIXAS_KEY, JSON.stringify(novasCaixas))
-    } catch {}
+    } catch (err) {
+      console.error('Erro ao salvar caixas de ferramentas no localStorage:', err)
+      alert(
+        `NÃO FOI POSSÍVEL SALVAR A CAIXA DE FERRAMENTAS.\n\nO ARMAZENAMENTO LOCAL DO NAVEGADOR ESTÁ CHEIO (ISSO ACONTECE QUANDO MUITAS FOTOS FICAM GUARDADAS LOCALMENTE). LIMPE O CACHE/DADOS DO SITE OU LIBERE ESPAÇO E TENTE NOVAMENTE.\n\nDETALHE TÉCNICO: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
   }
 
   function salvarItensConsumo(novosItens: ItemConsumo[]) {
     setItensConsumo(novosItens)
     try {
       localStorage.setItem(STORAGE_CONSUMO_KEY, JSON.stringify(novosItens))
-    } catch {}
+    } catch (err) {
+      console.error('Erro ao salvar itens de consumo no localStorage:', err)
+      alert(
+        `NÃO FOI POSSÍVEL SALVAR O INSUMO.\n\nO ARMAZENAMENTO LOCAL DO NAVEGADOR ESTÁ CHEIO (ISSO ACONTECE QUANDO MUITAS FOTOS FICAM GUARDADAS LOCALMENTE). LIMPE O CACHE/DADOS DO SITE OU LIBERE ESPAÇO E TENTE NOVAMENTE.\n\nDETALHE TÉCNICO: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
   }
 
   function salvarBaixasConsumo(novasBaixas: RegistroBaixaConsumo[]) {
     setBaixasConsumo(novasBaixas)
     try {
       localStorage.setItem(STORAGE_BAIXAS_CONSUMO_KEY, JSON.stringify(novasBaixas))
-    } catch {}
+    } catch (err) {
+      console.error('Erro ao salvar histórico de consumos no localStorage:', err)
+    }
   }
 
   const [buscaConsumo, setBuscaConsumo] = useState('')
@@ -540,9 +567,40 @@ export function InventarioFerramentas() {
         (c.responsavel && c.responsavel.toLowerCase().includes(termo))
 
       const matchStatus = statusFiltroCaixas === 'TODOS' || c.status === statusFiltroCaixas
-      return matchBusca && matchStatus
+      // Dentro de uma pasta/setor, só mostra caixas daquele setor. Fora de
+      // uma pasta (buscando globalmente), não filtra por setor.
+      const matchSetor = !setorCaixaAtivo
+        ? true
+        : setorCaixaAtivo === 'SEM_SETOR'
+          ? !c.setor
+          : c.setor === setorCaixaAtivo
+      return matchBusca && matchStatus && matchSetor
     })
-  }, [caixas, deferredBuscaCaixas, statusFiltroCaixas])
+  }, [caixas, deferredBuscaCaixas, statusFiltroCaixas, setorCaixaAtivo])
+
+  // Quantidade de caixas por setor, para os cards de pasta (respeita a busca,
+  // não o filtro de status — a pasta mostra o total de caixas ali dentro).
+  const contagemCaixasPorSetor = useMemo(() => {
+    const termo = deferredBuscaCaixas.trim().toLowerCase()
+    const mapa: Record<SetorCaixa, number> = { LEVE: 0, PESADA: 0, FUNILARIA: 0, ESTETICA: 0 }
+    caixas.forEach((c) => {
+      if (!c.setor) return
+      const matchBusca =
+        !termo ||
+        c.nome.toLowerCase().includes(termo) ||
+        (c.codigo && c.codigo.toLowerCase().includes(termo)) ||
+        (c.placa && c.placa.toLowerCase().includes(termo)) ||
+        (c.responsavel && c.responsavel.toLowerCase().includes(termo))
+      if (matchBusca) mapa[c.setor] = (mapa[c.setor] || 0) + 1
+    })
+    return mapa
+  }, [caixas, deferredBuscaCaixas])
+
+  const caixasSemSetor = useMemo(() => caixas.filter((c) => !c.setor).length, [caixas])
+
+  // Mostra a tela de pastas quando não se entrou em nenhum setor ainda e não
+  // há busca ativa (buscar já pula direto pra visão em lista, cruzando pastas).
+  const mostrarPastasCaixas = !setorCaixaAtivo && !deferredBuscaCaixas.trim()
 
   // Recarrega tudo
   const recarregarDados = async () => {
@@ -912,7 +970,7 @@ export function InventarioFerramentas() {
                   }`}
                 >
                   <Hammer className="h-3.5 w-3.5" />
-                  FERRAMENTAS
+                  FERRAMENTAS PÁTIO
                   <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
                     tipoFiltro === 'ferramentas' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
                   }`}>
@@ -1906,7 +1964,7 @@ export function InventarioFerramentas() {
       {/* ==================== ABA 4: CAIXAS DE FERRAMENTAS ==================== */}
       {abaAtiva === 'caixas' && (
         <div className="space-y-4 uppercase">
-          {/* Barra de Filtros e Busca de Caixas */}
+          {/* Busca — funciona mesmo fora de uma pasta (busca em todos os setores) */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1 max-w-md">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
@@ -1918,30 +1976,7 @@ export function InventarioFerramentas() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 bg-overlay/5 p-1 rounded-xl">
-                {(['TODOS', 'disponivel', 'em_uso', 'manutencao'] as const).map((st) => (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => setStatusFiltroCaixas(st)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors uppercase cursor-pointer ${
-                      statusFiltroCaixas === st
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'text-secondary hover:text-foreground'
-                    }`}
-                  >
-                    {st === 'TODOS'
-                      ? 'TODAS'
-                      : st === 'disponivel'
-                      ? 'DISPONÍVEIS'
-                      : st === 'em_uso'
-                      ? 'EM USO'
-                      : 'MANUTENÇÃO'}
-                  </button>
-                ))}
-              </div>
-
+            {!mostrarPastasCaixas && (
               <Button
                 type="button"
                 onClick={() => {
@@ -1953,6 +1988,91 @@ export function InventarioFerramentas() {
                 <Plus className="h-4 w-4" />
                 NOVA CAIXA
               </Button>
+            )}
+          </div>
+
+          {mostrarPastasCaixas ? (
+            /* ============ VISÃO DE PASTAS POR SETOR ============ */
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {SETORES_CAIXA.map((setor) => (
+                <button
+                  key={setor}
+                  type="button"
+                  onClick={() => setSetorCaixaAtivo(setor)}
+                  className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/20 bg-surface p-6 text-center shadow-md transition-all hover:border-primary/50 hover:-translate-y-0.5 cursor-pointer"
+                >
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 group-hover:bg-primary/15 transition-colors">
+                    <Folder className="h-8 w-8 group-hover:hidden" />
+                    <FolderOpen className="h-8 w-8 hidden group-hover:block" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-foreground text-sm">{setor}</h3>
+                    <p className="text-[11px] text-secondary font-semibold mt-0.5">
+                      {contagemCaixasPorSetor[setor]} {contagemCaixasPorSetor[setor] === 1 ? 'CAIXA' : 'CAIXAS'}
+                    </p>
+                  </div>
+                </button>
+              ))}
+
+              {caixasSemSetor > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSetorCaixaAtivo('SEM_SETOR')}
+                  className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/30 bg-surface/60 p-6 text-center shadow-sm transition-all hover:border-amber-500/50 hover:-translate-y-0.5 cursor-pointer sm:col-span-2 lg:col-span-4"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                    <Folder className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-foreground text-xs">SEM SETOR DEFINIDO</h3>
+                    <p className="text-[11px] text-secondary font-semibold mt-0.5">
+                      {caixasSemSetor} {caixasSemSetor === 1 ? 'CAIXA ANTIGA AINDA NÃO CLASSIFICADA' : 'CAIXAS ANTIGAS AINDA NÃO CLASSIFICADAS'}
+                    </p>
+                  </div>
+                </button>
+              )}
+            </div>
+          ) : (
+          <>
+          {/* Breadcrumb + Filtro de Status (só aparece dentro de uma pasta ou buscando) */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                setSetorCaixaAtivo(null)
+                setBuscaCaixas('')
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline cursor-pointer w-fit"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              {setorCaixaAtivo === 'SEM_SETOR'
+                ? 'PASTA: SEM SETOR DEFINIDO'
+                : setorCaixaAtivo
+                  ? `PASTA: ${setorCaixaAtivo}`
+                  : 'VOLTAR PARA AS PASTAS'}
+            </button>
+
+            <div className="flex items-center gap-1 bg-overlay/5 p-1 rounded-xl">
+              {(['TODOS', 'disponivel', 'em_uso', 'manutencao'] as const).map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setStatusFiltroCaixas(st)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors uppercase cursor-pointer ${
+                    statusFiltroCaixas === st
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-secondary hover:text-foreground'
+                  }`}
+                >
+                  {st === 'TODOS'
+                    ? 'TODAS'
+                    : st === 'disponivel'
+                    ? 'DISPONÍVEIS'
+                    : st === 'em_uso'
+                    ? 'EM USO'
+                    : 'MANUTENÇÃO'}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -2181,6 +2301,8 @@ export function InventarioFerramentas() {
               )}
             </div>
           )}
+          </>
+          )}
         </div>
       )}
 
@@ -2339,6 +2461,157 @@ export function InventarioFerramentas() {
                     {itensConsumoFiltrados.slice(0, limiteConsumo).map((item) => {
                       const isAlerta = item.quantidade_atual <= item.quantidade_minima
                       const isZerado = item.quantidade_atual === 0
+                      const isBarril = Boolean(item.capacidade_maxima && item.capacidade_maxima > 0)
+                      const pctBarril = isBarril ? percentualBarril(item.quantidade_atual, item.capacidade_maxima!) : 0
+
+                      const acoes = (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="md"
+                            onClick={() => {
+                              setItemConsumoParaBaixa(item)
+                              setModalBaixaConsumoAberto(true)
+                            }}
+                            disabled={item.quantidade_atual <= 0}
+                            className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-amber-500/30 text-amber-500 hover:bg-amber-500/10 disabled:opacity-30"
+                            title="Dar baixa de consumo"
+                          >
+                            <TrendingDown className="h-3.5 w-3.5" />
+                            BAIXAR
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="md"
+                            onClick={() => {
+                              setItemConsumoParaEntrada(item)
+                              setModalEntradaConsumoAberto(true)
+                            }}
+                            className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+                            title="Adicionar entrada ao estoque"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            REPOR
+                          </Button>
+                        </div>
+                      )
+
+                      const acoesSecundarias = (
+                        <div className="flex items-center gap-0.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setItemConsumoEditando(item)
+                              setModalItemConsumoAberto(true)
+                            }}
+                            className="h-8 w-8 text-secondary hover:text-foreground"
+                            title="Editar Insumo"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          {isAdmin && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                if (confirm(`Deseja excluir o insumo "${item.nome}"?`)) {
+                                  salvarItensConsumo(itensConsumo.filter((i) => i.id !== item.id))
+                                }
+                              }}
+                              className="h-8 w-8 text-secondary hover:text-red-400"
+                              title="Excluir Insumo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      )
+
+                      if (isBarril) {
+                        return (
+                          <Card
+                            key={item.id}
+                            className={`p-4 flex flex-col items-center text-center gap-1 border transition-all shadow-md relative bg-surface ${
+                              isZerado
+                                ? 'border-red-500/40 bg-red-500/5'
+                                : isAlerta
+                                ? 'border-amber-500/40 bg-amber-500/5'
+                                : 'border-border/20 hover:border-primary/40'
+                            }`}
+                          >
+                            {/* Nome do óleo em cima, centralizado */}
+                            <div className="w-full">
+                              <h3 className="font-bold text-foreground text-sm leading-tight uppercase truncate">
+                                {item.nome}
+                              </h3>
+                              {item.codigo && (
+                                <span className="font-mono text-[10px] text-primary font-bold">[{item.codigo}]</span>
+                              )}
+                            </div>
+
+                            {/* Barril grande */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFotoModalUrl({
+                                  url: frameBarrilPorPercentual(pctBarril),
+                                  titulo: `${item.nome} — ${pctBarril}% RESTANTE`,
+                                })
+                              }
+                              className="cursor-pointer transition-transform hover:scale-105"
+                              title={`Nível do barril: ${pctBarril}%`}
+                            >
+                              <img
+                                src={frameBarrilPorPercentual(pctBarril)}
+                                alt={`${item.nome} — ${pctBarril}% restante`}
+                                loading="lazy"
+                                decoding="async"
+                                className="h-44 w-44 object-contain"
+                              />
+                            </button>
+
+                            {(isZerado || isAlerta) && (
+                              <div>
+                                {isZerado ? (
+                                  <Badge tone="danger" className="text-[9px] font-black uppercase">
+                                    ZERADO
+                                  </Badge>
+                                ) : (
+                                  <Badge tone="warning" className="text-[9px] font-black uppercase">
+                                    REPOSIÇÃO
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Quantidade embaixo */}
+                            <div>
+                              <span className="text-2xl font-black font-mono text-foreground">
+                                {item.quantidade_atual} <span className="text-xs font-semibold text-secondary">{item.unidade}</span>
+                              </span>
+                              <p className="text-[10px] text-secondary font-bold mt-0.5">
+                                {pctBarril}% DE {item.capacidade_maxima} {item.unidade}
+                              </p>
+                            </div>
+
+                            {item.localizacao && (
+                              <p className="text-[10px] text-secondary font-medium truncate">📍 {item.localizacao}</p>
+                            )}
+
+                            <div className="pt-3 mt-1 border-t border-border/10 w-full flex flex-col items-center gap-1.5">
+                              {acoes}
+                              {acoesSecundarias}
+                            </div>
+                          </Card>
+                        )
+                      }
+
                       return (
                         <Card
                           key={item.id}
@@ -2452,70 +2725,8 @@ export function InventarioFerramentas() {
 
                           {/* Ações do Insumo */}
                           <div className="pt-2 border-t border-border/10 flex items-center justify-between gap-1.5">
-                            <div className="flex items-center gap-1">
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="md"
-                                onClick={() => {
-                                  setItemConsumoParaBaixa(item)
-                                  setModalBaixaConsumoAberto(true)
-                                }}
-                                disabled={item.quantidade_atual <= 0}
-                                className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-amber-500/30 text-amber-500 hover:bg-amber-500/10 disabled:opacity-30"
-                                title="Dar baixa de consumo"
-                              >
-                                <TrendingDown className="h-3.5 w-3.5" />
-                                BAIXAR
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="md"
-                                onClick={() => {
-                                  setItemConsumoParaEntrada(item)
-                                  setModalEntradaConsumoAberto(true)
-                                }}
-                                className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
-                                title="Adicionar entrada ao estoque"
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                                REPOR
-                              </Button>
-                            </div>
-
-                            <div className="flex items-center gap-0.5">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  setItemConsumoEditando(item)
-                                  setModalItemConsumoAberto(true)
-                                }}
-                                className="h-8 w-8 text-secondary hover:text-foreground"
-                                title="Editar Insumo"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              {isAdmin && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => {
-                                    if (confirm(`Deseja excluir o insumo "${item.nome}"?`)) {
-                                      salvarItensConsumo(itensConsumo.filter((i) => i.id !== item.id))
-                                    }
-                                  }}
-                                  className="h-8 w-8 text-secondary hover:text-red-400"
-                                  title="Excluir Insumo"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                            </div>
+                            {acoes}
+                            {acoesSecundarias}
                           </div>
                         </Card>
                       )
@@ -2564,11 +2775,14 @@ export function InventarioFerramentas() {
                         </td>
                       </tr>
                     ) : (
-                      baixasConsumo.slice(0, limiteHistoricoConsumo).map((bx) => (
+                      baixasConsumo.slice(0, limiteHistoricoConsumo).map((bx) => {
+                        const itemRefBaixa = itensConsumo.find((it) => it.id === bx.item_id)
+                        const ehBarrilBaixa = Boolean(itemRefBaixa?.capacidade_maxima && itemRefBaixa.capacidade_maxima > 0)
+                        return (
                         <tr key={bx.id} className="hover:bg-overlay/5 transition-colors">
                           <td className="px-4 py-3 font-bold text-foreground">
                             <div className="flex items-center gap-2">
-                              <span>📦</span>
+                              <span>{ehBarrilBaixa ? '🛢️' : '📦'}</span>
                               <span>{bx.item_nome}</span>
                             </div>
                           </td>
@@ -2614,7 +2828,8 @@ export function InventarioFerramentas() {
                             {format(new Date(bx.data_hora), "dd/MM/yyyy 'ÀS' HH:mm", { locale: ptBR })}
                           </td>
                         </tr>
-                      ))
+                        )
+                      })
                     )}
                   </tbody>
                 </table>
@@ -2971,6 +3186,7 @@ export function InventarioFerramentas() {
       {modalCaixaAberto && (
         <ModalCaixaFerramenta
           caixa={caixaEditando}
+          setorPadrao={setorCaixaAtivo === 'SEM_SETOR' ? null : setorCaixaAtivo}
           ferramentasDisponiveis={ferramentas}
           onClose={() => setModalCaixaAberto(false)}
           onSalvo={async (novaCaixa) => {
@@ -5240,17 +5456,20 @@ function ModalEditarRetirada({
 // ----------------------------------------------------------------------------------
 function ModalCaixaFerramenta({
   caixa,
+  setorPadrao,
   ferramentasDisponiveis,
   onClose,
   onSalvo,
 }: {
   caixa: CaixaFerramenta | null
+  setorPadrao?: SetorCaixa | null
   ferramentasDisponiveis: Ferramenta[]
   onClose: () => void
   onSalvo: (caixa: CaixaFerramenta) => Promise<void>
 }) {
   const [nome, setNome] = useState(caixa?.nome || '')
   const [codigo, setCodigo] = useState(caixa?.codigo || '')
+  const [setor, setSetor] = useState<SetorCaixa | ''>(caixa?.setor || setorPadrao || '')
   const [localizacao, setLocalizacao] = useState(caixa?.localizacao || '')
   const [status, setStatus] = useState<'disponivel' | 'em_uso' | 'manutencao'>(caixa?.status || 'disponivel')
   const [observacoes, setObservacoes] = useState(caixa?.observacoes || '')
@@ -5331,6 +5550,7 @@ function ModalCaixaFerramenta({
         id: caixa?.id || `caixa_${Date.now()}`,
         nome: nome.trim().toUpperCase(),
         codigo: codigo.trim().toUpperCase() || undefined,
+        setor: setor || null,
         localizacao: localizacao.trim().toUpperCase() || undefined,
         status: status,
         foto_url: finalFotoUrl,
@@ -5408,6 +5628,26 @@ function ModalCaixaFerramenta({
                 className="uppercase font-mono"
               />
             </div>
+          </div>
+
+          {/* Setor / Pasta */}
+          <div>
+            <label htmlFor="setorCaixa" className="block text-xs font-bold text-foreground uppercase tracking-wide mb-1">
+              Setor / Pasta
+            </label>
+            <select
+              id="setorCaixa"
+              value={setor}
+              onChange={(e) => setSetor(e.target.value as SetorCaixa | '')}
+              className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">SEM SETOR DEFINIDO</option>
+              {SETORES_CAIXA.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Localização e Status */}
@@ -5912,6 +6152,15 @@ function ModalItemConsumo({
   const [unidade, setUnidade] = useState(item?.unidade || 'UN')
   const [quantidadeAtual, setQuantidadeAtual] = useState(item?.quantidade_atual ?? 10)
   const [quantidadeMinima, setQuantidadeMinima] = useState(item?.quantidade_minima ?? 3)
+  const [capacidadeMaxima, setCapacidadeMaxima] = useState(item?.capacidade_maxima ?? 0)
+
+  // Campo type="number" trata "." como separador decimal, então "1.000"
+  // vira 1 em vez de 1000 — aqui tratamos "." e "," como separador de
+  // milhar (uso comum no pt-BR) pra digitar "1.000" e virar 1000 de fato.
+  function parseInteiroPtBr(valor: string): number {
+    const limpo = valor.replace(/[.,]/g, '')
+    return Number(limpo) || 0
+  }
   const [localizacao, setLocalizacao] = useState(item?.localizacao || '')
   const [observacoes, setObservacoes] = useState(item?.observacoes || '')
   const [fotoFile, setFotoFile] = useState<File | null>(null)
@@ -5961,6 +6210,7 @@ function ModalItemConsumo({
         unidade: unidade.trim().toUpperCase() || 'UN',
         quantidade_atual: Number(quantidadeAtual) || 0,
         quantidade_minima: Number(quantidadeMinima) || 0,
+        capacidade_maxima: Number(capacidadeMaxima) > 0 ? Number(capacidadeMaxima) : null,
         localizacao: localizacao.trim() ? localizacao.trim().toUpperCase() : null,
         observacoes: observacoes.trim() ? observacoes.trim().toUpperCase() : null,
         foto_url: finalFotoUrl,
@@ -6092,7 +6342,7 @@ function ModalItemConsumo({
                 type="number"
                 min="0"
                 value={quantidadeAtual}
-                onChange={(e) => setQuantidadeAtual(Number(e.target.value))}
+                onChange={(e) => setQuantidadeAtual(parseInteiroPtBr(e.target.value))}
                 className="font-mono text-base font-bold"
               />
             </div>
@@ -6105,9 +6355,39 @@ function ModalItemConsumo({
                 type="number"
                 min="0"
                 value={quantidadeMinima}
-                onChange={(e) => setQuantidadeMinima(Number(e.target.value))}
+                onChange={(e) => setQuantidadeMinima(parseInteiroPtBr(e.target.value))}
                 className="font-mono text-base font-bold"
               />
+            </div>
+          </div>
+
+          {/* Capacidade Máxima — ativa o indicador visual de barril */}
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label htmlFor="capMax" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+                  Capacidade Máxima (Barril/Tambor)
+                </label>
+                <Input
+                  id="capMax"
+                  type="number"
+                  min="0"
+                  placeholder="Ex: 200 (deixe 0 se não for um barril)"
+                  value={capacidadeMaxima || ''}
+                  onChange={(e) => setCapacidadeMaxima(parseInteiroPtBr(e.target.value))}
+                  className="font-mono text-base font-bold"
+                />
+                <p className="text-[10px] text-secondary font-medium mt-1">
+                  Preencha para itens tipo barril/tambor — mostra o desenho do barril indicando visualmente quanto líquido ainda resta.
+                </p>
+              </div>
+              {Number(capacidadeMaxima) > 0 && (
+                <img
+                  src={frameBarrilPorPercentual(percentualBarril(Number(quantidadeAtual) || 0, Number(capacidadeMaxima)))}
+                  alt="Pré-visualização do nível do barril"
+                  className="h-16 w-16 shrink-0 object-contain"
+                />
+              )}
             </div>
           </div>
 
@@ -6419,8 +6699,20 @@ function ModalBaixaConsumo({
                 >
                   −
                 </button>
-                <div className="flex-1 text-center font-mono text-2xl font-black text-foreground">
-                  {quantidade} <span className="text-xs font-semibold text-secondary">{itemAtual.unidade}</span>
+                <div className="flex flex-1 items-baseline justify-center gap-1.5">
+                  <input
+                    type="number"
+                    min={1}
+                    max={maxQtd}
+                    value={quantidade}
+                    onChange={(e) => {
+                      const val = Number(e.target.value.replace(/[.,]/g, '')) || 0
+                      setQuantidade(Math.min(maxQtd, Math.max(0, val)))
+                    }}
+                    onBlur={() => setQuantidade((q) => Math.min(maxQtd, Math.max(1, q)))}
+                    className="w-24 bg-transparent text-center font-mono text-2xl font-black text-foreground focus:outline-none focus:ring-1 focus:ring-primary rounded-lg"
+                  />
+                  <span className="text-xs font-semibold text-secondary">{itemAtual.unidade}</span>
                 </div>
                 <button
                   type="button"
