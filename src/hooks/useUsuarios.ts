@@ -176,6 +176,16 @@ export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput)
 
     if (errorFallback) throw new Error(errorFallback.message)
     data = dataFallback
+
+    // O fallback salvou nome/telefone/nível, mas NÃO as permissões — se o
+    // admin veio pra cá justamente pra mudar módulos, isso precisa ficar
+    // bem claro em vez de parecer que salvou tudo (a mudança ficaria só
+    // no navegador de quem editou, sem chegar no usuário de verdade).
+    if (input.modulos) {
+      throw new Error(
+        `Nome/telefone/nível foram salvos, mas as permissões de acesso NÃO puderam ser salvas no servidor (coluna "modulos" indisponível: ${error.message}). Avise o suporte técnico — a alteração de permissões não vai valer para o usuário em outros dispositivos.`,
+      )
+    }
   }
 
   return {

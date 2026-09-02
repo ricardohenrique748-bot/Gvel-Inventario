@@ -17,6 +17,7 @@ interface CreateUsuarioBody {
   senha: string
   telefone?: string
   nivel?: 'admin' | 'usuario'
+  modulos?: string[]
 }
 
 function jsonResponse(body: unknown, status: number) {
@@ -73,6 +74,7 @@ Deno.serve(async (req: Request) => {
   const senha = body.senha
   const telefone = body.telefone?.trim() || null
   const nivel = body.nivel === 'admin' ? 'admin' : 'usuario'
+  const modulos = Array.isArray(body.modulos) ? body.modulos : []
 
   if (!nome || !email || !senha) {
     return jsonResponse({ error: 'Nome, e-mail e senha são obrigatórios.' }, 400)
@@ -129,7 +131,7 @@ Deno.serve(async (req: Request) => {
   // então tentamos UPDATE primeiro; se não houver linha, fazemos INSERT.
   const { data: updatedUsuario, error: updateError } = await adminClient
     .from('usuarios')
-    .update({ nome, email, telefone, nivel, deve_trocar_senha: true })
+    .update({ nome, email, telefone, nivel, modulos, deve_trocar_senha: true })
     .eq('id', authUserId)
     .select()
     .maybeSingle()
@@ -140,7 +142,7 @@ Deno.serve(async (req: Request) => {
     // Linha ainda não existe — insere normalmente.
     const { data: insertedUsuario, error: insertError } = await adminClient
       .from('usuarios')
-      .insert({ id: authUserId, nome, email, telefone, nivel, deve_trocar_senha: true })
+      .insert({ id: authUserId, nome, email, telefone, nivel, modulos, deve_trocar_senha: true })
       .select()
       .single()
 

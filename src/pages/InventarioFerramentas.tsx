@@ -450,6 +450,7 @@ export function InventarioFerramentas() {
 
   const [modalDevolucaoAberto, setModalDevolucaoAberto] = useState(false)
   const [retiradaParaDevolver, setRetiradaParaDevolver] = useState<FerramentaRetirada | null>(null)
+  const [statusDevolucaoPadrao, setStatusDevolucaoPadrao] = useState<'devolvido' | 'avaria_perda'>('devolvido')
   const [modalEditarRetiradaAberto, setModalEditarRetiradaAberto] = useState(false)
   const [retiradaEditando, setRetiradaEditando] = useState<FerramentaRetirada | null>(null)
   const [fotoModalUrl, setFotoModalUrl] = useState<{ url: string; titulo: string } | null>(null)
@@ -1764,7 +1765,7 @@ export function InventarioFerramentas() {
                       )}
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-border/10 flex items-center justify-between gap-2">
+                    <div className="mt-4 pt-4 border-t border-border/10 flex flex-col gap-2">
                       <Button
                         type="button"
                         variant="secondary"
@@ -1772,23 +1773,41 @@ export function InventarioFerramentas() {
                           setRetiradaEditando(r)
                           setModalEditarRetiradaAberto(true)
                         }}
-                        className="gap-1.5 text-xs border-primary/30 text-foreground hover:bg-primary/10 hover:border-primary uppercase font-bold"
+                        className="w-full justify-center gap-1.5 text-xs border-primary/30 text-foreground hover:bg-primary/10 hover:border-primary uppercase font-bold"
                       >
                         <Pencil className="h-3.5 w-3.5 text-primary" />
                         EDITAR
                       </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                          setRetiradaParaDevolver(r)
-                          setModalDevolucaoAberto(true)
-                        }}
-                        className="gap-1.5 text-xs border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500 uppercase font-bold"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        REGISTRAR DEVOLUÇÃO
-                      </Button>
+
+                      <div className="flex flex-col gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setRetiradaParaDevolver(r)
+                            setStatusDevolucaoPadrao('avaria_perda')
+                            setModalDevolucaoAberto(true)
+                          }}
+                          className="w-full justify-center gap-1.5 text-xs border-rose-500/30 text-rose-500 hover:bg-rose-500/10 hover:border-rose-500 uppercase font-bold"
+                          title="Item consumido/usado — não volta para o estoque"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          DAR BAIXA
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setRetiradaParaDevolver(r)
+                            setStatusDevolucaoPadrao('devolvido')
+                            setModalDevolucaoAberto(true)
+                          }}
+                          className="w-full justify-center gap-1.5 text-xs border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500 uppercase font-bold"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          REGISTRAR DEVOLUÇÃO
+                        </Button>
+                      </div>
                     </div>
                   </Card>
                 )
@@ -3160,6 +3179,7 @@ export function InventarioFerramentas() {
       {modalDevolucaoAberto && retiradaParaDevolver && (
         <ModalDevolucao
           retirada={retiradaParaDevolver}
+          statusInicial={statusDevolucaoPadrao}
           onClose={() => setModalDevolucaoAberto(false)}
           onSucesso={async () => {
             setModalDevolucaoAberto(false)
@@ -4907,14 +4927,16 @@ function ModalRetirada({
 // ----------------------------------------------------------------------------------
 function ModalDevolucao({
   retirada,
+  statusInicial,
   onClose,
   onSucesso,
 }: {
   retirada: FerramentaRetirada
+  statusInicial?: 'devolvido' | 'avaria_perda'
   onClose: () => void
   onSucesso: () => Promise<void>
 }) {
-  const [statusDevolucao, setStatusDevolucao] = useState<'devolvido' | 'avaria_perda'>('devolvido')
+  const [statusDevolucao, setStatusDevolucao] = useState<'devolvido' | 'avaria_perda'>(statusInicial || 'devolvido')
   const [observacoes, setObservacoes] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -4943,10 +4965,16 @@ function ModalDevolucao({
       <div className="w-full max-w-md rounded-2xl border border-border/10 bg-surface p-6 shadow-2xl animate-scale-in">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-500">
-              <RotateCcw className="h-4 w-4" />
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                statusDevolucao === 'avaria_perda' ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-500'
+              }`}
+            >
+              {statusDevolucao === 'avaria_perda' ? <Trash2 className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
             </div>
-            <h2 className="text-base font-bold text-foreground uppercase">REGISTRAR DEVOLUÇÃO</h2>
+            <h2 className="text-base font-bold text-foreground uppercase">
+              {statusDevolucao === 'avaria_perda' ? 'DAR BAIXA NO ITEM' : 'REGISTRAR DEVOLUÇÃO'}
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -4981,7 +5009,7 @@ function ModalDevolucao({
               className="h-10 w-full rounded-xl border border-border/10 bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase font-medium"
             >
               <option value="devolvido">DEVOLVIDA EM BOM ESTADO (RETORNA AO ESTOQUE)</option>
-              <option value="avaria_perda">COM AVARIA / PERDA / DESGASTE (BAIXA DO ESTOQUE)</option>
+              <option value="avaria_perda">USADO / CONSUMIDO / AVARIADO (NÃO VOLTA — BAIXA DO ESTOQUE)</option>
             </select>
           </div>
 
@@ -5000,8 +5028,14 @@ function ModalDevolucao({
             <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="uppercase font-semibold">
               CANCELAR
             </Button>
-            <Button type="submit" disabled={salvando} className="bg-emerald-600 hover:bg-emerald-500 uppercase font-bold">
-              {salvando ? 'SALVANDO...' : 'CONFIRMAR DEVOLUÇÃO'}
+            <Button
+              type="submit"
+              disabled={salvando}
+              className={`uppercase font-bold ${
+                statusDevolucao === 'avaria_perda' ? 'bg-rose-600 hover:bg-rose-500' : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {salvando ? 'SALVANDO...' : statusDevolucao === 'avaria_perda' ? 'CONFIRMAR BAIXA' : 'CONFIRMAR DEVOLUÇÃO'}
             </Button>
           </div>
         </form>
