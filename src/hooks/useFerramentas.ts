@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { FOTOS_BUCKET, supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
 import type { Ferramenta, FerramentaRetirada, StatusRetiradaFerramenta } from '@/lib/types'
 
@@ -410,12 +410,12 @@ export async function uploadFotoFerramenta(file: File): Promise<string> {
   try {
     const ext = file.name.split('.').pop() || 'jpg'
     const path = `ferramentas/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-    const { error } = await supabase.storage.from('fotos').upload(path, file, {
+    const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
       cacheControl: '3600',
       upsert: false,
     })
     if (!error) {
-      return supabase.storage.from('fotos').getPublicUrl(path).data.publicUrl
+      return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
     }
   } catch (err) {
     console.warn('Falha no storage, convertendo em dataURL:', err)

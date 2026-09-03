@@ -287,6 +287,77 @@ function ScrollContainer({
   )
 }
 
+// Fotos que falharam ao subir pro Supabase Storage (ex: bucket errado) caem
+// como base64 direto no objeto e enchem a cota do localStorage sozinhas. Essa
+// função varre uma lista já carregada, reenvia essas fotos pro Storage agora
+// que o upload está correto, e troca o base64 pela URL — o que libera espaço
+// sem o usuário precisar apagar nada.
+async function migrarFotosBase64<T>(
+  lista: T[],
+  getFoto: (item: T) => string | null | undefined,
+  setFoto: (item: T, url: string) => T,
+): Promise<{ lista: T[]; alterou: boolean }> {
+  let alterou = false
+  const resultado: T[] = []
+  for (const item of lista) {
+    const foto = getFoto(item)
+    if (foto && foto.startsWith('data:image')) {
+      try {
+        const blob = await (await fetch(foto)).blob()
+        const file = new File([blob], `migrado-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`, {
+          type: blob.type || 'image/jpeg',
+        })
+        const url = await uploadFotoFerramenta(file)
+        if (url && !url.startsWith('data:')) {
+          resultado.push(setFoto(item, url))
+          alterou = true
+          continue
+        }
+      } catch (err) {
+        console.warn('Falha ao migrar foto base64 para o Storage:', err)
+      }
+    }
+    resultado.push(item)
+  }
+  return { lista: resultado, alterou }
+}
+
+async function migrarFotosMecanicos(): Promise<void> {
+  try {
+    const raw = localStorage.getItem('gvel_fotos_mecanicos')
+    if (!raw) return
+    const mapa: Record<string, string> = JSON.parse(raw)
+    let alterou = false
+    for (const nome of Object.keys(mapa)) {
+      const foto = mapa[nome]
+      if (foto && foto.startsWith('data:image')) {
+        try {
+          const blob = await (await fetch(foto)).blob()
+          const file = new File([blob], `mecanico-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`, {
+            type: blob.type || 'image/jpeg',
+          })
+          const url = await uploadFotoFerramenta(file)
+          if (url && !url.startsWith('data:')) {
+            mapa[nome] = url
+            alterou = true
+          }
+        } catch (err) {
+          console.warn('Falha ao migrar foto de mecânico para o Storage:', err)
+        }
+      }
+    }
+    if (alterou) {
+      try {
+        localStorage.setItem('gvel_fotos_mecanicos', JSON.stringify(mapa))
+      } catch (err) {
+        console.warn('Ainda sem espaço no localStorage após migrar fotos de mecânicos:', err)
+      }
+    }
+  } catch (err) {
+    console.warn('Falha ao migrar fotos de mecânicos:', err)
+  }
+}
+
 export function InventarioFerramentas() {
   const { user, perfil, perfilLoading } = useAuth()
   const userRef = perfil || { email: user?.email }
@@ -348,16 +419,68 @@ export function InventarioFerramentas() {
     const timer = setTimeout(() => {
       try {
         const rawCaixas = localStorage.getItem(STORAGE_CAIXAS_KEY)
-        if (rawCaixas) setCaixas(JSON.parse(rawCaixas))
+        if (rawCaixas) {
+          const parsed: CaixaFerramenta[] = JSON.parse(rawCaixas)
+          setCaixas(parsed)
+          migrarFotosBase64(
+            parsed,
+            (c) => c.foto_url,
+            (c, url) => ({ ...c, foto_url: url }),
+          ).then(({ lista, alterou }) => {
+            if (alterou) {
+              setCaixas(lista)
+              try {
+                localStorage.setItem(STORAGE_CAIXAS_KEY, JSON.stringify(lista))
+              } catch (err) {
+                console.warn('Ainda sem espaço no localStorage após migrar fotos de caixas:', err)
+              }
+            }
+          })
+        }
       } catch {}
       try {
         const rawConsumo = localStorage.getItem(STORAGE_CONSUMO_KEY)
-        if (rawConsumo) setItensConsumo(JSON.parse(rawConsumo))
+        if (rawConsumo) {
+          const parsed: ItemConsumo[] = JSON.parse(rawConsumo)
+          setItensConsumo(parsed)
+          migrarFotosBase64(
+            parsed,
+            (i) => i.foto_url,
+            (i, url) => ({ ...i, foto_url: url }),
+          ).then(({ lista, alterou }) => {
+            if (alterou) {
+              setItensConsumo(lista)
+              try {
+                localStorage.setItem(STORAGE_CONSUMO_KEY, JSON.stringify(lista))
+              } catch (err) {
+                console.warn('Ainda sem espaço no localStorage após migrar fotos de insumos:', err)
+              }
+            }
+          })
+        }
       } catch {}
       try {
         const rawBaixas = localStorage.getItem(STORAGE_BAIXAS_CONSUMO_KEY)
-        if (rawBaixas) setBaixasConsumo(JSON.parse(rawBaixas))
+        if (rawBaixas) {
+          const parsed: RegistroBaixaConsumo[] = JSON.parse(rawBaixas)
+          setBaixasConsumo(parsed)
+          migrarFotosBase64(
+            parsed,
+            (b) => b.foto_responsavel_url,
+            (b, url) => ({ ...b, foto_responsavel_url: url }),
+          ).then(({ lista, alterou }) => {
+            if (alterou) {
+              setBaixasConsumo(lista)
+              try {
+                localStorage.setItem(STORAGE_BAIXAS_CONSUMO_KEY, JSON.stringify(lista))
+              } catch (err) {
+                console.warn('Ainda sem espaço no localStorage após migrar fotos de baixas:', err)
+              }
+            }
+          })
+        }
       } catch {}
+      migrarFotosMecanicos()
     }, 50)
     return () => clearTimeout(timer)
   }, [])
