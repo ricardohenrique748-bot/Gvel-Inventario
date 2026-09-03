@@ -54,7 +54,7 @@ export const navItems = [
     icon: Package,
     children: [
       { to: '/inventario-ferramentas', label: 'Inventário de Ferramentas', icon: Hammer, end: true },
-      { to: '/inventario-ferramentas?aba=consumo', label: 'Uso e Consumo', icon: Boxes },
+      { to: '/inventario-ferramentas?aba=consumo', label: 'Insumos', icon: Boxes },
       { to: '/inventario-ferramentas?aba=caixas', label: 'Caixas de Ferramentas', icon: Briefcase },
       { to: '/inventario-ferramentas?aba=em_uso', label: 'Em Uso no Momento', icon: Truck },
       { to: '/inventario-ferramentas?aba=historico', label: 'Histórico de Retiradas', icon: Clock },

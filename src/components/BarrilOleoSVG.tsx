@@ -4,6 +4,8 @@ interface BarrilOleoSVGProps {
   /** Percentual de líquido restante (0-100). */
   percentual: number
   className?: string
+  /** Texto estampado no meio do barril (ex: "GV", "GV 1", "GV 2"). */
+  rotulo?: string
 }
 
 /**
@@ -11,7 +13,7 @@ interface BarrilOleoSVGProps {
  * e preciso, sempre nítido em qualquer tamanho/fundo, sem os artefatos de
  * recorte de fundo que uma imagem rasterizada tem.
  */
-export function BarrilOleoSVG({ percentual, className }: BarrilOleoSVGProps) {
+export function BarrilOleoSVG({ percentual, className, rotulo = 'GV' }: BarrilOleoSVGProps) {
   const pct = Math.max(0, Math.min(100, percentual))
   const uid = useId()
   const clipId = `barril-clip-${uid}`
@@ -85,19 +87,19 @@ export function BarrilOleoSVG({ percentual, className }: BarrilOleoSVGProps) {
         </g>
       ))}
 
-      {/* Logo "GV" estampado no meio do barril */}
+      {/* Logo estampado no meio do barril (ex: "GV", "GV 1"...) */}
       <text
         x="100"
         y="139"
         textAnchor="middle"
         dominantBaseline="central"
         fontFamily="Arial, Helvetica, sans-serif"
-        fontSize="30"
+        fontSize={rotulo.length > 3 ? 24 : 30}
         fontWeight="900"
         fill="#1A1A1A"
         fillOpacity="0.9"
       >
-        GV
+        {rotulo}
       </text>
 
       {/* Tampa (topo) */}

@@ -111,6 +111,9 @@ export interface ItemConsumo {
   /** Quantidade de tambores no estoque (o barril desenhado mostra sempre
    * o nível do tambor em uso — isso é só informativo, não entra no %). */
   quantidade_tambores?: number | null
+  /** Número do tambor em uso no momento (estampado no desenho, ex: "GV 2").
+   * Sobe sozinho quando um tambor zera e entra reposição de um novo. */
+  numero_tambor_atual?: number | null
   localizacao: string | null
   observacoes: string | null
   foto_url: string | null
@@ -2574,6 +2577,7 @@ export function InventarioFerramentas() {
                             <div title={`Nível do barril: ${pctBarril}%`}>
                               <BarrilOleoSVG
                                 percentual={pctBarril}
+                                rotulo={`GV ${item.numero_tambor_atual || 1}`}
                                 className="h-44 w-44 origin-bottom animate-liquid-sway"
                               />
                             </div>
@@ -3106,11 +3110,22 @@ export function InventarioFerramentas() {
           onSucesso={(novaBaixa) => {
             // Atualiza o estoque decrementando a quantidade
             salvarItensConsumo(
-              itensConsumo.map((it) =>
-                it.id === novaBaixa.item_id
-                  ? { ...it, quantidade_atual: Math.max(0, it.quantidade_atual - novaBaixa.quantidade) }
-                  : it
-              )
+              itensConsumo.map((it) => {
+                if (it.id !== novaBaixa.item_id) return it
+                const restante = Math.max(0, it.quantidade_atual - novaBaixa.quantidade)
+                // Zerou e tem tambor reserva no estoque? Abre o próximo tambor
+                // sozinho: enche de novo, sobe a numeração e desconta a reserva.
+                const temReserva = restante <= 0 && Boolean(it.capacidade_maxima) && (it.quantidade_tambores || 0) > 0
+                if (temReserva) {
+                  return {
+                    ...it,
+                    quantidade_atual: it.capacidade_maxima!,
+                    numero_tambor_atual: (it.numero_tambor_atual || 1) + 1,
+                    quantidade_tambores: Math.max(0, (it.quantidade_tambores || 0) - 1),
+                  }
+                }
+                return { ...it, quantidade_atual: restante }
+              })
             )
             salvarBaixasConsumo([novaBaixa, ...baixasConsumo])
             setModalBaixaConsumoAberto(false)
@@ -3125,11 +3140,24 @@ export function InventarioFerramentas() {
           onClose={() => setModalEntradaConsumoAberto(false)}
           onSucesso={(qtdAdicionada) => {
             salvarItensConsumo(
-              itensConsumo.map((it) =>
-                it.id === itemConsumoParaEntrada.id
-                  ? { ...it, quantidade_atual: it.quantidade_atual + qtdAdicionada }
-                  : it
-              )
+              itensConsumo.map((it) => {
+                if (it.id !== itemConsumoParaEntrada.id) return it
+                // Tambor anterior zerou e chegou reposição — é um tambor novo,
+                // sobe a numeração estampada no barril (GV 1 -> GV 2...) e
+                // desconta um tambor do estoque de reserva.
+                const abriuTamborNovo = it.quantidade_atual <= 0 && Boolean(it.capacidade_maxima)
+                return {
+                  ...it,
+                  // Tambor novo já entra cheio, no valor da capacidade máxima.
+                  quantidade_atual: abriuTamborNovo
+                    ? it.capacidade_maxima!
+                    : it.quantidade_atual + qtdAdicionada,
+                  numero_tambor_atual: abriuTamborNovo ? (it.numero_tambor_atual || 1) + 1 : it.numero_tambor_atual,
+                  quantidade_tambores: abriuTamborNovo
+                    ? Math.max(0, (it.quantidade_tambores || 0) - 1)
+                    : it.quantidade_tambores,
+                }
+              })
             )
             setModalEntradaConsumoAberto(false)
           }}
@@ -6176,6 +6204,7 @@ function ModalItemConsumo({
   const [quantidadeMinima, setQuantidadeMinima] = useState(item?.quantidade_minima ?? 3)
   const [capacidadeMaxima, setCapacidadeMaxima] = useState(item?.capacidade_maxima ?? 0)
   const [quantidadeTambores, setQuantidadeTambores] = useState(item?.quantidade_tambores ?? 0)
+  const [numeroTamborAtual, setNumeroTamborAtual] = useState(item?.numero_tambor_atual ?? 1)
 
   // Campo type="number" trata "." como separador decimal, então "1.000"
   // vira 1 em vez de 1000 — aqui tratamos "." e "," como separador de
@@ -6235,6 +6264,7 @@ function ModalItemConsumo({
         quantidade_minima: Number(quantidadeMinima) || 0,
         capacidade_maxima: Number(capacidadeMaxima) > 0 ? Number(capacidadeMaxima) : null,
         quantidade_tambores: Number(quantidadeTambores) > 0 ? Number(quantidadeTambores) : null,
+        numero_tambor_atual: Number(numeroTamborAtual) > 0 ? Number(numeroTamborAtual) : 1,
         localizacao: localizacao.trim() ? localizacao.trim().toUpperCase() : null,
         observacoes: observacoes.trim() ? observacoes.trim().toUpperCase() : null,
         foto_url: finalFotoUrl,
@@ -6408,26 +6438,57 @@ function ModalItemConsumo({
               {Number(capacidadeMaxima) > 0 && (
                 <BarrilOleoSVG
                   percentual={percentualBarril(Number(quantidadeAtual) || 0, Number(capacidadeMaxima))}
+                  rotulo={`GV ${numeroTamborAtual || 1}`}
                   className="h-16 w-16 shrink-0"
                 />
               )}
             </div>
-            <div>
-              <label htmlFor="qtdTambores" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
-                Quantidade de Tambores em Estoque
-              </label>
-              <Input
-                id="qtdTambores"
-                type="number"
-                min="0"
-                placeholder="Ex: 3 (deixe 0 se não quiser mostrar)"
-                value={quantidadeTambores || ''}
-                onChange={(e) => setQuantidadeTambores(parseInteiroPtBr(e.target.value))}
-                className="font-mono text-base font-bold"
-              />
-              <p className="text-[10px] text-secondary font-medium mt-1">
-                Só informativo — o desenho do barril acima continua mostrando o nível do tambor em uso.
-              </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="qtdTambores" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+                  Tambores em Estoque
+                </label>
+                <Input
+                  id="qtdTambores"
+                  type="number"
+                  min="0"
+                  placeholder="Ex: 3 (deixe 0 se não quiser mostrar)"
+                  value={quantidadeTambores || ''}
+                  onChange={(e) => setQuantidadeTambores(parseInteiroPtBr(e.target.value))}
+                  className="font-mono text-base font-bold"
+                />
+                <p className="text-[10px] text-secondary font-medium mt-1">
+                  Só informativo, não entra no %.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="numTambor" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">
+                  Nº do Tambor em Uso
+                </label>
+                <Input
+                  id="numTambor"
+                  type="number"
+                  min="1"
+                  placeholder="Ex: 1"
+                  value={numeroTamborAtual || ''}
+                  onChange={(e) => {
+                    const novo = parseInteiroPtBr(e.target.value) || 1
+                    const delta = novo - (numeroTamborAtual || 1)
+                    setNumeroTamborAtual(novo)
+                    if (delta !== 0) {
+                      setQuantidadeTambores((prev) => Math.max(0, prev - delta))
+                    }
+                    // Trocou pra um tambor novo — começa cheio, no valor da capacidade máxima.
+                    if (delta > 0 && Number(capacidadeMaxima) > 0) {
+                      setQuantidadeAtual(Number(capacidadeMaxima))
+                    }
+                  }}
+                  className="font-mono text-base font-bold"
+                />
+                <p className="text-[10px] text-secondary font-medium mt-1">
+                  Estampado no barril (ex: "GV 2"). Ao subir, desconta do estoque de tambores.
+                </p>
+              </div>
             </div>
           </div>
 
