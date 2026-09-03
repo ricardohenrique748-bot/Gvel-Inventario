@@ -56,6 +56,7 @@ const STORAGE_CONFIG_KEY = 'config_notificacoes_v2'
 const STORAGE_LIDAS_KEY = 'notificacoes_lidas_ids_v2'
 const STORAGE_MANUAIS_KEY = 'notificacoes_manuais_broadcast_v2'
 const STORAGE_DISPARADAS_KEY = 'notificacoes_disparadas_push_ids_v2'
+const STORAGE_REMOVIDAS_KEY = 'notificacoes_removidas_ids_v2'
 
 interface NotificacoesContextType {
   notificacoes: NotificacaoItem[]
@@ -65,6 +66,7 @@ interface NotificacoesContextType {
   salvarConfig: (novaConfig: ConfigNotificacoes) => void
   marcarComoLida: (id: string) => void
   marcarTodasComoLidas: () => void
+  removerNotificacao: (id: string) => void
   limparTodas: () => void
   dispararNotificacaoTeste: () => void
   criarNotificacaoManual: (titulo: string, mensagem: string, prioridade?: 'normal' | 'alerta' | 'urgente') => void
@@ -134,6 +136,18 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     return new Set()
   })
 
+  // IDs descartados pelo usuário (botão de excluir). Como as notificações
+  // "dinâmicas" são recalculadas a cada poll a partir do estado real (ex:
+  // entrada de hoje), sem essa lista persistida elas voltariam a aparecer
+  // sozinhas no ciclo seguinte mesmo depois de excluídas.
+  const [removidas, setRemovidas] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_REMOVIDAS_KEY)
+      if (raw) return new Set(JSON.parse(raw))
+    } catch {}
+    return new Set()
+  })
+
   const [manuais, setManuais] = useState<NotificacaoItem[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_MANUAIS_KEY)
@@ -186,15 +200,36 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     })
   }, [notificacoesDinamicas, manuais])
 
+  const removerNotificacao = useCallback((id: string) => {
+    setRemovidas((prev) => {
+      const next = new Set(prev)
+      next.add(id)
+      try {
+        localStorage.setItem(STORAGE_REMOVIDAS_KEY, JSON.stringify(Array.from(next)))
+      } catch {}
+      return next
+    })
+    setManuais((prev) => {
+      if (!prev.some((n) => n.id === id)) return prev
+      const next = prev.filter((n) => n.id !== id)
+      try {
+        localStorage.setItem(STORAGE_MANUAIS_KEY, JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }, [])
+
   const limparTodas = useCallback(() => {
     const todosIds = [...notificacoesDinamicas, ...manuais].map((n) => n.id)
-    setLidas(new Set(todosIds))
+    setLidas((prev) => new Set([...prev, ...todosIds]))
+    setRemovidas((prev) => new Set([...prev, ...todosIds]))
     setManuais([])
     try {
-      localStorage.setItem(STORAGE_LIDAS_KEY, JSON.stringify(todosIds))
+      localStorage.setItem(STORAGE_LIDAS_KEY, JSON.stringify(Array.from(new Set([...lidas, ...todosIds]))))
+      localStorage.setItem(STORAGE_REMOVIDAS_KEY, JSON.stringify(Array.from(new Set([...removidas, ...todosIds]))))
       localStorage.removeItem(STORAGE_MANUAIS_KEY)
     } catch {}
-  }, [notificacoesDinamicas, manuais])
+  }, [notificacoesDinamicas, manuais, lidas, removidas])
 
   const carregarEventos = useCallback(async () => {
     try {
@@ -636,6 +671,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     const combinadas = [...notificacoesDinamicas, ...manuais]
     const unicos = new Map<string, NotificacaoItem>()
     combinadas.forEach((n) => {
+      if (removidas.has(n.id)) return
       unicos.set(n.id, {
         ...n,
         lida: lidas.has(n.id),
@@ -645,7 +681,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     return Array.from(unicos.values()).sort(
       (a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()
     )
-  }, [notificacoesDinamicas, manuais, lidas])
+  }, [notificacoesDinamicas, manuais, lidas, removidas])
 
   const naoLidasCount = useMemo(() => {
     return todasNotificacoes.filter((n) => !n.lida).length
@@ -661,6 +697,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
         salvarConfig,
         marcarComoLida,
         marcarTodasComoLidas,
+        removerNotificacao,
         limparTodas,
         dispararNotificacaoTeste,
         criarNotificacaoManual,

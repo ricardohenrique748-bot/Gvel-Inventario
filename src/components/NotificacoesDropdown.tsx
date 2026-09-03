@@ -29,6 +29,7 @@ export function NotificacoesDropdown() {
     naoLidasCount,
     marcarComoLida,
     marcarTodasComoLidas,
+    removerNotificacao,
     limparTodas,
   } = useNotificacoes()
 
@@ -256,9 +257,23 @@ export function NotificacoesDropdown() {
                             }`}>
                               {item.titulo}
                             </p>
-                            {!item.lida && (
-                              <span className="h-2 w-2 rounded-full bg-primary shrink-0 ring-2 ring-primary/20" />
-                            )}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {!item.lida && (
+                                <span className="h-2 w-2 rounded-full bg-primary ring-2 ring-primary/20" />
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  removerNotificacao(item.id)
+                                }}
+                                title="Excluir notificação"
+                                aria-label="Excluir notificação"
+                                className="p-1 rounded-md text-secondary/60 hover:text-red-400 hover:bg-white/10 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
 
                           <p className="text-xs text-secondary leading-relaxed normal-case">
