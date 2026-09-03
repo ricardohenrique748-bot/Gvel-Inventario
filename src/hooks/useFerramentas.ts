@@ -359,7 +359,12 @@ export function useRetiradasFerramentas(filtros: RetiradasFiltros = {}) {
     try {
       let query = supabase
         .from('ferramentas_retiradas')
-        .select('*, ferramenta:ferramentas(*)')
+        // Só nome/código são exibidos no histórico de retiradas. Trazer a
+        // ferramenta inteira aqui incluía `observacoes`, que em ferramentas
+        // antigas guarda a foto em base64 (não migrada pro Storage) — isso
+        // inflava a resposta pra dezenas de MB em 200 linhas e derrubava o
+        // carregamento do histórico (timeout).
+        .select('*, ferramenta:ferramentas(id,nome,codigo)')
         .order('data_hora_retirada', { ascending: false })
         .limit(200)
 
@@ -742,7 +747,7 @@ export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput)
     const { data: retirada, error: insertError } = await supabase
       .from('ferramentas_retiradas')
       .insert(payload)
-      .select('*, ferramenta:ferramentas(*)')
+      .select('*, ferramenta:ferramentas(id,nome,codigo)')
       .single()
 
     if (!insertError && retirada) {
@@ -824,7 +829,7 @@ export async function registrarDevolucaoFerramenta(input: RegistrarDevolucaoInpu
   try {
     const { data: retirada } = await supabase
       .from('ferramentas_retiradas')
-      .select('*, ferramenta:ferramentas(*)')
+      .select('*, ferramenta:ferramentas(id,nome,codigo,quantidade_total,quantidade_disponivel)')
       .eq('id', input.retiradaId)
       .single()
 
@@ -889,7 +894,7 @@ export async function reverterDevolucaoFerramenta(retiradaId: string): Promise<v
   try {
     const { data: retirada } = await supabase
       .from('ferramentas_retiradas')
-      .select('*, ferramenta:ferramentas(*)')
+      .select('*, ferramenta:ferramentas(id,nome,codigo,quantidade_total,quantidade_disponivel)')
       .eq('id', retiradaId)
       .single()
 

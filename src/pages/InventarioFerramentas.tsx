@@ -68,7 +68,16 @@ import {
 } from '@/hooks/useFerramentas'
 import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
-import type { Ferramenta, FerramentaRetirada } from '@/lib/types'
+import type { Ferramenta, FerramentaRetirada, ItemConsumo, RegistroBaixaConsumo } from '@/lib/types'
+import {
+  useInsumos,
+  useBaixasConsumo,
+  criarInsumo,
+  atualizarInsumo,
+  excluirInsumo,
+  registrarBaixaConsumo,
+  registrarEntradaConsumo,
+} from '@/hooks/useInsumos'
 
 export interface ItemCaixa {
   id: string
@@ -97,53 +106,12 @@ export interface CaixaFerramenta {
   created_at: string
 }
 
-export interface ItemConsumo {
-  id: string
-  codigo: string | null
-  nome: string
-  categoria: string
-  unidade: string
-  quantidade_atual: number
-  quantidade_minima: number
-  /** Capacidade cheia (ex: 200 para um tambor de 200L). Se preenchida, o
-   * item vira um "barril" e mostra o indicador visual de nível de líquido
-   * em vez da foto genérica. */
-  capacidade_maxima?: number | null
-  /** Quantidade de tambores no estoque (o barril desenhado mostra sempre
-   * o nível do tambor em uso — isso é só informativo, não entra no %). */
-  quantidade_tambores?: number | null
-  /** Número do tambor em uso no momento (estampado no desenho, ex: "GV 2").
-   * Sobe sozinho quando um tambor zera e entra reposição de um novo. */
-  numero_tambor_atual?: number | null
-  localizacao: string | null
-  observacoes: string | null
-  foto_url: string | null
-  created_at: string
-}
-
-export interface RegistroBaixaConsumo {
-  id: string
-  item_id: string
-  item_nome: string
-  unidade: string
-  quantidade: number
-  responsavel: string
-  foto_responsavel_url?: string | null
-  placa?: string | null
-  motivo?: string | null
-  data_hora: string
-}
-
 const STORAGE_CAIXAS_KEY = 'gvel_inventario_caixas_v1'
-const STORAGE_CONSUMO_KEY = 'gvel_inventario_consumo_v1'
-const STORAGE_BAIXAS_CONSUMO_KEY = 'gvel_inventario_baixas_consumo_v1'
 
 const CATEGORIAS_CONSUMO = [
   'TODAS',
   'LUBRIFICANTES & QUÍMICOS',
 ]
-
-const ITENS_CONSUMO_INICIAIS: ItemConsumo[] = []
 
 const CAIXAS_INICIAIS: CaixaFerramenta[] = []
 
@@ -410,9 +378,10 @@ export function InventarioFerramentas() {
   const [caixaParaRetirar, setCaixaParaRetirar] = useState<CaixaFerramenta | null>(null)
   const [setorCaixaAtivo, setSetorCaixaAtivo] = useState<SetorCaixa | 'SEM_SETOR' | null>(null)
 
-  // Uso e Consumo State
-  const [itensConsumo, setItensConsumo] = useState<ItemConsumo[]>(ITENS_CONSUMO_INICIAIS)
-  const [baixasConsumo, setBaixasConsumo] = useState<RegistroBaixaConsumo[]>([])
+  // Uso e Consumo — vem do Supabase (compartilhado entre todos os usuários),
+  // com cache local só para uso offline/otimista. Ver src/hooks/useInsumos.ts.
+  const { itensConsumo, refetch: refetchInsumos } = useInsumos()
+  const { baixasConsumo, refetch: refetchBaixasConsumo } = useBaixasConsumo()
 
   // Carregar dados do localStorage de forma assíncrona para não bloquear o primeiro render
   useEffect(() => {
@@ -438,48 +407,6 @@ export function InventarioFerramentas() {
           })
         }
       } catch {}
-      try {
-        const rawConsumo = localStorage.getItem(STORAGE_CONSUMO_KEY)
-        if (rawConsumo) {
-          const parsed: ItemConsumo[] = JSON.parse(rawConsumo)
-          setItensConsumo(parsed)
-          migrarFotosBase64(
-            parsed,
-            (i) => i.foto_url,
-            (i, url) => ({ ...i, foto_url: url }),
-          ).then(({ lista, alterou }) => {
-            if (alterou) {
-              setItensConsumo(lista)
-              try {
-                localStorage.setItem(STORAGE_CONSUMO_KEY, JSON.stringify(lista))
-              } catch (err) {
-                console.warn('Ainda sem espaço no localStorage após migrar fotos de insumos:', err)
-              }
-            }
-          })
-        }
-      } catch {}
-      try {
-        const rawBaixas = localStorage.getItem(STORAGE_BAIXAS_CONSUMO_KEY)
-        if (rawBaixas) {
-          const parsed: RegistroBaixaConsumo[] = JSON.parse(rawBaixas)
-          setBaixasConsumo(parsed)
-          migrarFotosBase64(
-            parsed,
-            (b) => b.foto_responsavel_url,
-            (b, url) => ({ ...b, foto_responsavel_url: url }),
-          ).then(({ lista, alterou }) => {
-            if (alterou) {
-              setBaixasConsumo(lista)
-              try {
-                localStorage.setItem(STORAGE_BAIXAS_CONSUMO_KEY, JSON.stringify(lista))
-              } catch (err) {
-                console.warn('Ainda sem espaço no localStorage após migrar fotos de baixas:', err)
-              }
-            }
-          })
-        }
-      } catch {}
       migrarFotosMecanicos()
     }, 50)
     return () => clearTimeout(timer)
@@ -494,27 +421,6 @@ export function InventarioFerramentas() {
       alert(
         `NÃO FOI POSSÍVEL SALVAR A CAIXA DE FERRAMENTAS.\n\nO ARMAZENAMENTO LOCAL DO NAVEGADOR ESTÁ CHEIO (ISSO ACONTECE QUANDO MUITAS FOTOS FICAM GUARDADAS LOCALMENTE). LIMPE O CACHE/DADOS DO SITE OU LIBERE ESPAÇO E TENTE NOVAMENTE.\n\nDETALHE TÉCNICO: ${err instanceof Error ? err.message : String(err)}`,
       )
-    }
-  }
-
-  function salvarItensConsumo(novosItens: ItemConsumo[]) {
-    setItensConsumo(novosItens)
-    try {
-      localStorage.setItem(STORAGE_CONSUMO_KEY, JSON.stringify(novosItens))
-    } catch (err) {
-      console.error('Erro ao salvar itens de consumo no localStorage:', err)
-      alert(
-        `NÃO FOI POSSÍVEL SALVAR O INSUMO.\n\nO ARMAZENAMENTO LOCAL DO NAVEGADOR ESTÁ CHEIO (ISSO ACONTECE QUANDO MUITAS FOTOS FICAM GUARDADAS LOCALMENTE). LIMPE O CACHE/DADOS DO SITE OU LIBERE ESPAÇO E TENTE NOVAMENTE.\n\nDETALHE TÉCNICO: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
-  }
-
-  function salvarBaixasConsumo(novasBaixas: RegistroBaixaConsumo[]) {
-    setBaixasConsumo(novasBaixas)
-    try {
-      localStorage.setItem(STORAGE_BAIXAS_CONSUMO_KEY, JSON.stringify(novasBaixas))
-    } catch (err) {
-      console.error('Erro ao salvar histórico de consumos no localStorage:', err)
     }
   }
 
@@ -2703,9 +2609,14 @@ export function InventarioFerramentas() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (confirm(`Deseja excluir o insumo "${item.nome}"?`)) {
-                                  salvarItensConsumo(itensConsumo.filter((i) => i.id !== item.id))
+                                  try {
+                                    await excluirInsumo(item.id)
+                                    await refetchInsumos()
+                                  } catch (err) {
+                                    setMensagemErro(err instanceof Error ? err.message : 'Erro ao excluir insumo.')
+                                  }
                                 }
                               }}
                               className="h-8 w-8 text-secondary hover:text-red-400"
@@ -3265,13 +3176,18 @@ export function InventarioFerramentas() {
         <ModalItemConsumo
           item={itemConsumoEditando}
           onClose={() => setModalItemConsumoAberto(false)}
-          onSalvo={(salvo) => {
-            if (itemConsumoEditando) {
-              salvarItensConsumo(itensConsumo.map((it) => (it.id === salvo.id ? salvo : it)))
-            } else {
-              salvarItensConsumo([salvo, ...itensConsumo])
-            }
+          onSalvo={async (salvo) => {
             setModalItemConsumoAberto(false)
+            try {
+              if (itemConsumoEditando) {
+                await atualizarInsumo(itemConsumoEditando.id, salvo)
+              } else {
+                await criarInsumo(salvo)
+              }
+              await refetchInsumos()
+            } catch (err) {
+              setMensagemErro(err instanceof Error ? err.message : 'Erro ao salvar insumo.')
+            }
           }}
         />
       )}
@@ -3284,28 +3200,16 @@ export function InventarioFerramentas() {
           veiculos={veiculosLista}
           retiradas={retiradas}
           onClose={() => setModalBaixaConsumoAberto(false)}
-          onSucesso={(novaBaixa) => {
-            // Atualiza o estoque decrementando a quantidade
-            salvarItensConsumo(
-              itensConsumo.map((it) => {
-                if (it.id !== novaBaixa.item_id) return it
-                const restante = Math.max(0, it.quantidade_atual - novaBaixa.quantidade)
-                // Zerou e tem tambor reserva no estoque? Abre o próximo tambor
-                // sozinho: enche de novo, sobe a numeração e desconta a reserva.
-                const temReserva = restante <= 0 && Boolean(it.capacidade_maxima) && (it.quantidade_tambores || 0) > 0
-                if (temReserva) {
-                  return {
-                    ...it,
-                    quantidade_atual: it.capacidade_maxima!,
-                    numero_tambor_atual: (it.numero_tambor_atual || 1) + 1,
-                    quantidade_tambores: Math.max(0, (it.quantidade_tambores || 0) - 1),
-                  }
-                }
-                return { ...it, quantidade_atual: restante }
-              })
-            )
-            salvarBaixasConsumo([novaBaixa, ...baixasConsumo])
+          onSucesso={async (novaBaixa) => {
             setModalBaixaConsumoAberto(false)
+            const itemRef = itensConsumo.find((it) => it.id === novaBaixa.item_id)
+            if (!itemRef) return
+            try {
+              await registrarBaixaConsumo(itemRef, novaBaixa)
+              await Promise.all([refetchInsumos(), refetchBaixasConsumo()])
+            } catch (err) {
+              setMensagemErro(err instanceof Error ? err.message : 'Erro ao registrar baixa de consumo.')
+            }
           }}
         />
       )}
@@ -3315,28 +3219,14 @@ export function InventarioFerramentas() {
         <ModalEntradaConsumo
           item={itemConsumoParaEntrada}
           onClose={() => setModalEntradaConsumoAberto(false)}
-          onSucesso={(qtdAdicionada) => {
-            salvarItensConsumo(
-              itensConsumo.map((it) => {
-                if (it.id !== itemConsumoParaEntrada.id) return it
-                // Tambor anterior zerou e chegou reposição — é um tambor novo,
-                // sobe a numeração estampada no barril (GV 1 -> GV 2...) e
-                // desconta um tambor do estoque de reserva.
-                const abriuTamborNovo = it.quantidade_atual <= 0 && Boolean(it.capacidade_maxima)
-                return {
-                  ...it,
-                  // Tambor novo já entra cheio, no valor da capacidade máxima.
-                  quantidade_atual: abriuTamborNovo
-                    ? it.capacidade_maxima!
-                    : it.quantidade_atual + qtdAdicionada,
-                  numero_tambor_atual: abriuTamborNovo ? (it.numero_tambor_atual || 1) + 1 : it.numero_tambor_atual,
-                  quantidade_tambores: abriuTamborNovo
-                    ? Math.max(0, (it.quantidade_tambores || 0) - 1)
-                    : it.quantidade_tambores,
-                }
-              })
-            )
+          onSucesso={async (qtdAdicionada) => {
             setModalEntradaConsumoAberto(false)
+            try {
+              await registrarEntradaConsumo(itemConsumoParaEntrada, qtdAdicionada)
+              await refetchInsumos()
+            } catch (err) {
+              setMensagemErro(err instanceof Error ? err.message : 'Erro ao repor estoque.')
+            }
           }}
         />
       )}

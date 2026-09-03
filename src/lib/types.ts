@@ -202,6 +202,43 @@ export interface FerramentaRetirada {
   veiculo?: VeiculoComRelacoes
 }
 
+export interface ItemConsumo {
+  id: string
+  codigo: string | null
+  nome: string
+  categoria: string
+  unidade: string
+  quantidade_atual: number
+  quantidade_minima: number
+  /** Capacidade cheia (ex: 200 para um tambor de 200L). Se preenchida, o
+   * item vira um "barril" e mostra o indicador visual de nível de líquido
+   * em vez da foto genérica. */
+  capacidade_maxima?: number | null
+  /** Quantidade de tambores no estoque (o barril desenhado mostra sempre
+   * o nível do tambor em uso — isso é só informativo, não entra no %). */
+  quantidade_tambores?: number | null
+  /** Número do tambor em uso no momento (estampado no desenho, ex: "GV 2").
+   * Sobe sozinho quando um tambor zera e entra reposição de um novo. */
+  numero_tambor_atual?: number | null
+  localizacao: string | null
+  observacoes: string | null
+  foto_url: string | null
+  created_at: string
+}
+
+export interface RegistroBaixaConsumo {
+  id: string
+  item_id: string
+  item_nome: string
+  unidade: string
+  quantidade: number
+  responsavel: string
+  foto_responsavel_url?: string | null
+  placa?: string | null
+  motivo?: string | null
+  data_hora: string
+}
+
 export interface ItemChecagem {
   id: string
   categoria: string
