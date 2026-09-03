@@ -172,7 +172,7 @@ export interface Ferramenta {
   codigo: string | null
   nome: string
   categoria: string
-  tipo_ferramenta?: 'comum' | 'especial'
+  tipo_ferramenta?: 'comum' | 'especial' | 'estoque'
   quantidade_total: number
   quantidade_disponivel: number
   localizacao: string | null

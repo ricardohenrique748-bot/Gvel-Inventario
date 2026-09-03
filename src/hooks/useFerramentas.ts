@@ -62,12 +62,12 @@ export function formatarFerramentaComFoto(f: any): Ferramenta {
   if (!f) return f
   let foto_url: string | null = f.foto_url || null
   let observacoes: string | null = f.observacoes || null
-  let tipo_ferramenta: 'comum' | 'especial' | undefined = f.tipo_ferramenta
+  let tipo_ferramenta: 'comum' | 'especial' | 'estoque' | undefined = f.tipo_ferramenta
 
   if (observacoes && observacoes.includes('[TIPO:')) {
     const matchTipo = observacoes.match(/\[TIPO:(.*?)\]/)
     if (matchTipo) {
-      tipo_ferramenta = matchTipo[1] === 'especial' ? 'especial' : 'comum'
+      tipo_ferramenta = matchTipo[1] === 'especial' ? 'especial' : matchTipo[1] === 'estoque' ? 'estoque' : 'comum'
       observacoes = observacoes.replace(/\[TIPO:.*?\]/g, '').trim() || null
     }
   }
@@ -433,7 +433,7 @@ export interface CriarFerramentaInput {
   codigo?: string
   nome: string
   categoria?: string
-  tipo_ferramenta?: 'comum' | 'especial'
+  tipo_ferramenta?: 'comum' | 'especial' | 'estoque'
   quantidade_total: number
   localizacao?: string
   observacoes?: string
@@ -502,7 +502,7 @@ export interface AtualizarFerramentaInput {
   codigo?: string
   nome: string
   categoria?: string
-  tipo_ferramenta?: 'comum' | 'especial'
+  tipo_ferramenta?: 'comum' | 'especial' | 'estoque'
   quantidade_total: number
   localizacao?: string
   observacoes?: string
@@ -622,7 +622,7 @@ export async function excluirFerramenta(id: string): Promise<void> {
 }
 
 export interface EdicaoMassaInput {
-  tipo_ferramenta?: 'comum' | 'especial'
+  tipo_ferramenta?: 'comum' | 'especial' | 'estoque'
   categoria?: string
   localizacao?: string
 }

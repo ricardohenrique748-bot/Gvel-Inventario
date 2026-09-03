@@ -35,6 +35,7 @@ import {
   Folder,
   FolderOpen,
   ArrowLeft,
+  Warehouse,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { isEstoqueAuthorized } from '@/components/layout/nav'
@@ -180,10 +181,18 @@ const CATEGORIAS_INSUMOS = [
   'GERAL',
 ]
 
+const CATEGORIAS_FERRAMENTA_ESTOQUE = [
+  'TODAS',
+  'RESERVA/EXCEDENTE',
+  'AGUARDANDO MANUTENÇÃO',
+  'A CONFERIR',
+  'GERAL',
+]
+
 // Detecção robusta de ferramenta especial por tipo, categoria e palavras-chave
 export function isEspecial(f: Ferramenta): boolean {
   if (f.tipo_ferramenta === 'especial') return true
-  if (f.tipo_ferramenta === 'comum') return false
+  if (f.tipo_ferramenta === 'comum' || f.tipo_ferramenta === 'estoque') return false
   const catUpper = (f.categoria || '').toUpperCase()
   if (CATEGORIAS_ESPECIAIS.some((c) => c !== 'TODAS' && c !== 'GERAL' && catUpper === c)) return true
   if (
@@ -201,6 +210,12 @@ export function isEspecial(f: Ferramenta): boolean {
     return true
   }
   return false
+}
+
+// Ferramenta marcada explicitamente como "estoque" (reserva/sobra) — não entra
+// nem em Ferramentas Pátio nem em Especiais.
+export function isFerramentaEstoque(f: Ferramenta): boolean {
+  return f.tipo_ferramenta === 'estoque'
 }
 
 export type AbaEstoque = 'ferramentas' | 'especiais' | 'insumos' | 'em_uso' | 'historico' | 'caixas'
@@ -309,7 +324,7 @@ export function InventarioFerramentas() {
     })
   }
 
-  const [tipoFiltro, setTipoFiltro] = useState<'ferramentas' | 'especiais' | 'insumos'>('ferramentas')
+  const [tipoFiltro, setTipoFiltro] = useState<'ferramentas' | 'especiais' | 'insumos' | 'estoque'>('ferramentas')
   const [busca, setBusca] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState('TODAS')
   const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'grid'>('lista')
@@ -461,7 +476,7 @@ export function InventarioFerramentas() {
   // Seleção e Edição em Massa
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [modalEdicaoMassaAberto, setModalEdicaoMassaAberto] = useState(false)
-  const [edicaoMassaTipo, setEdicaoMassaTipo] = useState<'manter' | 'comum' | 'especial'>('manter')
+  const [edicaoMassaTipo, setEdicaoMassaTipo] = useState<'manter' | 'comum' | 'especial' | 'estoque'>('manter')
   const [edicaoMassaCategoria, setEdicaoMassaCategoria] = useState('')
   const [edicaoMassaLocalizacao, setEdicaoMassaLocalizacao] = useState('')
   const [salvandoMassa, setSalvandoMassa] = useState(false)
@@ -489,10 +504,10 @@ export function InventarioFerramentas() {
   const [limiteConsumo, setLimiteConsumo] = useState(30)
   const [limiteHistoricoConsumo, setLimiteHistoricoConsumo] = useState(30)
 
-  // Ferramentas comuns vs especiais vs insumos
+  // Ferramentas comuns vs especiais vs insumos vs estoque
   const ferramentasComuns = useMemo(() => {
     return ferramentas.filter(
-      (f) => !isEspecial(f) && !f.categoria?.toUpperCase().includes('INSUMO')
+      (f) => !isEspecial(f) && !isFerramentaEstoque(f) && !f.categoria?.toUpperCase().includes('INSUMO')
     )
   }, [ferramentas])
 
@@ -508,7 +523,13 @@ export function InventarioFerramentas() {
     )
   }, [ferramentas])
 
-  // Categorias ativas para o tipo selecionado (Ferramentas, Ferramentas Especiais, Insumos)
+  const ferramentasEstoqueTab = useMemo(() => {
+    return ferramentas.filter(
+      (f) => isFerramentaEstoque(f)
+    )
+  }, [ferramentas])
+
+  // Categorias ativas para o tipo selecionado (Ferramentas, Ferramentas Especiais, Insumos, Estoque)
   const categoriasAtivas = useMemo(() => {
     if (tipoFiltro === 'ferramentas') {
       const customCats = Array.from(new Set(ferramentasComuns.map((f) => f.categoria?.toUpperCase()).filter(Boolean))) as string[]
@@ -522,8 +543,12 @@ export function InventarioFerramentas() {
       const customCats = Array.from(new Set(ferramentasInsumos.map((f) => f.categoria?.toUpperCase()).filter(Boolean))) as string[]
       return Array.from(new Set([...CATEGORIAS_INSUMOS, ...customCats]))
     }
+    if (tipoFiltro === 'estoque') {
+      const customCats = Array.from(new Set(ferramentasEstoqueTab.map((f) => f.categoria?.toUpperCase()).filter(Boolean))) as string[]
+      return Array.from(new Set([...CATEGORIAS_FERRAMENTA_ESTOQUE, ...customCats]))
+    }
     return ['TODAS']
-  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, ferramentasInsumos])
+  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, ferramentasInsumos, ferramentasEstoqueTab])
 
   // Filtragem da lista ativa de acordo com o tipoFiltro
   const ferramentasFiltradas = useMemo(() => {
@@ -533,6 +558,8 @@ export function InventarioFerramentas() {
         ? ferramentasEspeciais
         : tipoFiltro === 'insumos'
         ? (ferramentasInsumos.length > 0 ? ferramentasInsumos : ferramentas.filter((f) => f.categoria?.toUpperCase().includes('INSUMO')))
+        : tipoFiltro === 'estoque'
+        ? ferramentasEstoqueTab
         : ferramentasComuns
 
     return baseList.filter((f) => {
@@ -548,7 +575,7 @@ export function InventarioFerramentas() {
 
       return matchBusca && matchCat
     })
-  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, ferramentasInsumos, ferramentas, deferredBusca, categoriaFiltro])
+  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, ferramentasInsumos, ferramentasEstoqueTab, ferramentas, deferredBusca, categoriaFiltro])
 
   // Retiradas ativas
   const retiradasAtivas = useMemo(() => {
@@ -753,6 +780,8 @@ export function InventarioFerramentas() {
                   ? 'NOVA FERRAMENTA ESPECIAL'
                   : tipoFiltro === 'insumos'
                   ? 'NOVO INSUMO'
+                  : tipoFiltro === 'estoque'
+                  ? 'NOVA FERRAMENTA (ESTOQUE)'
                   : 'NOVA FERRAMENTA'}
               </span>
             </Button>
@@ -975,6 +1004,27 @@ export function InventarioFerramentas() {
                     tipoFiltro === 'ferramentas' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
                   }`}>
                     {ferramentasComuns.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoFiltro('estoque')
+                    setCategoriaFiltro('TODAS')
+                  }}
+                  className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 uppercase ${
+                    tipoFiltro === 'estoque'
+                      ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                      : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+                  }`}
+                >
+                  <Warehouse className="h-3.5 w-3.5" />
+                  FERRAMENTA ESTOQUE
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                    tipoFiltro === 'estoque' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+                  }`}>
+                    {ferramentasEstoqueTab.length}
                   </span>
                 </button>
 
@@ -1696,15 +1746,44 @@ export function InventarioFerramentas() {
               )}
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-2.5">
               {retiradasAtivas.map((r) => {
                 const dataFormatada = format(new Date(r.data_hora_retirada), "dd/MM/yyyy 'ÀS' HH:mm", { locale: ptBR })
 
                 return (
-                  <Card key={r.id} className="p-5 border-amber-500/30 flex flex-col justify-between uppercase">
-                    <div>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
+                  <Card key={r.id} className="p-4 border-amber-500/30 uppercase">
+                    <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                      {(r.foto_responsavel_url || r.foto_url) ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFotoModalUrl({
+                              url: r.foto_responsavel_url || r.foto_url || '',
+                              titulo: `Foto do Responsável: ${obterNomeCompletoMembro(r.responsavel)}`,
+                            })
+                          }
+                          className="relative group shrink-0"
+                          title="Clique para ver a foto ampliada"
+                        >
+                          <img
+                            src={r.foto_responsavel_url || r.foto_url || ''}
+                            alt={obterNomeCompletoMembro(r.responsavel)}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-10 w-10 rounded-full object-cover border-2 border-primary/40 group-hover:border-primary transition-all shadow-sm"
+                          />
+                          <div className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <Eye className="h-3.5 w-3.5 text-white" />
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-surface border border-border/30 flex items-center justify-center text-xs font-black text-secondary shrink-0">
+                          {obterNomeCompletoMembro(r.responsavel).slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="flex items-center gap-1 rounded-lg bg-primary/20 px-2.5 py-1 text-xs font-mono font-bold text-primary">
                             <Truck className="h-3.5 w-3.5" />
                             {r.placa}
@@ -1712,73 +1791,37 @@ export function InventarioFerramentas() {
                           <Badge tone="warning" className="text-[11px] uppercase font-bold">
                             {r.quantidade} UN.
                           </Badge>
+                          <span className="text-[11px] text-secondary flex items-center gap-1 uppercase font-medium">
+                            <Clock className="h-3 w-3" />
+                            {dataFormatada}
+                          </span>
                         </div>
-                        <span className="text-[11px] text-secondary flex items-center gap-1 uppercase font-medium">
-                          <Clock className="h-3 w-3" />
-                          {dataFormatada}
-                        </span>
-                      </div>
-
-                      <h3 className="mt-3 text-base font-bold text-foreground uppercase">
-                        {r.ferramenta?.nome || 'FERRAMENTA'}
-                      </h3>
-
-                      <div className="mt-2 flex items-center gap-2">
-                        {(r.foto_responsavel_url || r.foto_url) ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setFotoModalUrl({
-                                url: r.foto_responsavel_url || r.foto_url || '',
-                                titulo: `Foto do Responsável: ${obterNomeCompletoMembro(r.responsavel)}`,
-                              })
-                            }
-                            className="relative group shrink-0"
-                            title="Clique para ver a foto ampliada"
-                          >
-                            <img
-                              src={r.foto_responsavel_url || r.foto_url || ''}
-                              alt={obterNomeCompletoMembro(r.responsavel)}
-                              loading="lazy"
-                              decoding="async"
-                              className="h-9 w-9 rounded-full object-cover border-2 border-primary/40 group-hover:border-primary transition-all shadow-sm"
-                            />
-                            <div className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                              <Eye className="h-3.5 w-3.5 text-white" />
-                            </div>
-                          </button>
-                        ) : (
-                          <div className="h-9 w-9 rounded-full bg-surface border border-border/30 flex items-center justify-center text-xs font-black text-secondary shrink-0">
-                            {obterNomeCompletoMembro(r.responsavel).slice(0, 2).toUpperCase()}
-                          </div>
-                        )}
+                        <h3 className="mt-1.5 text-sm font-bold text-foreground uppercase truncate">
+                          {r.ferramenta?.nome || 'FERRAMENTA'}
+                        </h3>
                         <p className="text-xs text-secondary uppercase font-medium">
                           RESPONSÁVEL: <strong className="text-foreground font-bold">{obterNomeCompletoMembro(r.responsavel)}</strong>
                         </p>
+                        {r.observacoes_retirada && (
+                          <p className="mt-1 text-xs text-secondary italic bg-background/50 p-2 rounded-lg uppercase">
+                            "{r.observacoes_retirada}"
+                          </p>
+                        )}
                       </div>
 
-                      {r.observacoes_retirada && (
-                        <p className="mt-2 text-xs text-secondary italic bg-background/50 p-2 rounded-lg uppercase">
-                          "{r.observacoes_retirada}"
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="mt-4 pt-4 border-t border-border/10 flex flex-col gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                          setRetiradaEditando(r)
-                          setModalEditarRetiradaAberto(true)
-                        }}
-                        className="w-full justify-center gap-1.5 text-xs border-primary/30 text-foreground hover:bg-primary/10 hover:border-primary uppercase font-bold"
-                      >
-                        <Pencil className="h-3.5 w-3.5 text-primary" />
-                        EDITAR
-                      </Button>
-
-                      <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setRetiradaEditando(r)
+                            setModalEditarRetiradaAberto(true)
+                          }}
+                          className="!h-9 px-3 gap-1.5 text-xs border-primary/30 text-foreground hover:bg-primary/10 hover:border-primary uppercase font-bold"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-primary" />
+                          EDITAR
+                        </Button>
                         <Button
                           type="button"
                           variant="secondary"
@@ -1787,7 +1830,7 @@ export function InventarioFerramentas() {
                             setStatusDevolucaoPadrao('avaria_perda')
                             setModalDevolucaoAberto(true)
                           }}
-                          className="w-full justify-center gap-1.5 text-xs border-rose-500/30 text-rose-500 hover:bg-rose-500/10 hover:border-rose-500 uppercase font-bold"
+                          className="!h-9 px-3 gap-1.5 text-xs border-rose-500/30 text-rose-500 hover:bg-rose-500/10 hover:border-rose-500 uppercase font-bold"
                           title="Item consumido/usado — não volta para o estoque"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -1801,7 +1844,7 @@ export function InventarioFerramentas() {
                             setStatusDevolucaoPadrao('devolvido')
                             setModalDevolucaoAberto(true)
                           }}
-                          className="w-full justify-center gap-1.5 text-xs border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500 uppercase font-bold"
+                          className="!h-9 px-3 gap-1.5 text-xs border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500 uppercase font-bold"
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
                           REGISTRAR DEVOLUÇÃO
@@ -2990,7 +3033,7 @@ export function InventarioFerramentas() {
                 <Label className="text-[11px] font-black uppercase tracking-wider text-secondary mb-1.5 block">
                   Tipo de Ferramenta
                 </Label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setEdicaoMassaTipo('manter')}
@@ -3023,6 +3066,17 @@ export function InventarioFerramentas() {
                     }`}
                   >
                     Especial
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEdicaoMassaTipo('estoque')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold uppercase transition-all ${
+                      edicaoMassaTipo === 'estoque'
+                        ? 'border-primary bg-primary/15 text-primary'
+                        : 'border-border/30 bg-background text-secondary hover:border-primary/40'
+                    }`}
+                  >
+                    Estoque
                   </button>
                 </div>
               </div>
@@ -3166,7 +3220,7 @@ export function InventarioFerramentas() {
       {modalFerramentaAberto && (
         <ModalFerramenta
           ferramenta={ferramentaEditando}
-          tipoInicial={tipoFiltro === 'especiais' ? 'especial' : 'comum'}
+          tipoInicial={tipoFiltro === 'especiais' ? 'especial' : tipoFiltro === 'estoque' ? 'estoque' : 'comum'}
           categoriaInicial={tipoFiltro === 'insumos' ? 'INSUMOS' : undefined}
           onClose={() => setModalFerramentaAberto(false)}
           onSalvo={async () => {
@@ -3558,12 +3612,12 @@ function ModalFerramenta({
   onSalvo,
 }: {
   ferramenta: Ferramenta | null
-  tipoInicial?: 'comum' | 'especial'
+  tipoInicial?: 'comum' | 'especial' | 'estoque'
   categoriaInicial?: string
   onClose: () => void
   onSalvo: () => Promise<void>
 }) {
-  const [tipoFerramenta, setTipoFerramenta] = useState<'comum' | 'especial'>(() => {
+  const [tipoFerramenta, setTipoFerramenta] = useState<'comum' | 'especial' | 'estoque'>(() => {
     if (ferramenta) {
       if (ferramenta.tipo_ferramenta) return ferramenta.tipo_ferramenta
       return isEspecial(ferramenta) ? 'especial' : 'comum'
@@ -3574,7 +3628,9 @@ function ModalFerramenta({
   const [nome, setNome] = useState(ferramenta?.nome || '')
   const [codigo, setCodigo] = useState(ferramenta?.codigo || '')
   const [categoria, setCategoria] = useState(
-    ferramenta?.categoria || categoriaInicial || (tipoInicial === 'especial' ? 'SACADORES E EXTRATORES' : 'GERAL')
+    ferramenta?.categoria ||
+      categoriaInicial ||
+      (tipoInicial === 'especial' ? 'SACADORES E EXTRATORES' : tipoInicial === 'estoque' ? 'RESERVA/EXCEDENTE' : 'GERAL')
   )
   const [quantidadeTotal, setQuantidadeTotal] = useState(String(ferramenta?.quantidade_total || 1))
   const [localizacao, setLocalizacao] = useState(ferramenta?.localizacao || '')
@@ -3662,15 +3718,25 @@ function ModalFerramenta({
         <div className="mb-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
-              {tipoFerramenta === 'especial' ? <Wrench className="h-5 w-5" /> : <Hammer className="h-5 w-5" />}
+              {tipoFerramenta === 'especial' ? (
+                <Wrench className="h-5 w-5" />
+              ) : tipoFerramenta === 'estoque' ? (
+                <Warehouse className="h-5 w-5" />
+              ) : (
+                <Hammer className="h-5 w-5" />
+              )}
             </div>
             <h2 className="text-base font-bold text-foreground uppercase">
               {ferramenta
                 ? tipoFerramenta === 'especial'
                   ? 'EDITAR FERRAMENTA ESPECIAL'
+                  : tipoFerramenta === 'estoque'
+                  ? 'EDITAR FERRAMENTA (ESTOQUE)'
                   : 'EDITAR FERRAMENTA'
                 : tipoFerramenta === 'especial'
                 ? 'NOVA FERRAMENTA ESPECIAL'
+                : tipoFerramenta === 'estoque'
+                ? 'NOVA FERRAMENTA (ESTOQUE)'
                 : 'NOVA FERRAMENTA'}
             </h2>
           </div>
@@ -3689,14 +3755,14 @@ function ModalFerramenta({
             {/* Tipo de Ferramenta */}
             <div>
               <Label className="uppercase font-bold text-xs">TIPO DE FERRAMENTA *</Label>
-              <div className="grid grid-cols-2 gap-2 mt-1.5">
+              <div className="grid grid-cols-3 gap-2 mt-1.5">
                 <button
                   type="button"
                   onClick={() => {
                     setTipoFerramenta('comum')
-                    if (categoria === 'SACADORES E EXTRATORES') setCategoria('GERAL')
+                    if (categoria === 'SACADORES E EXTRATORES' || categoria === 'RESERVA/EXCEDENTE') setCategoria('GERAL')
                   }}
-                  className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold uppercase transition-all cursor-pointer ${
+                  className={`flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl border text-[11px] font-bold uppercase transition-all cursor-pointer ${
                     tipoFerramenta === 'comum'
                       ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
                       : 'bg-background border-border/20 text-secondary hover:text-foreground'
@@ -3709,9 +3775,9 @@ function ModalFerramenta({
                   type="button"
                   onClick={() => {
                     setTipoFerramenta('especial')
-                    if (categoria === 'GERAL') setCategoria('SACADORES E EXTRATORES')
+                    if (categoria === 'GERAL' || categoria === 'RESERVA/EXCEDENTE') setCategoria('SACADORES E EXTRATORES')
                   }}
-                  className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-bold uppercase transition-all cursor-pointer ${
+                  className={`flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl border text-[11px] font-bold uppercase transition-all cursor-pointer ${
                     tipoFerramenta === 'especial'
                       ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
                       : 'bg-background border-border/20 text-secondary hover:text-foreground'
@@ -3719,6 +3785,21 @@ function ModalFerramenta({
                 >
                   <Wrench className="h-4 w-4" />
                   ESPECIAL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoFerramenta('estoque')
+                    if (categoria === 'GERAL' || categoria === 'SACADORES E EXTRATORES') setCategoria('RESERVA/EXCEDENTE')
+                  }}
+                  className={`flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl border text-[11px] font-bold uppercase transition-all cursor-pointer ${
+                    tipoFerramenta === 'estoque'
+                      ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                      : 'bg-background border-border/20 text-secondary hover:text-foreground'
+                  }`}
+                >
+                  <Warehouse className="h-4 w-4" />
+                  ESTOQUE
                 </button>
               </div>
             </div>
@@ -3753,12 +3834,20 @@ function ModalFerramenta({
                   list="lista-categorias-sugeridas"
                   value={categoria}
                   onChange={(e) => setCategoria(e.target.value)}
-                  placeholder={tipoFerramenta === 'especial' ? 'EX: SACADORES E EXTRATORES' : 'EX: PNEUMÁTICA'}
+                  placeholder={
+                    tipoFerramenta === 'especial'
+                      ? 'EX: SACADORES E EXTRATORES'
+                      : tipoFerramenta === 'estoque'
+                      ? 'EX: RESERVA/EXCEDENTE'
+                      : 'EX: PNEUMÁTICA'
+                  }
                   className="uppercase font-medium"
                 />
                 <datalist id="lista-categorias-sugeridas">
                   {(tipoFerramenta === 'especial'
                     ? CATEGORIAS_ESPECIAIS
+                    : tipoFerramenta === 'estoque'
+                    ? CATEGORIAS_FERRAMENTA_ESTOQUE
                     : categoriaInicial === 'INSUMOS'
                     ? CATEGORIAS_INSUMOS
                     : CATEGORIAS_FERRAMENTAS)
