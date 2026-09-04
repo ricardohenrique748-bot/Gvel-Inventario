@@ -57,6 +57,9 @@
     background-color: #9a9a9a;
     border-radius: 9999px;
   }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Glass Button Styles */

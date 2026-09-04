@@ -39,7 +39,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { isEstoqueAuthorized } from '@/components/layout/nav'
-import { obterNomeCompletoMembro } from '@/constants/equipe'
+import { EQUIPE_GVEL, obterNomeCompletoMembro } from '@/constants/equipe'
+import { useEquipeConhecida } from '@/hooks/useEquipeConhecida'
 import { percentualBarril } from '@/lib/barril'
 import { BarrilOleoSVG } from '@/components/BarrilOleoSVG'
 import { isAdminUsuario } from '@/lib/permissoes'
@@ -4097,29 +4098,37 @@ function ModalRetirada({
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Lista de mecânicos conhecidos com foto para sugestão rápida
+  // Equipe conhecida = cadastro fixo (mecânicos, funileiros, estética/polimento, pintura) + quem
+  // já apontou horas no Indicador de Performance (fonte real, sempre atualizada com novos contratados)
+  const nomesEquipeReal = useEquipeConhecida()
   const mecanicosConhecidos = useMemo(() => {
     const mapa = new Map<string, string | null>()
+    EQUIPE_GVEL.forEach((m) => mapa.set(m.nome, null))
+    nomesEquipeReal.forEach((nome) => {
+      if (!mapa.has(nome)) mapa.set(nome, null)
+    })
     try {
       const storageMap = JSON.parse(localStorage.getItem('gvel_fotos_mecanicos') || '{}')
       Object.entries(storageMap).forEach(([nome, url]) => {
-        if (typeof url === 'string') mapa.set(nome.toUpperCase().trim(), url)
+        const chave = obterNomeCompletoMembro(nome)
+        if (typeof url === 'string' && mapa.has(chave)) mapa.set(chave, url)
       })
     } catch (e) {
       // ignore
     }
     if (retiradas) {
       retiradas.forEach((r) => {
-        const n = r.responsavel?.toUpperCase().trim()
-        if (n && !mapa.has(n)) {
-          mapa.set(n, r.foto_responsavel_url || r.foto_url || null)
-        } else if (n && !mapa.get(n) && (r.foto_responsavel_url || r.foto_url)) {
-          mapa.set(n, r.foto_responsavel_url || r.foto_url || null)
+        const chave = r.responsavel ? obterNomeCompletoMembro(r.responsavel) : ''
+        const foto = r.foto_responsavel_url || r.foto_url || null
+        if (chave && mapa.has(chave) && !mapa.get(chave) && foto) {
+          mapa.set(chave, foto)
         }
       })
     }
-    return Array.from(mapa.entries()).map(([nome, foto]) => ({ nome, foto }))
-  }, [retiradas])
+    return Array.from(mapa.entries())
+      .map(([nome, foto]) => ({ nome, foto }))
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+  }, [retiradas, nomesEquipeReal])
 
   function handleResponsavelChange(nome: string) {
     setResponsavel(nome)
@@ -6725,23 +6734,35 @@ function ModalBaixaConsumo({
   const itemAtual = itensDisponiveis.find((it) => it.id === itemId) ?? itemPreSelecionado
   const maxQtd = itemAtual?.quantidade_atual || 1
 
-  // Mecânicos com foto para sugestão
+  // Equipe conhecida = cadastro fixo (mecânicos, funileiros, estética/polimento, pintura) + quem
+  // já apontou horas no Indicador de Performance (fonte real, sempre atualizada com novos contratados)
+  const nomesEquipeReal = useEquipeConhecida()
   const mecanicosConhecidos = useMemo(() => {
     const mapa = new Map<string, string | null>()
+    EQUIPE_GVEL.forEach((m) => mapa.set(m.nome, null))
+    nomesEquipeReal.forEach((nome) => {
+      if (!mapa.has(nome)) mapa.set(nome, null)
+    })
     try {
       const storageMap = JSON.parse(localStorage.getItem('gvel_fotos_mecanicos') || '{}')
       Object.entries(storageMap).forEach(([nome, url]) => {
-        if (typeof url === 'string') mapa.set(nome.toUpperCase().trim(), url)
+        const chave = obterNomeCompletoMembro(nome)
+        if (typeof url === 'string' && mapa.has(chave)) mapa.set(chave, url)
       })
     } catch {}
     if (retiradas) {
       retiradas.forEach((r) => {
-        const n = r.responsavel?.toUpperCase().trim()
-        if (n && !mapa.has(n)) mapa.set(n, r.foto_responsavel_url || r.foto_url || null)
+        const chave = r.responsavel ? obterNomeCompletoMembro(r.responsavel) : ''
+        const foto = r.foto_responsavel_url || r.foto_url || null
+        if (chave && mapa.has(chave) && !mapa.get(chave) && foto) {
+          mapa.set(chave, foto)
+        }
       })
     }
-    return Array.from(mapa.entries()).map(([nome, foto]) => ({ nome, foto }))
-  }, [retiradas])
+    return Array.from(mapa.entries())
+      .map(([nome, foto]) => ({ nome, foto }))
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+  }, [retiradas, nomesEquipeReal])
 
   function handleResponsavelChange(nome: string) {
     setResponsavel(nome)
