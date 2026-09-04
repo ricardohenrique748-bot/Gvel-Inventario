@@ -386,11 +386,18 @@ export async function registrarBaixaConsumo(
     foto_responsavel_url: baixa.foto_responsavel_url || null,
     placa: baixa.placa || null,
     motivo: baixa.motivo || null,
+    numero_tambor: item.capacidade_maxima ? camposItem.numero_tambor_atual ?? item.numero_tambor_atual ?? 1 : null,
+    quantidade_restante: item.capacidade_maxima ? camposItem.quantidade_atual : null,
     data_hora: new Date().toISOString(),
   }
 
   let itemAtualizado: ItemConsumo = { ...item, ...camposItem }
-  let baixaGravada: RegistroBaixaConsumo = { ...baixa, id: `baixa_${Date.now()}` }
+  let baixaGravada: RegistroBaixaConsumo = {
+    ...baixa,
+    id: `baixa_${Date.now()}`,
+    numero_tambor: baixaPayload.numero_tambor,
+    quantidade_restante: baixaPayload.quantidade_restante,
+  }
 
   try {
     if (REGEX_UUID.test(item.id)) {

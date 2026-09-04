@@ -24,7 +24,6 @@ import {
   Briefcase,
   Boxes,
   AlertTriangle,
-  ClipboardList,
   PackagePlus,
   TrendingDown,
   Laptop,
@@ -434,7 +433,6 @@ export function InventarioFerramentas() {
   const deferredBuscaConsumo = useDeferredValue(buscaConsumo)
 
   const [categoriaConsumoFiltro, setCategoriaConsumoFiltro] = useState('TODAS')
-  const [subAbaConsumo, setSubAbaConsumo] = useState<'estoque' | 'historico'>('estoque')
   const [modalItemConsumoAberto, setModalItemConsumoAberto] = useState(false)
   const [itemConsumoEditando, setItemConsumoEditando] = useState<ItemConsumo | null>(null)
   const [modalBaixaConsumoAberto, setModalBaixaConsumoAberto] = useState(false)
@@ -502,6 +500,7 @@ export function InventarioFerramentas() {
   const [retiradaEditando, setRetiradaEditando] = useState<FerramentaRetirada | null>(null)
   const [fotoModalUrl, setFotoModalUrl] = useState<{ url: string; titulo: string } | null>(null)
   const [ferramentaHistorico, setFerramentaHistorico] = useState<Ferramenta | null>(null)
+  const [itemConsumoHistorico, setItemConsumoHistorico] = useState<ItemConsumo | null>(null)
 
   // Mensagens de erro/sucesso
   const [mensagemErro, setMensagemErro] = useState<string | null>(null)
@@ -535,7 +534,6 @@ export function InventarioFerramentas() {
   const [limiteHistorico, setLimiteHistorico] = useState(30)
   const [limiteCaixas, setLimiteCaixas] = useState(30)
   const [limiteConsumo, setLimiteConsumo] = useState(30)
-  const [limiteHistoricoConsumo, setLimiteHistoricoConsumo] = useState(30)
 
   // Ferramentas comuns vs especiais vs insumos vs estoque
   const ferramentasComuns = useMemo(() => {
@@ -2452,37 +2450,8 @@ export function InventarioFerramentas() {
             </Card>
           </div>
 
-          {/* Barra de Filtros, Sub-abas e Ações */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-overlay/5 p-1 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setSubAbaConsumo('estoque')}
-                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-colors uppercase cursor-pointer flex items-center gap-1.5 ${
-                    subAbaConsumo === 'estoque'
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-secondary hover:text-foreground'
-                  }`}
-                >
-                  <Boxes className="h-3.5 w-3.5" />
-                  ESTOQUE DE INSUMOS
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSubAbaConsumo('historico')}
-                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-colors uppercase cursor-pointer flex items-center gap-1.5 ${
-                    subAbaConsumo === 'historico'
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-secondary hover:text-foreground'
-                  }`}
-                >
-                  <ClipboardList className="h-3.5 w-3.5" />
-                  HISTÓRICO DE CONSUMOS ({baixasConsumo.length})
-                </button>
-              </div>
-            </div>
-
+          {/* Barra de Ações */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -2510,9 +2479,7 @@ export function InventarioFerramentas() {
             </div>
           </div>
 
-          {/* Sub-Aba 1: Estoque de Insumos */}
-          {subAbaConsumo === 'estoque' && (
-            <div className="space-y-4">
+          <div className="space-y-4">
               {/* Barra de Busca e Categorias */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="relative flex-1 max-w-md">
@@ -2655,13 +2622,18 @@ export function InventarioFerramentas() {
                             </div>
 
                             {/* Barril grande (SVG vetorial — nível contínuo e sempre nítido) */}
-                            <div title={`Nível do barril: ${pctBarril}%`}>
+                            <button
+                              type="button"
+                              onClick={() => setItemConsumoHistorico(item)}
+                              title={`Ver histórico de baixas — Nível do barril: ${pctBarril}%`}
+                              className="cursor-pointer transition-transform hover:scale-[1.03] active:scale-95"
+                            >
                               <BarrilOleoSVG
                                 percentual={pctBarril}
                                 rotulo={`GV ${item.numero_tambor_atual || 1}`}
                                 className="h-44 w-44 origin-bottom animate-liquid-sway"
                               />
-                            </div>
+                            </button>
 
                             {(isZerado || isAlerta) && (
                               <div>
@@ -2842,107 +2814,6 @@ export function InventarioFerramentas() {
                 </div>
               )}
             </div>
-          )}
-
-          {/* Sub-Aba 2: Histórico de Consumos */}
-          {subAbaConsumo === 'historico' && (
-            <Card className="overflow-hidden border-border/10 uppercase">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-border/10 bg-overlay/5 text-xs text-secondary font-semibold uppercase tracking-wider">
-                    <tr>
-                      <th className="px-4 py-3">ITEM DE CONSUMO</th>
-                      <th className="px-4 py-3">QTD CONSUMIDA</th>
-                      <th className="px-4 py-3">RESPONSÁVEL</th>
-                      <th className="px-4 py-3">CAMINHÃO / PLACA</th>
-                      <th className="px-4 py-3">MOTIVO / APLICAÇÃO</th>
-                      <th className="px-4 py-3">DATA E HORA</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/5 font-medium">
-                    {baixasConsumo.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-sm text-secondary font-medium">
-                          NENHUM REGISTRO DE CONSUMO REALIZADO ATÉ O MOMENTO.
-                        </td>
-                      </tr>
-                    ) : (
-                      baixasConsumo.slice(0, limiteHistoricoConsumo).map((bx) => {
-                        const itemRefBaixa = itensConsumo.find((it) => it.id === bx.item_id)
-                        const ehBarrilBaixa = Boolean(itemRefBaixa?.capacidade_maxima && itemRefBaixa.capacidade_maxima > 0)
-                        return (
-                        <tr key={bx.id} className="hover:bg-overlay/5 transition-colors">
-                          <td className="px-4 py-3 font-bold text-foreground">
-                            <div className="flex items-center gap-2">
-                              <span>{ehBarrilBaixa ? '🛢️' : '📦'}</span>
-                              <span>{bx.item_nome}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="font-black font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
-                              −{bx.quantidade} {bx.unidade}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2 font-semibold text-foreground">
-                              {bx.foto_responsavel_url ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setFotoModalUrl({
-                                      url: bx.foto_responsavel_url!,
-                                      titulo: `Responsável: ${obterNomeCompletoMembro(bx.responsavel)}`,
-                                    })
-                                  }
-                                  className="h-6 w-6 rounded-full overflow-hidden border border-primary/40 hover:scale-110 transition-transform cursor-pointer"
-                                >
-                                  <img
-                                    src={bx.foto_responsavel_url}
-                                    alt={obterNomeCompletoMembro(bx.responsavel)}
-                                    loading="lazy"
-                                    decoding="async"
-                                    className="h-full w-full object-cover"
-                                  />
-                                </button>
-                              ) : (
-                                <span className="text-xs">👤</span>
-                              )}
-                              <span>{obterNomeCompletoMembro(bx.responsavel)}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 font-mono font-bold text-primary">
-                            {bx.placa ? `🚛 ${bx.placa}` : '—'}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-secondary max-w-xs truncate">
-                            {bx.motivo || '—'}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-secondary font-mono">
-                            {format(new Date(bx.data_hora), "dd/MM/yyyy 'ÀS' HH:mm", { locale: ptBR })}
-                          </td>
-                        </tr>
-                        )
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Botão Carregar Mais Histórico de Consumo */}
-              {baixasConsumo.length > limiteHistoricoConsumo && (
-                <div className="p-3 text-center border-t border-border/10">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setLimiteHistoricoConsumo((prev) => prev + 40)}
-                    className="!py-2 !px-5 text-xs font-black uppercase tracking-wider gap-2 border-primary/30 text-primary hover:border-primary w-full sm:w-auto"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    CARREGAR MAIS HISTÓRICO (+40 DE {baixasConsumo.length - limiteHistoricoConsumo} RESTANTES)
-                  </Button>
-                </div>
-              )}
-            </Card>
-          )}
         </div>
       )}
 
@@ -3377,6 +3248,19 @@ export function InventarioFerramentas() {
           }}
         />
       )}
+
+      {/* ==================== MODAL: HISTÓRICO DE BAIXAS DO BARRIL/INSUMO ==================== */}
+      {itemConsumoHistorico && (
+        <ModalHistoricoConsumo
+          item={itemConsumoHistorico}
+          baixas={baixasConsumo}
+          onClose={() => setItemConsumoHistorico(null)}
+          onBaixar={(it) => {
+            setItemConsumoParaBaixa(it)
+            setModalBaixaConsumoAberto(true)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -3610,6 +3494,227 @@ function ModalHistoricoFerramenta({
             >
               <ArrowUpRight className="h-4 w-4" />
               Retirar Esta Ferramenta
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Histórico de Baixas de um Item de Consumo (Barril/Insumo)
+// ----------------------------------------------------------------------------------
+function ModalHistoricoConsumo({
+  item,
+  baixas,
+  onClose,
+  onBaixar,
+}: {
+  item: ItemConsumo
+  baixas: RegistroBaixaConsumo[]
+  onClose: () => void
+  onBaixar: (item: ItemConsumo) => void
+}) {
+  const [busca, setBusca] = useState('')
+
+  const historico = useMemo(() => {
+    return baixas.filter((b) => b.item_id === item.id)
+  }, [baixas, item.id])
+
+  const filtrado = useMemo(() => {
+    if (!busca.trim()) return historico
+    const t = busca.toLowerCase().trim()
+    return historico.filter((b) => {
+      return (
+        (b.placa && b.placa.toLowerCase().includes(t)) ||
+        (b.responsavel && b.responsavel.toLowerCase().includes(t)) ||
+        (b.motivo && b.motivo.toLowerCase().includes(t))
+      )
+    })
+  }, [historico, busca])
+
+  const isBarril = Boolean(item.capacidade_maxima && item.capacidade_maxima > 0)
+  const pctBarril = isBarril ? percentualBarril(item.quantidade_atual, item.capacidade_maxima!) : 0
+  const totalConsumido = historico.reduce((soma, b) => soma + b.quantidade, 0)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in">
+      <div className="relative flex flex-col max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-3xl border border-border/25 bg-surface shadow-2xl animate-scale-in">
+        {/* Cabeçalho */}
+        <div className="flex items-center justify-between border-b border-border/15 p-5 bg-overlay/5">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 text-xl">
+              {isBarril ? '🛢️' : '📦'}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                {item.codigo && (
+                  <span className="rounded-lg bg-background border border-border/30 px-2 py-0.5 text-xs font-mono font-bold text-foreground">
+                    {item.codigo}
+                  </span>
+                )}
+                <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[10px] font-black uppercase text-secondary tracking-wider">
+                  {item.categoria}
+                </span>
+              </div>
+              <h2 className="text-base font-black text-foreground uppercase truncate mt-0.5">
+                {item.nome}
+              </h2>
+              {item.localizacao && (
+                <p className="text-[11px] text-secondary font-medium">📍 {item.localizacao}</p>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-2 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Resumo de Estoque & Busca */}
+        <div className="p-5 pb-3 border-b border-border/10 space-y-3 bg-background/50">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
+              <span className="text-[10px] font-black text-secondary uppercase">
+                {isBarril ? 'Nível Atual' : 'Estoque Atual'}
+              </span>
+              <p className="text-lg font-black font-mono text-emerald-500">
+                {isBarril ? `${pctBarril}%` : item.quantidade_atual}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
+              <span className="text-[10px] font-black text-secondary uppercase">Qtd. Atual</span>
+              <p className="text-lg font-black font-mono text-foreground">
+                {item.quantidade_atual} {item.unidade}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
+              <span className="text-[10px] font-black text-secondary uppercase">Total Baixado</span>
+              <p className="text-lg font-black font-mono text-amber-500">
+                {totalConsumido} {item.unidade}
+              </p>
+            </div>
+          </div>
+
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="FILTRAR HISTÓRICO POR PLACA, RESPONSÁVEL OU MOTIVO..."
+              className="h-10 w-full rounded-xl border border-border/25 bg-surface pl-10 pr-4 text-xs uppercase text-foreground placeholder:text-secondary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+            />
+          </div>
+        </div>
+
+        {/* Lista de Baixas / Histórico */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-secondary flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-primary" />
+              Histórico de Baixas ({filtrado.length})
+            </span>
+          </div>
+
+          {filtrado.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/30 p-8 text-center bg-overlay/5">
+              <Clock className="mx-auto h-8 w-8 text-secondary/40 mb-2" />
+              <p className="text-xs font-black uppercase text-foreground">Nenhuma baixa encontrada</p>
+              <p className="text-[11px] text-secondary mt-0.5">
+                {busca ? 'Tente buscar por outro termo.' : 'Este item ainda não possui baixas registradas.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {filtrado.map((b) => (
+                <div
+                  key={b.id}
+                  className="rounded-2xl border border-border/20 bg-surface/90 p-3.5 space-y-2.5 hover:border-primary/30 transition-all shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black font-mono text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 text-xs">
+                        −{b.quantidade} {b.unidade}
+                      </span>
+                      {isBarril && b.numero_tambor && (
+                        <div className="flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/25 px-2.5 py-1">
+                          <span className="text-xs">🛢️</span>
+                          <span className="text-xs font-black font-mono text-primary">GV {b.numero_tambor}</span>
+                        </div>
+                      )}
+                      {isBarril && b.quantidade_restante != null && (
+                        <span className="font-black font-mono text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 text-xs">
+                          RESTOU {b.quantidade_restante} {b.unidade}
+                        </span>
+                      )}
+                      {b.placa && (
+                        <div className="flex items-center gap-1.5 rounded-lg bg-background border border-border/30 px-2.5 py-1">
+                          <Truck className="h-3.5 w-3.5 text-primary" />
+                          <span className="text-xs font-black font-mono text-foreground">{b.placa}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <span className="text-[11px] font-mono text-secondary font-semibold shrink-0">
+                      {format(new Date(b.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs pt-1 border-t border-border/10">
+                    {b.foto_responsavel_url ? (
+                      <img
+                        src={b.foto_responsavel_url}
+                        alt={obterNomeCompletoMembro(b.responsavel)}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-6 w-6 rounded-full object-cover border border-primary/40"
+                      />
+                    ) : (
+                      <span className="text-xs">👤</span>
+                    )}
+                    <span className="font-black text-foreground uppercase">
+                      {obterNomeCompletoMembro(b.responsavel)}
+                    </span>
+                  </div>
+
+                  {b.motivo && (
+                    <p className="text-[11px] text-secondary italic bg-background/50 rounded-xl p-2 border border-border/10">
+                      "{b.motivo}"
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Rodapé */}
+        <div className="flex items-center justify-between border-t border-border/15 p-4 bg-overlay/5">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            className="!h-9 px-4 text-xs font-bold uppercase"
+          >
+            Fechar
+          </Button>
+
+          {item.quantidade_atual > 0 && (
+            <Button
+              type="button"
+              onClick={() => {
+                onClose()
+                onBaixar(item)
+              }}
+              className="!h-9 px-4 text-xs font-black uppercase gap-1.5 shadow-md shadow-primary/20"
+            >
+              <TrendingDown className="h-4 w-4" />
+              Dar Baixa Neste Item
             </Button>
           )}
         </div>

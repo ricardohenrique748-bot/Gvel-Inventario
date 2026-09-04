@@ -236,6 +236,12 @@ export interface RegistroBaixaConsumo {
   foto_responsavel_url?: string | null
   placa?: string | null
   motivo?: string | null
+  /** Número do tambor (ex: 6 = "GV 6") que estava em uso no item no momento
+   * desta baixa — só preenchido para insumos tipo barril. */
+  numero_tambor?: number | null
+  /** Quantidade que sobrou no tambor logo após esta baixa (já considera a
+   * abertura de um tambor novo se este esvaziou o atual). */
+  quantidade_restante?: number | null
   data_hora: string
 }
 

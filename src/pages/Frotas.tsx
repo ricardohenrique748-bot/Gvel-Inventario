@@ -31,6 +31,7 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
+  Construction,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -59,13 +60,19 @@ import { isAdminUsuario } from '@/lib/permissoes'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
 import { getErrorMessage } from '@/lib/erros'
-import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL, FROTA_PESADA_OFICIAL } from '@/data/veiculosFrotaPadrao'
+import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL, FROTA_PESADA_OFICIAL, FROTA_EMBARCADO_OFICIAL } from '@/data/veiculosFrotaPadrao'
 import type { FotosVistoria, StatusPreventivaChecklist, RegistroChecklist } from '@/lib/types'
 import {
   useChecklistsFrota,
   criarChecklistFrota,
   excluirChecklistFrota,
 } from '@/hooks/useChecklistsFrota'
+
+export function isFrotaEmbarcado(v: { placa?: string; tipo?: string }): boolean {
+  const placa = (v.placa || '').toUpperCase().trim()
+  if (FROTA_EMBARCADO_OFICIAL.some((fe) => fe.placa.toUpperCase().trim() === placa)) return true
+  return v.tipo === 'embarcado'
+}
 
 export function isFrotaLeve(v: {
   placa?: string
@@ -79,6 +86,9 @@ export function isFrotaLeve(v: {
 }): boolean {
   const placa = (v.placa || '').toUpperCase().trim()
 
+  // Se estiver na lista oficial de veículos embarcados (munck, plataformas), NUNCA é leve
+  if (isFrotaEmbarcado(v)) return false
+
   // Se estiver na lista oficial da frota pesada (Rodocaçamba), é PESADO
   if (FROTA_PESADA_OFICIAL.some((fp) => fp.placa.toUpperCase().trim() === placa)) {
     return false
@@ -89,7 +99,7 @@ export function isFrotaLeve(v: {
     return true
   }
 
-  if (v.tipo === 'pesado' || v.tipo === 'trator' || v.tipo === 'carreta') return false
+  if (v.tipo === 'pesado' || v.tipo === 'trator' || v.tipo === 'carreta' || v.tipo === 'embarcado') return false
   if (v.tipo === 'leve') return true
 
   const tipoV = (v.tipoVeiculo || '').toUpperCase()
@@ -186,7 +196,7 @@ const anoAtual = new Date().getFullYear()
 const schemaVeiculo = z.object({
   clienteId: z.string().min(1, 'Selecione o cliente').refine((val) => val !== 'todos', 'Selecione um cliente para o veículo'),
   placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
-  tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
+  tipo: z.enum(['pesado', 'leve', 'trator', 'carreta', 'embarcado']),
   tipoVeiculo: z.string().optional(),
   cor: z.string().trim().min(1, 'Informe a cor'),
   setor: z.string().trim().optional(),
@@ -216,7 +226,7 @@ type FormVeiculoValues = z.infer<typeof schemaVeiculo>
 export interface ItemFrotaCadastrada {
   id: string
   placa: string
-  tipo: 'pesado' | 'leve' | 'trator' | 'carreta'
+  tipo: 'pesado' | 'leve' | 'trator' | 'carreta' | 'embarcado'
   tipoVeiculo?: 'CARRO' | 'MOTO' | 'CAMINHONETE' | 'UTILITÁRIO' | string
   marcaNome?: string
   modeloNome?: string
@@ -291,7 +301,7 @@ export function Frotas() {
     ? 'checklist'
     : abaParam === 'checklist'
     ? 'checklist'
-    : abaParam === 'veiculos' || categoriaParam === 'leve' || categoriaParam === 'pesado'
+    : abaParam === 'veiculos' || categoriaParam === 'leve' || categoriaParam === 'pesado' || categoriaParam === 'embarcado'
     ? 'veiculos'
     : 'dashboard'
 
@@ -311,14 +321,23 @@ export function Frotas() {
           FROTA_PESADA_OFICIAL.forEach((v) => {
             mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: v.tipo || 'pesado' } as ItemFrotaCadastrada)
           })
-          // 3. Mesclar com as edições e novos cadastros manuais do usuário
+          // 3. Inserir todos os veículos oficiais Embarcados (munck, plataformas)
+          FROTA_EMBARCADO_OFICIAL.forEach((v) => {
+            mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: 'embarcado' } as ItemFrotaCadastrada)
+          })
+          // 4. Mesclar com as edições e novos cadastros manuais do usuário
           parsed.forEach((v: ItemFrotaCadastrada) => {
             const placa = v.placa ? v.placa.toUpperCase().trim() : v.id
             const base = mapa.get(placa)
             if (base) {
+              const ehEmbarcadoOficial = FROTA_EMBARCADO_OFICIAL.some((fe) => fe.placa.toUpperCase().trim() === placa)
               mapa.set(placa, {
                 ...base,
                 ...v,
+                // Reforça a reclassificação para "embarcado": um cache antigo do
+                // navegador (de antes desta categoria existir) ainda pode guardar
+                // tipo 'leve'/'pesado' para essas placas — a lista oficial vence.
+                tipo: ehEmbarcadoOficial ? 'embarcado' : v.tipo,
                 chassi: v.chassi || base.chassi,
                 renavam: v.renavam || base.renavam,
                 marcaNome: v.marcaNome || base.marcaNome,
@@ -354,7 +373,7 @@ export function Frotas() {
         }
       }
     } catch {}
-    return [...FROTA_LEVE_OFICIAL, ...FROTA_PESADA_OFICIAL] as ItemFrotaCadastrada[]
+    return [...FROTA_LEVE_OFICIAL, ...FROTA_PESADA_OFICIAL, ...FROTA_EMBARCADO_OFICIAL] as ItemFrotaCadastrada[]
   })
 
   // Lista de Checklists realizados (Supabase — com migração automática dos
@@ -375,9 +394,10 @@ export function Frotas() {
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [erroLista, setErroLista] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
-  const [categoriaFrota, setCategoriaFrota] = useState<'todos' | 'leve' | 'pesado'>(() => {
+  const [categoriaFrota, setCategoriaFrota] = useState<'todos' | 'leve' | 'pesado' | 'embarcado'>(() => {
     if (categoriaParam === 'leve') return 'leve'
     if (categoriaParam === 'pesado') return 'pesado'
+    if (categoriaParam === 'embarcado') return 'embarcado'
     return 'todos'
   })
 
@@ -386,6 +406,8 @@ export function Frotas() {
       setCategoriaFrota('leve')
     } else if (categoriaParam === 'pesado') {
       setCategoriaFrota('pesado')
+    } else if (categoriaParam === 'embarcado') {
+      setCategoriaFrota('embarcado')
     } else if (abaParam === 'dashboard' || (abaParam === 'veiculos' && !categoriaParam)) {
       setCategoriaFrota('todos')
     }
@@ -403,9 +425,13 @@ export function Frotas() {
     | 'tacografo_vencido'
   >('todos')
 
-  // Contagens e subconjunto filtrado por categoria (Leves vs Rodocaçamba/Pesados)
+  // Contagens e subconjunto filtrado por categoria (Leves vs Rodocaçamba/Pesados vs Embarcados)
   const contagemLeves = useMemo(() => frotas.filter((v) => isFrotaLeve(v)).length, [frotas])
-  const contagemPesados = useMemo(() => frotas.filter((v) => !isFrotaLeve(v)).length, [frotas])
+  const contagemEmbarcados = useMemo(() => frotas.filter((v) => isFrotaEmbarcado(v)).length, [frotas])
+  const contagemPesados = useMemo(
+    () => frotas.filter((v) => !isFrotaLeve(v) && !isFrotaEmbarcado(v)).length,
+    [frotas],
+  )
   const contagemTodos = frotas.length
 
   const frotasCategoria = useMemo(() => {
@@ -413,7 +439,10 @@ export function Frotas() {
       return frotas.filter((v) => isFrotaLeve(v))
     }
     if (categoriaFrota === 'pesado') {
-      return frotas.filter((v) => !isFrotaLeve(v))
+      return frotas.filter((v) => !isFrotaLeve(v) && !isFrotaEmbarcado(v))
+    }
+    if (categoriaFrota === 'embarcado') {
+      return frotas.filter((v) => isFrotaEmbarcado(v))
     }
     return frotas
   }, [frotas, categoriaFrota])
@@ -707,11 +736,13 @@ export function Frotas() {
     let pesado = 0
     let leve = 0
     let carreta = 0
+    let embarcado = 0
 
     frotasCategoria.forEach((v) => {
       if (v.tipo === 'trator') trator++
       else if (v.tipo === 'pesado') pesado++
       else if (v.tipo === 'carreta') carreta++
+      else if (v.tipo === 'embarcado') embarcado++
       else leve++
     })
 
@@ -722,20 +753,31 @@ export function Frotas() {
       { nome: 'Carretas & Dollys', total: carreta, pct: Math.round((carreta / total) * 100), cor: '#ec4899', icone: '🛣️', tipo: 'carreta' },
       { nome: 'Frota Leve / Utilitários', total: leve, pct: Math.round((leve / total) * 100), cor: '#3b82f6', icone: '🚗', tipo: 'leve' },
       { nome: 'Caminhões Pesados', total: pesado, pct: Math.round((pesado / total) * 100), cor: '#f59e0b', icone: '🚚', tipo: 'pesado' },
+      { nome: 'Embarcados (Munck/Plataforma)', total: embarcado, pct: Math.round((embarcado / total) * 100), cor: '#a855f7', icone: '🏗️', tipo: 'embarcado' },
     ]
   }, [frotasCategoria])
 
   // 2. DADOS DO GRÁFICO 2: Checklists Realizados por Pessoa (Motorista / Condutor)
+  // Escopado pela aba de categoria ativa (Frota Leve / Rodocaçamba / Embarcado /
+  // Visão Consolidada) — hoje o checklist só existe para Frota Leve, então nas
+  // abas Rodocaçamba e Embarcado este gráfico fica vazio até o recurso existir lá.
   const dadosGraficoChecklistPessoa = useMemo(() => {
-    const contagem = new Map<string, { total: number; aprovados: number; ressalvas: number; reprovados: number }>()
+    const placasDaCategoria = new Set(frotasCategoria.map((v) => v.placa.toUpperCase().trim()))
+    const checklistsDaCategoria = checklists.filter((chk) => placasDaCategoria.has(chk.placa.toUpperCase().trim()))
 
-    checklists.forEach((chk) => {
+    const contagem = new Map<
+      string,
+      { total: number; aprovados: number; ressalvas: number; reprovados: number; placas: Set<string> }
+    >()
+
+    checklistsDaCategoria.forEach((chk) => {
       const pessoa = (chk.motoristaNome || chk.inspetorNome || 'NÃO IDENTIFICADO').toUpperCase().trim()
-      const atual = contagem.get(pessoa) || { total: 0, aprovados: 0, ressalvas: 0, reprovados: 0 }
+      const atual = contagem.get(pessoa) || { total: 0, aprovados: 0, ressalvas: 0, reprovados: 0, placas: new Set<string>() }
       atual.total++
       if (chk.resultado === 'aprovado') atual.aprovados++
       else if (chk.resultado === 'aprovado_com_ressalvas') atual.ressalvas++
       else if (chk.resultado === 'reprovado') atual.reprovados++
+      if (chk.placa) atual.placas.add(chk.placa.toUpperCase().trim())
       contagem.set(pessoa, atual)
     })
 
@@ -746,9 +788,10 @@ export function Frotas() {
         aprovados: dados.aprovados,
         ressalvas: dados.ressalvas,
         reprovados: dados.reprovados,
+        placas: Array.from(dados.placas).sort(),
       }))
       .sort((a, b) => b.total - a.total)
-  }, [checklists])
+  }, [checklists, frotasCategoria])
 
   // 3. DADOS DO GRÁFICO 3: Dias Restantes para Vencimento do CRLV por Placa
   const dadosGraficoVencimentoDoc = useMemo(() => {
@@ -944,10 +987,12 @@ export function Frotas() {
   // Filtro de Veículos
   const veiculosFiltrados = useMemo(() => {
     return frotasCategoria.filter((v) => {
-      // Garantia estrita: se estiver em Rodocaçamba, NUNCA passa veículo leve
-      if (categoriaFrota === 'pesado' && isFrotaLeve(v)) return false
-      // Se estiver em Frota Leve, NUNCA passa veículo pesado
+      // Garantia estrita: se estiver em Rodocaçamba, NUNCA passa veículo leve ou embarcado
+      if (categoriaFrota === 'pesado' && (isFrotaLeve(v) || isFrotaEmbarcado(v))) return false
+      // Se estiver em Frota Leve, NUNCA passa veículo pesado ou embarcado
       if (categoriaFrota === 'leve' && !isFrotaLeve(v)) return false
+      // Se estiver em Embarcados, NUNCA passa veículo fora dessa lista
+      if (categoriaFrota === 'embarcado' && !isFrotaEmbarcado(v)) return false
 
       if (tipoFiltro !== 'todos') {
         if (categoriaFrota === 'leve') {
@@ -1030,7 +1075,7 @@ export function Frotas() {
   // Handlers de Veículo
   function iniciarCriacaoVeiculo() {
     setEditandoId(null)
-    const tipoInicial = categoriaFrota === 'pesado' ? 'pesado' : 'leve'
+    const tipoInicial = categoriaFrota === 'pesado' || categoriaFrota === 'embarcado' ? 'pesado' : 'leve'
     reset({
       clienteId: clienteGvel.id,
       tipo: tipoInicial,
@@ -1079,7 +1124,8 @@ export function Frotas() {
       vencimentoTacografo: v.vencimentoTacografo || '',
       dataUltimaPreventiva: v.dataUltimaPreventiva || v.vencimentoPreventiva || '',
       kmUltimaPreventiva: v.kmUltimaPreventiva,
-      intervaloPreventivaKm: v.intervaloPreventivaKm || (v.tipo === 'pesado' || v.tipo === 'trator' ? 20000 : 10000),
+      intervaloPreventivaKm:
+        v.intervaloPreventivaKm || (v.tipo === 'pesado' || v.tipo === 'trator' || v.tipo === 'embarcado' ? 20000 : 10000),
       observacoes: v.observacoes || '',
     })
     setMostrarModalVeiculo(true)
@@ -1096,6 +1142,8 @@ export function Frotas() {
       if (tipoCorreto === 'leve') tipoCorreto = 'pesado'
     } else if (categoriaFrota === 'leve') {
       tipoCorreto = 'leve'
+    } else if (categoriaFrota === 'embarcado') {
+      tipoCorreto = 'embarcado'
     }
 
     const novoItem: ItemFrotaCadastrada = {
@@ -1120,7 +1168,9 @@ export function Frotas() {
       vencimentoTacografo: values.vencimentoTacografo || undefined,
       dataUltimaPreventiva: values.dataUltimaPreventiva || undefined,
       kmUltimaPreventiva: values.kmUltimaPreventiva || undefined,
-      intervaloPreventivaKm: values.intervaloPreventivaKm || (tipoCorreto === 'pesado' || tipoCorreto === 'trator' ? 20000 : 10000),
+      intervaloPreventivaKm:
+        values.intervaloPreventivaKm ||
+        (tipoCorreto === 'pesado' || tipoCorreto === 'trator' || tipoCorreto === 'embarcado' ? 20000 : 10000),
       observacoes: values.observacoes?.trim() || undefined,
       createdAt: new Date().toISOString(),
     }
@@ -1385,6 +1435,29 @@ export function Frotas() {
           <button
             type="button"
             onClick={() => {
+              setCategoriaFrota('embarcado')
+              setTipoFiltro('todos')
+            }}
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-black text-xs transition-all ${
+              categoriaFrota === 'embarcado'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/25 ring-2 ring-purple-400'
+                : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            <Construction className="h-4 w-4" />
+            <span>EMBARCADO</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                categoriaFrota === 'embarcado' ? 'bg-white/20 text-white' : 'bg-surface border border-border/40 text-secondary'
+              }`}
+            >
+              {contagemEmbarcados}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
               setCategoriaFrota('todos')
               setTipoFiltro('todos')
             }}
@@ -1409,6 +1482,7 @@ export function Frotas() {
         <div className="hidden sm:flex items-center gap-2 text-[11px] font-bold text-secondary px-2">
           {categoriaFrota === 'leve' && <span className="text-blue-400">🚗 EXIBINDO FROTA LEVE (CARROS, MOTOS E UTILITÁRIOS)</span>}
           {categoriaFrota === 'pesado' && <span className="text-amber-400">🚛 EXIBINDO RODOCAÇAMBA (CAVALOS TRATOR, PESADOS E CARRETAS)</span>}
+          {categoriaFrota === 'embarcado' && <span className="text-purple-400">🏗️ EXIBINDO EMBARCADOS (MUNCK, LANÇA E PLATAFORMAS)</span>}
           {categoriaFrota === 'todos' && <span>📊 EXIBINDO TODA A FROTA CONSOLIDADA</span>}
         </div>
       </div>
@@ -1538,7 +1612,7 @@ export function Frotas() {
           {/* ========================================================================= */}
           {/* DISTRIBUIÇÃO DA FROTA POR CATEGORIA */}
           {/* ========================================================================= */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
             {distribuicaoCategorias.map((cat) => (
               <Card
                 key={cat.nome}
@@ -1593,6 +1667,7 @@ export function Frotas() {
                   <option value="trator">🚜 CAVALOS TRATOR ({frotas.filter(v => v.tipo === 'trator').length})</option>
                   <option value="pesado">🚚 CAMINHÕES PESADOS ({frotas.filter(v => v.tipo === 'pesado').length})</option>
                   <option value="leve">🚗 FROTA LEVE ({frotas.filter(v => v.tipo === 'leve').length})</option>
+                  <option value="embarcado">🏗️ EMBARCADOS ({frotas.filter(v => v.tipo === 'embarcado').length})</option>
                 </select>
 
                 <select
@@ -1719,30 +1794,73 @@ export function Frotas() {
               {dadosGraficoChecklistPessoa.length === 0 ? (
                 <div className="py-12 text-center text-secondary">
                   <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-xs font-bold text-foreground">NENHUM CHECKLIST REGISTRADO AINDA</p>
+                  <p className="text-xs font-bold text-foreground">
+                    {categoriaFrota === 'pesado' || categoriaFrota === 'embarcado'
+                      ? 'CHECKLIST AINDA NÃO DISPONÍVEL PARA ESTA CATEGORIA'
+                      : 'NENHUM CHECKLIST REGISTRADO AINDA'}
+                  </p>
+                  {(categoriaFrota === 'pesado' || categoriaFrota === 'embarcado') && (
+                    <p className="mt-1 text-[11px] text-secondary normal-case">
+                      O checklist operacional hoje só existe para a Frota Leve.
+                    </p>
+                  )}
                 </div>
               ) : (
-                <div className="h-72 w-full pt-2">
+                <div className="h-80 w-full pt-2">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={dadosGraficoChecklistPessoa.slice(0, 8)}
-                      layout="vertical"
-                      margin={{ top: 10, right: 30, left: 30, bottom: 10 }}
+                      margin={{ top: 20, right: 20, left: 0, bottom: 45 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
                       <XAxis
+                        type="category"
+                        dataKey="nome"
+                        interval={0}
+                        height={50}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        tickLine={false}
+                        tick={(props: any) => {
+                          const { x, y, payload } = props
+                          const item = dadosGraficoChecklistPessoa
+                            .slice(0, 8)
+                            .find((d) => d.nome === payload.value)
+                          const placasTexto = item?.placas.length ? item.placas.join(' · ') : 'SEM PLACA'
+                          return (
+                            <g transform={`translate(${x},${y})`}>
+                              <text
+                                x={0}
+                                y={0}
+                                dy={14}
+                                textAnchor="middle"
+                                fill="var(--text-foreground, #f8fafc)"
+                                fontSize={10}
+                                fontWeight="bold"
+                              >
+                                {payload.value}
+                              </text>
+                              <text
+                                x={0}
+                                y={0}
+                                dy={29}
+                                textAnchor="middle"
+                                fill="var(--text-secondary, #94a3b8)"
+                                fontSize={9}
+                                fontFamily="monospace"
+                              >
+                                {placasTexto}
+                              </text>
+                            </g>
+                          )
+                        }}
+                      />
+                      <YAxis
                         type="number"
+                        allowDecimals={false}
                         tick={{ fill: 'var(--text-secondary, #94a3b8)', fontSize: 10, fontFamily: 'monospace' }}
                         axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
                         tickLine={false}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="nome"
-                        tick={{ fill: 'var(--text-foreground, #f8fafc)', fontSize: 11, fontWeight: 'bold' }}
-                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                        tickLine={false}
-                        width={130}
+                        width={30}
                       />
                       <Tooltip
                         content={({ active, payload }) => {
@@ -1758,16 +1876,19 @@ export function Frotas() {
                                 <p className="text-emerald-400">● Aprovados: {d.aprovados}</p>
                                 <p className="text-amber-400">● Com Ressalvas: {d.ressalvas}</p>
                                 <p className="text-rose-500">● Reprovados: {d.reprovados}</p>
+                                <p className="text-secondary pt-1 border-t border-border/10 mt-1.5 normal-case">
+                                  🚛 Placas: {d.placas.length ? d.placas.join(', ') : '—'}
+                                </p>
                               </div>
                             </div>
                           )
                         }}
                       />
-                      <Bar dataKey="total" fill="#6366f1" radius={[0, 6, 6, 0]}>
+                      <Bar dataKey="total" fill="#6366f1" radius={[6, 6, 0, 0]}>
                         <LabelList
                           dataKey="total"
-                          position="right"
-                          formatter={(val: any) => `${val} vistorias`}
+                          position="top"
+                          formatter={(val: any) => `${val}`}
                           style={{ fill: '#cbd5e1', fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}
                         />
                         {dadosGraficoChecklistPessoa.slice(0, 8).map((_, index) => {
@@ -2155,6 +2276,8 @@ export function Frotas() {
                     <option value="pesado">CAMINHÕES PESADOS</option>
                     <option value="carreta">CARRETAS / DOLLYS</option>
                   </>
+                ) : categoriaFrota === 'embarcado' ? (
+                  <option value="todos">TODOS OS EMBARCADOS ({contagemEmbarcados})</option>
                 ) : (
                   <>
                     <option value="todos">TODOS OS TIPOS ({contagemTodos})</option>
@@ -2162,6 +2285,7 @@ export function Frotas() {
                     <option value="pesado">CAMINHÕES PESADOS</option>
                     <option value="trator">CAVALOS TRATOR</option>
                     <option value="carreta">CARRETAS / DOLLYS</option>
+                    <option value="embarcado">EMBARCADOS (MUNCK/PLATAFORMA)</option>
                   </>
                 )}
               </select>
@@ -2208,7 +2332,7 @@ export function Frotas() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-black text-primary text-sm flex items-center gap-1.5 tracking-wider">
-                                <span>{v.tipoVeiculo === 'MOTO' ? '🏍️' : v.tipo === 'leve' ? '🚗' : '🚛'}</span>
+                                <span>{v.tipoVeiculo === 'MOTO' ? '🏍️' : v.tipo === 'leve' ? '🚗' : v.tipo === 'embarcado' ? '🏗️' : '🚛'}</span>
                                 <span>{v.placa}</span>
                               </span>
                               <div className="flex items-center gap-1">
@@ -3185,7 +3309,7 @@ export function Frotas() {
                             <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
                               f.id === veiculoChecklistId ? 'bg-black/20 text-white' : 'bg-surface border border-border/20 text-secondary'
                             }`}>
-                              {f.tipoVeiculo || tipoVeiculoLabel(f.tipo)}
+                              {f.tipoVeiculo || tipoVeiculoLabel(f.tipo as 'pesado' | 'leve' | 'trator' | 'carreta')}
                             </span>
                           </button>
                         ))
