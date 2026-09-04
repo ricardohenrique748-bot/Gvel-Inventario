@@ -242,7 +242,7 @@ export function DashboardGerencial() {
 
           {/* Badge Perfil */}
           <div className="flex items-center gap-3 self-start md:self-auto rounded-2xl border border-border/10 bg-background/60 backdrop-blur-md px-4 py-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/20 text-sm font-bold text-primary">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/20 text-base font-bold text-primary">
               {perfil?.foto_url ? (
                 <img src={perfil.foto_url} alt="" className="h-full w-full object-cover" />
               ) : (
