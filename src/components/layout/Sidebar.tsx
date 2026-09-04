@@ -1,7 +1,7 @@
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench, Check, Building2 } from 'lucide-react'
+import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench, Check, Building2, Camera } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
@@ -10,6 +10,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa } from '@/contexts/EmpresaContext'
 import { cn } from '@/lib/cn'
 import { isNativeApp } from '@/lib/isNativeApp'
+import { uploadFotoUsuario, atualizarUsuario } from '@/hooks/useUsuarios'
+import { RecortarFotoModal } from '@/components/RecortarFotoModal'
 
 function CompanySwitcher() {
   const { empresas, empresaAtiva, setEmpresaAtiva } = useEmpresa()
@@ -125,11 +127,46 @@ function CompanySwitcher() {
 }
 
 export function Sidebar() {
-  const { signOut, user, perfil, perfilLoading } = useAuth()
+  const { signOut, user, perfil, perfilLoading, refetchPerfil } = useAuth()
   const [search, setSearch] = useState('')
   const native = isNativeApp()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
   const userRef = perfil || { email: user?.email }
+
+  const [enviandoFoto, setEnviandoFoto] = useState(false)
+  const [erroFoto, setErroFoto] = useState<string | null>(null)
+  const [arquivoParaRecortar, setArquivoParaRecortar] = useState<File | null>(null)
+  const fotoInputRef = useRef<HTMLInputElement>(null)
+
+  function handleFotoPerfilChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !perfil) return
+    setErroFoto(null)
+    setArquivoParaRecortar(file)
+  }
+
+  async function handleFotoRecortada(arquivoRecortado: File) {
+    setArquivoParaRecortar(null)
+    if (!perfil) return
+    setEnviandoFoto(true)
+    try {
+      const fotoUrl = await uploadFotoUsuario(arquivoRecortado, perfil.id)
+      await atualizarUsuario(perfil.id, {
+        nome: perfil.nome,
+        nivel: perfil.nivel,
+        telefone: perfil.telefone || undefined,
+        foto_url: fotoUrl,
+      })
+      await refetchPerfil()
+    } catch (err) {
+      console.error('Erro ao atualizar foto de perfil:', err)
+      setErroFoto(err instanceof Error ? err.message : 'Não foi possível salvar a foto de perfil.')
+      setTimeout(() => setErroFoto(null), 8000)
+    } finally {
+      setEnviandoFoto(false)
+    }
+  }
 
   const canAccessKanban = isKanbanAuthorized(userRef)
   const canAccessDashboardGerencial = isDashboardGerencialAuthorized(userRef)
@@ -375,9 +412,32 @@ export function Sidebar() {
 
       <div className="border-t border-border/[0.06] p-2">
         <div className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-overlay/5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[11px] font-semibold text-primary">
-            {initials}
-          </div>
+          <button
+            type="button"
+            onClick={() => perfil && fotoInputRef.current?.click()}
+            disabled={!perfil || enviandoFoto}
+            aria-label="Alterar foto de perfil"
+            title={perfil ? 'Alterar foto de perfil' : undefined}
+            className="group relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/20 text-[11px] font-semibold text-primary disabled:cursor-default"
+          >
+            {perfil?.foto_url ? (
+              <img src={perfil.foto_url} alt="" className="h-full w-full object-cover" />
+            ) : (
+              initials
+            )}
+            {perfil && (
+              <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                <Camera className={cn('h-3.5 w-3.5 text-white', enviandoFoto && 'animate-pulse')} />
+              </span>
+            )}
+          </button>
+          <input
+            ref={fotoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFotoPerfilChange}
+          />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-medium text-foreground">{user?.email}</p>
             <p className="flex items-center gap-1.5 text-[11px] text-secondary">
@@ -394,7 +454,18 @@ export function Sidebar() {
             <LogOut className="h-3.5 w-3.5" />
           </button>
         </div>
+        {erroFoto && (
+          <p className="mt-1 px-1.5 text-[11px] font-medium text-status-danger">{erroFoto}</p>
+        )}
       </div>
+
+      {arquivoParaRecortar && (
+        <RecortarFotoModal
+          arquivo={arquivoParaRecortar}
+          onCancelar={() => setArquivoParaRecortar(null)}
+          onConfirmar={handleFotoRecortada}
+        />
+      )}
     </aside>
   )
 }

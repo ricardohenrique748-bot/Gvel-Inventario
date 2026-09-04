@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import { up } from '@/lib/text'
 import { salvarPermissoesUsuario, getModulosUsuario } from '@/lib/permissoes'
 import type { NivelUsuario, Usuario } from '@/lib/types'
@@ -58,6 +58,29 @@ export function useUsuarios() {
   }, [refetch])
 
   return { usuarios, loading, error, refetch }
+}
+
+export async function uploadFotoUsuario(file: File, userId: string): Promise<string> {
+  try {
+    const ext = file.name.split('.').pop() || 'jpg'
+    const path = `usuarios/${userId}-${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
+      cacheControl: '3600',
+      upsert: false,
+    })
+    if (!error) {
+      return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+    }
+  } catch (err) {
+    console.warn('Falha no storage, convertendo em dataURL:', err)
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
 }
 
 interface CriarUsuarioInput {
@@ -126,6 +149,24 @@ interface AtualizarUsuarioInput {
   empresa_id?: string
   modulos?: string[]
   email?: string
+  foto_url?: string | null
+}
+
+const ROTULOS_CAMPOS_USUARIO: Record<string, string> = {
+  modulos: 'permissões de acesso',
+  empresa_id: 'empresa vinculada',
+  foto_url: 'foto de perfil',
+}
+
+/** Extrai o nome da coluna que o Postgres/PostgREST reclamou não existir,
+ * a partir de mensagens como "Could not find the 'foto_url' column of
+ * 'usuarios' in the schema cache" ou `column "foto_url" of relation ...`. */
+function extrairColunaFaltante(mensagem: string): string | null {
+  const m1 = mensagem.match(/'([\w]+)' column/i)
+  if (m1) return m1[1]
+  const m2 = mensagem.match(/column "([\w]+)"/i)
+  if (m2) return m2[1]
+  return null
 }
 
 export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput) {
@@ -157,35 +198,36 @@ export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput)
   if (input.modulos) {
     updatePayload.modulos = input.modulos
   }
+  if (input.foto_url !== undefined) {
+    updatePayload.foto_url = input.foto_url
+  }
 
-  let { data, error } = await supabase
-    .from('usuarios')
-    .update(updatePayload)
-    .eq('id', id)
-    .select()
-    .single()
+  let { data, error } = await supabase.from('usuarios').update(updatePayload).eq('id', id).select().single()
 
-  if (error) {
-    // Fallback sem as colunas novas caso não existam no Postgres
-    const { data: dataFallback, error: errorFallback } = await supabase
-      .from('usuarios')
-      .update({ nome: up(input.nome), telefone: input.telefone || null, nivel: input.nivel })
-      .eq('id', id)
-      .select()
-      .single()
+  // Retenta removendo, uma a uma, só as colunas que o servidor realmente não
+  // reconhece (schema desatualizado) — evita jogar fora TODAS as colunas
+  // extras (e culpar a errada na mensagem) quando só uma delas está faltando.
+  const camposIgnorados: string[] = []
+  const mensagemOriginal = error?.message
+  while (error) {
+    const coluna = extrairColunaFaltante(error.message)
+    if (!coluna || !(coluna in updatePayload)) break
 
-    if (errorFallback) throw new Error(errorFallback.message)
-    data = dataFallback
+    delete updatePayload[coluna]
+    camposIgnorados.push(coluna)
 
-    // O fallback salvou nome/telefone/nível, mas NÃO as permissões — se o
-    // admin veio pra cá justamente pra mudar módulos, isso precisa ficar
-    // bem claro em vez de parecer que salvou tudo (a mudança ficaria só
-    // no navegador de quem editou, sem chegar no usuário de verdade).
-    if (input.modulos) {
-      throw new Error(
-        `Nome/telefone/nível foram salvos, mas as permissões de acesso NÃO puderam ser salvas no servidor (coluna "modulos" indisponível: ${error.message}). Avise o suporte técnico — a alteração de permissões não vai valer para o usuário em outros dispositivos.`,
-      )
-    }
+    const retry = await supabase.from('usuarios').update(updatePayload).eq('id', id).select().single()
+    data = retry.data
+    error = retry.error
+  }
+
+  if (error) throw new Error(error.message)
+
+  if (camposIgnorados.length > 0) {
+    const rotulos = camposIgnorados.map((c) => ROTULOS_CAMPOS_USUARIO[c] || c).join(', ')
+    throw new Error(
+      `Nome/telefone/nível foram salvos, mas isto NÃO pôde ser salvo no servidor (${rotulos}) — colunas indisponíveis: ${mensagemOriginal}. Avise o suporte técnico — essa alteração não vai valer para o usuário em outros dispositivos.`,
+    )
   }
 
   return {

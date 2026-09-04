@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -28,14 +28,16 @@ import {
   Building2,
   Users,
   Bell,
+  Camera,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError, Select } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { useUsuarios, criarUsuario, excluirUsuario, atualizarUsuario, resetarSenha } from '@/hooks/useUsuarios'
+import { useUsuarios, criarUsuario, excluirUsuario, atualizarUsuario, resetarSenha, uploadFotoUsuario } from '@/hooks/useUsuarios'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa } from '@/contexts/EmpresaContext'
+import { RecortarFotoModal } from '@/components/RecortarFotoModal'
 import { formatDate } from '@/lib/format'
 import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, getModulosUsuario, type ModuloSistema } from '@/lib/permissoes'
 import type { Usuario } from '@/lib/types'
@@ -607,7 +609,15 @@ export function UsuariosTab() {
                     />
                   ) : (
                     <div key={u.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl bg-background border border-border/10 p-4 transition-all hover:border-border/30">
-                      <div className="space-y-2 flex-1 min-w-0">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/15 text-xs font-bold text-primary">
+                          {u.foto_url ? (
+                            <img src={u.foto_url} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            u.nome.slice(0, 2).toUpperCase()
+                          )}
+                        </div>
+                        <div className="space-y-2 flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-foreground font-bold text-sm">{u.nome}</p>
                           
@@ -680,6 +690,7 @@ export function UsuariosTab() {
                             )}
                           </div>
                         )}
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-2 self-end md:self-center shrink-0">
@@ -800,6 +811,31 @@ function EditarUsuarioForm({
 
   const nivelWatch = watch('nivel')
 
+  const [fotoUrl, setFotoUrl] = useState(usuario.foto_url || '')
+  const [enviandoFoto, setEnviandoFoto] = useState(false)
+  const [arquivoParaRecortar, setArquivoParaRecortar] = useState<File | null>(null)
+  const fotoInputRef = useRef<HTMLInputElement>(null)
+
+  function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setArquivoParaRecortar(file)
+  }
+
+  async function handleFotoRecortada(arquivoRecortado: File) {
+    setArquivoParaRecortar(null)
+    setEnviandoFoto(true)
+    try {
+      const url = await uploadFotoUsuario(arquivoRecortado, usuario.id)
+      setFotoUrl(url)
+    } catch (err) {
+      onErro(err instanceof Error ? err.message : 'Não foi possível processar a foto.')
+    } finally {
+      setEnviandoFoto(false)
+    }
+  }
+
   async function onSubmit(values: EditFormValues) {
     try {
       await atualizarUsuario(usuario.id, {
@@ -807,6 +843,7 @@ function EditarUsuarioForm({
         email: usuario.email,
         empresa_id: values.empresa_id || 'gvel_diesel',
         modulos: values.nivel === 'admin' ? TODOS_MODULOS_IDS : values.modulos || [],
+        foto_url: fotoUrl || null,
       })
       await onSalvo()
     } catch (err) {
@@ -831,6 +868,35 @@ function EditarUsuarioForm({
         >
           <X className="h-4 w-4" />
         </button>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => fotoInputRef.current?.click()}
+          disabled={enviandoFoto}
+          aria-label="Alterar foto de perfil"
+          className="group relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/15 text-sm font-bold text-primary disabled:cursor-default"
+        >
+          {fotoUrl ? (
+            <img src={fotoUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            usuario.nome.slice(0, 2).toUpperCase()
+          )}
+          <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+            <Camera className={enviandoFoto ? 'h-4 w-4 animate-pulse text-white' : 'h-4 w-4 text-white'} />
+          </span>
+        </button>
+        <input
+          ref={fotoInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFotoChange}
+        />
+        <p className="text-[11px] text-secondary">
+          Clique na foto para {fotoUrl ? 'trocar' : 'adicionar'} o avatar deste usuário.
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">
@@ -882,6 +948,14 @@ function EditarUsuarioForm({
           {isSubmitting ? 'Salvando…' : 'Salvar Alterações'}
         </Button>
       </div>
+
+      {arquivoParaRecortar && (
+        <RecortarFotoModal
+          arquivo={arquivoParaRecortar}
+          onCancelar={() => setArquivoParaRecortar(null)}
+          onConfirmar={handleFotoRecortada}
+        />
+      )}
     </form>
   )
 }

@@ -11,6 +11,7 @@ export interface Usuario {
   nivel: NivelUsuario
   empresa_id?: string
   modulos?: string[]
+  foto_url?: string | null
   deve_trocar_senha: boolean
   created_at: string
 }
