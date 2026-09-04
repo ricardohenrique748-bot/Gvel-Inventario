@@ -331,7 +331,10 @@ export function InventarioFerramentas() {
   const { user, perfil, perfilLoading } = useAuth()
   const userRef = perfil || { email: user?.email }
   const canAccess = perfil?.nivel === 'admin' || isEstoqueAuthorized(userRef)
-  const isAdmin = isAdminUsuario(perfil, user?.email)
+  // Excluir é liberado pra admins e também pra conta operacional do estoque
+  // (inventario@gveldiesel.com), que cuida do dia a dia do inventário mas não é admin.
+  const podeExcluir =
+    isAdminUsuario(perfil, user?.email) || (user?.email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
 
   const [searchParams, setSearchParams] = useSearchParams()
   const abaParam = searchParams.get('aba')
@@ -666,7 +669,7 @@ export function InventarioFerramentas() {
 
   // Deletar ferramenta
   const handleExcluirFerramenta = async (f: Ferramenta) => {
-    if (!isAdmin) {
+    if (!podeExcluir) {
       setMensagemErro('SÓ ADMINISTRADORES PODEM EXCLUIR ITENS DO ESTOQUE.')
       return
     }
@@ -1372,7 +1375,7 @@ export function InventarioFerramentas() {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
-                            {isAdmin && (
+                            {podeExcluir && (
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -1498,7 +1501,7 @@ export function InventarioFerramentas() {
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          {isAdmin && (
+                          {podeExcluir && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1652,7 +1655,7 @@ export function InventarioFerramentas() {
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          {isAdmin && (
+                          {podeExcluir && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -2317,7 +2320,7 @@ export function InventarioFerramentas() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          {isAdmin && (
+                          {podeExcluir && (
                             <Button
                               type="button"
                               variant="ghost"
@@ -2605,7 +2608,7 @@ export function InventarioFerramentas() {
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          {isAdmin && (
+                          {podeExcluir && (
                             <Button
                               type="button"
                               variant="ghost"
@@ -2995,7 +2998,7 @@ export function InventarioFerramentas() {
               <span>Editar</span>
             </button>
 
-            {isAdmin && (
+            {podeExcluir && (
               <button
                 type="button"
                 onClick={async () => {
@@ -5188,7 +5191,10 @@ function ModalEditarRetirada({
   onSucesso: () => Promise<void>
 }) {
   const { perfil, user } = useAuth()
-  const isAdmin = isAdminUsuario(perfil, user?.email)
+  // Excluir é liberado pra admins e também pra conta operacional do estoque
+  // (inventario@gveldiesel.com), que cuida do dia a dia do inventário mas não é admin.
+  const podeExcluir =
+    isAdminUsuario(perfil, user?.email) || (user?.email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
   const [ferramentaId, setFerramentaId] = useState(retirada.ferramenta_id)
   const [placa, setPlaca] = useState(retirada.placa || '')
   const [responsavel, setResponsavel] = useState(retirada.responsavel || '')
@@ -5289,7 +5295,7 @@ function ModalEditarRetirada({
   }
 
   const handleExcluir = async () => {
-    if (!isAdmin) {
+    if (!podeExcluir) {
       setErro('SÓ ADMINISTRADORES PODEM EXCLUIR REGISTROS DE RETIRADA.')
       return
     }
@@ -5558,7 +5564,7 @@ function ModalEditarRetirada({
 
             {/* Rodapé de Botões */}
             <div className="pt-3 border-t border-border/10 flex items-center justify-between gap-2 shrink-0">
-              {isAdmin ? (
+              {podeExcluir ? (
                 <Button
                   type="button"
                   variant="secondary"

@@ -12,7 +12,6 @@ import {
   Search,
   Lock,
   AlertTriangle,
-  Trophy,
   PieChart as PieChartIcon,
   LayoutDashboard,
   FileSpreadsheet,
@@ -28,8 +27,8 @@ import { DragScrollArea } from '@/components/ui/DragScrollArea'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { isRhAuthorized } from '@/components/layout/nav'
-import { useRhSheet } from '@/hooks/useRhSheet'
-import { CHART_CATEGORICAL, CHART_OTHER, CHART_ENTRADA, CHART_SAIDA } from '@/lib/chartColors'
+import { useRhSheet, type ColaboradorRH } from '@/hooks/useRhSheet'
+import { CHART_CATEGORICAL, CHART_OTHER, CHART_ENTRADA } from '@/lib/chartColors'
 
 function formatMoeda(valor: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0)
@@ -239,6 +238,136 @@ function BarRankingCard({
   )
 }
 
+interface TotaisFolha {
+  valorCarteira: number
+  custoRegistro: number
+  ajudaCusto: number
+  gratificacao: number
+  ganhosTotais: number
+  custoTotal: number
+}
+
+interface TabelaColaboradoresProps {
+  itens: ColaboradorRH[]
+  totais: TotaisFolha
+  loading: boolean
+  temItensOriginais: boolean
+  busca: string
+  onBuscaChange: (valor: string) => void
+}
+
+function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca, onBuscaChange }: TabelaColaboradoresProps) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <CardTitle>Planilha — Folha de Pagamento</CardTitle>
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+          <Input
+            value={busca}
+            onChange={(e) => onBuscaChange(e.target.value)}
+            placeholder="BUSCAR POR NOME OU FUNÇÃO"
+            className="h-10 pl-9"
+          />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading && !temItensOriginais ? (
+          <div className="flex items-center justify-center py-16 text-secondary text-sm">
+            <RefreshCw className="h-5 w-5 animate-spin mr-2" />
+            CARREGANDO DADOS DA PLANILHA...
+          </div>
+        ) : itens.length === 0 ? (
+          <div className="flex items-center justify-center py-16 text-secondary text-sm">
+            NENHUM COLABORADOR ENCONTRADO
+          </div>
+        ) : (
+          <DragScrollArea>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/10 text-left text-foreground font-bold">
+                  <th className="px-3 py-3 font-bold whitespace-nowrap">Colaborador</th>
+                  <th className="px-3 py-3 font-bold whitespace-nowrap">Função</th>
+                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Valor Carteira</th>
+                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Custo Registro (80%)</th>
+                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Ajuda de Custo</th>
+                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Gratificação</th>
+                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Ganhos Totais</th>
+                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Custo Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itens.map((c) => (
+                  <tr key={c.id} className="border-b border-border/5 last:border-0 hover:bg-overlay/[0.03]">
+                    <td className="px-3 py-3 font-medium text-foreground whitespace-nowrap">
+                      {c.nome}
+                    </td>
+                    <td className="px-3 py-3 text-secondary whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        {c.funcao}
+                        {c.observacao && (
+                          <Badge tone="warning" className="normal-case text-[10px]">
+                            {c.observacao}
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(c.valorCarteira)}
+                    </td>
+                    <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(c.custoRegistro)}
+                    </td>
+                    <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(c.ajudaCusto)}
+                    </td>
+                    <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(c.gratificacao)}
+                    </td>
+                    <td className="px-3 py-3 font-bold text-foreground whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(c.ganhosTotais)}
+                    </td>
+                    <td className="px-3 py-3 font-bold text-primary whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(c.custoTotal)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              {itens.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-border/20 bg-surface/60 font-black text-foreground">
+                    <td className="px-3 py-3 whitespace-nowrap" colSpan={2}>
+                      TOTAL ({itens.length} {itens.length === 1 ? 'COLABORADOR' : 'COLABORADORES'})
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(totais.valorCarteira)}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(totais.custoRegistro)}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(totais.ajudaCusto)}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(totais.gratificacao)}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(totais.ganhosTotais)}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums text-primary">
+                      {formatMoeda(totais.custoTotal)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </DragScrollArea>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 type AbaRH = 'dashboard' | 'planilha'
 const ABAS_VALIDAS: AbaRH[] = ['dashboard', 'planilha']
 
@@ -332,10 +461,6 @@ export function RH() {
       { name: 'Encargos (Custo Registro)', value: totaisGerais.custoRegistro },
     ]
   }, [totaisGerais])
-
-  const topCustos = useMemo(() => {
-    return [...items].sort((a, b) => b.custoTotal - a.custoTotal).slice(0, 8)
-  }, [items])
 
   if (!perfilLoading && !autorizado) {
     return (
@@ -472,130 +597,26 @@ export function RH() {
             />
           </div>
 
-          <BarRankingCard
-            titulo="Top 8 Maiores Custos"
-            icone={Trophy}
-            dados={topCustos.map((c) => ({ name: c.nome, value: c.custoTotal }))}
-            cor={CHART_SAIDA}
-            formatarValor={formatMoeda}
-            formatarEixo={(v) => fmtCompacto(v)}
-            textColor={textColor}
-            gridColor={gridColor}
-            axisLineColor={axisLineColor}
-            tooltipStyle={tooltipStyle}
-            tooltipLabel="Custo Total"
+          <TabelaColaboradores
+            itens={itensFiltrados}
+            totais={totaisFiltrados}
+            loading={loading}
+            temItensOriginais={items.length > 0}
+            busca={busca}
+            onBuscaChange={setBusca}
           />
         </>
       )}
 
       {abaAtiva === 'planilha' && (
-        <Card>
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle>Planilha — Folha de Pagamento</CardTitle>
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
-              <Input
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="BUSCAR POR NOME OU FUNÇÃO"
-                className="h-10 pl-9"
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading && items.length === 0 ? (
-              <div className="flex items-center justify-center py-16 text-secondary text-sm">
-                <RefreshCw className="h-5 w-5 animate-spin mr-2" />
-                CARREGANDO DADOS DA PLANILHA...
-              </div>
-            ) : itensFiltrados.length === 0 ? (
-              <div className="flex items-center justify-center py-16 text-secondary text-sm">
-                NENHUM COLABORADOR ENCONTRADO
-              </div>
-            ) : (
-              <DragScrollArea>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/10 text-left text-foreground font-bold">
-                      <th className="px-3 py-3 font-bold whitespace-nowrap">Colaborador</th>
-                      <th className="px-3 py-3 font-bold whitespace-nowrap">Função</th>
-                      <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Valor Carteira</th>
-                      <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Custo Registro (80%)</th>
-                      <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Ajuda de Custo</th>
-                      <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Gratificação</th>
-                      <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Ganhos Totais</th>
-                      <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Custo Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {itensFiltrados.map((c) => (
-                      <tr key={c.id} className="border-b border-border/5 last:border-0 hover:bg-overlay/[0.03]">
-                        <td className="px-3 py-3 font-medium text-foreground whitespace-nowrap">
-                          {c.nome}
-                        </td>
-                        <td className="px-3 py-3 text-secondary whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            {c.funcao}
-                            {c.observacao && (
-                              <Badge tone="warning" className="normal-case text-[10px]">
-                                {c.observacao}
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(c.valorCarteira)}
-                        </td>
-                        <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(c.custoRegistro)}
-                        </td>
-                        <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(c.ajudaCusto)}
-                        </td>
-                        <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(c.gratificacao)}
-                        </td>
-                        <td className="px-3 py-3 font-bold text-foreground whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(c.ganhosTotais)}
-                        </td>
-                        <td className="px-3 py-3 font-bold text-primary whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(c.custoTotal)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  {itensFiltrados.length > 0 && (
-                    <tfoot>
-                      <tr className="border-t-2 border-border/20 bg-surface/60 font-black text-foreground">
-                        <td className="px-3 py-3 whitespace-nowrap" colSpan={2}>
-                          TOTAL ({itensFiltrados.length} {itensFiltrados.length === 1 ? 'COLABORADOR' : 'COLABORADORES'})
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(totaisFiltrados.valorCarteira)}
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(totaisFiltrados.custoRegistro)}
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(totaisFiltrados.ajudaCusto)}
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(totaisFiltrados.gratificacao)}
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
-                          {formatMoeda(totaisFiltrados.ganhosTotais)}
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums text-primary">
-                          {formatMoeda(totaisFiltrados.custoTotal)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </DragScrollArea>
-            )}
-          </CardContent>
-        </Card>
+        <TabelaColaboradores
+          itens={itensFiltrados}
+          totais={totaisFiltrados}
+          loading={loading}
+          temItensOriginais={items.length > 0}
+          busca={busca}
+          onBuscaChange={setBusca}
+        />
       )}
     </div>
   )
