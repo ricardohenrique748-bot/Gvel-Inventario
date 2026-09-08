@@ -32,6 +32,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Construction,
+  Banknote,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -61,6 +62,7 @@ import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
 import { getErrorMessage } from '@/lib/erros'
 import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL, FROTA_PESADA_OFICIAL, FROTA_EMBARCADO_OFICIAL } from '@/data/veiculosFrotaPadrao'
+import { STORAGE_FROTAS_KEY } from '@/lib/frotasStorage'
 import type { FotosVistoria, StatusPreventivaChecklist, RegistroChecklist } from '@/lib/types'
 import {
   useChecklistsFrota,
@@ -241,6 +243,7 @@ export interface ItemFrotaCadastrada {
   categoria?: string
   situacao: 'operante' | 'inoperante'
   vencimentoDocumento?: string // YYYY-MM-DD (Licenciamento CRLV)
+  crlvPago?: boolean // Marcado manualmente quando o CRLV já foi pago, mas o sistema ainda mostra vencido/a vencer (a data nova ainda não foi atualizada)
   vencimentoSeguro?: string // YYYY-MM-DD (Seguro da Frota / Apólice)
   numeroTacografo?: string // Número do Certificado / Selo do Tacógrafo
   emissaoTacografo?: string // Data de Emissão / Ensaio do Tacógrafo
@@ -253,8 +256,6 @@ export interface ItemFrotaCadastrada {
   observacoes?: string
   createdAt: string
 }
-
-const STORAGE_FROTAS_KEY = 'gvel_frotas_cadastradas_v1'
 
 function comprimirFoto(file: File, maxWidth = 1000, quality = 0.72): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -387,6 +388,10 @@ export function Frotas() {
       localStorage.setItem(STORAGE_FROTAS_KEY, JSON.stringify(novas))
       window.dispatchEvent(new Event('frota_updated'))
     } catch {}
+  }
+
+  function alternarCrlvPago(id: string) {
+    salvarFrotas(frotas.map((f) => (f.id === id ? { ...f, crlvPago: !f.crlvPago } : f)))
   }
 
   // Modais de Veículo
@@ -809,7 +814,8 @@ export function Frotas() {
           modelo: v.modeloNome || v.marcaNome || 'VEÍCULO',
           dias,
           vencimento: format(dataDoc, 'dd/MM/yyyy'),
-          status: dias < 0 ? 'vencido' : dias <= 30 ? 'a_vencer' : 'em_dia',
+          crlvPago: Boolean(v.crlvPago),
+          status: v.crlvPago ? 'pago' : dias < 0 ? 'vencido' : dias <= 30 ? 'a_vencer' : 'em_dia',
         }
       })
       .sort((a, b) => a.dias - b.dias)
@@ -866,7 +872,8 @@ export function Frotas() {
       if (statusPrev.status === 'atrasada') preventivaAtrasada++
 
       const statusDoc = getStatusDocumento(v.vencimentoDocumento)
-      if (statusDoc.status === 'vencido') docVencido++
+      if (v.crlvPago) docEmDia++
+      else if (statusDoc.status === 'vencido') docVencido++
       else if (statusDoc.status === 'a_vencer') docAVencer++
       else if (statusDoc.status === 'em_dia') docEmDia++
 
@@ -1008,10 +1015,10 @@ export function Frotas() {
         if (st.status !== 'atrasada') return false
       } else if (alertaFiltro === 'doc_a_vencer') {
         const st = getStatusDocumento(v.vencimentoDocumento)
-        if (st.status !== 'a_vencer') return false
+        if (v.crlvPago || st.status !== 'a_vencer') return false
       } else if (alertaFiltro === 'doc_vencido') {
         const st = getStatusDocumento(v.vencimentoDocumento)
-        if (st.status !== 'vencido') return false
+        if (v.crlvPago || st.status !== 'vencido') return false
       } else if (alertaFiltro === 'seguro_a_vencer') {
         const st = getStatusSeguro(v.vencimentoSeguro)
         if (st.status !== 'a_vencer') return false
@@ -1962,8 +1969,10 @@ export function Frotas() {
                                 </p>
                                 <div className="mt-1.5 space-y-1 text-[11px] font-mono">
                                   <p className="text-secondary">Data de Vencimento: <span className="font-bold text-white">{d.vencimento}</span></p>
-                                  <p className={`font-black ${d.dias < 0 ? 'text-rose-500' : d.dias <= 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                    {d.dias < 0
+                                  <p className={`font-black ${d.crlvPago ? 'text-sky-400' : d.dias < 0 ? 'text-rose-500' : d.dias <= 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                    {d.crlvPago
+                                      ? '💳 JÁ PAGO (aguardando atualização da data)'
+                                      : d.dias < 0
                                       ? `🛑 VENCIDO HÁ ${Math.abs(d.dias)} DIAS`
                                       : d.dias === 0
                                       ? '⚠️ VENCE HOJE!'
@@ -1983,7 +1992,8 @@ export function Frotas() {
                           />
                           {dadosGraficoVencimentoDoc.map((entry, index) => {
                             let cor = '#10b981' // Verde (em dia)
-                            if (entry.dias < 0) cor = '#e11d48' // Vermelho escuro (vencido)
+                            if (entry.crlvPago) cor = '#0ea5e9' // Azul (já pago, aguardando atualização)
+                            else if (entry.dias < 0) cor = '#e11d48' // Vermelho escuro (vencido)
                             else if (entry.dias <= 30) cor = '#f59e0b' // Laranja / Âmbar (a vencer)
                             return <Cell key={`cell-doc-${index}`} fill={cor} />
                           })}
@@ -2409,16 +2419,46 @@ export function Frotas() {
                               {/* CRLV */}
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[9px] font-bold text-secondary w-9">CRLV:</span>
-                                {statusDoc.status === 'vencido' ? (
-                                  <span className="inline-flex items-center gap-1 rounded-md bg-rose-600/15 border border-rose-600/30 px-1.5 py-0.5 text-[9px] font-black text-rose-500">
-                                    <FileX className="h-2.5 w-2.5" />
-                                    {statusDoc.label}
-                                  </span>
+                                {v.crlvPago ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => alternarCrlvPago(v.id)}
+                                    title={`CRLV marcado como pago manualmente (status pela data: ${statusDoc.label}). Clique para desmarcar.`}
+                                    className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-black text-emerald-400 hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                                  >
+                                    <Banknote className="h-2.5 w-2.5" />
+                                    PAGO
+                                  </button>
+                                ) : statusDoc.status === 'vencido' ? (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-rose-600/15 border border-rose-600/30 px-1.5 py-0.5 text-[9px] font-black text-rose-500">
+                                      <FileX className="h-2.5 w-2.5" />
+                                      {statusDoc.label}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => alternarCrlvPago(v.id)}
+                                      title="Já paguei — marcar CRLV como pago"
+                                      className="text-secondary/40 hover:text-emerald-400 transition-colors"
+                                    >
+                                      <Banknote className="h-3 w-3" />
+                                    </button>
+                                  </>
                                 ) : statusDoc.status === 'a_vencer' ? (
-                                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-black text-amber-400">
-                                    <Clock className="h-2.5 w-2.5" />
-                                    {statusDoc.label}
-                                  </span>
+                                  <>
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-black text-amber-400">
+                                      <Clock className="h-2.5 w-2.5" />
+                                      {statusDoc.label}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => alternarCrlvPago(v.id)}
+                                      title="Já paguei — marcar CRLV como pago"
+                                      className="text-secondary/40 hover:text-emerald-400 transition-colors"
+                                    >
+                                      <Banknote className="h-3 w-3" />
+                                    </button>
+                                  </>
                                 ) : statusDoc.status === 'em_dia' ? (
                                   <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
                                     <CheckCircle2 className="h-2.5 w-2.5" />

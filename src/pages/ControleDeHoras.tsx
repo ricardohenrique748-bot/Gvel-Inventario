@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Clock, Truck, Timer, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, Check } from 'lucide-react'
+import { Clock, Truck, Timer, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, Check, CheckCircle2, Award } from 'lucide-react'
 import {
   ResponsiveContainer,
   BarChart,
@@ -18,7 +18,6 @@ import { PageHeader } from '@/components/layout/Header'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { Input, Select } from '@/components/ui/Input'
-import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useControleHoras, type ControleHorasItem } from '@/hooks/useControleHoras'
@@ -50,6 +49,16 @@ function dataLocalYMD(iso: string) {
   const date = new Date(iso)
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset())
   return date.toISOString().slice(0, 10)
+}
+
+const MESES_NOMES = [
+  'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
+  'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
+]
+
+/** Último dia do mês (1-indexado), ex: (2026, 2) -> 28. */
+function ultimoDiaDoMes(ano: number, mesNum: number): number {
+  return new Date(ano, mesNum, 0).getDate()
 }
 
 function opcoes(itens: ControleHorasItem[], campo: 'mecanico_executor' | 'funcao' | 'setor') {
@@ -177,6 +186,8 @@ export function ControleDeHoras() {
   const { itens, loading, error } = useControleHoras()
   const [filtros, setFiltros] = useState<Filtros>({})
   const [colabGrafico, setColabGrafico] = useState<string | null>(null)
+  const [mesSelecionado, setMesSelecionado] = useState('') // '01'..'12'
+  const [anoSelecionado, setAnoSelecionado] = useState('') // 'YYYY'
 
   function patch(next: Partial<Filtros>) {
     setFiltros((prev) => ({ ...prev, ...next }))
@@ -185,6 +196,39 @@ export function ControleDeHoras() {
   const nomes = useMemo(() => opcoes(itens, 'mecanico_executor'), [itens])
   const funcoes = useMemo(() => opcoes(itens, 'funcao'), [itens])
   const setores = useMemo(() => opcoes(itens, 'setor'), [itens])
+
+  const anosDisponiveis = useMemo(() => {
+    const anos = new Set<string>()
+    for (const item of itens) {
+      anos.add(dataLocalYMD(inicioAbertura(item)).slice(0, 4))
+    }
+    return [...anos].sort((a, b) => b.localeCompare(a))
+  }, [itens])
+
+  function aplicarFiltroMesAno(ano: string, mes: string) {
+    if (!ano && !mes) {
+      patch({ dataInicio: undefined, dataFim: undefined })
+      return
+    }
+    // Mês escolhido sem ano: usa o ano mais recente com dados como base.
+    const anoEfetivo = ano || anosDisponiveis[0] || String(new Date().getFullYear())
+    if (mes) {
+      const ultimoDia = ultimoDiaDoMes(Number(anoEfetivo), Number(mes))
+      patch({ dataInicio: `${anoEfetivo}-${mes}-01`, dataFim: `${anoEfetivo}-${mes}-${String(ultimoDia).padStart(2, '0')}` })
+    } else {
+      patch({ dataInicio: `${anoEfetivo}-01-01`, dataFim: `${anoEfetivo}-12-31` })
+    }
+  }
+
+  function selecionarMes(mes: string) {
+    setMesSelecionado(mes)
+    aplicarFiltroMesAno(anoSelecionado, mes)
+  }
+
+  function selecionarAno(ano: string) {
+    setAnoSelecionado(ano)
+    aplicarFiltroMesAno(ano, mesSelecionado)
+  }
 
   const itensFiltrados = useMemo(() => {
     return itens.filter((item) => {
@@ -248,6 +292,18 @@ export function ControleDeHoras() {
     return { veiculosAtendendo: placas.size, minutosTotais }
   }, [itensFiltrados])
 
+  // Caminhões finalizados: conta por O.S (movimentação), usando o mesmo
+  // critério da aba de Manutenção — a O.S inteira fechada (checklist_os.
+  // data_hora_fechamento), não só uma etapa/atividade fechada. Mantém
+  // consistência entre as duas telas.
+  const veiculosFinalizados = useMemo(() => {
+    const porMovimentacao = new Set<string>()
+    for (const item of itensFiltrados) {
+      if (item.os_finalizada) porMovimentacao.add(item.movimentacao_id)
+    }
+    return porMovimentacao.size
+  }, [itensFiltrados])
+
   const porMecanico = useMemo(() => {
     const mapa = new Map<string, { minutos: number; placasMap: Map<string, number> }>()
     for (const item of itensFiltrados) {
@@ -282,6 +338,9 @@ export function ControleDeHoras() {
       })
       .sort((a, b) => b.minutos - a.minutos)
   }, [itensFiltrados])
+
+  // Quem mais trabalhou no período filtrado (topo do ranking por horas)
+  const topColaborador = porMecanico[0] ?? null
 
   const rankingMecanicoHoras = useMemo(
     () => porMecanico.map((item, i) => ({ ...item, name: MEDALHAS[i] ? `${MEDALHAS[i]} ${item.name}` : item.name })),
@@ -376,17 +435,45 @@ export function ControleDeHoras() {
         <p className="mb-4 text-sm text-status-danger">Não foi possível carregar os dados: {error}</p>
       )}
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-2 gap-4 mb-6 lg:grid-cols-4">
         <StatCard icon={Truck} label="Veículos atendendo" value={String(stats.veiculosAtendendo)} />
         <StatCard
           icon={Timer}
           label="Horas concluídas"
           value={stats.minutosTotais > 0 ? formatMinutosParaTexto(stats.minutosTotais) : '—'}
         />
+        <StatCard
+          icon={CheckCircle2}
+          label="Caminhões finalizados"
+          value={String(veiculosFinalizados)}
+          hint={`De ${stats.veiculosAtendendo} atendidos no período`}
+        />
+        <StatCard
+          icon={Award}
+          label="Quem mais trabalhou"
+          value={topColaborador ? topColaborador.name : '—'}
+          hint={topColaborador ? formatMinutosParaTexto(topColaborador.minutos) : undefined}
+        />
       </div>
 
       <div className="mb-6 flex flex-col gap-3">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <Select value={mesSelecionado} onChange={(e) => selecionarMes(e.target.value)}>
+            <option value="">Todos os meses</option>
+            {MESES_NOMES.map((nome, i) => (
+              <option key={nome} value={String(i + 1).padStart(2, '0')}>
+                {nome}
+              </option>
+            ))}
+          </Select>
+          <Select value={anoSelecionado} onChange={(e) => selecionarAno(e.target.value)}>
+            <option value="">Todos os anos</option>
+            {anosDisponiveis.map((ano) => (
+              <option key={ano} value={ano}>
+                {ano}
+              </option>
+            ))}
+          </Select>
           <Select value={filtros.nome ?? ''} onChange={(e) => patch({ nome: e.target.value || undefined })}>
             <option value="">Todos os nomes</option>
             {nomes.map((nome) => (
@@ -411,18 +498,16 @@ export function ControleDeHoras() {
               </option>
             ))}
           </Select>
-          <DateRangePicker
-            startDate={filtros.dataInicio}
-            endDate={filtros.dataFim}
-            onChange={(start, end) => patch({ dataInicio: start, dataFim: end })}
-            placeholder="Selecionar período"
-          />
         </div>
 
         {hasFiltros && (
           <button
             type="button"
-            onClick={() => setFiltros({})}
+            onClick={() => {
+              setFiltros({})
+              setMesSelecionado('')
+              setAnoSelecionado('')
+            }}
             className="flex w-fit items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-secondary transition-colors hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-400"
           >
             <X className="h-4 w-4" />
@@ -437,13 +522,13 @@ export function ControleDeHoras() {
             <CardTitle>HORAS POR COLABORADOR</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80 w-full overflow-x-auto">
+            <div className="h-80 w-full overflow-x-auto overflow-y-hidden">
               {porMecanico.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-sm text-secondary">Sem dados</div>
               ) : (
                 <div style={{ minWidth: Math.max(380, porMecanico.length * 85), height: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart key={theme} data={porMecanico} margin={{ top: 32, right: 16, left: -10, bottom: 40 }}>
+                    <BarChart key={theme} data={porMecanico} margin={{ top: 42, right: 16, left: -10, bottom: 40 }}>
                       <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 3" />
                       <XAxis
                         dataKey="name"
@@ -620,13 +705,13 @@ export function ControleDeHoras() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-80 w-full overflow-x-auto">
+            <div className="h-80 w-full overflow-x-auto overflow-y-hidden">
               <div style={{ minWidth: Math.max(380, dadosGraficoUnico.length * 80), height: '100%' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     key={`${theme}-${colabGrafico ?? 'todos'}`}
                     data={dadosGraficoUnico}
-                    margin={{ top: 32, right: 16, left: -10, bottom: 45 }}
+                    margin={{ top: 42, right: 16, left: -10, bottom: 45 }}
                   >
                     <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 3" />
                     <XAxis

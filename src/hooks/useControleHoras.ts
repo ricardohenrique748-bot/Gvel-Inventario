@@ -13,6 +13,11 @@ export interface ControleHorasItem {
   data_hora_abertura: string | null
   data_hora_fechamento: string | null
   minutos_atividade?: number | null
+  movimentacao_id: string
+  /** A O.S (checklist_os) inteira já foi fechada — mesmo critério usado na
+   * tela de Manutenção (useOSStatusBatch: iniciada && fechada) — e não deve
+   * ser confundido com o fechamento de uma etapa/atividade individual. */
+  os_finalizada: boolean
   movimentacao: {
     veiculo: { placa: string } | null
     status_manutencao: { nome: string } | null
@@ -196,6 +201,8 @@ export function useControleHoras() {
             data_hora_abertura: dataAbertura,
             data_hora_fechamento: dataFechamento,
             minutos_atividade: minutos,
+            movimentacao_id: it.movimentacao_id,
+            os_finalizada: Boolean(osGeral?.data_hora_fechamento),
             movimentacao: it.movimentacao as unknown as ControleHorasItem['movimentacao'],
           })
         }

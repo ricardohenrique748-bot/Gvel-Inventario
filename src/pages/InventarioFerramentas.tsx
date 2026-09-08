@@ -68,6 +68,7 @@ import {
 } from '@/hooks/useFerramentas'
 import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
+import { getPlacasFrotaCadastrada } from '@/lib/frotasStorage'
 import type { Ferramenta, FerramentaRetirada, ItemConsumo, RegistroBaixaConsumo } from '@/lib/types'
 import {
   useInsumos,
@@ -473,17 +474,34 @@ export function InventarioFerramentas() {
   const { ferramentas, loading: loadingFerramentas, refetch: refetchFerramentas } = useFerramentas()
   const { retiradas, loading: loadingRetiradas, refetch: refetchRetiradas } = useRetiradasFerramentas()
 
-  // Lista de veículos cadastrados para autocomplete de placas
-  const [veiculosLista, setVeiculosLista] = useState<{ id: string; placa: string }[]>([])
+  // Lista de veículos cadastrados para autocomplete de placas — mescla os
+  // veículos do pátio (tabela `veiculos`) com a frota cadastrada em Gestão de
+  // Frotas, pra sugerir qualquer placa que já exista no inventário da empresa.
+  const [veiculosLista, setVeiculosLista] = useState<{ id: string; placa: string }[]>(() => getPlacasFrotaCadastrada())
 
   useEffect(() => {
+    function atualizarComFrota(veiculosPatio: { id: string; placa: string }[]) {
+      const mapa = new Map<string, { id: string; placa: string }>()
+      getPlacasFrotaCadastrada().forEach((v) => mapa.set(v.placa, v))
+      veiculosPatio.forEach((v) => mapa.set(v.placa.toUpperCase().trim(), v))
+      setVeiculosLista(Array.from(mapa.values()).sort((a, b) => a.placa.localeCompare(b.placa)))
+    }
+
     supabase
       .from('veiculos')
       .select('id, placa')
       .order('placa', { ascending: true })
-      .then(({ data }) => {
-        if (data) setVeiculosLista(data)
-      })
+      .then(({ data }) => atualizarComFrota(data || []))
+
+    const handleFrotaUpdate = () => {
+      supabase
+        .from('veiculos')
+        .select('id, placa')
+        .order('placa', { ascending: true })
+        .then(({ data }) => atualizarComFrota(data || []))
+    }
+    window.addEventListener('frota_updated', handleFrotaUpdate)
+    return () => window.removeEventListener('frota_updated', handleFrotaUpdate)
   }, [])
 
   // Modais

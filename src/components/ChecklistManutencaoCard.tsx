@@ -356,7 +356,12 @@ export function ChecklistManutencaoCard({ movimentacao, onStatusChange }: Checkl
 
   function handleReabrirOS() {
     setDataHoraFechamento('')
-    salvarOS({ dataHoraFechamento: '' })
+    // Reabrir precisa também tirar o status de "CONCLUÍDO" — senão a O.S
+    // fica com um estado inconsistente (aparenta concluída no rótulo, mas
+    // sem data de fechamento), e some das contagens de finalizadas mesmo
+    // ainda mostrando "CONCLUÍDO" na tela.
+    setStatusOS('EM ANDAMENTO')
+    salvarOS({ dataHoraFechamento: '', statusOS: 'EM ANDAMENTO' })
     setSucessoSalvar(true)
     setTimeout(() => setSucessoSalvar(false), 3000)
   }
