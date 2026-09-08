@@ -2580,19 +2580,21 @@ export function InventarioFerramentas() {
 
                       const acoesSecundarias = (
                         <div className="flex items-center gap-0.5">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setItemConsumoEditando(item)
-                              setModalItemConsumoAberto(true)
-                            }}
-                            className="h-8 w-8 text-secondary hover:text-foreground"
-                            title="Editar Insumo"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
+                          {podeExcluir && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setItemConsumoEditando(item)
+                                setModalItemConsumoAberto(true)
+                              }}
+                              className="h-8 w-8 text-secondary hover:text-foreground"
+                              title="Editar Insumo"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           {podeExcluir && (
                             <Button
                               type="button"
