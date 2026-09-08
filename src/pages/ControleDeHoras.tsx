@@ -460,7 +460,11 @@ export function ControleDeHoras() {
 
       <div className="mb-6 flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <Select value={mesSelecionado} onChange={(e) => selecionarMes(e.target.value)}>
+          <Select
+            value={mesSelecionado}
+            onChange={(e) => selecionarMes(e.target.value)}
+            className="!h-10 !px-3 !text-xs"
+          >
             <option value="">Todos os meses</option>
             {MESES_NOMES.map((nome, i) => (
               <option key={nome} value={String(i + 1).padStart(2, '0')}>
@@ -468,7 +472,11 @@ export function ControleDeHoras() {
               </option>
             ))}
           </Select>
-          <Select value={anoSelecionado} onChange={(e) => selecionarAno(e.target.value)}>
+          <Select
+            value={anoSelecionado}
+            onChange={(e) => selecionarAno(e.target.value)}
+            className="!h-10 !px-3 !text-xs"
+          >
             <option value="">Todos os anos</option>
             {anosDisponiveis.map((ano) => (
               <option key={ano} value={ano}>
@@ -476,7 +484,11 @@ export function ControleDeHoras() {
               </option>
             ))}
           </Select>
-          <Select value={filtros.nome ?? ''} onChange={(e) => patch({ nome: e.target.value || undefined })}>
+          <Select
+            value={filtros.nome ?? ''}
+            onChange={(e) => patch({ nome: e.target.value || undefined })}
+            className="!h-10 !px-3 !text-xs"
+          >
             <option value="">Todos os nomes</option>
             {nomes.map((nome) => (
               <option key={nome} value={nome}>
@@ -484,7 +496,11 @@ export function ControleDeHoras() {
               </option>
             ))}
           </Select>
-          <Select value={filtros.funcao ?? ''} onChange={(e) => patch({ funcao: e.target.value || undefined })}>
+          <Select
+            value={filtros.funcao ?? ''}
+            onChange={(e) => patch({ funcao: e.target.value || undefined })}
+            className="!h-10 !px-3 !text-xs"
+          >
             <option value="">Todas as funções</option>
             {funcoes.map((funcao) => (
               <option key={funcao} value={funcao}>
@@ -492,7 +508,11 @@ export function ControleDeHoras() {
               </option>
             ))}
           </Select>
-          <Select value={filtros.setor ?? ''} onChange={(e) => patch({ setor: e.target.value || undefined })}>
+          <Select
+            value={filtros.setor ?? ''}
+            onChange={(e) => patch({ setor: e.target.value || undefined })}
+            className="!h-10 !px-3 !text-xs"
+          >
             <option value="">Todos os setores</option>
             {setores.map((setor) => (
               <option key={setor} value={setor}>

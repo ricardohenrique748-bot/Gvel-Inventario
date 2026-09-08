@@ -257,6 +257,15 @@ interface TabelaColaboradoresProps {
 }
 
 function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca, onBuscaChange }: TabelaColaboradoresProps) {
+  // Empresas como "Terceiros" não têm a quebra em carteira/registro/ajuda de
+  // custo/gratificação (só um salário único) — nesse caso essas colunas vêm
+  // sempre zeradas. Escondê-las evita 4 colunas inúteis de "R$ 0,00" e faz a
+  // tabela caber na tela sem precisar arrastar.
+  const mostrarCarteira = itens.some((c) => c.valorCarteira !== 0)
+  const mostrarRegistro = itens.some((c) => c.custoRegistro !== 0)
+  const mostrarAjudaCusto = itens.some((c) => c.ajudaCusto !== 0)
+  const mostrarGratificacao = itens.some((c) => c.gratificacao !== 0)
+
   return (
     <Card>
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -288,10 +297,10 @@ function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca,
                 <tr className="border-b border-border/10 text-left text-foreground font-bold">
                   <th className="px-3 py-3 font-bold whitespace-nowrap">Colaborador</th>
                   <th className="px-3 py-3 font-bold whitespace-nowrap">Função</th>
-                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Valor Carteira</th>
-                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Custo Registro (80%)</th>
-                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Ajuda de Custo</th>
-                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Gratificação</th>
+                  {mostrarCarteira && <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Valor Carteira</th>}
+                  {mostrarRegistro && <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Custo Registro (80%)</th>}
+                  {mostrarAjudaCusto && <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Ajuda de Custo</th>}
+                  {mostrarGratificacao && <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Gratificação</th>}
                   <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Ganhos Totais</th>
                   <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Custo Total</th>
                 </tr>
@@ -312,18 +321,26 @@ function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca,
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(c.valorCarteira)}
-                    </td>
-                    <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(c.custoRegistro)}
-                    </td>
-                    <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(c.ajudaCusto)}
-                    </td>
-                    <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(c.gratificacao)}
-                    </td>
+                    {mostrarCarteira && (
+                      <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                        {formatMoeda(c.valorCarteira)}
+                      </td>
+                    )}
+                    {mostrarRegistro && (
+                      <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                        {formatMoeda(c.custoRegistro)}
+                      </td>
+                    )}
+                    {mostrarAjudaCusto && (
+                      <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                        {formatMoeda(c.ajudaCusto)}
+                      </td>
+                    )}
+                    {mostrarGratificacao && (
+                      <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                        {formatMoeda(c.gratificacao)}
+                      </td>
+                    )}
                     <td className="px-3 py-3 font-bold text-foreground whitespace-nowrap text-right tabular-nums">
                       {formatMoeda(c.ganhosTotais)}
                     </td>
@@ -339,18 +356,26 @@ function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca,
                     <td className="px-3 py-3 whitespace-nowrap" colSpan={2}>
                       TOTAL ({itens.length} {itens.length === 1 ? 'COLABORADOR' : 'COLABORADORES'})
                     </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(totais.valorCarteira)}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(totais.custoRegistro)}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(totais.ajudaCusto)}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(totais.gratificacao)}
-                    </td>
+                    {mostrarCarteira && (
+                      <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                        {formatMoeda(totais.valorCarteira)}
+                      </td>
+                    )}
+                    {mostrarRegistro && (
+                      <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                        {formatMoeda(totais.custoRegistro)}
+                      </td>
+                    )}
+                    {mostrarAjudaCusto && (
+                      <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                        {formatMoeda(totais.ajudaCusto)}
+                      </td>
+                    )}
+                    {mostrarGratificacao && (
+                      <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                        {formatMoeda(totais.gratificacao)}
+                      </td>
+                    )}
                     <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
                       {formatMoeda(totais.ganhosTotais)}
                     </td>
@@ -418,11 +443,28 @@ export function RH() {
     })
   }
 
+  const [empresaFiltro, setEmpresaFiltro] = useState<string>('TODAS')
+
+  const empresasComContagem = useMemo(() => {
+    const ordem: string[] = []
+    const counts = new Map<string, number>()
+    for (const c of items) {
+      if (!counts.has(c.empresa)) ordem.push(c.empresa)
+      counts.set(c.empresa, (counts.get(c.empresa) ?? 0) + 1)
+    }
+    return ordem.map((nome) => ({ nome, total: counts.get(nome) ?? 0 }))
+  }, [items])
+
+  const itensEmpresa = useMemo(() => {
+    if (empresaFiltro === 'TODAS') return items
+    return items.filter((c) => c.empresa === empresaFiltro)
+  }, [items, empresaFiltro])
+
   const itensFiltrados = useMemo(() => {
     const termo = busca.trim().toUpperCase()
-    if (!termo) return items
-    return items.filter((c) => c.nome.includes(termo) || c.funcao.includes(termo))
-  }, [items, busca])
+    if (!termo) return itensEmpresa
+    return itensEmpresa.filter((c) => c.nome.includes(termo) || c.funcao.includes(termo))
+  }, [itensEmpresa, busca])
 
   function somarTotais(lista: typeof items) {
     return lista.reduce(
@@ -438,13 +480,13 @@ export function RH() {
     )
   }
 
-  const totaisGerais = useMemo(() => somarTotais(items), [items])
+  const totaisGerais = useMemo(() => somarTotais(itensEmpresa), [itensEmpresa])
   const totaisFiltrados = useMemo(() => somarTotais(itensFiltrados), [itensFiltrados])
-  const custoMedio = items.length > 0 ? totaisGerais.custoTotal / items.length : 0
+  const custoMedio = itensEmpresa.length > 0 ? totaisGerais.custoTotal / itensEmpresa.length : 0
 
   const porFuncao = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const c of items) {
+    for (const c of itensEmpresa) {
       counts.set(c.funcao, (counts.get(c.funcao) ?? 0) + 1)
     }
     const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1])
@@ -452,7 +494,7 @@ export function RH() {
     const outras = sorted.slice(5).reduce((acc, [, v]) => acc + v, 0)
     if (outras > 0) top.push({ name: 'Outras', value: outras })
     return top
-  }, [items])
+  }, [itensEmpresa])
 
   const composicaoCusto = useMemo(() => {
     if (totaisGerais.custoTotal <= 0) return []
@@ -554,16 +596,47 @@ export function RH() {
           <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
             abaAtiva === 'planilha' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
           }`}>
-            {items.length}
+            {itensEmpresa.length}
           </span>
         </button>
       </div>
+
+      {/* Filtro por Empresa do Grupo */}
+      {empresasComContagem.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setEmpresaFiltro('TODAS')}
+            className={`rounded-xl px-3.5 py-2 text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+              empresaFiltro === 'TODAS'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'border border-border/25 bg-surface/60 text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            TODAS ({items.length})
+          </button>
+          {empresasComContagem.map(({ nome, total }) => (
+            <button
+              key={nome}
+              type="button"
+              onClick={() => setEmpresaFiltro(nome)}
+              className={`rounded-xl px-3.5 py-2 text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+                empresaFiltro === nome
+                  ? 'bg-primary text-white shadow-md shadow-primary/20'
+                  : 'border border-border/25 bg-surface/60 text-secondary hover:text-foreground hover:bg-surface-hover/50'
+              }`}
+            >
+              {nome} ({total})
+            </button>
+          ))}
+        </div>
+      )}
 
       {abaAtiva === 'dashboard' && (
         <>
           {/* Cards de Indicadores */}
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
-            <StatCard align="center" valueClassName="text-2xl" icon={Users} label="Colaboradores" value={String(items.length)} />
+            <StatCard align="center" valueClassName="text-2xl" icon={Users} label="Colaboradores" value={String(itensEmpresa.length)} />
             <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={Wallet} label="Ganhos Totais" value={formatMoeda(totaisGerais.ganhosTotais)} />
             <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={TrendingUp} label="Custo Total" value={formatMoeda(totaisGerais.custoTotal)} />
             <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={Banknote} label="Ajuda de Custo" value={formatMoeda(totaisGerais.ajudaCusto)} />

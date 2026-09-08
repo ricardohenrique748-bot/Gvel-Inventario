@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 
 export interface ColaboradorRH {
   id: string
+  empresa: string
   nome: string
   funcao: string
   valorCarteira: number
@@ -13,10 +14,26 @@ export interface ColaboradorRH {
   observacao: string
 }
 
-const SHEET_CSV_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZa_bvGYffYNXDleozoflStm8C22-UAfafo9o9-g6QWDMCP2Kk1AgHxczBrs5_69h7IXPW6Z22JoLW/pub?output=csv'
+const SHEET_PUB_ID = '2PACX-1vQZa_bvGYffYNXDleozoflStm8C22-UAfafo9o9-g6QWDMCP2Kk1AgHxczBrs5_69h7IXPW6Z22JoLW'
 
-const STORAGE_KEY = 'gvel_rh_data'
+// A planilha "RELAÇÃO FUNCIONÁRIOS E PRESTADORES DE SERVIÇO - GRUPO VEL" tem uma
+// aba por empresa do grupo — cada uma publicada com seu próprio gid. A aba
+// "TERCEIROS" tem um layout mais simples (só nome/função/salário), por isso
+// usa um parser separado.
+const ABAS_RH: { empresa: string; gid: string; formato: 'padrao' | 'terceiros' }[] = [
+  { empresa: 'GVEL DIESEL', gid: '326329368', formato: 'padrao' },
+  { empresa: 'GV COMÉRCIO DE PEÇAS', gid: '2101974683', formato: 'padrao' },
+  { empresa: 'GVEL LEVES', gid: '659158169', formato: 'padrao' },
+  { empresa: 'MCT', gid: '958889035', formato: 'padrao' },
+  { empresa: 'GV TRANSPORTES', gid: '455424297', formato: 'padrao' },
+  { empresa: 'TERCEIROS', gid: '1244348256', formato: 'terceiros' },
+]
+
+function urlAba(gid: string): string {
+  return `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_ID}/pub?output=csv&gid=${gid}&single=true`
+}
+
+const STORAGE_KEY = 'gvel_rh_data_v2'
 const LAST_SYNC_KEY = 'gvel_rh_last_sync'
 const AUTO_SYNC_INTERVAL_MS = 60000 // 60 segundos
 
@@ -49,7 +66,7 @@ function parseValorMonetario(raw: string | undefined): number {
   return isNaN(valor) ? 0 : valor
 }
 
-function parseCsv(csvText: string): ColaboradorRH[] {
+function parseCsv(csvText: string, empresa: string, formato: 'padrao' | 'terceiros'): ColaboradorRH[] {
   const lines = csvText.split(/\r?\n/).filter((line) => line.trim().length > 0)
   const items: ColaboradorRH[] = []
 
@@ -58,12 +75,38 @@ function parseCsv(csvText: string): ColaboradorRH[] {
     const nome = (cols[0] || '').trim()
     const funcao = (cols[1] || '').trim()
 
-    if (!nome || !funcao) continue
+    if (!nome) continue
+    if (formato === 'padrao' && !funcao) continue
     if (nome.toUpperCase().startsWith('VALOR TOTAL')) continue
-    if (nome.toUpperCase() === 'COLABORADOR') continue
+    if (nome.toUpperCase() === 'COLABORADOR' || nome.toUpperCase() === 'NOME') continue
+
+    if (formato === 'terceiros') {
+      // Aba "TERCEIROS": só NOME, FUNÇÃO e SALÁRIO — sem a quebra em
+      // carteira/registro/ajuda de custo/gratificação das demais abas.
+      // Linha de título da seção (ex: "PRESTADORES DE SERVIÇO,,") não tem
+      // função nem salário — não é um colaborador de verdade, pula.
+      if (!funcao && !cols[2]?.trim()) continue
+
+      const salario = parseValorMonetario(cols[2])
+      items.push({
+        id: `rh-${empresa}-${i}-${nome}`,
+        empresa,
+        nome: nome.toUpperCase(),
+        funcao: (funcao || 'PRESTADOR DE SERVIÇO').toUpperCase(),
+        valorCarteira: 0,
+        custoRegistro: 0,
+        ajudaCusto: 0,
+        gratificacao: 0,
+        ganhosTotais: salario,
+        custoTotal: salario,
+        observacao: '',
+      })
+      continue
+    }
 
     items.push({
-      id: `rh-${i}-${nome}`,
+      id: `rh-${empresa}-${i}-${nome}`,
+      empresa,
       nome: nome.toUpperCase(),
       funcao: funcao.toUpperCase(),
       valorCarteira: parseValorMonetario(cols[2]),
@@ -108,12 +151,22 @@ export function useRhSheet() {
     setError(null)
 
     try {
-      const res = await fetch(`${SHEET_CSV_URL}&t=${Date.now()}`)
-      if (!res.ok) {
-        throw new Error(`Falha ao carregar planilha (status ${res.status})`)
-      }
-      const text = await res.text()
-      const parsed = parseCsv(text)
+      const resultados = await Promise.allSettled(
+        ABAS_RH.map(async ({ empresa, gid, formato }) => {
+          const res = await fetch(`${urlAba(gid)}&t=${Date.now()}`)
+          if (!res.ok) throw new Error(`${empresa}: status ${res.status}`)
+          const text = await res.text()
+          return parseCsv(text, empresa, formato)
+        }),
+      )
+
+      const parsed: ColaboradorRH[] = []
+      const falhas: string[] = []
+      resultados.forEach((r, i) => {
+        if (r.status === 'fulfilled') parsed.push(...r.value)
+        else falhas.push(ABAS_RH[i].empresa)
+      })
+
       if (parsed.length === 0) {
         throw new Error('Nenhum colaborador encontrado na planilha')
       }
@@ -126,6 +179,10 @@ export function useRhSheet() {
       setLastSync(fullSyncStr)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
       localStorage.setItem(LAST_SYNC_KEY, fullSyncStr)
+
+      if (falhas.length > 0 && !silent) {
+        setError(`Não foi possível sincronizar: ${falhas.join(', ')}. As demais empresas foram atualizadas normalmente.`)
+      }
     } catch (err: any) {
       console.error('Erro ao sincronizar planilha RH:', err)
       if (!silent) {
