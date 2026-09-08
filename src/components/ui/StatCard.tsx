@@ -11,9 +11,12 @@ interface StatCardProps {
   active?: boolean
   align?: 'left' | 'center'
   valueClassName?: string
+  /** Quebra o valor em várias linhas em vez de cortar com "..." — use para
+   * valores que não são números curtos (ex: um nome completo). */
+  wrap?: boolean
 }
 
-export function StatCard({ icon: Icon, label, value, hint, onClick, active, align = 'left', valueClassName }: StatCardProps) {
+export function StatCard({ icon: Icon, label, value, hint, onClick, active, align = 'left', valueClassName, wrap }: StatCardProps) {
   const centered = align === 'center'
   const content = (
     <>
@@ -23,8 +26,9 @@ export function StatCard({ icon: Icon, label, value, hint, onClick, active, alig
       </div>
       <p
         className={cn(
-          'mt-2 font-semibold text-foreground tabular-nums uppercase truncate',
-          valueClassName || 'text-2xl sm:text-3xl',
+          'mt-2 font-semibold text-foreground tabular-nums uppercase',
+          wrap ? 'whitespace-normal break-words leading-snug' : 'truncate',
+          valueClassName || (wrap ? 'text-lg sm:text-xl' : 'text-2xl sm:text-3xl'),
           centered && 'text-center w-full',
         )}
         title={value}

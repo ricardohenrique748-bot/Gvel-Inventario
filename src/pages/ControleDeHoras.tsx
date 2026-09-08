@@ -305,7 +305,7 @@ export function ControleDeHoras() {
   }, [itensFiltrados])
 
   const porMecanico = useMemo(() => {
-    const mapa = new Map<string, { minutos: number; placasMap: Map<string, number> }>()
+    const mapa = new Map<string, { minutos: number; placasMap: Map<string, number>; nomeCompleto: string }>()
     for (const item of itensFiltrados) {
       const nomeOriginal = item.mecanico_executor || 'Sem nome'
       const nomeExibicao = formatarNomeSobrenome(nomeOriginal)
@@ -313,7 +313,7 @@ export function ControleDeHoras() {
       const placa = item.movimentacao?.veiculo?.placa
 
       if (!mapa.has(nomeExibicao)) {
-        mapa.set(nomeExibicao, { minutos: 0, placasMap: new Map() })
+        mapa.set(nomeExibicao, { minutos: 0, placasMap: new Map(), nomeCompleto: obterNomeCompletoMembro(nomeOriginal) || nomeExibicao })
       }
       const entry = mapa.get(nomeExibicao)!
       entry.minutos += minutos
@@ -329,6 +329,7 @@ export function ControleDeHoras() {
           .map(([p]) => p)
         return {
           name,
+          nomeCompleto: data.nomeCompleto,
           horas: Math.round((data.minutos / 60) * 10) / 10,
           minutos: data.minutos,
           placas: placasOrdenadas,
@@ -451,8 +452,9 @@ export function ControleDeHoras() {
         <StatCard
           icon={Award}
           label="Quem mais trabalhou"
-          value={topColaborador ? topColaborador.name : '—'}
+          value={topColaborador ? topColaborador.nomeCompleto : '—'}
           hint={topColaborador ? formatMinutosParaTexto(topColaborador.minutos) : undefined}
+          wrap
         />
       </div>
 
