@@ -464,9 +464,47 @@ export async function registrarSaida(movimentacaoId: string, input?: RegistrarSa
     .single()
   if (error) throw error
 
+  await finalizarOSAoSair(movimentacaoId)
+
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('movimentacao_updated'))
   }
 
   return data
+}
+
+/** Ao sair do pátio, dá baixa automaticamente na O.S de manutenção dela (se
+ * existir e estiver iniciada mas ainda aberta) — mesmo efeito de clicar em
+ * "FINALIZAR O.S" na aba de Manutenção. Evita depender de alguém lembrar de
+ * clicar o botão manualmente quando o caminhão já foi liberado e saiu. */
+async function finalizarOSAoSair(movimentacaoId: string) {
+  try {
+    const { data: os } = await supabase
+      .from('checklist_os')
+      .select('id, mecanico, status_os, data_hora_abertura, data_hora_fechamento')
+      .eq('movimentacao_id', movimentacaoId)
+      .maybeSingle()
+
+    if (!os || os.data_hora_fechamento) return
+
+    const iniciada = Boolean(os.mecanico?.trim()) || Boolean(os.data_hora_abertura)
+    if (!iniciada) return
+
+    const agora = new Date().toISOString()
+    await supabase
+      .from('checklist_os')
+      .update({
+        status_os: 'CONCLUÍDO',
+        data_hora_fechamento: agora,
+        data_hora_abertura: os.data_hora_abertura ?? agora,
+      })
+      .eq('id', os.id)
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('checklist_updated', { detail: { movId: movimentacaoId } }))
+    }
+  } catch (err) {
+    // Não deixa a saída falhar por causa disso — só loga.
+    console.warn('Não foi possível finalizar a O.S automaticamente ao registrar a saída:', err)
+  }
 }

@@ -64,7 +64,8 @@ const LIMITE_INICIAL = 300
 export function Movimentacoes() {
   const navigate = useNavigate()
   const { perfil, user } = useAuth()
-  const isAdmin = isAdminUsuario(perfil, user?.email)
+  const podeGerenciar =
+    isAdminUsuario(perfil, user?.email) || (user?.email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
   const [filters, setFilters] = useState<FiltersValue>({})
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
@@ -133,8 +134,8 @@ export function Movimentacoes() {
   }
 
   async function handleExcluir(id: string, placa: string | undefined) {
-    if (!isAdmin) {
-      setErroLista('Só administradores podem excluir movimentações.')
+    if (!podeGerenciar) {
+      setErroLista('Você não tem permissão para excluir movimentações.')
       return
     }
     if (!confirm(`Excluir a movimentação de "${placa ?? 'veículo'}"? Essa ação não pode ser desfeita.`)) return
@@ -254,17 +255,19 @@ export function Movimentacoes() {
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon"
-                              className="!h-8 !w-8"
-                              onClick={() => setEditandoId(m.id)}
-                              aria-label={`Editar movimentação de ${m.veiculo?.placa}`}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            {isAdmin && (
+                            {podeGerenciar && (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="icon"
+                                className="!h-8 !w-8"
+                                onClick={() => setEditandoId(m.id)}
+                                aria-label={`Editar movimentação de ${m.veiculo?.placa}`}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            {podeGerenciar && (
                               <Button
                                 type="button"
                                 variant="danger"
@@ -319,10 +322,12 @@ export function Movimentacoes() {
                     </div>
                   </Link>
                   <div className="mt-3 flex justify-end gap-2 border-t border-border/5 pt-3">
-                    <Button type="button" variant="secondary" size="icon" onClick={() => setEditandoId(m.id)} aria-label="Editar">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    {isAdmin && (
+                    {podeGerenciar && (
+                      <Button type="button" variant="secondary" size="icon" onClick={() => setEditandoId(m.id)} aria-label="Editar">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {podeGerenciar && (
                       <Button
                         type="button"
                         variant="danger"
