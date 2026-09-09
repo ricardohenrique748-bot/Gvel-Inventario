@@ -653,20 +653,26 @@ export function Frotas() {
   }, [checklists])
 
   // Helper para status de preventiva (calculado por KM e Data)
-  // Apesar do nome dos campos, "KM/Data da Última Preventiva" armazenam a
-  // META da PRÓXIMA preventiva (o KM/data em que ela vence) — não o que já
-  // foi feito no passado. intervaloPreventivaKm é só informativo/sugestão
-  // de cadência, não entra na conta do que falta.
+  // KM da Última Preventiva = KM em que a ÚLTIMA troca foi feita — soma o
+  // intervalo (ex: 10.000 KM da frota leve) pra achar a meta da PRÓXIMA.
+  // Data da Próxima Preventiva já é a data de vencimento em si (não soma nada).
   function getStatusPreventiva(v: ItemFrotaCadastrada) {
     const kmAtual = ultimasKmsPorPlaca.get(v.placa.toUpperCase().trim()) || 0
-    const kmMeta = v.kmUltimaPreventiva || v.kmProximaPreventiva || 0
+    const kmUltima = v.kmUltimaPreventiva || 0
+    const intervalo = v.intervaloPreventivaKm || 10000
 
     let atrasadaPorKm = false
     let kmRestante = 0
     let kmLimite = 0
 
-    if (kmMeta > 0 && kmAtual > 0) {
-      kmLimite = kmMeta
+    if (kmUltima > 0 && kmAtual > 0) {
+      kmLimite = kmUltima + intervalo
+      kmRestante = kmLimite - kmAtual
+      if (kmRestante < 0) {
+        atrasadaPorKm = true
+      }
+    } else if (v.kmProximaPreventiva && kmAtual > 0) {
+      kmLimite = v.kmProximaPreventiva
       kmRestante = kmLimite - kmAtual
       if (kmRestante < 0) {
         atrasadaPorKm = true
@@ -674,7 +680,10 @@ export function Frotas() {
     }
 
     // Checagem por Data — dataUltimaPreventiva/vencimentoPreventiva é a data
-    // em que a PRÓXIMA preventiva vence; se já passou, está atrasada.
+    // em que a PRÓXIMA preventiva vence; se já passou, está atrasada. Só
+    // marca como atrasada se já existe pelo menos um checklist confirmando o
+    // KM real do veículo — sem isso não dá pra afirmar que ele realmente
+    // está rodando vencido, só que a data prevista passou.
     const dataPrevStr = v.dataUltimaPreventiva || v.vencimentoPreventiva
     let atrasadaPorData = false
     let dataFormatada = ''
@@ -682,7 +691,7 @@ export function Frotas() {
       try {
         const dataPrev = parseISO(dataPrevStr)
         const hoje = startOfDay(new Date())
-        atrasadaPorData = isBefore(dataPrev, hoje)
+        atrasadaPorData = kmAtual > 0 && isBefore(dataPrev, hoje)
         dataFormatada = format(dataPrev, 'dd/MM/yyyy')
       } catch {}
     }
@@ -750,21 +759,46 @@ export function Frotas() {
       return v.tipo === filtroTipoGraficoKm
     })
 
-    const lista = filtrados.map((v) => {
+    // Sem nenhum checklist registrado pra placa não há KM atual real — nesse
+    // caso "KM restante" viraria a meta inteira (ex: 111.972 KM), um número
+    // absurdo que não representa distância nenhuma. Esses veículos ficam de
+    // fora deste gráfico (o atraso por DATA deles continua visível nos
+    // cards/tabela normalmente).
+    const lista = filtrados
+      .filter((v) => (ultimasKmsPorPlaca.get(v.placa.toUpperCase().trim()) || 0) > 0)
+      .map((v) => {
       const placa = v.placa.toUpperCase().trim()
       const kmAtual = ultimasKmsPorPlaca.get(placa) || 0
       const kmUltima = v.kmUltimaPreventiva || 0
-      const kmMeta = kmUltima > 0 ? kmUltima : (v.kmProximaPreventiva || (kmAtual > 0 ? kmAtual + 10000 : 10000))
-      let kmFaltante = kmMeta - kmAtual
+      const intervalo = v.intervaloPreventivaKm || 10000
+      // KM da Última Preventiva + intervalo = meta da próxima. Sem essa meta
+      // cadastrada, assume um ciclo genérico a cada N km (o intervalo) a
+      // partir do KM atual — o próximo múltiplo do intervalo acima do KM
+      // atual. Sem isso, a fórmula ingênua (kmAtual + intervalo) sempre
+      // resultava exatamente no intervalo, nunca diminuindo conforme o KM
+      // atual ia sendo atualizado pelos checklists.
+      const kmMeta =
+        kmUltima > 0
+          ? kmUltima + intervalo
+          : v.kmProximaPreventiva
+            ? v.kmProximaPreventiva
+            : kmAtual > 0
+              ? Math.ceil((kmAtual + 1) / intervalo) * intervalo
+              : intervalo
+      const kmFaltante = kmMeta - kmAtual
 
-      // O cálculo acima só enxerga atraso via KM. Reaproveita o mesmo status
-      // usado na tabela/cards (getStatusPreventiva), que também considera
-      // atraso por DATA — sem isso, uma preventiva vencida por data mas sem
-      // KM suficiente registrada aparecia aqui como "em dia".
+      // O cálculo de KM acima só enxerga atraso por KM. Reaproveita o mesmo
+      // status usado na tabela/cards (getStatusPreventiva), que também
+      // considera atraso por DATA — sem isso, uma preventiva vencida por
+      // data (mesmo com KM ainda folgado) aparecia aqui como "em dia".
       const statusReal = getStatusPreventiva(v)
-      if (statusReal.atrasada && kmFaltante >= 0) {
-        kmFaltante = -1
-      }
+      const atrasadoPorData = statusReal.atrasada && kmFaltante >= 0
+      const status = statusReal.atrasada ? 'atrasado' : kmFaltante <= 1500 ? 'proximo' : 'em_dia'
+
+      // Chave só pra ordenação: garante que atrasados (mesmo os que só
+      // venceram por data, com KM ainda positivo) sempre fiquem à frente dos
+      // que estão em dia, sem mentir o valor real de KM exibido na barra.
+      const ordenacao = status === 'atrasado' ? kmFaltante - 1_000_000 : kmFaltante
 
       return {
         placa,
@@ -775,12 +809,14 @@ export function Frotas() {
         kmUltima,
         kmMeta,
         kmFaltante,
-        status: statusReal.atrasada ? 'atrasado' : kmFaltante <= 1500 ? 'proximo' : 'em_dia',
+        atrasadoPorData,
+        status,
+        ordenacao,
       }
-    }).sort((a, b) => a.kmFaltante - b.kmFaltante)
+    }).sort((a, b) => a.ordenacao - b.ordenacao)
 
     if (filtroGraficoKm === 'criticos') {
-      const criticos = lista.filter((v) => v.kmFaltante <= 1500)
+      const criticos = lista.filter((v) => v.status === 'atrasado' || v.kmFaltante <= 1500)
       return criticos.length > 0 ? criticos : lista.slice(0, 10)
     }
     if (filtroGraficoKm === 'top12') {
@@ -1841,10 +1877,12 @@ export function Frotas() {
                                 <p>KM Atual (Checklist): <span className="font-bold text-foreground">{d.kmAtual.toLocaleString('pt-BR')} KM</span></p>
                                 {d.kmUltima > 0 && <p>Última Preventiva: <span className="font-bold text-secondary">{d.kmUltima.toLocaleString('pt-BR')} KM</span></p>}
                                 <p>Limite da Preventiva: <span className="font-bold text-foreground">{d.kmMeta.toLocaleString('pt-BR')} KM</span></p>
-                                <p className={`font-black pt-1 ${d.kmFaltante < 0 ? 'text-red-400' : d.kmFaltante <= 1500 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                  {d.kmFaltante < 0
-                                    ? `🛑 REVISÃO ATRASADA EM ${Math.abs(d.kmFaltante).toLocaleString('pt-BR')} KM`
-                                    : d.kmFaltante <= 1500
+                                <p className={`font-black pt-1 ${d.status === 'atrasado' ? 'text-red-400' : d.status === 'proximo' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                  {d.status === 'atrasado'
+                                    ? d.kmFaltante < 0
+                                      ? `🛑 REVISÃO ATRASADA EM ${Math.abs(d.kmFaltante).toLocaleString('pt-BR')} KM`
+                                      : `🛑 REVISÃO ATRASADA (VENCEU POR DATA) · FALTAM ${d.kmFaltante.toLocaleString('pt-BR')} KM`
+                                    : d.status === 'proximo'
                                     ? `⚠️ ATENÇÃO: FALTAM ${d.kmFaltante.toLocaleString('pt-BR')} KM`
                                     : `✅ EM DIA: FALTAM ${d.kmFaltante.toLocaleString('pt-BR')} KM`}
                                 </p>
@@ -1864,8 +1902,8 @@ export function Frotas() {
                         )}
                         {dadosGraficoKmPreventiva.map((entry, index) => {
                           let cor = '#10b981' // Verde (em dia)
-                          if (entry.kmFaltante < 0) cor = '#ef4444' // Vermelho (atrasado)
-                          else if (entry.kmFaltante <= 1500) cor = '#f59e0b' // Amarelo (próximo de vencer)
+                          if (entry.status === 'atrasado') cor = '#ef4444' // Vermelho (atrasado, por KM ou por data)
+                          else if (entry.status === 'proximo') cor = '#f59e0b' // Amarelo (próximo de vencer)
                           return <Cell key={`cell-km-${index}`} fill={cor} />
                         })}
                       </Bar>
@@ -3161,19 +3199,19 @@ export function Frotas() {
                 </div>
               </div>
 
-              {/* SEÇÃO: CONTROLE DE PREVENTIVA (META DA PRÓXIMA, DATA E INTERVALO) */}
+              {/* SEÇÃO: CONTROLE DE PREVENTIVA (KM DA ÚLTIMA, DATA DA PRÓXIMA E INTERVALO) */}
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-3">
                 <div className="flex items-center gap-2 text-primary font-black text-xs">
                   <Gauge className="h-4 w-4" />
-                  <span>PRÓXIMA PREVENTIVA & REVISÃO PERIÓDICA</span>
+                  <span>MANUTENÇÃO PREVENTIVA</span>
                 </div>
                 <p className="text-[10px] text-secondary normal-case">
-                  Informe o KM e/ou a data em que a PRÓXIMA preventiva vence. Ao realizar vistorias de checklist, a quilometragem informada será comparada com estes dados para alertar vencimentos.
+                  Informe o KM em que a ÚLTIMA preventiva foi feita — o sistema soma o intervalo pra calcular quando vence a próxima. A data já deve ser a da PRÓXIMA preventiva diretamente.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <Label htmlFor="kmUltimaPreventiva">KM da Próxima Preventiva</Label>
+                    <Label htmlFor="kmUltimaPreventiva">KM da Última Preventiva</Label>
                     <Input
                       id="kmUltimaPreventiva"
                       type="number"
@@ -4089,7 +4127,7 @@ export function Frotas() {
                       <DetalheCampo label="KM ATUAL (CHECKLIST)">
                         {kmAtualVeiculo > 0 ? `${kmAtualVeiculo.toLocaleString('pt-BR')} KM` : '— SEM CHECKLIST'}
                       </DetalheCampo>
-                      <DetalheCampo label="KM PRÓXIMA PREVENTIVA">
+                      <DetalheCampo label="KM ÚLTIMA PREVENTIVA">
                         {v.kmUltimaPreventiva ? `${v.kmUltimaPreventiva.toLocaleString('pt-BR')} KM` : '—'}
                       </DetalheCampo>
                       <DetalheCampo label="DATA PRÓXIMA PREVENTIVA">
