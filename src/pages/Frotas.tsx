@@ -474,6 +474,7 @@ export function Frotas() {
 
   // Form State para Novo Checklist
   const [veiculoChecklistId, setVeiculoChecklistId] = useState('')
+  const [categoriaChecklistNovo, setCategoriaChecklistNovo] = useState<'todos' | 'leve' | 'rodocacamba'>('todos')
   const [placaBuscaChecklist, setPlacaBuscaChecklist] = useState('')
   const [dropdownPlacaAberto, setDropdownPlacaAberto] = useState(false)
   const containerBuscaPlacaRef = useRef<HTMLDivElement>(null)
@@ -1211,14 +1212,22 @@ export function Frotas() {
     salvarFrotas(frotas.filter((f) => f.id !== id))
   }
 
-  // Lista de veículos disponíveis para o checklist (Restrito exclusivamente para Frota Leve por enquanto)
+  // Lista de veículos disponíveis para o checklist — Frota Leve e Rodocaçamba
+  // (pesados, cavalos trator e carretas). Embarcados ainda não entram.
   const veiculosFrotaLeveChecklist = useMemo(() => {
-    return frotas.filter((f) => f.tipo === 'leve')
+    return frotas.filter((f) => f.tipo === 'leve' || f.tipo === 'pesado' || f.tipo === 'trator' || f.tipo === 'carreta')
   }, [frotas])
 
-  // Lista de veículos filtrados para o modal de checklist (apenas frota leve)
+  // Lista de veículos filtrados para o modal de checklist, restrita à
+  // categoria escolhida no seletor (Todos / Leve / Rodocaçamba) e depois pela busca.
   const veiculosFiltradosChecklist = useMemo(() => {
     let lista = veiculosFrotaLeveChecklist
+    if (categoriaChecklistNovo === 'leve') {
+      lista = lista.filter((f) => f.tipo === 'leve')
+    } else if (categoriaChecklistNovo === 'rodocacamba') {
+      lista = lista.filter((f) => f.tipo === 'pesado' || f.tipo === 'trator' || f.tipo === 'carreta')
+    }
+
     const buscaLimpa = placaBuscaChecklist.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
     const buscaTexto = placaBuscaChecklist.trim().toUpperCase()
     if (!buscaTexto) return lista
@@ -1231,11 +1240,12 @@ export function Frotas() {
         (f.setor && f.setor.toUpperCase().includes(buscaTexto)) ||
         (f.responsavel && f.responsavel.toUpperCase().includes(buscaTexto))
     )
-  }, [veiculosFrotaLeveChecklist, placaBuscaChecklist])
+  }, [veiculosFrotaLeveChecklist, categoriaChecklistNovo, placaBuscaChecklist])
 
   // Handlers de Checklist
   function iniciarNovoChecklist() {
     setVeiculoChecklistId('')
+    setCategoriaChecklistNovo('todos')
     setPlacaBuscaChecklist('')
     setDropdownPlacaAberto(false)
     setMotoristaChecklist('')
@@ -1831,13 +1841,13 @@ export function Frotas() {
                 <div className="py-12 text-center text-secondary">
                   <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-40" />
                   <p className="text-xs font-bold text-foreground">
-                    {categoriaFrota === 'pesado' || categoriaFrota === 'embarcado'
+                    {categoriaFrota === 'embarcado'
                       ? 'CHECKLIST AINDA NÃO DISPONÍVEL PARA ESTA CATEGORIA'
                       : 'NENHUM CHECKLIST REGISTRADO AINDA'}
                   </p>
-                  {(categoriaFrota === 'pesado' || categoriaFrota === 'embarcado') && (
+                  {categoriaFrota === 'embarcado' && (
                     <p className="mt-1 text-[11px] text-secondary normal-case">
-                      O checklist operacional hoje só existe para a Frota Leve.
+                      O checklist operacional hoje só existe para Frota Leve e Rodocaçamba.
                     </p>
                   )}
                 </div>
@@ -2612,18 +2622,18 @@ export function Frotas() {
       {/* ========================================================================= */}
       {abaPrincipal === 'checklist' && (
         <div className="space-y-6">
-          {/* Banner Informativo Frota Leve */}
+          {/* Banner Informativo Frota Leve + Rodocaçamba */}
           <div className="flex items-center justify-between p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-xs font-bold shadow-sm">
             <div className="flex items-center gap-2.5">
               <span className="p-1.5 rounded-xl bg-emerald-500/20 text-emerald-400">
                 <Car className="h-4 w-4" />
               </span>
               <span>
-                CHECKLIST OPERACIONAL HABILITADO EXCLUSIVAMENTE PARA A <strong>FROTA LEVE</strong> ({veiculosFrotaLeveChecklist.length} VEÍCULOS).
+                CHECKLIST OPERACIONAL HABILITADO PARA <strong>FROTA LEVE E RODOCAÇAMBA</strong> ({veiculosFrotaLeveChecklist.length} VEÍCULOS).
               </span>
             </div>
             <span className="hidden sm:inline-block text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/30 text-emerald-400">
-              VISTORIAS LEVES ATIVAS
+              VISTORIAS ATIVAS
             </span>
           </div>
 
@@ -3241,12 +3251,12 @@ export function Frotas() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-sm sm:text-base font-black text-foreground uppercase">NOVO CHECKLIST DA FROTA LEVE</h2>
+                    <h2 className="text-sm sm:text-base font-black text-foreground uppercase">NOVO CHECKLIST</h2>
                     <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase">
-                      FROTA LEVE
+                      LEVE E RODOCAÇAMBA
                     </span>
                   </div>
-                  <p className="text-[10px] sm:text-[11px] text-secondary">Vistoria fotográfica, KM e diagnóstico de preventiva (exclusivo frota leve)</p>
+                  <p className="text-[10px] sm:text-[11px] text-secondary">Vistoria fotográfica, KM e diagnóstico de preventiva (frota leve e rodocaçamba)</p>
                 </div>
               </div>
               <button
@@ -3269,21 +3279,60 @@ export function Frotas() {
               <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-4">
                 <div className="flex items-center justify-between border-b border-primary/15 pb-2.5">
                   <span className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
-                    <Car className="h-4 w-4 text-primary" /> 1. VEÍCULO DA FROTA LEVE & CONDUTOR
+                    <Car className="h-4 w-4 text-primary" /> 1. VEÍCULO & CONDUTOR
                   </span>
                   <span className="text-[10px] text-primary font-black uppercase">
-                    {veiculosFrotaLeveChecklist.length} VEÍCULOS LEVES HABILITADOS
+                    {veiculosFiltradosChecklist.length} VEÍCULOS HABILITADOS
                   </span>
                 </div>
+
+                {/* Seletor de Categoria: Todos / Leve / Rodocaçamba — pílula com
+                    indicador deslizante animado (mesma linguagem visual de um
+                    switch, só que com 3 posições em vez de liga/desliga). */}
+                {(() => {
+                  const opcoesCategoria: [typeof categoriaChecklistNovo, string][] = [
+                    ['todos', 'TODOS'],
+                    ['leve', '🚗 LEVE'],
+                    ['rodocacamba', '🚛 RODOCAÇAMBA'],
+                  ]
+                  const indiceAtivo = opcoesCategoria.findIndex(([valor]) => valor === categoriaChecklistNovo)
+                  return (
+                    <div className="relative flex items-center rounded-full bg-background/60 p-1 w-full max-w-md shadow-inner">
+                      <div
+                        className="absolute inset-1 rounded-full bg-primary shadow-md shadow-primary/30 transition-transform duration-300 ease-out"
+                        style={{
+                          width: `calc((100% - 0.5rem) / 3)`,
+                          transform: `translateX(${indiceAtivo * 100}%)`,
+                        }}
+                      />
+                      {opcoesCategoria.map(([valor, label]) => (
+                        <button
+                          key={valor}
+                          type="button"
+                          onClick={() => {
+                            setCategoriaChecklistNovo(valor)
+                            setVeiculoChecklistId('')
+                            setPlacaBuscaChecklist('')
+                          }}
+                          className={`relative z-10 flex-1 rounded-full px-3 py-1.5 text-[10px] font-black uppercase whitespace-nowrap transition-colors duration-300 cursor-pointer ${
+                            categoriaChecklistNovo === valor ? 'text-white' : 'text-secondary hover:text-foreground'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
 
                 {/* Campo de Busca Direto por Placa */}
                 <div ref={containerBuscaPlacaRef} className="relative">
                   <div className="flex items-center justify-between mb-1.5">
                     <Label htmlFor="chkBuscaPlaca" className="text-xs font-bold text-foreground">
-                      Selecione ou Busque a Placa (Frota Leve) *
+                      Selecione ou Busque a Placa *
                     </Label>
                     <span className="text-[10px] text-secondary font-mono">
-                      {veiculosFrotaLeveChecklist.length} veículos leves
+                      {veiculosFiltradosChecklist.length} veículos habilitados
                     </span>
                   </div>
 
@@ -3357,7 +3406,7 @@ export function Frotas() {
                     <div className="absolute z-40 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-primary/40 bg-surface shadow-2xl backdrop-blur-xl animate-fade-in divide-y divide-border/10 p-1">
                       {veiculosFiltradosChecklist.length === 0 ? (
                         <div className="p-3 text-center text-xs text-secondary font-bold">
-                          Nenhum veículo da frota leve encontrado com o termo &quot;{placaBuscaChecklist}&quot;
+                          Nenhum veículo encontrado com o termo &quot;{placaBuscaChecklist}&quot;
                         </div>
                       ) : (
                         veiculosFiltradosChecklist.map((f) => (
