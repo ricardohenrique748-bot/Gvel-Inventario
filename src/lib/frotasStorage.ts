@@ -1,6 +1,10 @@
 import { VEICULOS_FROTA_BASE } from '@/data/veiculosFrotaPadrao'
 
-export const STORAGE_FROTAS_KEY = 'gvel_frotas_cadastradas_v1'
+// v2: bump de versão pra forçar re-sincronização com os dados oficiais depois
+// de uma correção em massa nas datas de CRLV/tacógrafo/seguro (setembro/2026)
+// — sem isso, o cache antigo do navegador continuaria vencendo sobre os
+// valores corrigidos (a mesclagem sempre prioriza o que já está salvo local).
+export const STORAGE_FROTAS_KEY = 'gvel_frotas_cadastradas_v2'
 
 /** Lê as placas da frota cadastrada (Gestão de Frotas) para autocomplete em
  * outras telas (ex: baixa de estoque). Usa o cache local que a página de

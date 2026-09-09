@@ -245,6 +245,7 @@ export interface ItemFrotaCadastrada {
   vencimentoDocumento?: string // YYYY-MM-DD (Licenciamento CRLV)
   crlvPago?: boolean // Marcado manualmente quando o CRLV já foi pago, mas o sistema ainda mostra vencido/a vencer (a data nova ainda não foi atualizada)
   vencimentoSeguro?: string // YYYY-MM-DD (Seguro da Frota / Apólice)
+  seguroOk?: boolean // Marcado manualmente quando ainda não há data de vencimento cadastrada, mas o seguro já está regularizado
   numeroTacografo?: string // Número do Certificado / Selo do Tacógrafo
   emissaoTacografo?: string // Data de Emissão / Ensaio do Tacógrafo
   vencimentoTacografo?: string // Data de Vencimento do Tacógrafo
@@ -348,11 +349,15 @@ export function Frotas() {
                 tipoVeiculo: v.tipoVeiculo || base.tipoVeiculo,
                 clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
                 clienteId: 'cliente_gvel_diesel_transportes',
-                vencimentoDocumento: v.vencimentoDocumento || base.vencimentoDocumento,
+                // Datas de vencimento (CRLV, seguro e tacógrafo) vêm da lista oficial,
+                // que é a fonte da verdade e é corrigida diretamente no código — um
+                // cadastro antigo salvo no navegador não pode continuar sobrepondo
+                // uma data já corrigida ali.
+                vencimentoDocumento: base.vencimentoDocumento !== undefined ? base.vencimentoDocumento : v.vencimentoDocumento,
                 vencimentoSeguro: base.vencimentoSeguro !== undefined ? base.vencimentoSeguro : v.vencimentoSeguro,
-                numeroTacografo: v.numeroTacografo || base.numeroTacografo,
-                emissaoTacografo: v.emissaoTacografo || base.emissaoTacografo,
-                vencimentoTacografo: v.vencimentoTacografo || base.vencimentoTacografo,
+                numeroTacografo: base.numeroTacografo !== undefined ? base.numeroTacografo : v.numeroTacografo,
+                emissaoTacografo: base.emissaoTacografo !== undefined ? base.emissaoTacografo : v.emissaoTacografo,
+                vencimentoTacografo: base.vencimentoTacografo !== undefined ? base.vencimentoTacografo : v.vencimentoTacografo,
                 observacoes: base.observacoes || v.observacoes,
               })
             } else if (v.id && !v.id.startsWith('frota_') && !v.id.startsWith('pesado_')) {
@@ -392,6 +397,10 @@ export function Frotas() {
 
   function alternarCrlvPago(id: string) {
     salvarFrotas(frotas.map((f) => (f.id === id ? { ...f, crlvPago: !f.crlvPago } : f)))
+  }
+
+  function alternarSeguroOk(id: string) {
+    salvarFrotas(frotas.map((f) => (f.id === id ? { ...f, seguroOk: !f.seguroOk } : f)))
   }
 
   // Modais de Veículo
@@ -735,7 +744,9 @@ export function Frotas() {
     return lista
   }, [frotasCategoria, ultimasKmsPorPlaca, filtroGraficoKm, filtroTipoGraficoKm])
 
-  // Distribuição da Frota por Categoria
+  // Distribuição da Frota por Categoria — sempre reflete a frota inteira
+  // (não o subconjunto filtrado pela aba), já que faz pouco sentido mostrar
+  // "0%" nas outras categorias quando o usuário já está numa aba de categoria única.
   const distribuicaoCategorias = useMemo(() => {
     let trator = 0
     let pesado = 0
@@ -743,7 +754,7 @@ export function Frotas() {
     let carreta = 0
     let embarcado = 0
 
-    frotasCategoria.forEach((v) => {
+    frotas.forEach((v) => {
       if (v.tipo === 'trator') trator++
       else if (v.tipo === 'pesado') pesado++
       else if (v.tipo === 'carreta') carreta++
@@ -751,16 +762,16 @@ export function Frotas() {
       else leve++
     })
 
-    const total = frotasCategoria.length || 1
+    const total = frotas.length || 1
 
     return [
-      { nome: 'Cavalos Trator', total: trator, pct: Math.round((trator / total) * 100), cor: '#6366f1', icone: '🚜', tipo: 'trator' },
+      { nome: 'Cavalo', total: trator, pct: Math.round((trator / total) * 100), cor: '#6366f1', icone: '🚜', tipo: 'trator' },
       { nome: 'Carretas & Dollys', total: carreta, pct: Math.round((carreta / total) * 100), cor: '#ec4899', icone: '🛣️', tipo: 'carreta' },
       { nome: 'Frota Leve / Utilitários', total: leve, pct: Math.round((leve / total) * 100), cor: '#3b82f6', icone: '🚗', tipo: 'leve' },
       { nome: 'Caminhões Pesados', total: pesado, pct: Math.round((pesado / total) * 100), cor: '#f59e0b', icone: '🚚', tipo: 'pesado' },
       { nome: 'Embarcados (Munck/Plataforma)', total: embarcado, pct: Math.round((embarcado / total) * 100), cor: '#a855f7', icone: '🏗️', tipo: 'embarcado' },
     ]
-  }, [frotasCategoria])
+  }, [frotas])
 
   // 2. DADOS DO GRÁFICO 2: Checklists Realizados por Pessoa (Motorista / Condutor)
   // Escopado pela aba de categoria ativa (Frota Leve / Rodocaçamba / Embarcado /
@@ -1504,8 +1515,8 @@ export function Frotas() {
           <div
             className={`grid gap-3 sm:gap-4 ${
               categoriaFrota === 'leve'
-                ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4'
-                : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+                ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+                : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
             }`}
           >
             {/* Total da Frota */}
@@ -1587,6 +1598,24 @@ export function Frotas() {
               <div className="mt-1.5 text-[10px] text-secondary font-bold flex justify-between">
                 <span className="text-rose-400">{metricasFrota.seguroVencido} VENCIDOS</span>
                 <span className="text-indigo-300">{metricasFrota.seguroEmDia} VIGENTES</span>
+              </div>
+            </Card>
+
+            {/* Checklists Realizados */}
+            <Card
+              onClick={() => navigate('/frotas?aba=checklist')}
+              className="p-4 border-cyan-500/30 bg-surface/90 cursor-pointer hover:border-cyan-500/60 transition-colors"
+            >
+              <div className="flex items-center justify-between text-cyan-400">
+                <span className="text-[10px] font-black uppercase tracking-wider">CHECKLISTS REALIZADOS</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  <ClipboardCheck className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-2.5 text-3xl font-black font-mono text-cyan-400">{metricasChecklist.total}</p>
+              <div className="mt-1.5 flex items-center justify-between text-[10px] font-bold text-secondary">
+                <span className="text-emerald-400 font-black">● {metricasChecklist.aprovados} APROVADOS</span>
+                <span className="text-rose-400 font-black">● {metricasChecklist.reprovados} REPROVADOS</span>
               </div>
             </Card>
 
@@ -2439,7 +2468,7 @@ export function Frotas() {
                                       type="button"
                                       onClick={() => alternarCrlvPago(v.id)}
                                       title="Já paguei — marcar CRLV como pago"
-                                      className="text-secondary/40 hover:text-emerald-400 transition-colors"
+                                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/25 hover:border-emerald-500/60 transition-colors"
                                     >
                                       <Banknote className="h-3 w-3" />
                                     </button>
@@ -2454,7 +2483,7 @@ export function Frotas() {
                                       type="button"
                                       onClick={() => alternarCrlvPago(v.id)}
                                       title="Já paguei — marcar CRLV como pago"
-                                      className="text-secondary/40 hover:text-emerald-400 transition-colors"
+                                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/25 hover:border-emerald-500/60 transition-colors"
                                     >
                                       <Banknote className="h-3 w-3" />
                                     </button>
@@ -2472,7 +2501,17 @@ export function Frotas() {
                               {/* Seguro */}
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[9px] font-bold text-secondary w-9">SEG:</span>
-                                {statusSeg.status === 'vencido' ? (
+                                {v.seguroOk ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => alternarSeguroOk(v.id)}
+                                    title="Seguro regularizado manualmente (ainda sem data de vencimento cadastrada). Clique para desmarcar."
+                                    className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-black text-emerald-400 hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                                  >
+                                    <ShieldCheck className="h-2.5 w-2.5" />
+                                    OK
+                                  </button>
+                                ) : statusSeg.status === 'vencido' ? (
                                   <span className="inline-flex items-center gap-1 rounded-md bg-rose-600/15 border border-rose-600/30 px-1.5 py-0.5 text-[9px] font-black text-rose-500">
                                     <ShieldCheck className="h-2.5 w-2.5" />
                                     {statusSeg.label}
@@ -2488,7 +2527,17 @@ export function Frotas() {
                                     {statusSeg.label}
                                   </span>
                                 ) : (
-                                  <span className="text-[9px] text-secondary/50 font-semibold">— NÃO INFORMADO</span>
+                                  <>
+                                    <span className="text-[9px] text-secondary/50 font-semibold">— NÃO INFORMADO</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => alternarSeguroOk(v.id)}
+                                      title="Já está regularizado — marcar seguro como OK"
+                                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/25 hover:border-emerald-500/60 transition-colors"
+                                    >
+                                      <ShieldCheck className="h-3 w-3" />
+                                    </button>
+                                  </>
                                 )}
                               </div>
 
