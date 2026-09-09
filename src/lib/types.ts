@@ -286,5 +286,7 @@ export interface RegistroChecklist {
   fotos?: FotosVistoria
   observacoesGerais?: string
   dataHora: string
+  /** Só usado por placas que exigem checklist de ida E de volta (ex: veículos emprestados/rotativos). */
+  tipoChecklist?: 'ida' | 'volta'
 }
 

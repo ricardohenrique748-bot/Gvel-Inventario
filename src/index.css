@@ -60,6 +60,18 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  @keyframes blink-alert {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+  .animate-blink-alert {
+    animation: blink-alert 1.1s ease-in-out infinite;
+  }
 }
 
 /* Glass Button Styles */

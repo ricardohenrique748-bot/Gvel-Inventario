@@ -58,6 +58,7 @@ function mapRowParaRegistro(row: any): RegistroChecklist {
     fotos,
     observacoesGerais: row.observacoes_gerais || undefined,
     dataHora: row.data_hora,
+    tipoChecklist: row.tipo_checklist || undefined,
   }
 }
 
@@ -89,6 +90,8 @@ export interface CriarChecklistFrotaInput {
   /** Fotos como dataURL base64 (é o que o formulário de checklist já produz). */
   fotos?: FotosVistoria
   observacoesGerais?: string
+  /** Só usado por placas que exigem checklist de ida E de volta. */
+  tipoChecklist?: 'ida' | 'volta'
 }
 
 export async function criarChecklistFrota(
@@ -139,6 +142,7 @@ export async function criarChecklistFrota(
     km_rodados_preventiva: input.statusPreventiva?.kmRodados ?? null,
     mensagem_preventiva: input.statusPreventiva?.mensagem || null,
     observacoes_gerais: input.observacoesGerais || null,
+    tipo_checklist: input.tipoChecklist || null,
     foto_painel_url: fotoUrls.painel || null,
     foto_frente_url: fotoUrls.frente || null,
     foto_lado_esquerdo_url: fotoUrls.ladoEsquerdo || null,
@@ -183,6 +187,7 @@ export async function criarChecklistFrota(
     fotos: { ...input.fotos, ...fotoUrls },
     observacoesGerais: input.observacoesGerais,
     dataHora,
+    tipoChecklist: input.tipoChecklist,
   }
 }
 
@@ -226,6 +231,7 @@ async function migrarChecklistsLocaisAntigos(): Promise<void> {
           itens: registro.itens,
           fotos: registro.fotos,
           observacoesGerais: registro.observacoesGerais,
+          tipoChecklist: registro.tipoChecklist,
         },
         registro.dataHora,
       )

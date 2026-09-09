@@ -259,6 +259,14 @@ export interface ItemFrotaCadastrada {
   createdAt: string
 }
 
+// Placas que precisam de um checklist na saída (IDA) e outro na devolução
+// (VOLTA) do veículo, em vez de um único checklist por uso.
+const PLACAS_CHECKLIST_IDA_VOLTA = ['IXF4J63', 'QXS9G97']
+
+function precisaChecklistIdaVolta(placa: string): boolean {
+  return PLACAS_CHECKLIST_IDA_VOLTA.includes(placa.toUpperCase().trim())
+}
+
 function DetalheCampo({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
@@ -488,11 +496,18 @@ export function Frotas() {
   const [mostrarModalNovoChecklist, setMostrarModalNovoChecklist] = useState(false)
   const [checklistVisualizando, setChecklistVisualizando] = useState<RegistroChecklist | null>(null)
   const [fotoZoom, setFotoZoom] = useState<{ url: string; titulo: string } | null>(null)
+  const [zoomScale, setZoomScale] = useState(1)
+  const [zoomPos, setZoomPos] = useState({ x: 0, y: 0 })
+  const zoomPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const zoomPinchDistRef = useRef<number | null>(null)
+  const zoomPinchScaleRef = useRef(1)
+  const zoomDragRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null)
   const [buscaChecklist, setBuscaChecklist] = useState('')
   const [filtroResultadoChecklist, setFiltroResultadoChecklist] = useState<string>('todos')
 
   // Form State para Novo Checklist
   const [veiculoChecklistId, setVeiculoChecklistId] = useState('')
+  const [tipoChecklistNovo, setTipoChecklistNovo] = useState<'ida' | 'volta'>('ida')
   const [categoriaChecklistNovo, setCategoriaChecklistNovo] = useState<'todos' | 'leve' | 'rodocacamba'>('todos')
   const [placaBuscaChecklist, setPlacaBuscaChecklist] = useState('')
   const [dropdownPlacaAberto, setDropdownPlacaAberto] = useState(false)
@@ -558,6 +573,66 @@ export function Frotas() {
       setModeloNomePendente(null)
     }
   }, [modelos, modeloNomePendente, setValue])
+
+  // Zoom/pan da foto ampliada — reseta sempre que uma foto nova é aberta
+  useEffect(() => {
+    setZoomScale(1)
+    setZoomPos({ x: 0, y: 0 })
+    zoomPointersRef.current.clear()
+    zoomPinchDistRef.current = null
+    zoomDragRef.current = null
+  }, [fotoZoom])
+
+  useEffect(() => {
+    if (zoomScale <= 1) setZoomPos({ x: 0, y: 0 })
+  }, [zoomScale])
+
+  function distanciaEntrePontos(pts: { x: number; y: number }[]) {
+    const [a, b] = pts
+    return Math.hypot(a.x - b.x, a.y - b.y)
+  }
+
+  function handleZoomPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    zoomPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+    if (zoomPointersRef.current.size === 2) {
+      zoomPinchDistRef.current = distanciaEntrePontos(Array.from(zoomPointersRef.current.values()))
+      zoomPinchScaleRef.current = zoomScale
+    } else if (zoomPointersRef.current.size === 1 && zoomScale > 1) {
+      zoomDragRef.current = { x: e.clientX, y: e.clientY, posX: zoomPos.x, posY: zoomPos.y }
+    }
+  }
+
+  function handleZoomPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!zoomPointersRef.current.has(e.pointerId)) return
+    zoomPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+    if (zoomPointersRef.current.size === 2 && zoomPinchDistRef.current) {
+      const dist = distanciaEntrePontos(Array.from(zoomPointersRef.current.values()))
+      const ratio = dist / zoomPinchDistRef.current
+      setZoomScale(Math.min(4, Math.max(1, zoomPinchScaleRef.current * ratio)))
+    } else if (zoomPointersRef.current.size === 1 && zoomDragRef.current) {
+      const dx = e.clientX - zoomDragRef.current.x
+      const dy = e.clientY - zoomDragRef.current.y
+      setZoomPos({ x: zoomDragRef.current.posX + dx, y: zoomDragRef.current.posY + dy })
+    }
+  }
+
+  function handleZoomPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    zoomPointersRef.current.delete(e.pointerId)
+    if (zoomPointersRef.current.size < 2) zoomPinchDistRef.current = null
+    if (zoomPointersRef.current.size === 0) zoomDragRef.current = null
+  }
+
+  function handleZoomWheel(e: React.WheelEvent<HTMLDivElement>) {
+    e.preventDefault()
+    setZoomScale((z) => Math.min(4, Math.max(1, z - e.deltaY * 0.0015)))
+  }
+
+  function handleZoomDoubleClick() {
+    setZoomScale((z) => (z > 1 ? 1 : 2.5))
+  }
 
   // Cliente padrão e exclusivo da frota própria
   const clienteGvel = useMemo(() => {
@@ -1046,6 +1121,39 @@ export function Frotas() {
     return frotas.find((f) => f.id === veiculoChecklistId)
   }, [frotas, veiculoChecklistId])
 
+  // Sugere automaticamente IDA ou VOLTA pras placas que exigem os dois: se
+  // o último checklist de hoje pra essa placa foi uma IDA sem VOLTA depois,
+  // sugere VOLTA — senão sugere IDA.
+  useEffect(() => {
+    if (!veiculoChecklistSelecionado || !precisaChecklistIdaVolta(veiculoChecklistSelecionado.placa)) return
+    const placa = veiculoChecklistSelecionado.placa.toUpperCase().trim()
+    const hoje = startOfDay(new Date())
+    const ultimoDeHoje = checklists
+      .filter((c) => c.placa.toUpperCase().trim() === placa && !isBefore(parseISO(c.dataHora), hoje))
+      .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())[0]
+    setTipoChecklistNovo(ultimoDeHoje?.tipoChecklist === 'ida' ? 'volta' : 'ida')
+  }, [veiculoChecklistSelecionado, checklists])
+
+  // Placas de ida/volta cujo checklist de IDA de hoje ainda não teve uma
+  // VOLTA correspondente — ficam "pendentes" até o veículo ser devolvido.
+  const checklistsIdaVoltaPendentes = useMemo(() => {
+    const hoje = startOfDay(new Date())
+    const pendentes: { placa: string; modelo: string; dataIda: string; veiculoId: string }[] = []
+
+    for (const placa of PLACAS_CHECKLIST_IDA_VOLTA) {
+      const deHoje = checklists
+        .filter((c) => c.placa.toUpperCase().trim() === placa && !isBefore(parseISO(c.dataHora), hoje))
+        .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
+
+      const ultimo = deHoje[0]
+      if (ultimo && ultimo.tipoChecklist === 'ida') {
+        pendentes.push({ placa, modelo: ultimo.modeloNome || '', dataIda: ultimo.dataHora, veiculoId: ultimo.veiculoId })
+      }
+    }
+
+    return pendentes
+  }, [checklists])
+
   // Cálculo da Comparação de KM da Preventiva em Tempo Real no Checklist
   const comparacaoPreventivaChecklist = useMemo((): StatusPreventivaChecklist => {
     if (!veiculoChecklistSelecionado) {
@@ -1365,6 +1473,23 @@ export function Frotas() {
     setResultadoChecklist('aprovado')
     setObsChecklist('')
     setFotosChecklist({})
+    setTipoChecklistNovo('ida')
+    setMostrarModalNovoChecklist(true)
+  }
+
+  // Abre o modal de novo checklist já com o veículo da IDA pendente
+  // selecionado, pronto pra registrar a VOLTA (o useEffect que sugere
+  // ida/volta automaticamente já marca "volta" assim que o veículo é selecionado).
+  function iniciarChecklistVolta(veiculoId: string) {
+    setVeiculoChecklistId(veiculoId)
+    setCategoriaChecklistNovo('todos')
+    setPlacaBuscaChecklist('')
+    setDropdownPlacaAberto(false)
+    setMotoristaChecklist('')
+    setKmChecklist(0)
+    setResultadoChecklist('aprovado')
+    setObsChecklist('')
+    setFotosChecklist({})
     setMostrarModalNovoChecklist(true)
   }
 
@@ -1416,6 +1541,7 @@ export function Frotas() {
         itens: [],
         fotos: fotosChecklist,
         observacoesGerais: obsChecklist.trim() || undefined,
+        tipoChecklist: veiculo && precisaChecklistIdaVolta(veiculo.placa) ? tipoChecklistNovo : undefined,
       })
       await refetchChecklists()
       setMostrarModalNovoChecklist(false)
@@ -1519,6 +1645,34 @@ export function Frotas() {
           <button onClick={() => setErroLista(null)} className="text-status-danger hover:opacity-70 p-1">
             <X className="h-4 w-4" />
           </button>
+        </div>
+      )}
+
+      {/* ALERTA PISCANTE: checklists de IDA pendentes de VOLTA (placas de ida/volta) */}
+      {checklistsIdaVoltaPendentes.length > 0 && (
+        <div className="animate-blink-alert rounded-2xl border-2 border-red-500/50 bg-red-500/15 p-4 flex flex-wrap items-center gap-3 shadow-lg shadow-red-500/10">
+          <AlertOctagon className="h-5 w-5 text-red-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-black text-red-400 uppercase">
+              CHECKLIST DE VOLTA PENDENTE
+            </p>
+            <p className="text-[11px] text-red-300 font-semibold normal-case">
+              {checklistsIdaVoltaPendentes.map((p, i) => (
+                <span key={p.placa}>
+                  {i > 0 && ' · '}
+                  <button
+                    type="button"
+                    onClick={() => iniciarChecklistVolta(p.veiculoId)}
+                    className="font-mono font-black underline decoration-dotted hover:text-red-100"
+                    title="Clique para registrar o checklist de volta"
+                  >
+                    {p.placa}
+                  </button>{' '}
+                  saiu às {format(parseISO(p.dataIda), 'HH:mm')} e ainda não fez o checklist de devolução
+                </span>
+              ))}
+            </p>
+          </div>
         </div>
       )}
 
@@ -2921,6 +3075,17 @@ export function Frotas() {
                         chk.fotos?.ladoDireito,
                       ].filter(Boolean).length
 
+                      // IDA ainda sem uma VOLTA correspondente depois dela — o
+                      // "trecho" fica pendente até o veículo ser devolvido.
+                      const pendenteDeVolta =
+                        chk.tipoChecklist === 'ida' &&
+                        !checklists.some(
+                          (c) =>
+                            c.placa.toUpperCase().trim() === chk.placa.toUpperCase().trim() &&
+                            c.tipoChecklist === 'volta' &&
+                            new Date(c.dataHora).getTime() > new Date(chk.dataHora).getTime(),
+                        )
+
                       return (
                         <tr key={chk.id} className="hover:bg-surface-hover/40 transition-colors group">
                           {/* Data / Hora */}
@@ -2929,10 +3094,23 @@ export function Frotas() {
                           </td>
 
                           {/* Placa / Veículo */}
-                          <td className="px-4 py-3.5">
-                            <div className="font-mono font-black text-primary text-sm flex items-center gap-1.5">
+                          <td
+                            className="px-4 py-3.5 cursor-pointer"
+                            onClick={() => setChecklistVisualizando(chk)}
+                            title="Ver relatório do checklist"
+                          >
+                            <div className="font-mono font-black text-primary text-sm flex items-center gap-1.5 hover:underline">
                               <span>🚛</span>
                               <span>{chk.placa}</span>
+                              {chk.tipoChecklist && (
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${
+                                  chk.tipoChecklist === 'ida'
+                                    ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                                    : 'bg-purple-500/10 border-purple-500/30 text-purple-400'
+                                }`}>
+                                  {chk.tipoChecklist === 'ida' ? 'IDA' : 'VOLTA'}
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-secondary font-semibold">
                               {chk.modeloNome || '—'} {chk.clienteNome ? `· ${chk.clienteNome}` : ''}
@@ -2982,20 +3160,34 @@ export function Frotas() {
 
                           {/* Status */}
                           <td className="px-4 py-3.5">
-                            {chk.resultado === 'aprovado' && (
-                              <Badge tone="success" className="text-[9px] font-black">
-                                APROVADO
-                              </Badge>
-                            )}
-                            {chk.resultado === 'aprovado_com_ressalvas' && (
-                              <Badge tone="warning" className="text-[9px] font-black">
-                                COM RESSALVAS
-                              </Badge>
-                            )}
-                            {chk.resultado === 'reprovado' && (
-                              <Badge tone="danger" className="text-[9px] font-black">
-                                REPROVADO
-                              </Badge>
+                            {pendenteDeVolta ? (
+                              <button
+                                type="button"
+                                onClick={() => iniciarChecklistVolta(chk.veiculoId)}
+                                title="Clique para registrar o checklist de volta"
+                              >
+                                <Badge tone="warning" className="text-[9px] font-black animate-pulse cursor-pointer hover:brightness-110">
+                                  PENDENTE (FALTA VOLTA)
+                                </Badge>
+                              </button>
+                            ) : (
+                              <>
+                                {chk.resultado === 'aprovado' && (
+                                  <Badge tone="success" className="text-[9px] font-black">
+                                    APROVADO
+                                  </Badge>
+                                )}
+                                {chk.resultado === 'aprovado_com_ressalvas' && (
+                                  <Badge tone="warning" className="text-[9px] font-black">
+                                    COM RESSALVAS
+                                  </Badge>
+                                )}
+                                {chk.resultado === 'reprovado' && (
+                                  <Badge tone="danger" className="text-[9px] font-black">
+                                    REPROVADO
+                                  </Badge>
+                                )}
+                              </>
                             )}
                           </td>
 
@@ -3655,6 +3847,37 @@ export function Frotas() {
                   </div>
                 )}
 
+                {/* Tipo: IDA ou VOLTA — só pras placas que exigem checklist nos dois trechos */}
+                {veiculoChecklistSelecionado && precisaChecklistIdaVolta(veiculoChecklistSelecionado.placa) && (
+                  <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 space-y-2">
+                    <Label>Este checklist é de: *</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTipoChecklistNovo('ida')}
+                        className={`h-10 rounded-xl text-xs font-black uppercase transition-colors border ${
+                          tipoChecklistNovo === 'ida'
+                            ? 'bg-primary text-white border-primary shadow-sm'
+                            : 'bg-surface border-border/25 text-secondary hover:border-primary/40'
+                        }`}
+                      >
+                        🚗 IDA (SAÍDA)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTipoChecklistNovo('volta')}
+                        className={`h-10 rounded-xl text-xs font-black uppercase transition-colors border ${
+                          tipoChecklistNovo === 'volta'
+                            ? 'bg-primary text-white border-primary shadow-sm'
+                            : 'bg-surface border-border/25 text-secondary hover:border-primary/40'
+                        }`}
+                      >
+                        🔁 VOLTA (DEVOLUÇÃO)
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Motorista & KM */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -4030,22 +4253,8 @@ export function Frotas() {
                 </div>
               </div>
 
-              {/* SEÇÃO 3: RESULTADO E OBSERVAÇÕES */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <div>
-                  <Label htmlFor="chkResultado">3. Parecer / Conclusão *</Label>
-                  <Select
-                    id="chkResultado"
-                    value={resultadoChecklist}
-                    onChange={(e) => setResultadoChecklist(e.target.value as any)}
-                    className="mt-1 text-xs uppercase font-black"
-                  >
-                    <option value="aprovado">✅ APROVADO (100% LIBERADO)</option>
-                    <option value="aprovado_com_ressalvas">⚠️ APROVADO COM RESSALVAS</option>
-                    <option value="reprovado">🛑 REPROVADO (NECESSITA MANUTENÇÃO)</option>
-                  </Select>
-                </div>
-
+              {/* SEÇÃO 3: OBSERVAÇÕES */}
+              <div className="pt-2">
                 <div>
                   <Label htmlFor="chkObs">Observações / Ressalvas</Label>
                   <Textarea
@@ -4255,8 +4464,17 @@ export function Frotas() {
                             className="w-full flex items-center justify-between gap-2 rounded-xl border border-border/15 bg-overlay/5 hover:bg-overlay/10 hover:border-primary/30 px-3.5 py-2.5 text-left transition-colors"
                           >
                             <div className="min-w-0">
-                              <p className="text-xs font-bold text-foreground">
+                              <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
                                 {format(parseISO(chk.dataHora), "dd/MM/yyyy 'às' HH:mm")}
+                                {chk.tipoChecklist && (
+                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${
+                                    chk.tipoChecklist === 'ida'
+                                      ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                                      : 'bg-purple-500/10 border-purple-500/30 text-purple-400'
+                                  }`}>
+                                    {chk.tipoChecklist === 'ida' ? 'IDA' : 'VOLTA'}
+                                  </span>
+                                )}
                               </p>
                               <p className="text-[11px] text-secondary truncate">
                                 {chk.motoristaNome || 'NÃO IDENTIFICADO'} · {chk.kmAtual.toLocaleString('pt-BR')} KM
@@ -4317,8 +4535,17 @@ export function Frotas() {
                   <ClipboardCheck className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-black text-foreground uppercase">
+                  <h2 className="text-base font-black text-foreground uppercase flex items-center gap-2">
                     RELATÓRIO DE INSPEÇÃO · {checklistVisualizando.placa}
+                    {checklistVisualizando.tipoChecklist && (
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${
+                        checklistVisualizando.tipoChecklist === 'ida'
+                          ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                          : 'bg-purple-500/10 border-purple-500/30 text-purple-400'
+                      }`}>
+                        {checklistVisualizando.tipoChecklist === 'ida' ? 'IDA' : 'VOLTA'}
+                      </span>
+                    )}
                   </h2>
                   <p className="text-[11px] text-secondary">
                     {format(parseISO(checklistVisualizando.dataHora), "dd/MM/yyyy 'às' HH:mm")}
@@ -4554,7 +4781,7 @@ export function Frotas() {
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 animate-fade-in"
           onClick={() => setFotoZoom(null)}
         >
-          <div className="relative max-w-2xl max-h-[90vh] flex flex-col items-center">
+          <div className="relative max-w-2xl max-h-[90vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => setFotoZoom(null)}
@@ -4563,7 +4790,31 @@ export function Frotas() {
               <X className="h-6 w-6" />
             </button>
             <p className="text-white text-xs font-black uppercase mb-2 tracking-wide">{fotoZoom.titulo}</p>
-            <img src={fotoZoom.url} alt={fotoZoom.titulo} className="rounded-xl max-w-full max-h-[80vh] object-contain shadow-2xl" />
+            <div
+              className="overflow-hidden rounded-xl shadow-2xl touch-none select-none"
+              style={{ cursor: zoomScale > 1 ? 'grab' : 'zoom-in' }}
+              onWheel={handleZoomWheel}
+              onDoubleClick={handleZoomDoubleClick}
+              onPointerDown={handleZoomPointerDown}
+              onPointerMove={handleZoomPointerMove}
+              onPointerUp={handleZoomPointerUp}
+              onPointerCancel={handleZoomPointerUp}
+              onPointerLeave={handleZoomPointerUp}
+            >
+              <img
+                src={fotoZoom.url}
+                alt={fotoZoom.titulo}
+                draggable={false}
+                className="max-w-full max-h-[80vh] object-contain"
+                style={{
+                  transform: `translate(${zoomPos.x}px, ${zoomPos.y}px) scale(${zoomScale})`,
+                  transition: zoomDragRef.current || zoomPointersRef.current.size > 0 ? 'none' : 'transform 0.15s ease-out',
+                }}
+              />
+            </div>
+            <p className="text-white/60 text-[10px] mt-2 uppercase tracking-wide">
+              Toque 2x ou use a roda do mouse pra dar zoom · arraste pra mover
+            </p>
           </div>
         </div>,
         document.body,
