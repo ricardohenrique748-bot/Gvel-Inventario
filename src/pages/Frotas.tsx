@@ -706,17 +706,10 @@ export function Frotas() {
       }
     }
 
-    if (atrasadaPorData) {
-      return {
-        status: 'atrasada',
-        label: `ATRASADA (${dataFormatada})`,
-        kmRestante,
-        kmLimite,
-        atrasada: true,
-      }
-    }
-
-    if (kmLimite > 0 && kmRestante <= 1000) {
+    // Havendo KM real acompanhado (kmLimite > 0), ele manda — só falta
+    // decidir se está "próxima" ou "em dia". A checagem por data só decide o
+    // atraso quando NÃO existe controle de KM confiável pra esse veículo.
+    if (kmLimite > 0 && kmRestante <= 5000) {
       return {
         status: 'proxima',
         label: `PRÓXIMA (${kmRestante.toLocaleString('pt-BR')} KM REST.)`,
@@ -733,6 +726,16 @@ export function Frotas() {
         kmRestante,
         kmLimite,
         atrasada: false,
+      }
+    }
+
+    if (atrasadaPorData) {
+      return {
+        status: 'atrasada',
+        label: `ATRASADA (${dataFormatada})`,
+        kmRestante,
+        kmLimite,
+        atrasada: true,
       }
     }
 
@@ -759,32 +762,43 @@ export function Frotas() {
       return v.tipo === filtroTipoGraficoKm
     })
 
-    // Sem nenhum checklist registrado pra placa não há KM atual real — nesse
-    // caso "KM restante" viraria a meta inteira (ex: 111.972 KM), um número
-    // absurdo que não representa distância nenhuma. Esses veículos ficam de
-    // fora deste gráfico (o atraso por DATA deles continua visível nos
-    // cards/tabela normalmente).
-    const lista = filtrados
-      .filter((v) => (ultimasKmsPorPlaca.get(v.placa.toUpperCase().trim()) || 0) > 0)
+    // Só entra no gráfico quem realmente tem uma meta de preventiva
+    // cadastrada (KM da Última Preventiva ou o campo legado KM Próxima
+    // Preventiva) — sem isso não existe cronograma real pra acompanhar, e
+    // inventar um automaticamente mostraria dado que ninguém cadastrou.
+    const comMeta = filtrados.filter((v) => (v.kmUltimaPreventiva || 0) > 0 || (v.kmProximaPreventiva || 0) > 0)
+
+    const lista = comMeta
       .map((v) => {
       const placa = v.placa.toUpperCase().trim()
       const kmAtual = ultimasKmsPorPlaca.get(placa) || 0
       const kmUltima = v.kmUltimaPreventiva || 0
       const intervalo = v.intervaloPreventivaKm || 10000
-      // KM da Última Preventiva + intervalo = meta da próxima. Sem essa meta
-      // cadastrada, assume um ciclo genérico a cada N km (o intervalo) a
-      // partir do KM atual — o próximo múltiplo do intervalo acima do KM
-      // atual. Sem isso, a fórmula ingênua (kmAtual + intervalo) sempre
-      // resultava exatamente no intervalo, nunca diminuindo conforme o KM
-      // atual ia sendo atualizado pelos checklists.
-      const kmMeta =
-        kmUltima > 0
-          ? kmUltima + intervalo
-          : v.kmProximaPreventiva
-            ? v.kmProximaPreventiva
-            : kmAtual > 0
-              ? Math.ceil((kmAtual + 1) / intervalo) * intervalo
-              : intervalo
+      // KM da Última Preventiva + intervalo = meta da próxima. O campo
+      // legado kmProximaPreventiva já vem pronto (não soma intervalo).
+      const kmMeta = kmUltima > 0 ? kmUltima + intervalo : (v.kmProximaPreventiva as number)
+
+      // Sem nenhum checklist registrado pra placa não há KM atual real — o
+      // veículo ainda aparece no gráfico, mas com uma barra neutra (cinza,
+      // altura = intervalo) em vez de calcular a distância até a meta
+      // (que seria a meta inteira, ex: 111.972 KM — um número que não
+      // representa km rodado nenhum).
+      if (kmAtual === 0) {
+        return {
+          placa,
+          modelo: v.modeloNome || v.marcaNome || 'VEÍCULO',
+          marca: v.marcaNome,
+          tipo: v.tipo,
+          kmAtual: 0,
+          kmUltima,
+          kmMeta,
+          kmFaltante: intervalo,
+          atrasadoPorData: false,
+          status: 'sem_dados' as const,
+          ordenacao: 100_000_000,
+        }
+      }
+
       const kmFaltante = kmMeta - kmAtual
 
       // O cálculo de KM acima só enxerga atraso por KM. Reaproveita o mesmo
@@ -793,7 +807,7 @@ export function Frotas() {
       // data (mesmo com KM ainda folgado) aparecia aqui como "em dia".
       const statusReal = getStatusPreventiva(v)
       const atrasadoPorData = statusReal.atrasada && kmFaltante >= 0
-      const status = statusReal.atrasada ? 'atrasado' : kmFaltante <= 1500 ? 'proximo' : 'em_dia'
+      const status = statusReal.atrasada ? 'atrasado' : kmFaltante <= 5000 ? 'proximo' : 'em_dia'
 
       // Chave só pra ordenação: garante que atrasados (mesmo os que só
       // venceram por data, com KM ainda positivo) sempre fiquem à frente dos
@@ -813,10 +827,10 @@ export function Frotas() {
         status,
         ordenacao,
       }
-    }).sort((a, b) => a.ordenacao - b.ordenacao)
+    }).sort((a, b) => a.ordenacao - b.ordenacao || a.placa.localeCompare(b.placa))
 
     if (filtroGraficoKm === 'criticos') {
-      const criticos = lista.filter((v) => v.status === 'atrasado' || v.kmFaltante <= 1500)
+      const criticos = lista.filter((v) => v.status === 'atrasado' || (v.status !== 'sem_dados' && v.kmFaltante <= 5000))
       return criticos.length > 0 ? criticos : lista.slice(0, 10)
     }
     if (filtroGraficoKm === 'top12') {
@@ -1822,7 +1836,7 @@ export function Frotas() {
                 >
                   <option value="top12">⚡ TOP 12 MAIS PRÓXIMOS DE REVISÃO</option>
                   <option value="top20">⚡ TOP 20 MAIS PRÓXIMOS</option>
-                  <option value="criticos">🚨 CRÍTICOS / PRÓXIMOS (≤ 1.500 KM)</option>
+                  <option value="criticos">🚨 CRÍTICOS / PRÓXIMOS (≤ 5.000 KM)</option>
                   <option value="todos">📊 TODOS OS VEÍCULOS (ROLÁVEL)</option>
                 </select>
               </div>
@@ -1868,6 +1882,21 @@ export function Frotas() {
                         content={({ active, payload }) => {
                           if (!active || !payload || !payload.length) return null
                           const d = payload[0].payload
+                          if (d.status === 'sem_dados') {
+                            return (
+                              <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
+                                <p className="font-mono font-black text-primary text-sm flex items-center gap-1">
+                                  🚛 {d.placa} · {d.modelo}
+                                </p>
+                                <div className="mt-2 space-y-1 text-[11px] text-foreground font-mono">
+                                  {d.kmUltima > 0 && <p>Última Preventiva: <span className="font-bold text-secondary">{d.kmUltima.toLocaleString('pt-BR')} KM</span></p>}
+                                  <p className="font-black pt-1 text-secondary">
+                                    ⏳ SEM CHECKLIST REGISTRADO — NÃO DÁ PRA CALCULAR O KM ATUAL
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          }
                           return (
                             <div className="rounded-xl border border-border/40 bg-surface/95 p-3 shadow-2xl backdrop-blur-md text-xs uppercase font-sans">
                               <p className="font-mono font-black text-primary text-sm flex items-center gap-1">
@@ -1896,14 +1925,32 @@ export function Frotas() {
                           <LabelList
                             dataKey="kmFaltante"
                             position="top"
-                            formatter={(val: any) => `${Number(val).toLocaleString('pt-BR')} KM`}
-                            style={{ fill: textColor, fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                            content={(props: any) => {
+                              const { x, y, width, index } = props
+                              const entry = dadosGraficoKmPreventiva[index]
+                              if (!entry) return null
+                              const texto = `${entry.kmFaltante.toLocaleString('pt-BR')} KM`
+                              return (
+                                <text
+                                  x={x + width / 2}
+                                  y={y - 6}
+                                  textAnchor="middle"
+                                  fill={entry.status === 'sem_dados' ? textColorSecundario : textColor}
+                                  fontSize={10}
+                                  fontWeight="bold"
+                                  fontFamily="monospace"
+                                >
+                                  {texto}
+                                </text>
+                              )
+                            }}
                           />
                         )}
                         {dadosGraficoKmPreventiva.map((entry, index) => {
                           let cor = '#10b981' // Verde (em dia)
                           if (entry.status === 'atrasado') cor = '#ef4444' // Vermelho (atrasado, por KM ou por data)
                           else if (entry.status === 'proximo') cor = '#f59e0b' // Amarelo (próximo de vencer)
+                          else if (entry.status === 'sem_dados') cor = '#94a3b8' // Cinza (sem checklist ainda)
                           return <Cell key={`cell-km-${index}`} fill={cor} />
                         })}
                       </Bar>
@@ -4138,7 +4185,7 @@ export function Frotas() {
                       </DetalheCampo>
                       {statusPrev.kmLimite > 0 && (
                         <DetalheCampo label={statusPrev.kmRestante < 0 ? 'KM ULTRAPASSADO' : 'KM RESTANTE'}>
-                          <span className={statusPrev.kmRestante < 0 ? 'text-red-400' : statusPrev.kmRestante <= 1000 ? 'text-amber-400' : 'text-emerald-400'}>
+                          <span className={statusPrev.kmRestante < 0 ? 'text-red-400' : statusPrev.kmRestante <= 5000 ? 'text-amber-400' : 'text-emerald-400'}>
                             {statusPrev.kmRestante < 0
                               ? `-${Math.abs(statusPrev.kmRestante).toLocaleString('pt-BR')} KM`
                               : `${statusPrev.kmRestante.toLocaleString('pt-BR')} KM`}
