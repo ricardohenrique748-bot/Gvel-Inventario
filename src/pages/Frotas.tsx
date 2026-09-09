@@ -1804,9 +1804,9 @@ export function Frotas() {
                                 🚛 {d.placa} · {d.modelo}
                               </p>
                               <div className="mt-2 space-y-1 text-[11px] text-foreground font-mono">
-                                <p>KM Atual (Checklist): <span className="font-bold text-white">{d.kmAtual.toLocaleString('pt-BR')} KM</span></p>
+                                <p>KM Atual (Checklist): <span className="font-bold text-foreground">{d.kmAtual.toLocaleString('pt-BR')} KM</span></p>
                                 {d.kmUltima > 0 && <p>Última Preventiva: <span className="font-bold text-secondary">{d.kmUltima.toLocaleString('pt-BR')} KM</span></p>}
-                                <p>Limite da Preventiva: <span className="font-bold text-white">{d.kmMeta.toLocaleString('pt-BR')} KM</span></p>
+                                <p>Limite da Preventiva: <span className="font-bold text-foreground">{d.kmMeta.toLocaleString('pt-BR')} KM</span></p>
                                 <p className={`font-black pt-1 ${d.kmFaltante < 0 ? 'text-red-400' : d.kmFaltante <= 1500 ? 'text-amber-400' : 'text-emerald-400'}`}>
                                   {d.kmFaltante < 0
                                     ? `🛑 REVISÃO ATRASADA EM ${Math.abs(d.kmFaltante).toLocaleString('pt-BR')} KM`
@@ -2035,7 +2035,7 @@ export function Frotas() {
                                   🚛 {d.placa} · {d.modelo}
                                 </p>
                                 <div className="mt-1.5 space-y-1 text-[11px] font-mono">
-                                  <p className="text-secondary">Data de Vencimento: <span className="font-bold text-white">{d.vencimento}</span></p>
+                                  <p className="text-secondary">Data de Vencimento: <span className="font-bold text-foreground">{d.vencimento}</span></p>
                                   <p className={`font-black ${d.crlvPago ? 'text-sky-400' : d.dias < 0 ? 'text-rose-500' : d.dias <= 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
                                     {d.crlvPago
                                       ? '💳 JÁ PAGO (aguardando atualização da data)'
@@ -2127,12 +2127,12 @@ export function Frotas() {
                                 </p>
                                 <div className="mt-1.5 space-y-1 text-[11px] font-mono">
                                   {d.numeroTacografo && (
-                                    <p className="text-secondary">Nº Tacógrafo: <span className="font-bold text-white">{d.numeroTacografo}</span></p>
+                                    <p className="text-secondary">Nº Tacógrafo: <span className="font-bold text-foreground">{d.numeroTacografo}</span></p>
                                   )}
                                   {d.emissao && (
-                                    <p className="text-secondary">Emissão / Ensaio: <span className="font-bold text-white">{d.emissao}</span></p>
+                                    <p className="text-secondary">Emissão / Ensaio: <span className="font-bold text-foreground">{d.emissao}</span></p>
                                   )}
-                                  <p className="text-secondary">Vencimento: <span className="font-bold text-white">{d.vencimento}</span></p>
+                                  <p className="text-secondary">Vencimento: <span className="font-bold text-foreground">{d.vencimento}</span></p>
                                   <p className={`font-black ${d.dias < 0 ? 'text-rose-500' : d.dias <= 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
                                     {d.dias < 0
                                       ? `🛑 VENCIDO HÁ ${Math.abs(d.dias)} DIAS`
@@ -3132,7 +3132,9 @@ export function Frotas() {
                       id="kmUltimaPreventiva"
                       type="number"
                       placeholder="Ex: 150000"
-                      {...register('kmUltimaPreventiva', { valueAsNumber: true })}
+                      {...register('kmUltimaPreventiva', {
+                        setValueAs: (v) => (v === '' || v === null || v === undefined ? undefined : Number(v)),
+                      })}
                       className="mt-1 text-xs font-mono font-bold"
                     />
                   </div>
@@ -3143,7 +3145,9 @@ export function Frotas() {
                       id="intervaloPreventivaKm"
                       type="number"
                       placeholder="Ex: 10000"
-                      {...register('intervaloPreventivaKm', { valueAsNumber: true })}
+                      {...register('intervaloPreventivaKm', {
+                        setValueAs: (v) => (v === '' || v === null || v === undefined ? undefined : Number(v)),
+                      })}
                       className="mt-1 text-xs font-mono font-bold"
                     />
                   </div>
