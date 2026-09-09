@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react'
+import { useMemo, useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
@@ -259,6 +259,15 @@ export interface ItemFrotaCadastrada {
   createdAt: string
 }
 
+function DetalheCampo({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <span className="text-[9px] font-black text-secondary uppercase block">{label}</span>
+      <div className="text-xs font-bold text-foreground mt-0.5">{children}</div>
+    </div>
+  )
+}
+
 function comprimirFoto(file: File, maxWidth = 1000, quality = 0.72): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -472,6 +481,9 @@ export function Frotas() {
   const [filtroGraficoKm, setFiltroGraficoKm] = useState<'top12' | 'top20' | 'criticos' | 'todos'>('top12')
   const [filtroTipoGraficoKm, setFiltroTipoGraficoKm] = useState<string>('todos_motor')
 
+  // Modal de Detalhes do Veículo (dados cadastrados + histórico de checklists)
+  const [veiculoDetalhando, setVeiculoDetalhando] = useState<ItemFrotaCadastrada | null>(null)
+
   // Modais de Checklist
   const [mostrarModalNovoChecklist, setMostrarModalNovoChecklist] = useState(false)
   const [checklistVisualizando, setChecklistVisualizando] = useState<RegistroChecklist | null>(null)
@@ -641,30 +653,28 @@ export function Frotas() {
   }, [checklists])
 
   // Helper para status de preventiva (calculado por KM e Data)
+  // Apesar do nome dos campos, "KM/Data da Última Preventiva" armazenam a
+  // META da PRÓXIMA preventiva (o KM/data em que ela vence) — não o que já
+  // foi feito no passado. intervaloPreventivaKm é só informativo/sugestão
+  // de cadência, não entra na conta do que falta.
   function getStatusPreventiva(v: ItemFrotaCadastrada) {
     const kmAtual = ultimasKmsPorPlaca.get(v.placa.toUpperCase().trim()) || 0
-    const kmUltima = v.kmUltimaPreventiva || 0
-    const intervalo = v.intervaloPreventivaKm || 10000
+    const kmMeta = v.kmUltimaPreventiva || v.kmProximaPreventiva || 0
 
     let atrasadaPorKm = false
     let kmRestante = 0
     let kmLimite = 0
 
-    if (kmUltima > 0 && kmAtual > 0) {
-      kmLimite = kmUltima + intervalo
-      kmRestante = kmLimite - kmAtual
-      if (kmRestante < 0) {
-        atrasadaPorKm = true
-      }
-    } else if (v.kmProximaPreventiva && kmAtual > 0) {
-      kmLimite = v.kmProximaPreventiva
+    if (kmMeta > 0 && kmAtual > 0) {
+      kmLimite = kmMeta
       kmRestante = kmLimite - kmAtual
       if (kmRestante < 0) {
         atrasadaPorKm = true
       }
     }
 
-    // Checagem por Data
+    // Checagem por Data — dataUltimaPreventiva/vencimentoPreventiva é a data
+    // em que a PRÓXIMA preventiva vence; se já passou, está atrasada.
     const dataPrevStr = v.dataUltimaPreventiva || v.vencimentoPreventiva
     let atrasadaPorData = false
     let dataFormatada = ''
@@ -744,8 +754,7 @@ export function Frotas() {
       const placa = v.placa.toUpperCase().trim()
       const kmAtual = ultimasKmsPorPlaca.get(placa) || 0
       const kmUltima = v.kmUltimaPreventiva || 0
-      const intervalo = v.intervaloPreventivaKm || 10000
-      const kmMeta = kmUltima > 0 ? kmUltima + intervalo : (v.kmProximaPreventiva || (kmAtual > 0 ? kmAtual + 10000 : 10000))
+      const kmMeta = kmUltima > 0 ? kmUltima : (v.kmProximaPreventiva || (kmAtual > 0 ? kmAtual + 10000 : 10000))
       let kmFaltante = kmMeta - kmAtual
 
       // O cálculo acima só enxerga atraso via KM. Reaproveita o mesmo status
@@ -811,6 +820,15 @@ export function Frotas() {
       { nome: 'Embarcados (Munck/Plataforma)', total: embarcado, pct: Math.round((embarcado / total) * 100), cor: '#a855f7', icone: '🏗️', tipo: 'embarcado' },
     ]
   }, [frotas])
+
+  // Histórico de checklists do veículo aberto no modal de detalhes
+  const checklistsDoVeiculoDetalhando = useMemo(() => {
+    if (!veiculoDetalhando) return []
+    const placa = veiculoDetalhando.placa.toUpperCase().trim()
+    return checklists
+      .filter((c) => c.placa.toUpperCase().trim() === placa)
+      .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime())
+  }, [checklists, veiculoDetalhando])
 
   // 2. DADOS DO GRÁFICO 2: Checklists Realizados por Pessoa (Motorista / Condutor)
   // Escopado pela aba de categoria ativa (Frota Leve / Rodocaçamba / Embarcado /
@@ -2422,7 +2440,11 @@ export function Frotas() {
                       return (
                         <tr key={v.id} className="hover:bg-surface-hover/40 transition-colors group">
                           {/* Veículo / Placa */}
-                          <td className="px-4 py-3">
+                          <td
+                            className="px-4 py-3 cursor-pointer"
+                            onClick={() => setVeiculoDetalhando(v)}
+                            title="Ver detalhes do veículo"
+                          >
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-black text-primary text-sm flex items-center gap-1.5 tracking-wider">
                                 <span>{v.tipoVeiculo === 'MOTO' ? '🏍️' : v.tipo === 'leve' ? '🚗' : v.tipo === 'embarcado' ? '🏗️' : '🚛'}</span>
@@ -2630,6 +2652,14 @@ export function Frotas() {
                           {/* Ações */}
                           <td className="px-3 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setVeiculoDetalhando(v)}
+                                className="rounded-lg p-1.5 text-secondary hover:text-foreground hover:bg-overlay/10 transition-colors"
+                                title="Ver Detalhes"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => iniciarEdicaoVeiculo(v)}
@@ -3131,19 +3161,19 @@ export function Frotas() {
                 </div>
               </div>
 
-              {/* SEÇÃO: CONTROLE DE PREVENTIVA (KM DA ÚLTIMA, DATA E INTERVALO) */}
+              {/* SEÇÃO: CONTROLE DE PREVENTIVA (META DA PRÓXIMA, DATA E INTERVALO) */}
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-3">
                 <div className="flex items-center gap-2 text-primary font-black text-xs">
                   <Gauge className="h-4 w-4" />
-                  <span>DADOS DA ÚLTIMA PREVENTIVA & REVISÃO PERIÓDICA</span>
+                  <span>PRÓXIMA PREVENTIVA & REVISÃO PERIÓDICA</span>
                 </div>
                 <p className="text-[10px] text-secondary normal-case">
-                  Ao realizar vistorias de checklist, a quilometragem informada será comparada com estes dados para alertar vencimentos.
+                  Informe o KM e/ou a data em que a PRÓXIMA preventiva vence. Ao realizar vistorias de checklist, a quilometragem informada será comparada com estes dados para alertar vencimentos.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <Label htmlFor="kmUltimaPreventiva">KM da Última Preventiva</Label>
+                    <Label htmlFor="kmUltimaPreventiva">KM da Próxima Preventiva</Label>
                     <Input
                       id="kmUltimaPreventiva"
                       type="number"
@@ -3169,7 +3199,7 @@ export function Frotas() {
                   </div>
 
                   <div>
-                    <Label htmlFor="dataUltimaPreventiva">Data da Última Preventiva</Label>
+                    <Label htmlFor="dataUltimaPreventiva">Data da Próxima Preventiva</Label>
                     <Input
                       id="dataUltimaPreventiva"
                       type="date"
@@ -3968,6 +3998,225 @@ export function Frotas() {
             </form>
           </div>
         </div>,
+        document.body,
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: DETALHES DO VEÍCULO (DADOS CADASTRADOS + HISTÓRICO DE CHECKLISTS) */}
+      {/* ========================================================================= */}
+      {veiculoDetalhando && createPortal(
+        (() => {
+          const v = veiculoDetalhando
+          const statusPrev = getStatusPreventiva(v)
+          const statusDoc = getStatusDocumento(v.vencimentoDocumento)
+          const statusSeg = getStatusSeguro(v.vencimentoSeguro)
+          const statusTac = getStatusTacografo(v.vencimentoTacografo)
+          const kmAtualVeiculo = ultimasKmsPorPlaca.get(v.placa.toUpperCase().trim()) || 0
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
+              <div className="w-full max-w-2xl rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+                <div className="flex items-center justify-between border-b border-border/10 px-6 py-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <span className="text-base">{v.tipoVeiculo === 'MOTO' ? '🏍️' : v.tipo === 'leve' ? '🚗' : v.tipo === 'embarcado' ? '🏗️' : '🚛'}</span>
+                    </div>
+                    <div>
+                      <h2 className="text-base font-black text-foreground uppercase font-mono tracking-wider">
+                        {v.placa}
+                      </h2>
+                      <p className="text-[11px] text-secondary uppercase">
+                        {v.marcaNome ? `${v.marcaNome} ` : ''}{v.modeloNome || '—'} {v.ano ? `· ${v.ano}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVeiculoDetalhando(null)}
+                    className="rounded-xl p-1.5 text-secondary hover:bg-background hover:text-foreground transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                  {/* Dados Gerais */}
+                  <div>
+                    <h3 className="text-[11px] font-black text-secondary uppercase tracking-wider mb-2">DADOS CADASTRADOS</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-xl border border-border/15 bg-overlay/5">
+                      <DetalheCampo label="SITUAÇÃO">
+                        <Badge tone={v.situacao === 'operante' ? 'success' : 'warning'}>
+                          {v.situacao === 'operante' ? 'OPERANTE' : 'INOPERANTE'}
+                        </Badge>
+                      </DetalheCampo>
+                      <DetalheCampo label="TIPO">
+                        {v.tipo === 'leve' ? 'Leve' : v.tipo === 'pesado' ? 'Pesado' : v.tipo === 'trator' ? 'Trator' : v.tipo === 'carreta' ? 'Carreta' : 'Embarcado'}
+                      </DetalheCampo>
+                      <DetalheCampo label="SUBTIPO">{v.tipoVeiculo || '—'}</DetalheCampo>
+                      <DetalheCampo label="COR">{v.cor || '—'}</DetalheCampo>
+                      <DetalheCampo label="CHASSI">{v.chassi || '—'}</DetalheCampo>
+                      <DetalheCampo label="RENAVAM">{v.renavam || '—'}</DetalheCampo>
+                      <DetalheCampo label="SETOR">{v.setor || '—'}</DetalheCampo>
+                      <DetalheCampo label="RESPONSÁVEL">{v.responsavel || '—'}</DetalheCampo>
+                      <DetalheCampo label="CLIENTE">{v.clienteNome || '—'}</DetalheCampo>
+                    </div>
+                  </div>
+
+                  {/* Manutenção Preventiva */}
+                  <div>
+                    <h3 className="text-[11px] font-black text-secondary uppercase tracking-wider mb-2">MANUTENÇÃO PREVENTIVA</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-xl border border-border/15 bg-overlay/5">
+                      <DetalheCampo label="STATUS">
+                        {statusPrev.status === 'atrasada' ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-red-500/15 border border-red-500/30 px-2 py-0.5 text-[10px] font-black text-red-400">
+                            <AlertOctagon className="h-3 w-3" />
+                            {statusPrev.label}
+                          </span>
+                        ) : statusPrev.status === 'proxima' ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-black text-amber-400">
+                            <AlertTriangle className="h-3 w-3" />
+                            {statusPrev.label}
+                          </span>
+                        ) : statusPrev.status === 'em_dia' ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                            <CheckCircle2 className="h-3 w-3" />
+                            {statusPrev.label}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-secondary/50 font-semibold">— NÃO INFORMADA</span>
+                        )}
+                      </DetalheCampo>
+                      <DetalheCampo label="KM ATUAL (CHECKLIST)">
+                        {kmAtualVeiculo > 0 ? `${kmAtualVeiculo.toLocaleString('pt-BR')} KM` : '— SEM CHECKLIST'}
+                      </DetalheCampo>
+                      <DetalheCampo label="KM PRÓXIMA PREVENTIVA">
+                        {v.kmUltimaPreventiva ? `${v.kmUltimaPreventiva.toLocaleString('pt-BR')} KM` : '—'}
+                      </DetalheCampo>
+                      <DetalheCampo label="DATA PRÓXIMA PREVENTIVA">
+                        {v.dataUltimaPreventiva ? format(parseISO(v.dataUltimaPreventiva), 'dd/MM/yyyy') : '—'}
+                      </DetalheCampo>
+                      <DetalheCampo label="INTERVALO">
+                        {v.intervaloPreventivaKm ? `${v.intervaloPreventivaKm.toLocaleString('pt-BR')} KM` : '—'}
+                      </DetalheCampo>
+                      {statusPrev.kmLimite > 0 && (
+                        <DetalheCampo label={statusPrev.kmRestante < 0 ? 'KM ULTRAPASSADO' : 'KM RESTANTE'}>
+                          <span className={statusPrev.kmRestante < 0 ? 'text-red-400' : statusPrev.kmRestante <= 1000 ? 'text-amber-400' : 'text-emerald-400'}>
+                            {statusPrev.kmRestante < 0
+                              ? `-${Math.abs(statusPrev.kmRestante).toLocaleString('pt-BR')} KM`
+                              : `${statusPrev.kmRestante.toLocaleString('pt-BR')} KM`}
+                          </span>
+                        </DetalheCampo>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Documentação & Seguro */}
+                  <div>
+                    <h3 className="text-[11px] font-black text-secondary uppercase tracking-wider mb-2">DOCUMENTAÇÃO, SEGURO & TACÓGRAFO</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-xl border border-border/15 bg-overlay/5">
+                      <DetalheCampo label="CRLV">
+                        {v.crlvPago ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-black text-emerald-400">PAGO</span>
+                        ) : (
+                          <span className="text-[10px] font-bold">{statusDoc.label}</span>
+                        )}
+                      </DetalheCampo>
+                      <DetalheCampo label="VENCIMENTO CRLV">
+                        {v.vencimentoDocumento ? format(parseISO(v.vencimentoDocumento), 'dd/MM/yyyy') : '—'}
+                      </DetalheCampo>
+                      <DetalheCampo label="SEGURO">
+                        {v.seguroOk ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-black text-emerald-400">OK</span>
+                        ) : (
+                          <span className="text-[10px] font-bold">{statusSeg.label}</span>
+                        )}
+                      </DetalheCampo>
+                      <DetalheCampo label="VENCIMENTO SEGURO">
+                        {v.vencimentoSeguro ? format(parseISO(v.vencimentoSeguro), 'dd/MM/yyyy') : '—'}
+                      </DetalheCampo>
+                      <DetalheCampo label="TACÓGRAFO">
+                        <span className="text-[10px] font-bold">{statusTac.label}</span>
+                      </DetalheCampo>
+                      <DetalheCampo label="Nº TACÓGRAFO">{v.numeroTacografo || '—'}</DetalheCampo>
+                    </div>
+                  </div>
+
+                  {/* Observações */}
+                  {v.observacoes && (
+                    <div>
+                      <h3 className="text-[11px] font-black text-secondary uppercase tracking-wider mb-2">OBSERVAÇÕES</h3>
+                      <p className="text-xs text-foreground p-3.5 rounded-xl border border-border/15 bg-overlay/5 normal-case">
+                        {v.observacoes}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Histórico de Checklists */}
+                  <div>
+                    <h3 className="text-[11px] font-black text-secondary uppercase tracking-wider mb-2">
+                      HISTÓRICO DE CHECKLISTS ({checklistsDoVeiculoDetalhando.length})
+                    </h3>
+                    {checklistsDoVeiculoDetalhando.length === 0 ? (
+                      <p className="text-xs text-secondary p-3.5 rounded-xl border border-border/15 bg-overlay/5 normal-case">
+                        Nenhum checklist registrado para este veículo ainda.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {checklistsDoVeiculoDetalhando.map((chk) => (
+                          <button
+                            key={chk.id}
+                            type="button"
+                            onClick={() => setChecklistVisualizando(chk)}
+                            className="w-full flex items-center justify-between gap-2 rounded-xl border border-border/15 bg-overlay/5 hover:bg-overlay/10 hover:border-primary/30 px-3.5 py-2.5 text-left transition-colors"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-foreground">
+                                {format(parseISO(chk.dataHora), "dd/MM/yyyy 'às' HH:mm")}
+                              </p>
+                              <p className="text-[11px] text-secondary truncate">
+                                {chk.motoristaNome || 'NÃO IDENTIFICADO'} · {chk.kmAtual.toLocaleString('pt-BR')} KM
+                              </p>
+                            </div>
+                            {chk.resultado === 'aprovado' ? (
+                              <Badge tone="success">APROVADO</Badge>
+                            ) : chk.resultado === 'aprovado_com_ressalvas' ? (
+                              <Badge tone="warning">RESSALVAS</Badge>
+                            ) : (
+                              <Badge tone="danger">REPROVADO</Badge>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Rodapé */}
+                <div className="flex shrink-0 justify-end gap-2.5 border-t border-border/15 bg-surface px-4 py-3.5 sm:px-6">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setVeiculoDetalhando(null)}
+                    className="!h-10 px-5 text-xs font-semibold"
+                  >
+                    Fechar
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setVeiculoDetalhando(null)
+                      iniciarEdicaoVeiculo(v)
+                    }}
+                    className="!h-10 px-5 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Editar Veículo
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )
+        })(),
         document.body,
       )}
 
