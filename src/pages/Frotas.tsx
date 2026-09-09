@@ -57,6 +57,7 @@ import { useClientes } from '@/hooks/useClientes'
 import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useAuth } from '@/contexts/AuthContext'
+import { useTheme } from '@/contexts/ThemeContext'
 import { isAdminUsuario } from '@/lib/permissoes'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
@@ -293,6 +294,12 @@ export function Frotas() {
   const { marcas, refetch: refetchMarcas } = useMarcas()
   const { movimentacoes } = useMovimentacoes()
   const navigate = useNavigate()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const textColor = isDark ? '#ffffff' : '#18181b'
+  const textColorSecundario = isDark ? '#cbd5e1' : '#475569'
+  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
+  const axisLineColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'
 
   const isNative = isNativeApp()
   const [searchParams] = useSearchParams()
@@ -739,7 +746,16 @@ export function Frotas() {
       const kmUltima = v.kmUltimaPreventiva || 0
       const intervalo = v.intervaloPreventivaKm || 10000
       const kmMeta = kmUltima > 0 ? kmUltima + intervalo : (v.kmProximaPreventiva || (kmAtual > 0 ? kmAtual + 10000 : 10000))
-      const kmFaltante = kmMeta - kmAtual
+      let kmFaltante = kmMeta - kmAtual
+
+      // O cálculo acima só enxerga atraso via KM. Reaproveita o mesmo status
+      // usado na tabela/cards (getStatusPreventiva), que também considera
+      // atraso por DATA — sem isso, uma preventiva vencida por data mas sem
+      // KM suficiente registrada aparecia aqui como "em dia".
+      const statusReal = getStatusPreventiva(v)
+      if (statusReal.atrasada && kmFaltante >= 0) {
+        kmFaltante = -1
+      }
 
       return {
         placa,
@@ -750,7 +766,7 @@ export function Frotas() {
         kmUltima,
         kmMeta,
         kmFaltante,
-        status: kmFaltante < 0 ? 'atrasado' : kmFaltante <= 1500 ? 'proximo' : 'em_dia',
+        status: statusReal.atrasada ? 'atrasado' : kmFaltante <= 1500 ? 'proximo' : 'em_dia',
       }
     }).sort((a, b) => a.kmFaltante - b.kmFaltante)
 
@@ -1737,11 +1753,11 @@ export function Frotas() {
                   aria-label="Filtrar categoria de veículo motorizado"
                   className="h-9 rounded-xl border border-border/25 bg-surface/90 px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none uppercase cursor-pointer"
                 >
-                  <option value="todos_motor">MOTORIZADOS ({frotas.filter(v => v.tipo !== 'carreta').length})</option>
-                  <option value="trator">🚜 CAVALOS TRATOR ({frotas.filter(v => v.tipo === 'trator').length})</option>
-                  <option value="pesado">🚚 CAMINHÕES PESADOS ({frotas.filter(v => v.tipo === 'pesado').length})</option>
-                  <option value="leve">🚗 FROTA LEVE ({frotas.filter(v => v.tipo === 'leve').length})</option>
-                  <option value="embarcado">🏗️ EMBARCADOS ({frotas.filter(v => v.tipo === 'embarcado').length})</option>
+                  <option value="todos_motor">MOTORIZADOS ({frotasCategoria.filter(v => v.tipo !== 'carreta').length})</option>
+                  <option value="trator">🚜 CAVALOS TRATOR ({frotasCategoria.filter(v => v.tipo === 'trator').length})</option>
+                  <option value="pesado">🚚 CAMINHÕES PESADOS ({frotasCategoria.filter(v => v.tipo === 'pesado').length})</option>
+                  <option value="leve">🚗 FROTA LEVE ({frotasCategoria.filter(v => v.tipo === 'leve').length})</option>
+                  <option value="embarcado">🏗️ EMBARCADOS ({frotasCategoria.filter(v => v.tipo === 'embarcado').length})</option>
                 </select>
 
                 <select
@@ -1779,17 +1795,17 @@ export function Frotas() {
                       margin={{ top: 25, right: 25, left: 10, bottom: 25 }}
                       barSize={filtroGraficoKm === 'todos' ? 24 : dadosGraficoKmPreventiva.length <= 12 ? 38 : 28}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
                       <XAxis
                         dataKey="placa"
-                        tick={{ fill: '#cbd5e1', fontSize: 11, fontWeight: 'bold' }}
-                        axisLine={{ stroke: 'rgba(255,255,255,0.15)' }}
+                        tick={{ fill: textColor, fontSize: 11, fontWeight: 'bold' }}
+                        axisLine={{ stroke: axisLineColor }}
                         tickLine={false}
                         interval={0}
                       />
                       <YAxis
-                        tick={{ fill: '#94a3b8', fontSize: 10, fontFamily: 'monospace' }}
-                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        tick={{ fill: textColorSecundario, fontSize: 10, fontFamily: 'monospace' }}
+                        axisLine={{ stroke: axisLineColor }}
                         tickLine={false}
                         unit=" KM"
                       />
@@ -1825,7 +1841,7 @@ export function Frotas() {
                             dataKey="kmFaltante"
                             position="top"
                             formatter={(val: any) => `${Number(val).toLocaleString('pt-BR')} KM`}
-                            style={{ fill: '#e2e8f0', fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}
+                            style={{ fill: textColor, fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}
                           />
                         )}
                         {dadosGraficoKmPreventiva.map((entry, index) => {
