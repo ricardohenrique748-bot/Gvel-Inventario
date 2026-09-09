@@ -518,6 +518,28 @@ export function Frotas() {
   const tipoWatch = watch('tipo')
   const { modelos, refetch: refetchModelos } = useModelos(marcaIdWatch)
 
+  // Ao editar um veículo, a marca/modelo dele estão salvos como texto puro
+  // (marcaNome/modeloNome), não como o marcaId/modeloId que o formulário usa
+  // (referência às tabelas marcas/modelos do Supabase). Por isso guardamos o
+  // nome do modelo aqui e, assim que os modelos daquela marca carregarem,
+  // resolvemos o id certo automaticamente — sem isso o campo aparecia vazio
+  // mesmo já tendo marca/modelo cadastrados.
+  const [modeloNomePendente, setModeloNomePendente] = useState<string | null>(null)
+  useEffect(() => {
+    if (!modeloNomePendente || modelos.length === 0) return
+    const alvo = modeloNomePendente.toUpperCase().trim()
+    // Tenta igualdade exata primeiro; se o nome salvo no veículo não bater
+    // 100% com o cadastro de modelos (ex: "STRADA" vs "STRADA WORKING"),
+    // cai pra correspondência parcial em vez de deixar o campo vazio.
+    const achado =
+      modelos.find((m) => m.nome.toUpperCase().trim() === alvo) ||
+      modelos.find((m) => alvo.includes(m.nome.toUpperCase().trim()) || m.nome.toUpperCase().trim().includes(alvo))
+    if (achado) {
+      setValue('modeloId', achado.id)
+      setModeloNomePendente(null)
+    }
+  }, [modelos, modeloNomePendente, setValue])
+
   // Cliente padrão e exclusivo da frota própria
   const clienteGvel = useMemo(() => {
     return (
@@ -1094,6 +1116,7 @@ export function Frotas() {
   // Handlers de Veículo
   function iniciarCriacaoVeiculo() {
     setEditandoId(null)
+    setModeloNomePendente(null)
     const tipoInicial = categoriaFrota === 'pesado' || categoriaFrota === 'embarcado' ? 'pesado' : 'leve'
     reset({
       clienteId: clienteGvel.id,
@@ -1123,6 +1146,11 @@ export function Frotas() {
 
   function iniciarEdicaoVeiculo(v: ItemFrotaCadastrada) {
     setEditandoId(v.id)
+    // Resolve a marca já cadastrada (por nome) pra pré-selecionar o dropdown
+    // — sem isso o formulário sempre abria pedindo "selecione a marca" de
+    // novo, mesmo com o veículo já tendo marca/modelo definidos.
+    const marcaObj = marcas.find((m) => m.nome.toUpperCase().trim() === (v.marcaNome || '').toUpperCase().trim())
+    setModeloNomePendente(marcaObj && v.modeloNome ? v.modeloNome : null)
     reset({
       clienteId: clienteGvel.id,
       placa: v.placa,
@@ -1134,7 +1162,7 @@ export function Frotas() {
       chassi: v.chassi ?? '',
       situacao: v.situacao,
       ano: v.ano || anoAtual,
-      marcaId: '',
+      marcaId: marcaObj?.id || '',
       modeloId: '',
       vencimentoDocumento: v.vencimentoDocumento || '',
       vencimentoSeguro: v.vencimentoSeguro || '',
