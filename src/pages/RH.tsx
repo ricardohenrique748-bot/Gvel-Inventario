@@ -292,59 +292,59 @@ function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca,
           </div>
         ) : (
           <DragScrollArea>
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border/10 text-left text-foreground font-bold">
-                  <th className="px-3 py-3 font-bold whitespace-nowrap">Colaborador</th>
-                  <th className="px-3 py-3 font-bold whitespace-nowrap">Função</th>
-                  {mostrarCarteira && <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Valor Carteira</th>}
-                  {mostrarRegistro && <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Custo Registro (80%)</th>}
-                  {mostrarAjudaCusto && <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Ajuda de Custo</th>}
-                  {mostrarGratificacao && <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Gratificação</th>}
-                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Ganhos Totais</th>
-                  <th className="px-3 py-3 font-bold whitespace-nowrap text-right">Custo Total</th>
+                  <th className="px-2 py-2.5 font-bold">Colaborador</th>
+                  <th className="px-2 py-2.5 font-bold">Função</th>
+                  {mostrarCarteira && <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Carteira</th>}
+                  {mostrarRegistro && <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Registro (80%)</th>}
+                  {mostrarAjudaCusto && <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Ajuda Custo</th>}
+                  {mostrarGratificacao && <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Gratificação</th>}
+                  <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Ganhos Totais</th>
+                  <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Custo Total</th>
                 </tr>
               </thead>
               <tbody>
                 {itens.map((c) => (
                   <tr key={c.id} className="border-b border-border/5 last:border-0 hover:bg-overlay/[0.03]">
-                    <td className="px-3 py-3 font-medium text-foreground whitespace-nowrap">
+                    <td className="px-2 py-2 font-medium text-foreground max-w-[160px] truncate" title={c.nome}>
                       {c.nome}
                     </td>
-                    <td className="px-3 py-3 text-secondary whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        {c.funcao}
+                    <td className="px-2 py-2 text-secondary max-w-[130px]" title={c.funcao}>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="truncate">{c.funcao}</span>
                         {c.observacao && (
-                          <Badge tone="warning" className="normal-case text-[10px]">
+                          <Badge tone="warning" className="normal-case text-[9px] shrink-0">
                             {c.observacao}
                           </Badge>
                         )}
                       </div>
                     </td>
                     {mostrarCarteira && (
-                      <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                      <td className="px-2 py-2 text-secondary whitespace-nowrap text-right tabular-nums">
                         {formatMoeda(c.valorCarteira)}
                       </td>
                     )}
                     {mostrarRegistro && (
-                      <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                      <td className="px-2 py-2 text-secondary whitespace-nowrap text-right tabular-nums">
                         {formatMoeda(c.custoRegistro)}
                       </td>
                     )}
                     {mostrarAjudaCusto && (
-                      <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                      <td className="px-2 py-2 text-secondary whitespace-nowrap text-right tabular-nums">
                         {formatMoeda(c.ajudaCusto)}
                       </td>
                     )}
                     {mostrarGratificacao && (
-                      <td className="px-3 py-3 text-secondary whitespace-nowrap text-right tabular-nums">
+                      <td className="px-2 py-2 text-secondary whitespace-nowrap text-right tabular-nums">
                         {formatMoeda(c.gratificacao)}
                       </td>
                     )}
-                    <td className="px-3 py-3 font-bold text-foreground whitespace-nowrap text-right tabular-nums">
+                    <td className="px-2 py-2 font-bold text-foreground whitespace-nowrap text-right tabular-nums">
                       {formatMoeda(c.ganhosTotais)}
                     </td>
-                    <td className="px-3 py-3 font-bold text-primary whitespace-nowrap text-right tabular-nums">
+                    <td className="px-2 py-2 font-bold text-primary whitespace-nowrap text-right tabular-nums">
                       {formatMoeda(c.custoTotal)}
                     </td>
                   </tr>
@@ -353,33 +353,33 @@ function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca,
               {itens.length > 0 && (
                 <tfoot>
                   <tr className="border-t-2 border-border/20 bg-surface/60 font-black text-foreground">
-                    <td className="px-3 py-3 whitespace-nowrap" colSpan={2}>
+                    <td className="px-2 py-2.5 whitespace-nowrap" colSpan={2}>
                       TOTAL ({itens.length} {itens.length === 1 ? 'COLABORADOR' : 'COLABORADORES'})
                     </td>
                     {mostrarCarteira && (
-                      <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                      <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums">
                         {formatMoeda(totais.valorCarteira)}
                       </td>
                     )}
                     {mostrarRegistro && (
-                      <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                      <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums">
                         {formatMoeda(totais.custoRegistro)}
                       </td>
                     )}
                     {mostrarAjudaCusto && (
-                      <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                      <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums">
                         {formatMoeda(totais.ajudaCusto)}
                       </td>
                     )}
                     {mostrarGratificacao && (
-                      <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                      <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums">
                         {formatMoeda(totais.gratificacao)}
                       </td>
                     )}
-                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums">
+                    <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums">
                       {formatMoeda(totais.ganhosTotais)}
                     </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-right tabular-nums text-primary">
+                    <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums text-primary">
                       {formatMoeda(totais.custoTotal)}
                     </td>
                   </tr>
