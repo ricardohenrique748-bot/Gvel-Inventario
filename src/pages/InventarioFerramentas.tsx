@@ -2442,7 +2442,7 @@ export function InventarioFerramentas() {
                 <Package className="h-4 w-4 text-emerald-500" />
               </div>
               <p className="mt-2 text-xl sm:text-2xl font-black tabular-nums text-emerald-500">
-                {metricasConsumo.totalUnidades}
+                {metricasConsumo.totalUnidades.toLocaleString('pt-BR')}
               </p>
               <p className="text-[10px] text-secondary font-semibold mt-0.5">UNIDADES DISPONÍVEIS</p>
             </Card>
@@ -2694,10 +2694,11 @@ export function InventarioFerramentas() {
                             {/* Quantidade embaixo */}
                             <div>
                               <span className="text-2xl font-black font-mono text-foreground">
-                                {item.quantidade_atual} <span className="text-xs font-semibold text-secondary">{item.unidade}</span>
+                                {item.quantidade_atual.toLocaleString('pt-BR')}{' '}
+                                <span className="text-xs font-semibold text-secondary">{item.unidade}</span>
                               </span>
                               <p className="text-[10px] text-secondary font-bold mt-0.5">
-                                {pctBarril}% DE {item.capacidade_maxima} {item.unidade}
+                                {pctBarril}% DE {item.capacidade_maxima?.toLocaleString('pt-BR')} {item.unidade}
                               </p>
                               {Boolean(item.quantidade_tambores && item.quantidade_tambores > 0) && (
                                 <p className="text-[10px] text-primary font-bold mt-0.5">
@@ -2793,14 +2794,14 @@ export function InventarioFerramentas() {
                                 <div>
                                   <span className="text-[10px] font-bold text-secondary uppercase block">ESTOQUE ATUAL</span>
                                   <span className="text-2xl font-black font-mono text-foreground">
-                                    {item.quantidade_atual}{' '}
+                                    {item.quantidade_atual.toLocaleString('pt-BR')}{' '}
                                     <span className="text-xs font-semibold text-secondary">{item.unidade}</span>
                                   </span>
                                 </div>
                                 <div className="text-right">
                                   <span className="text-[10px] font-bold text-secondary uppercase block">MÍNIMO</span>
                                   <span className="text-xs font-bold font-mono text-secondary">
-                                    {item.quantidade_minima} {item.unidade}
+                                    {item.quantidade_minima.toLocaleString('pt-BR')} {item.unidade}
                                   </span>
                                 </div>
                               </div>
@@ -3626,19 +3627,19 @@ function ModalHistoricoConsumo({
                 {isBarril ? 'Nível Atual' : 'Estoque Atual'}
               </span>
               <p className="text-lg font-black font-mono text-emerald-500">
-                {isBarril ? `${pctBarril}%` : item.quantidade_atual}
+                {isBarril ? `${pctBarril}%` : item.quantidade_atual.toLocaleString('pt-BR')}
               </p>
             </div>
             <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
               <span className="text-[10px] font-black text-secondary uppercase">Qtd. Atual</span>
               <p className="text-lg font-black font-mono text-foreground">
-                {item.quantidade_atual} {item.unidade}
+                {item.quantidade_atual.toLocaleString('pt-BR')} {item.unidade}
               </p>
             </div>
             <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
               <span className="text-[10px] font-black text-secondary uppercase">Total Baixado</span>
               <p className="text-lg font-black font-mono text-amber-500">
-                {totalConsumido} {item.unidade}
+                {totalConsumido.toLocaleString('pt-BR')} {item.unidade}
               </p>
             </div>
           </div>
@@ -3681,7 +3682,7 @@ function ModalHistoricoConsumo({
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-black font-mono text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 text-xs">
-                        −{b.quantidade} {b.unidade}
+                        −{b.quantidade.toLocaleString('pt-BR')} {b.unidade}
                       </span>
                       {isBarril && b.numero_tambor && (
                         <div className="flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/25 px-2.5 py-1">
@@ -3691,7 +3692,7 @@ function ModalHistoricoConsumo({
                       )}
                       {isBarril && b.quantidade_restante != null && (
                         <span className="font-black font-mono text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 text-xs">
-                          RESTOU {b.quantidade_restante} {b.unidade}
+                          RESTOU {b.quantidade_restante.toLocaleString('pt-BR')} {b.unidade}
                         </span>
                       )}
                       {b.placa && (
@@ -6667,7 +6668,8 @@ function ModalItemConsumo({
               </label>
               <Input
                 id="qtdAtual"
-                type="number"
+                type="text"
+                inputMode="numeric"
                 min="0"
                 value={quantidadeAtual}
                 onChange={(e) => setQuantidadeAtual(parseInteiroPtBr(e.target.value))}
@@ -6680,7 +6682,8 @@ function ModalItemConsumo({
               </label>
               <Input
                 id="qtdMin"
-                type="number"
+                type="text"
+                inputMode="numeric"
                 min="0"
                 value={quantidadeMinima}
                 onChange={(e) => setQuantidadeMinima(parseInteiroPtBr(e.target.value))}
@@ -6698,7 +6701,8 @@ function ModalItemConsumo({
                 </label>
                 <Input
                   id="capMax"
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   min="0"
                   placeholder="Ex: 200 (deixe 0 se não for um barril)"
                   value={capacidadeMaxima || ''}
@@ -6769,7 +6773,8 @@ function ModalItemConsumo({
                 </label>
                 <Input
                   id="qtdTambores"
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   min="0"
                   placeholder="Ex: 3 (deixe 0 se não quiser mostrar)"
                   value={quantidadeTambores || ''}
@@ -7133,7 +7138,8 @@ function ModalBaixaConsumo({
                 </button>
                 <div className="flex flex-1 items-baseline justify-center gap-1.5">
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     min={1}
                     max={maxQtd}
                     value={quantidade}
@@ -7372,10 +7378,11 @@ function ModalEntradaConsumo({
             <div className="flex items-center gap-2">
               <Input
                 id="qtdAdd"
-                type="number"
+                type="text"
+                inputMode="numeric"
                 min="1"
                 value={quantidadeAdicionar}
-                onChange={(e) => setQuantidadeAdicionar(Math.max(1, Number(e.target.value)))}
+                onChange={(e) => setQuantidadeAdicionar(Math.max(1, Number(e.target.value.replace(/[.,]/g, '')) || 0))}
                 required
                 autoFocus
                 className="font-mono text-xl font-black text-center"
