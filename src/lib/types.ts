@@ -215,6 +215,10 @@ export interface ItemConsumo {
    * item vira um "barril" e mostra o indicador visual de nível de líquido
    * em vez da foto genérica. */
   capacidade_maxima?: number | null
+  /** Formato do recipiente desenhado quando capacidade_maxima está
+   * preenchida. 'barril' = tambor de óleo (padrão), 'cilindro_gas' = botijão
+   * de gás refrigerante (ex: R-134a). */
+  tipo_recipiente?: 'barril' | 'cilindro_gas' | null
   /** Quantidade de tambores no estoque (o barril desenhado mostra sempre
    * o nível do tambor em uso — isso é só informativo, não entra no %). */
   quantidade_tambores?: number | null

@@ -42,6 +42,7 @@ import { EQUIPE_GVEL, obterNomeCompletoMembro } from '@/constants/equipe'
 import { useEquipeConhecida } from '@/hooks/useEquipeConhecida'
 import { percentualBarril } from '@/lib/barril'
 import { BarrilOleoSVG } from '@/components/BarrilOleoSVG'
+import { CilindroGasSVG } from '@/components/CilindroGasSVG'
 import { isAdminUsuario } from '@/lib/permissoes'
 import { CameraWebcamModal } from '@/components/CameraWebcamModal'
 import { format } from 'date-fns'
@@ -109,9 +110,12 @@ export interface CaixaFerramenta {
 
 const STORAGE_CAIXAS_KEY = 'gvel_inventario_caixas_v1'
 
+const REGEX_UUID_INSUMO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 const CATEGORIAS_CONSUMO = [
   'TODAS',
   'LUBRIFICANTES & QUÍMICOS',
+  'GÁS',
 ]
 
 const CAIXAS_INICIAIS: CaixaFerramenta[] = []
@@ -2542,6 +2546,16 @@ export function InventarioFerramentas() {
                       const isZerado = item.quantidade_atual === 0
                       const isBarril = Boolean(item.capacidade_maxima && item.capacidade_maxima > 0)
                       const pctBarril = isBarril ? percentualBarril(item.quantidade_atual, item.capacidade_maxima!) : 0
+                      // Categoria "GÁS" já usa o desenho de cilindro mesmo sem a coluna
+                      // tipo_recipiente (ainda não migrada) — assim que a migração rodar,
+                      // tipo_recipiente também passa a valer pra outras categorias.
+                      const ehCilindroGas = item.tipo_recipiente === 'cilindro_gas' || item.categoria === 'GÁS'
+                      // Item que nunca chegou a sincronizar com o Supabase (ficou só no
+                      // cache local por causa de uma falha no salvamento) — não é dado
+                      // compartilhado, então qualquer usuário pode descartar esse rascunho,
+                      // mesmo sem permissão de admin.
+                      const itemNaoSincronizado = !REGEX_UUID_INSUMO.test(item.id)
+                      const podeEditarOuExcluirEsteItem = podeExcluir || itemNaoSincronizado || canAccess
 
                       const acoes = (
                         <div className="flex items-center gap-1">
@@ -2580,7 +2594,7 @@ export function InventarioFerramentas() {
 
                       const acoesSecundarias = (
                         <div className="flex items-center gap-0.5">
-                          {podeExcluir && (
+                          {podeEditarOuExcluirEsteItem && (
                             <Button
                               type="button"
                               variant="ghost"
@@ -2595,7 +2609,7 @@ export function InventarioFerramentas() {
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {podeExcluir && (
+                          {podeEditarOuExcluirEsteItem && (
                             <Button
                               type="button"
                               variant="ghost"
@@ -2648,11 +2662,19 @@ export function InventarioFerramentas() {
                               title={`Ver histórico de baixas — Nível do barril: ${pctBarril}%`}
                               className="cursor-pointer transition-transform hover:scale-[1.03] active:scale-95"
                             >
-                              <BarrilOleoSVG
-                                percentual={pctBarril}
-                                rotulo={`GV ${item.numero_tambor_atual || 1}`}
-                                className="h-44 w-44 origin-bottom animate-liquid-sway"
-                              />
+                              {ehCilindroGas ? (
+                                <CilindroGasSVG
+                                  percentual={pctBarril}
+                                  rotulo={`GV ${item.numero_tambor_atual || 1}`}
+                                  className="h-44 w-44 origin-bottom animate-liquid-sway"
+                                />
+                              ) : (
+                                <BarrilOleoSVG
+                                  percentual={pctBarril}
+                                  rotulo={`GV ${item.numero_tambor_atual || 1}`}
+                                  className="h-44 w-44 origin-bottom animate-liquid-sway"
+                                />
+                              )}
                             </button>
 
                             {(isZerado || isAlerta) && (
@@ -6447,6 +6469,15 @@ function ModalItemConsumo({
   const [capacidadeMaxima, setCapacidadeMaxima] = useState(item?.capacidade_maxima ?? 0)
   const [quantidadeTambores, setQuantidadeTambores] = useState(item?.quantidade_tambores ?? 0)
   const [numeroTamborAtual, setNumeroTamborAtual] = useState(item?.numero_tambor_atual ?? 1)
+  const [tipoRecipiente, setTipoRecipiente] = useState<'barril' | 'cilindro_gas'>(
+    item?.tipo_recipiente === 'cilindro_gas' || item?.categoria === 'GÁS' ? 'cilindro_gas' : 'barril',
+  )
+
+  // Escolher a categoria "GÁS" já seleciona o formato cilindro de gás sozinho
+  // (o usuário ainda pode trocar de volta pra barril manualmente se quiser).
+  useEffect(() => {
+    if (categoria === 'GÁS') setTipoRecipiente('cilindro_gas')
+  }, [categoria])
 
   // Campo type="number" trata "." como separador decimal, então "1.000"
   // vira 1 em vez de 1000 — aqui tratamos "." e "," como separador de
@@ -6507,6 +6538,7 @@ function ModalItemConsumo({
         capacidade_maxima: Number(capacidadeMaxima) > 0 ? Number(capacidadeMaxima) : null,
         quantidade_tambores: Number(quantidadeTambores) > 0 ? Number(quantidadeTambores) : null,
         numero_tambor_atual: Number(numeroTamborAtual) > 0 ? Number(numeroTamborAtual) : 1,
+        tipo_recipiente: Number(capacidadeMaxima) > 0 ? tipoRecipiente : null,
         localizacao: localizacao.trim() ? localizacao.trim().toUpperCase() : null,
         observacoes: observacoes.trim() ? observacoes.trim().toUpperCase() : null,
         foto_url: finalFotoUrl,
@@ -6674,17 +6706,62 @@ function ModalItemConsumo({
                   className="font-mono text-base font-bold"
                 />
                 <p className="text-[10px] text-secondary font-medium mt-1">
-                  Preencha para itens tipo barril/tambor — mostra o desenho do barril indicando visualmente quanto líquido ainda resta.
+                  Preencha para itens tipo barril/tambor — mostra o desenho do recipiente indicando visualmente quanto ainda resta.
                 </p>
               </div>
-              {Number(capacidadeMaxima) > 0 && (
-                <BarrilOleoSVG
-                  percentual={percentualBarril(Number(quantidadeAtual) || 0, Number(capacidadeMaxima))}
-                  rotulo={`GV ${numeroTamborAtual || 1}`}
-                  className="h-16 w-16 shrink-0"
-                />
-              )}
+              {Number(capacidadeMaxima) > 0 &&
+                (tipoRecipiente === 'cilindro_gas' ? (
+                  <CilindroGasSVG
+                    percentual={percentualBarril(Number(quantidadeAtual) || 0, Number(capacidadeMaxima))}
+                    rotulo={`GV ${numeroTamborAtual || 1}`}
+                    className="h-16 w-16 shrink-0"
+                  />
+                ) : (
+                  <BarrilOleoSVG
+                    percentual={percentualBarril(Number(quantidadeAtual) || 0, Number(capacidadeMaxima))}
+                    rotulo={`GV ${numeroTamborAtual || 1}`}
+                    className="h-16 w-16 shrink-0"
+                  />
+                ))}
             </div>
+
+            {Number(capacidadeMaxima) > 0 && (
+              <div>
+                <label className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1.5">
+                  Formato do Recipiente
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTipoRecipiente('barril')}
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+                      tipoRecipiente === 'barril'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border/30 bg-surface text-secondary hover:text-foreground'
+                    }`}
+                  >
+                    <BarrilOleoSVG percentual={70} className="h-6 w-6 shrink-0" />
+                    BARRIL / TAMBOR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoRecipiente('cilindro_gas')}
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+                      tipoRecipiente === 'cilindro_gas'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border/30 bg-surface text-secondary hover:text-foreground'
+                    }`}
+                  >
+                    <CilindroGasSVG percentual={70} className="h-6 w-6 shrink-0" />
+                    CILINDRO DE GÁS
+                  </button>
+                </div>
+                <p className="text-[10px] text-secondary font-medium mt-1">
+                  Use "Cilindro de Gás" para gás refrigerante (ex: R-134a) — a mesma barra de nível, mas com a cara de um botijão em vez de um tambor.
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="qtdTambores" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1">

@@ -282,11 +282,31 @@ export function useBaixasConsumo() {
 // ----------------------------------------------------
 // CRUD (grava no Supabase; localStorage vira só cache/fallback)
 // ----------------------------------------------------
+// Se uma migração recente (ex: tipo_recipiente) ainda não rodou no banco do
+// usuário, o Supabase recusa o insert/update inteiro por causa de um campo
+// que a coluna não conhece ainda. Em vez de derrubar o salvamento todo (e
+// cair silenciosamente pro modo offline-only), tenta de novo sem esse campo
+// — assim o resto do cadastro grava normalmente enquanto a migração não roda.
+function removerColunaInexistente<T extends Record<string, any>>(payload: T, mensagemErro: string): T | null {
+  const match = /Could not find the '([^']+)' column/i.exec(mensagemErro)
+  const coluna = match?.[1]
+  if (!coluna || !(coluna in payload)) return null
+  const { [coluna]: _removido, ...resto } = payload
+  console.warn(`Coluna "${coluna}" ainda não existe no banco (rode a migração pendente) — salvando sem ela por enquanto.`)
+  return resto as T
+}
+
 export async function criarInsumo(dados: ItemConsumo): Promise<ItemConsumo> {
   const { id: _id, created_at: _createdAt, ...payload } = dados
 
   try {
-    const { data, error } = await supabase.from('itens_consumo').insert(payload).select().single()
+    let { data, error } = await supabase.from('itens_consumo').insert(payload).select().single()
+    if (error?.message) {
+      const payloadSemColuna = removerColunaInexistente(payload, error.message)
+      if (payloadSemColuna) {
+        ;({ data, error } = await supabase.from('itens_consumo').insert(payloadSemColuna).select().single())
+      }
+    }
     if (!error && data) {
       const novo = data as ItemConsumo
       salvarInsumosLocais([novo, ...getInsumosLocais()])
@@ -307,7 +327,13 @@ export async function atualizarInsumo(id: string, dados: ItemConsumo): Promise<I
 
   try {
     if (isUUID) {
-      const { data, error } = await supabase.from('itens_consumo').update(payload).eq('id', id).select().single()
+      let { data, error } = await supabase.from('itens_consumo').update(payload).eq('id', id).select().single()
+      if (error?.message) {
+        const payloadSemColuna = removerColunaInexistente(payload, error.message)
+        if (payloadSemColuna) {
+          ;({ data, error } = await supabase.from('itens_consumo').update(payloadSemColuna).eq('id', id).select().single())
+        }
+      }
       if (!error && data) {
         const atualizado = data as ItemConsumo
         const locais = getInsumosLocais()
@@ -320,7 +346,13 @@ export async function atualizarInsumo(id: string, dados: ItemConsumo): Promise<I
     } else {
       // Item nunca foi sincronizado (id local de uma versão antiga do app) —
       // ao editar, aproveita e migra ele para uma linha de verdade no banco.
-      const { data, error } = await supabase.from('itens_consumo').insert(payload).select().single()
+      let { data, error } = await supabase.from('itens_consumo').insert(payload).select().single()
+      if (error?.message) {
+        const payloadSemColuna = removerColunaInexistente(payload, error.message)
+        if (payloadSemColuna) {
+          ;({ data, error } = await supabase.from('itens_consumo').insert(payloadSemColuna).select().single())
+        }
+      }
       if (!error && data) {
         const atualizado = data as ItemConsumo
         const locais = getInsumosLocais().filter((it) => it.id !== id)
