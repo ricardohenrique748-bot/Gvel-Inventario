@@ -85,6 +85,10 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     iconeNome: 'DollarSign',
     rotaPadrao: '/financeiro',
     categoria: 'gestao',
+    subModulos: [
+      { id: 'financeiro_visao_geral', label: 'Visão Geral', descricao: 'DRE, indicadores e comparativos por empresa', rota: '/financeiro' },
+      { id: 'financeiro_fluxo_caixa', label: 'Fluxo de Caixa', descricao: 'Lançamentos de entradas e saídas de caixa', rota: '/financeiro?aba=fluxo-caixa' },
+    ],
   },
   {
     id: 'kanban',
@@ -264,6 +268,7 @@ const PREFIXO_PAI_MAP: Record<string, string> = {
   frotas_: 'frotas',
   caminhoes_: 'inventario_caminhoes',
   dashboard_: 'dashboard_gerencial',
+  financeiro_: 'financeiro',
 }
 
 /**

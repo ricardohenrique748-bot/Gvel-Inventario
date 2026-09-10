@@ -44,7 +44,7 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { GlassButton } from '@/components/ui/glass-button'
 import { useAuth } from '@/contexts/AuthContext'
-import { isFinanceiroAuthorized } from '@/components/layout/nav'
+import { isFinanceiroAuthorized, isModuloAuthorized } from '@/components/layout/nav'
 import {
   useFluxoCaixaLancamentos,
   criarLancamentoFluxoCaixa,
@@ -296,23 +296,41 @@ const MESES_OPCOES = [
 ]
 
 export function Financeiro() {
-  const { user, perfilLoading } = useAuth()
-  const autorizado = isFinanceiroAuthorized(user?.email)
+  const { user, perfil, perfilLoading } = useAuth()
+  const userRef = perfil || { email: user?.email }
+  const autorizado = isFinanceiroAuthorized(userRef)
+  const podeVisaoGeral = isModuloAuthorized(userRef, 'financeiro_visao_geral')
+  const podeFluxoCaixa = isModuloAuthorized(userRef, 'financeiro_fluxo_caixa')
 
   // Abas
   const [searchParams, setSearchParams] = useSearchParams()
   const abaParam = searchParams.get('aba')
+  const abaPadrao: AbaFinanceiro = podeVisaoGeral || !podeFluxoCaixa ? 'visao-geral' : 'fluxo-caixa'
   const [abaAtiva, setAbaAtivaState] = useState<AbaFinanceiro>(() =>
-    abaParam && ABAS_VALIDAS.includes(abaParam as AbaFinanceiro) ? (abaParam as AbaFinanceiro) : 'visao-geral',
+    abaParam && ABAS_VALIDAS.includes(abaParam as AbaFinanceiro) ? (abaParam as AbaFinanceiro) : abaPadrao,
   )
 
   useEffect(() => {
     if (abaParam && ABAS_VALIDAS.includes(abaParam as AbaFinanceiro)) {
       setAbaAtivaState(abaParam as AbaFinanceiro)
     } else if (!abaParam) {
-      setAbaAtivaState('visao-geral')
+      setAbaAtivaState(abaPadrao)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abaParam])
+
+  // Se o usuário não tem acesso à aba que está ativa (ex: perdeu a permissão,
+  // ou entrou direto pela URL com ?aba=fluxo-caixa sem ter liberação), pula
+  // para a aba que ele realmente pode ver.
+  useEffect(() => {
+    if (perfilLoading) return
+    if (abaAtiva === 'visao-geral' && !podeVisaoGeral && podeFluxoCaixa) {
+      setAbaAtiva('fluxo-caixa')
+    } else if (abaAtiva === 'fluxo-caixa' && !podeFluxoCaixa && podeVisaoGeral) {
+      setAbaAtiva('visao-geral')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfilLoading, podeVisaoGeral, podeFluxoCaixa, abaAtiva])
 
   function setAbaAtiva(nova: AbaFinanceiro) {
     setAbaAtivaState(nova)
@@ -726,6 +744,7 @@ export function Financeiro() {
       )}
 
       {/* Barra de Abas */}
+      {podeVisaoGeral && podeFluxoCaixa && (
       <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md w-full sm:w-fit">
         <button
           type="button"
@@ -752,8 +771,9 @@ export function Financeiro() {
           FLUXO DE CAIXA
         </button>
       </div>
+      )}
 
-      {abaAtiva === 'visao-geral' && (
+      {abaAtiva === 'visao-geral' && podeVisaoGeral && (
       <>
       {/* ──────────────────────────────────────────────────────────────────────────
           BARRA DE FILTROS SUPERIOR (Empresa, Mês e Plano de Conta)
@@ -1205,23 +1225,23 @@ export function Financeiro() {
               margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
               barGap={8}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.1)" vertical={false} />
               <XAxis
                 dataKey="name"
-                stroke="#FFFFFF"
-                tick={{ fill: '#FFFFFF', fontWeight: 800, fontSize: 12 }}
+                stroke="rgb(var(--color-foreground))"
+                tick={{ fill: 'rgb(var(--color-foreground))', fontWeight: 800, fontSize: 12 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                axisLine={{ stroke: 'rgb(var(--color-border) / 0.2)' }}
               />
               <YAxis
-                stroke="#FFFFFF"
-                tick={{ fill: '#FFFFFF', fontWeight: 700, fontSize: 11 }}
+                stroke="rgb(var(--color-foreground))"
+                tick={{ fill: 'rgb(var(--color-foreground))', fontWeight: 700, fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(val) => fmtCompact(val)}
               />
               <Tooltip
-                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                cursor={{ fill: 'rgb(var(--color-foreground) / 0.03)' }}
                 content={({ active, payload, label }) => {
                   if (!active || !payload || !payload.length) return null
 
@@ -1380,23 +1400,23 @@ export function Financeiro() {
               margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
               barGap={10}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.1)" vertical={false} />
               <XAxis
                 dataKey="mes"
-                stroke="#FFFFFF"
-                tick={{ fill: '#FFFFFF', fontWeight: 800, fontSize: 13 }}
+                stroke="rgb(var(--color-foreground))"
+                tick={{ fill: 'rgb(var(--color-foreground))', fontWeight: 800, fontSize: 13 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                axisLine={{ stroke: 'rgb(var(--color-border) / 0.2)' }}
               />
               <YAxis
-                stroke="#FFFFFF"
-                tick={{ fill: '#FFFFFF', fontWeight: 700, fontSize: 11 }}
+                stroke="rgb(var(--color-foreground))"
+                tick={{ fill: 'rgb(var(--color-foreground))', fontWeight: 700, fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(val) => fmtCompact(val)}
               />
               <Tooltip
-                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                cursor={{ fill: 'rgb(var(--color-foreground) / 0.03)' }}
                 content={({ active, payload, label }) => {
                   if (!active || !payload || !payload.length) return null
 
@@ -1535,23 +1555,23 @@ export function Financeiro() {
               margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
               barGap={8}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.1)" vertical={false} />
               <XAxis
                 dataKey="name"
-                stroke="#FFFFFF"
-                tick={{ fill: '#FFFFFF', fontWeight: 800, fontSize: 12 }}
+                stroke="rgb(var(--color-foreground))"
+                tick={{ fill: 'rgb(var(--color-foreground))', fontWeight: 800, fontSize: 12 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                axisLine={{ stroke: 'rgb(var(--color-border) / 0.2)' }}
               />
               <YAxis
-                stroke="#FFFFFF"
-                tick={{ fill: '#FFFFFF', fontWeight: 700, fontSize: 11 }}
+                stroke="rgb(var(--color-foreground))"
+                tick={{ fill: 'rgb(var(--color-foreground))', fontWeight: 700, fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(val) => fmtCompact(val)}
               />
               <Tooltip
-                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                cursor={{ fill: 'rgb(var(--color-foreground) / 0.03)' }}
                 content={({ active, payload, label }) => {
                   if (!active || !payload || !payload.length) return null
 
@@ -1634,7 +1654,7 @@ export function Financeiro() {
       </>
       )}
 
-      {abaAtiva === 'fluxo-caixa' && (
+      {abaAtiva === 'fluxo-caixa' && podeFluxoCaixa && (
       <>
       {/* ──────────────────────────────────────────────────────────────────────────
           NOVO LANÇAMENTO (ENTRADA / SAÍDA)
@@ -1893,24 +1913,28 @@ export function Financeiro() {
 
         <div className="h-80 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={dadosFluxoCaixaMensal} margin={{ top: 36, right: 20, left: 10, bottom: 10 }} barGap={8}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <ComposedChart data={dadosFluxoCaixaMensal} margin={{ top: 36, right: 20, left: 10, bottom: 24 }} barGap={8}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.1)" vertical={false} />
               <XAxis
                 dataKey="mes"
-                stroke="#FFFFFF"
-                tick={{ fill: '#FFFFFF', fontWeight: 800, fontSize: 12 }}
+                stroke="rgb(var(--color-foreground))"
+                tick={{ fill: 'rgb(var(--color-foreground))', fontWeight: 800, fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                axisLine={{ stroke: 'rgb(var(--color-border) / 0.2)' }}
+                interval={0}
+                angle={-35}
+                textAnchor="end"
+                height={50}
               />
               <YAxis
-                stroke="#FFFFFF"
-                tick={{ fill: '#FFFFFF', fontWeight: 700, fontSize: 11 }}
+                stroke="rgb(var(--color-foreground))"
+                tick={{ fill: 'rgb(var(--color-foreground))', fontWeight: 700, fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(val) => fmtCompact(val)}
               />
               <Tooltip
-                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                cursor={{ fill: 'rgb(var(--color-foreground) / 0.03)' }}
                 content={({ active, payload, label }) => {
                   if (!active || !payload || !payload.length) return null
 

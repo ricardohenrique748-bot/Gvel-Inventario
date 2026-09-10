@@ -135,4 +135,16 @@ export function isEstoqueAuthorized(userOrEmail?: string | Partial<Usuario> | nu
   return temPermissaoModulo({ email: userOrEmail }, 'estoque')
 }
 
+export function isManutencaoAuthorized(userOrEmail?: string | Partial<Usuario> | null): boolean {
+  if (!userOrEmail) return false
+  if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'manutencao')
+  return temPermissaoModulo({ email: userOrEmail }, 'manutencao')
+}
+
+export function isInventarioCaminhoesAuthorized(userOrEmail?: string | Partial<Usuario> | null): boolean {
+  if (!userOrEmail) return false
+  if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'inventario_caminhoes')
+  return temPermissaoModulo({ email: userOrEmail }, 'inventario_caminhoes')
+}
+
 
