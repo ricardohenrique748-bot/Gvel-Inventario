@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp,
   TrendingDown,
@@ -18,6 +18,15 @@ import {
   CheckCircle2,
   ShieldAlert,
   Home,
+  LayoutDashboard,
+  Wallet,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Activity,
+  Plus,
+  Trash2,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -36,6 +45,11 @@ import { Badge } from '@/components/ui/Badge'
 import { GlassButton } from '@/components/ui/glass-button'
 import { useAuth } from '@/contexts/AuthContext'
 import { isFinanceiroAuthorized } from '@/components/layout/nav'
+import {
+  useFluxoCaixaLancamentos,
+  criarLancamentoFluxoCaixa,
+  excluirLancamentoFluxoCaixa,
+} from '@/hooks/useFluxoCaixaLancamentos'
 
 // ─── Helpers de Formatação ──────────────────────────────────────────────────
 function fmtBRL(val: number) {
@@ -267,6 +281,9 @@ const DADOS_MESES: Record<string, MesFinanceiroData> = {
   },
 }
 
+type AbaFinanceiro = 'visao-geral' | 'fluxo-caixa'
+const ABAS_VALIDAS: AbaFinanceiro[] = ['visao-geral', 'fluxo-caixa']
+
 const MESES_OPCOES = [
   { id: 'todos', label: 'Todos os Meses (Janeiro a Julho / Consolidado)' },
   { id: 'julho', label: 'Julho' },
@@ -281,6 +298,34 @@ const MESES_OPCOES = [
 export function Financeiro() {
   const { user, perfilLoading } = useAuth()
   const autorizado = isFinanceiroAuthorized(user?.email)
+
+  // Abas
+  const [searchParams, setSearchParams] = useSearchParams()
+  const abaParam = searchParams.get('aba')
+  const [abaAtiva, setAbaAtivaState] = useState<AbaFinanceiro>(() =>
+    abaParam && ABAS_VALIDAS.includes(abaParam as AbaFinanceiro) ? (abaParam as AbaFinanceiro) : 'visao-geral',
+  )
+
+  useEffect(() => {
+    if (abaParam && ABAS_VALIDAS.includes(abaParam as AbaFinanceiro)) {
+      setAbaAtivaState(abaParam as AbaFinanceiro)
+    } else if (!abaParam) {
+      setAbaAtivaState('visao-geral')
+    }
+  }, [abaParam])
+
+  function setAbaAtiva(nova: AbaFinanceiro) {
+    setAbaAtivaState(nova)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (nova === 'visao-geral') {
+        next.delete('aba')
+      } else {
+        next.set('aba', nova)
+      }
+      return next
+    })
+  }
 
   // Filtros
   const [empresaFiltro, setEmpresaFiltro] = useState<string>('TODAS')
@@ -452,6 +497,162 @@ export function Financeiro() {
     })
   }, [empresaFiltro])
 
+  // Fluxo de Caixa: lançamentos reais (entradas e saídas) persistidos no Supabase
+  const { lancamentos, loading: carregandoLancamentos, error: erroLancamentos } = useFluxoCaixaLancamentos()
+
+  const [novoLancamento, setNovoLancamento] = useState({
+    data: new Date().toISOString().slice(0, 10),
+    movimentacao: 'entrada' as 'entrada' | 'saida',
+    descricao: '',
+    valor: '',
+    observacao: '',
+  })
+  const [salvandoLancamento, setSalvandoLancamento] = useState(false)
+  const [erroFormLancamento, setErroFormLancamento] = useState<string | null>(null)
+  const [excluindoLancamentoId, setExcluindoLancamentoId] = useState<string | null>(null)
+
+  async function handleAdicionarLancamento(e: React.FormEvent) {
+    e.preventDefault()
+    setErroFormLancamento(null)
+
+    const valorNumerico = Number(novoLancamento.valor.replace(',', '.'))
+    if (!novoLancamento.data || !novoLancamento.descricao.trim() || !valorNumerico || valorNumerico <= 0) {
+      setErroFormLancamento('Preencha data, descrição e um valor válido para lançar.')
+      return
+    }
+
+    setSalvandoLancamento(true)
+    try {
+      await criarLancamentoFluxoCaixa({
+        data: novoLancamento.data,
+        movimentacao: novoLancamento.movimentacao,
+        descricao: novoLancamento.descricao.trim().toUpperCase(),
+        valor: valorNumerico,
+        observacao: novoLancamento.observacao.trim() || undefined,
+        usuarioNome: user?.email,
+      })
+      setNovoLancamento((prev) => ({ ...prev, descricao: '', valor: '', observacao: '' }))
+    } catch (err) {
+      setErroFormLancamento(err instanceof Error ? err.message : 'Erro ao salvar lançamento.')
+    } finally {
+      setSalvandoLancamento(false)
+    }
+  }
+
+  async function handleExcluirLancamento(id: string) {
+    setExcluindoLancamentoId(id)
+    try {
+      await excluirLancamentoFluxoCaixa(id)
+    } catch (err) {
+      console.warn('Erro ao excluir lançamento:', err)
+    } finally {
+      setExcluindoLancamentoId(null)
+    }
+  }
+
+  const lancamentosOrdenadosCronologicamente = useMemo(() => {
+    return [...lancamentos].sort((a, b) => a.data.localeCompare(b.data) || a.createdAt.localeCompare(b.createdAt))
+  }, [lancamentos])
+
+  // Agrupamento mensal (só para o gráfico, que fica ilegível com uma barra por lançamento)
+  const dadosFluxoCaixaMensal = useMemo(() => {
+    const porMes = new Map<
+      string,
+      { label: string; Entradas: number; Saidas: number; primeiraData: string; ultimaData: string }
+    >()
+
+    for (const l of lancamentosOrdenadosCronologicamente) {
+      const [ano, mes] = l.data.split('-')
+      const key = `${ano}-${mes}`
+      if (!porMes.has(key)) {
+        const label = new Date(Number(ano), Number(mes) - 1, 1).toLocaleDateString('pt-BR', {
+          month: 'short',
+          year: '2-digit',
+        })
+        porMes.set(key, {
+          label: label.replace('.', '').toUpperCase(),
+          Entradas: 0,
+          Saidas: 0,
+          primeiraData: l.data,
+          ultimaData: l.data,
+        })
+      }
+      const bucket = porMes.get(key)!
+      if (l.movimentacao === 'entrada') bucket.Entradas += l.valor
+      else bucket.Saidas += l.valor
+      if (l.data < bucket.primeiraData) bucket.primeiraData = l.data
+      if (l.data > bucket.ultimaData) bucket.ultimaData = l.data
+    }
+
+    const fmtDia = (iso: string) => {
+      const [ano, mes, dia] = iso.split('-')
+      return `${dia}/${mes}/${ano}`
+    }
+
+    let acumulado = 0
+    return [...porMes.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, v]) => {
+        const saldoMes = v.Entradas - v.Saidas
+        acumulado += saldoMes
+        const periodo =
+          v.primeiraData === v.ultimaData
+            ? fmtDia(v.primeiraData)
+            : `${fmtDia(v.primeiraData)} A ${fmtDia(v.ultimaData)}`
+        return {
+          id: key,
+          mes: v.label,
+          periodo,
+          Entradas: v.Entradas,
+          Saidas: v.Saidas,
+          saldoMes,
+          saldoAcumulado: acumulado,
+        }
+      })
+  }, [lancamentosOrdenadosCronologicamente])
+
+  // Extrato: um lançamento por linha, na ordem da planilha, com saldo acumulado
+  const dadosFluxoCaixaDetalhado = useMemo(() => {
+    let acumulado = 0
+    return lancamentosOrdenadosCronologicamente.map((l) => {
+      const entrada = l.movimentacao === 'entrada' ? l.valor : 0
+      const saida = l.movimentacao === 'saida' ? l.valor : 0
+      acumulado += entrada - saida
+      return {
+        id: l.id,
+        data: l.data,
+        descricao: l.descricao,
+        movimentacao: l.movimentacao,
+        Entradas: entrada,
+        Saidas: saida,
+        saldoAcumulado: acumulado,
+      }
+    })
+  }, [lancamentosOrdenadosCronologicamente])
+
+  const totaisFluxoCaixa = useMemo(() => {
+    const totalEntradas = lancamentos
+      .filter((l) => l.movimentacao === 'entrada')
+      .reduce((acc, l) => acc + l.valor, 0)
+    const totalSaidas = lancamentos.filter((l) => l.movimentacao === 'saida').reduce((acc, l) => acc + l.valor, 0)
+    const saldoPeriodo = totalEntradas - totalSaidas
+    const saldoFinal =
+      dadosFluxoCaixaDetalhado[dadosFluxoCaixaDetalhado.length - 1]?.saldoAcumulado ?? saldoPeriodo
+
+    return { totalEntradas, totalSaidas, saldoPeriodo, saldoFinal }
+  }, [lancamentos, dadosFluxoCaixaDetalhado])
+
+  const periodoLancamentosLabel = useMemo(() => {
+    if (lancamentosOrdenadosCronologicamente.length === 0) return 'Nenhum lançamento'
+    const primeira = lancamentosOrdenadosCronologicamente[0].data
+    const ultima = lancamentosOrdenadosCronologicamente[lancamentosOrdenadosCronologicamente.length - 1].data
+    const fmt = (iso: string) => {
+      const [ano, mes, dia] = iso.split('-')
+      return `${dia}/${mes}/${ano}`
+    }
+    return primeira === ultima ? fmt(primeira) : `${fmt(primeira)} a ${fmt(ultima)}`
+  }, [lancamentosOrdenadosCronologicamente])
+
   if (!perfilLoading && !autorizado) {
     return (
       <div className="flex min-h-[65vh] flex-col items-center justify-center p-6 text-center animate-fade-in uppercase">
@@ -524,6 +725,36 @@ export function Financeiro() {
         </div>
       )}
 
+      {/* Barra de Abas */}
+      <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md w-full sm:w-fit">
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('visao-geral')}
+          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
+            abaAtiva === 'visao-geral'
+              ? 'bg-primary text-white shadow-md shadow-primary/20'
+              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+          }`}
+        >
+          <LayoutDashboard className="h-4 w-4" />
+          VISÃO GERAL
+        </button>
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('fluxo-caixa')}
+          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
+            abaAtiva === 'fluxo-caixa'
+              ? 'bg-primary text-white shadow-md shadow-primary/20'
+              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+          }`}
+        >
+          <Wallet className="h-4 w-4" />
+          FLUXO DE CAIXA
+        </button>
+      </div>
+
+      {abaAtiva === 'visao-geral' && (
+      <>
       {/* ──────────────────────────────────────────────────────────────────────────
           BARRA DE FILTROS SUPERIOR (Empresa, Mês e Plano de Conta)
          ────────────────────────────────────────────────────────────────────────── */}
@@ -1400,6 +1631,432 @@ export function Financeiro() {
           </ResponsiveContainer>
         </div>
       </Card>
+      </>
+      )}
+
+      {abaAtiva === 'fluxo-caixa' && (
+      <>
+      {/* ──────────────────────────────────────────────────────────────────────────
+          NOVO LANÇAMENTO (ENTRADA / SAÍDA)
+         ────────────────────────────────────────────────────────────────────────── */}
+      <Card className="p-4 sm:p-5 border-border/30 bg-surface/60 shadow-md">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
+            <Plus className="h-4 w-4" />
+          </div>
+          <h3 className="text-sm font-black text-foreground uppercase">NOVO LANÇAMENTO</h3>
+        </div>
+
+        <form onSubmit={handleAdicionarLancamento} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div>
+              <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                <Calendar className="h-3.5 w-3.5 text-primary" />
+                DATA
+              </label>
+              <input
+                type="date"
+                value={novoLancamento.data}
+                onChange={(e) => setNovoLancamento((prev) => ({ ...prev, data: e.target.value }))}
+                className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                <Scale className="h-3.5 w-3.5 text-primary" />
+                MOVIMENTAÇÃO
+              </label>
+              <select
+                value={novoLancamento.movimentacao}
+                onChange={(e) =>
+                  setNovoLancamento((prev) => ({ ...prev, movimentacao: e.target.value as 'entrada' | 'saida' }))
+                }
+                className={`h-10 w-full rounded-xl border px-3 text-xs font-black uppercase focus:outline-none focus:ring-1 transition-colors ${
+                  novoLancamento.movimentacao === 'entrada'
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 focus:ring-emerald-500'
+                    : 'border-red-500/40 bg-red-500/10 text-red-400 focus:ring-red-500'
+                }`}
+              >
+                <option value="entrada">ENTRADA</option>
+                <option value="saida">SAÍDA</option>
+              </select>
+            </div>
+
+            <div className="lg:col-span-2">
+              <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                <Tag className="h-3.5 w-3.5 text-primary" />
+                DESCRIÇÃO
+              </label>
+              <input
+                type="text"
+                value={novoLancamento.descricao}
+                onChange={(e) => setNovoLancamento((prev) => ({ ...prev, descricao: e.target.value }))}
+                placeholder="EX: VALE TRANSPORTE"
+                className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground placeholder:text-secondary/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                <DollarSign className="h-3.5 w-3.5 text-primary" />
+                VALOR (R$)
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={novoLancamento.valor}
+                onChange={(e) => setNovoLancamento((prev) => ({ ...prev, valor: e.target.value }))}
+                placeholder="0,00"
+                className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-mono font-bold text-foreground placeholder:text-secondary/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+            <div className="flex-1">
+              <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                <List className="h-3.5 w-3.5 text-primary" />
+                OBSERVAÇÃO
+              </label>
+              <input
+                type="text"
+                value={novoLancamento.observacao}
+                onChange={(e) => setNovoLancamento((prev) => ({ ...prev, observacao: e.target.value }))}
+                placeholder="OPCIONAL"
+                className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground placeholder:text-secondary/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors"
+              />
+            </div>
+
+            <GlassButton
+              type="submit"
+              size="sm"
+              variant="primary"
+              disabled={salvandoLancamento}
+              contentClassName="flex items-center justify-center gap-2 text-xs font-bold text-white px-4"
+            >
+              {salvandoLancamento ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Plus className="h-3.5 w-3.5" />
+              )}
+              <span>{salvandoLancamento ? 'SALVANDO...' : 'ADICIONAR LANÇAMENTO'}</span>
+            </GlassButton>
+          </div>
+
+          {erroFormLancamento && (
+            <div className="flex items-center gap-2 text-[11px] font-bold text-red-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>{erroFormLancamento}</span>
+            </div>
+          )}
+        </form>
+      </Card>
+
+      {erroLancamentos && (
+        <div className="flex items-center gap-2 p-3 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-bold animate-fade-in">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>{erroLancamentos}</span>
+        </div>
+      )}
+
+      {/* ──────────────────────────────────────────────────────────────────────────
+          CARDS DE KPIS DO FLUXO DE CAIXA
+         ────────────────────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <Card className="p-3 sm:p-4 border-emerald-500/20 bg-emerald-500/5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span className="text-[10px] font-black tracking-wider text-emerald-400 uppercase">TOTAL ENTRADAS</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+              <ArrowUpCircle className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black text-emerald-400 whitespace-nowrap tracking-tight leading-tight my-1">
+            {fmtBRL(totaisFluxoCaixa.totalEntradas)}
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">{periodoLancamentosLabel}</span>
+        </Card>
+
+        <Card className="p-3 sm:p-4 border-red-500/20 bg-red-500/5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span className="text-[10px] font-black tracking-wider text-red-400 uppercase">TOTAL SAÍDAS</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
+              <ArrowDownCircle className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black text-red-400 whitespace-nowrap tracking-tight leading-tight my-1">
+            {fmtBRL(totaisFluxoCaixa.totalSaidas)}
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">{periodoLancamentosLabel}</span>
+        </Card>
+
+        <Card
+          className={`p-3 sm:p-4 shadow-sm border flex flex-col justify-between ${
+            totaisFluxoCaixa.saldoPeriodo >= 0
+              ? 'border-emerald-500/20 bg-emerald-500/5'
+              : 'border-red-500/30 bg-red-500/10'
+          }`}
+        >
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span
+              className={`text-[10px] font-black tracking-wider uppercase ${
+                totaisFluxoCaixa.saldoPeriodo >= 0 ? 'text-emerald-400' : 'text-red-400'
+              }`}
+            >
+              SALDO DO PERÍODO
+            </span>
+            <div
+              className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                totaisFluxoCaixa.saldoPeriodo >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+              }`}
+            >
+              <Activity className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p
+            className={`text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black whitespace-nowrap tracking-tight leading-tight my-1 ${
+              totaisFluxoCaixa.saldoPeriodo >= 0 ? 'text-emerald-400' : 'text-red-400'
+            }`}
+          >
+            {fmtBRL(totaisFluxoCaixa.saldoPeriodo)}
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Entradas - Saídas</span>
+        </Card>
+
+        <Card
+          className={`p-3 sm:p-4 shadow-sm border flex flex-col justify-between ${
+            totaisFluxoCaixa.saldoFinal >= 0
+              ? 'border-emerald-500/20 bg-emerald-500/5'
+              : 'border-red-500/30 bg-red-500/10'
+          }`}
+        >
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span
+              className={`text-[10px] font-black tracking-wider uppercase ${
+                totaisFluxoCaixa.saldoFinal >= 0 ? 'text-emerald-400' : 'text-red-400'
+              }`}
+            >
+              SALDO ACUMULADO FINAL
+            </span>
+            <div
+              className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                totaisFluxoCaixa.saldoFinal >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+              }`}
+            >
+              <Wallet className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p
+            className={`text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black whitespace-nowrap tracking-tight leading-tight my-1 ${
+              totaisFluxoCaixa.saldoFinal >= 0 ? 'text-emerald-400' : 'text-red-400'
+            }`}
+          >
+            {fmtBRL(totaisFluxoCaixa.saldoFinal)}
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Saldo acumulado dos lançamentos</span>
+        </Card>
+      </div>
+
+      {/* ──────────────────────────────────────────────────────────────────────────
+          GRÁFICO: EVOLUÇÃO DO SALDO DE CAIXA ACUMULADO
+         ────────────────────────────────────────────────────────────────────────── */}
+      <Card className="p-5 sm:p-6 border-border/30 bg-surface/50 shadow-lg space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/20 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                <Wallet className="h-4 w-4" />
+              </div>
+              <h3 className="text-sm sm:text-base font-black text-foreground uppercase tracking-wide">
+                FLUXO DE CAIXA — ENTRADAS × SAÍDAS × SALDO ACUMULADO
+              </h3>
+            </div>
+            <p className="text-xs text-secondary font-medium mt-1">
+              Movimentação de caixa mês a mês, com base nos lançamentos registrados
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 bg-background/60 border border-border/20 px-3 py-1.5 rounded-xl text-xs font-bold">
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-sm" /> ENTRADAS
+            </span>
+            <span className="text-border/40">•</span>
+            <span className="flex items-center gap-1.5 text-red-400">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-sm" /> SAÍDAS
+            </span>
+            <span className="text-border/40">•</span>
+            <span className="flex items-center gap-1.5 text-amber-400">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-sm" /> SALDO ACUMULADO
+            </span>
+          </div>
+        </div>
+
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={dadosFluxoCaixaMensal} margin={{ top: 36, right: 20, left: 10, bottom: 10 }} barGap={8}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis
+                dataKey="mes"
+                stroke="#FFFFFF"
+                tick={{ fill: '#FFFFFF', fontWeight: 800, fontSize: 12 }}
+                tickLine={false}
+                axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+              />
+              <YAxis
+                stroke="#FFFFFF"
+                tick={{ fill: '#FFFFFF', fontWeight: 700, fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(val) => fmtCompact(val)}
+              />
+              <Tooltip
+                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || !payload.length) return null
+
+                  const entradas = Number(payload.find((p) => p.dataKey === 'Entradas')?.value || 0)
+                  const saidas = Number(payload.find((p) => p.dataKey === 'Saidas')?.value || 0)
+                  const acumulado = Number(payload.find((p) => p.dataKey === 'saldoAcumulado')?.value || 0)
+                  const saldoMes = entradas - saidas
+
+                  return (
+                    <div className="rounded-2xl border border-border/40 bg-surface/95 p-4 shadow-2xl backdrop-blur-md uppercase text-xs space-y-2 min-w-[250px]">
+                      <div className="border-b border-border/20 pb-2 flex items-center justify-between">
+                        <span className="font-black text-foreground text-sm flex items-center gap-1.5">📅 {label}</span>
+                      </div>
+
+                      <div className="space-y-1.5 font-mono">
+                        <div className="flex items-center justify-between">
+                          <span className="text-emerald-400 font-sans font-bold flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" /> ENTRADAS:
+                          </span>
+                          <span className="font-bold text-foreground">{fmtBRL(entradas)}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-red-400 font-sans font-bold flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-red-500" /> SAÍDAS:
+                          </span>
+                          <span className="font-bold text-foreground">{fmtBRL(saidas)}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-border/20 pt-2 space-y-1 font-mono text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-secondary font-sans font-bold">SALDO DO MÊS:</span>
+                          <span className={`font-black ${saldoMes >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {fmtBRL(saldoMes)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-secondary font-sans font-bold">SALDO ACUMULADO:</span>
+                          <span className={`font-black ${acumulado >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                            {fmtBRL(acumulado)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+              <Bar dataKey="Entradas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={56} />
+              <Bar dataKey="Saidas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={56} />
+              <Line
+                type="monotone"
+                dataKey="saldoAcumulado"
+                name="Saldo Acumulado"
+                stroke="#fbbf24"
+                strokeWidth={3}
+                dot={{ r: 6, fill: '#f59e0b', stroke: '#ffffff', strokeWidth: 2 }}
+                activeDot={{ r: 8, stroke: '#ffffff', strokeWidth: 2 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
+      {/* ──────────────────────────────────────────────────────────────────────────
+          LIVRO-CAIXA: TODOS OS LANÇAMENTOS (DATA, MOVIMENTAÇÃO, DESCRIÇÃO, VALOR, OBSERVAÇÃO)
+         ────────────────────────────────────────────────────────────────────────── */}
+      <Card className="overflow-hidden border-border/30 bg-surface/50 shadow-md">
+        <div className="border-b border-border/20 bg-surface/80 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-primary" />
+            <h3 className="text-sm font-black text-foreground uppercase">LANÇAMENTOS</h3>
+          </div>
+          <Badge tone="neutral" className="text-[10px] font-bold">
+            {lancamentos.length} {lancamentos.length === 1 ? 'REGISTRO' : 'REGISTROS'}
+          </Badge>
+        </div>
+
+        {carregandoLancamentos ? (
+          <div className="p-8 flex items-center justify-center gap-2 text-xs text-secondary font-medium">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            CARREGANDO LANÇAMENTOS...
+          </div>
+        ) : lancamentos.length === 0 ? (
+          <div className="p-8 text-center text-xs text-secondary font-medium lowercase">
+            Nenhum lançamento registrado ainda. Use o formulário acima para começar.
+          </div>
+        ) : (
+        <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-border/30 bg-surface text-secondary font-black uppercase text-[11px]">
+                <th className="py-3 px-4">DATA</th>
+                <th className="py-3 px-4">MOVIMENTAÇÃO</th>
+                <th className="py-3 px-4">DESCRIÇÃO</th>
+                <th className="py-3 px-4 text-right">VALOR</th>
+                <th className="py-3 px-4">OBSERVAÇÃO</th>
+                <th className="py-3 px-4 text-center">AÇÕES</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/10 font-mono">
+              {lancamentos.map((l) => {
+                const isEntrada = l.movimentacao === 'entrada'
+                const [ano, mes, dia] = l.data.split('-')
+
+                return (
+                  <tr
+                    key={l.id}
+                    className={`transition-colors ${isEntrada ? 'bg-emerald-500/10 hover:bg-emerald-500/15' : 'bg-red-500/10 hover:bg-red-500/15'}`}
+                  >
+                    <td className="py-2.5 px-4 font-bold text-foreground whitespace-nowrap">{`${dia}/${mes}/${ano}`}</td>
+                    <td className="py-2.5 px-4">
+                      <Badge tone={isEntrada ? 'success' : 'danger'} className="text-[9px] font-bold">
+                        {isEntrada ? 'ENTRADA' : 'SAÍDA'}
+                      </Badge>
+                    </td>
+                    <td className="py-2.5 px-4 font-sans font-bold text-foreground">{l.descricao}</td>
+                    <td className={`py-2.5 px-4 text-right font-black ${isEntrada ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {fmtBRL(l.valor)}
+                    </td>
+                    <td className="py-2.5 px-4 font-sans text-secondary lowercase">{l.observacao || '—'}</td>
+                    <td className="py-2.5 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleExcluirLancamento(l.id)}
+                        disabled={excluindoLancamentoId === l.id}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-secondary hover:bg-red-500/15 hover:text-red-400 transition-colors disabled:opacity-50"
+                        title="Excluir lançamento"
+                      >
+                        {excluindoLancamentoId === l.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        )}
+      </Card>
+      </>
+      )}
 
       {/* ────────────────────────────────────────────────────────────────────────
           MODAL: HISTÓRICO DE APURAÇÕES

@@ -290,3 +290,14 @@ export interface RegistroChecklist {
   tipoChecklist?: 'ida' | 'volta'
 }
 
+export interface LancamentoFluxoCaixa {
+  id: string
+  data: string
+  movimentacao: 'entrada' | 'saida'
+  descricao: string
+  valor: number
+  observacao?: string
+  usuarioNome?: string
+  createdAt: string
+}
+
