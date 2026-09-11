@@ -6911,6 +6911,15 @@ function ModalItemConsumo({
   )
 }
 
+// Unidades "grandes" que também aceitam baixa na fração menor (ex: óleo
+// medido em LT, mas dá pra dar baixa em ML — útil pra consumos pequenos tipo
+// completar nível). O estoque em si continua guardado sempre na unidade base.
+const SUBUNIDADE_CONSUMO: Record<string, { sigla: string; fator: number }> = {
+  LT: { sigla: 'ML', fator: 1000 },
+  L: { sigla: 'ML', fator: 1000 },
+  KG: { sigla: 'G', fator: 1000 },
+}
+
 // ----------------------------------------------------------------------------------
 // Subcomponente: Modal de Baixa / Consumo de Insumo
 // ----------------------------------------------------------------------------------
@@ -6931,6 +6940,7 @@ function ModalBaixaConsumo({
 }) {
   const [itemId, setItemId] = useState(itemPreSelecionado?.id || itensDisponiveis[0]?.id || '')
   const [quantidade, setQuantidade] = useState(1)
+  const [usarSubunidade, setUsarSubunidade] = useState(false)
   const [responsavel, setResponsavel] = useState('')
   const [placa, setPlaca] = useState('')
   const [motivo, setMotivo] = useState('')
@@ -6946,6 +6956,12 @@ function ModalBaixaConsumo({
 
   const itemAtual = itensDisponiveis.find((it) => it.id === itemId) ?? itemPreSelecionado
   const maxQtd = itemAtual?.quantidade_atual || 1
+  const subunidade = itemAtual ? SUBUNIDADE_CONSUMO[itemAtual.unidade] : undefined
+  const unidadeExibida = usarSubunidade && subunidade ? subunidade.sigla : itemAtual?.unidade
+  const maxQtdNaUnidade = usarSubunidade && subunidade ? maxQtd * subunidade.fator : maxQtd
+  // Quantidade digitada, convertida de volta pra unidade base do estoque (ex: 500 ML -> 0.5 LT).
+  const quantidadeNaUnidadeBase =
+    usarSubunidade && subunidade ? Math.round((quantidade / subunidade.fator) * 1000) / 1000 : quantidade
 
   // Equipe conhecida = cadastro fixo (mecânicos, funileiros, estética/polimento, pintura) + quem
   // já apontou horas no Indicador de Performance (fonte real, sempre atualizada com novos contratados)
@@ -7028,8 +7044,8 @@ function ModalBaixaConsumo({
       setErro('Informe o responsável.')
       return
     }
-    if (quantidade <= 0 || quantidade > itemAtual.quantidade_atual) {
-      setErro(`Quantidade inválida (máx: ${itemAtual.quantidade_atual}).`)
+    if (quantidadeNaUnidadeBase <= 0 || quantidadeNaUnidadeBase > itemAtual.quantidade_atual) {
+      setErro(`Quantidade inválida (máx: ${maxQtdNaUnidade} ${unidadeExibida}).`)
       return
     }
 
@@ -7049,7 +7065,7 @@ function ModalBaixaConsumo({
         item_id: itemAtual.id,
         item_nome: itemAtual.nome,
         unidade: itemAtual.unidade,
-        quantidade,
+        quantidade: quantidadeNaUnidadeBase,
         responsavel: responsavel.trim().toUpperCase(),
         foto_responsavel_url: finalFotoUrl,
         placa: placa.trim() ? placa.trim().toUpperCase() : null,
@@ -7105,6 +7121,7 @@ function ModalBaixaConsumo({
               onChange={(e) => {
                 setItemId(e.target.value)
                 setQuantidade(1)
+                setUsarSubunidade(false)
               }}
               className="h-10 w-full rounded-xl border border-border/20 bg-background px-3 text-xs font-bold text-foreground uppercase focus:border-primary focus:outline-none"
             >
@@ -7127,6 +7144,36 @@ function ModalBaixaConsumo({
                   Disp: {itemAtual.quantidade_atual} {itemAtual.unidade}
                 </span>
               </div>
+              {subunidade && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!usarSubunidade) return
+                      setQuantidade(1)
+                      setUsarSubunidade(false)
+                    }}
+                    className={`flex-1 rounded-lg px-2 py-1 text-[11px] font-black uppercase transition-colors ${
+                      !usarSubunidade ? 'bg-primary/15 text-primary border border-primary/30' : 'bg-surface text-secondary border border-border/20'
+                    }`}
+                  >
+                    {itemAtual.unidade}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (usarSubunidade) return
+                      setQuantidade(1)
+                      setUsarSubunidade(true)
+                    }}
+                    className={`flex-1 rounded-lg px-2 py-1 text-[11px] font-black uppercase transition-colors ${
+                      usarSubunidade ? 'bg-primary/15 text-primary border border-primary/30' : 'bg-surface text-secondary border border-border/20'
+                    }`}
+                  >
+                    {subunidade.sigla}
+                  </button>
+                </div>
+              )}
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -7141,21 +7188,21 @@ function ModalBaixaConsumo({
                     type="text"
                     inputMode="numeric"
                     min={1}
-                    max={maxQtd}
+                    max={maxQtdNaUnidade}
                     value={quantidade}
                     onChange={(e) => {
                       const val = Number(e.target.value.replace(/[.,]/g, '')) || 0
-                      setQuantidade(Math.min(maxQtd, Math.max(0, val)))
+                      setQuantidade(Math.min(maxQtdNaUnidade, Math.max(0, val)))
                     }}
-                    onBlur={() => setQuantidade((q) => Math.min(maxQtd, Math.max(1, q)))}
+                    onBlur={() => setQuantidade((q) => Math.min(maxQtdNaUnidade, Math.max(1, q)))}
                     className="w-24 bg-transparent text-center font-mono text-2xl font-black text-foreground focus:outline-none focus:ring-1 focus:ring-primary rounded-lg"
                   />
-                  <span className="text-xs font-semibold text-secondary">{itemAtual.unidade}</span>
+                  <span className="text-xs font-semibold text-secondary">{unidadeExibida}</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setQuantidade((q) => Math.min(maxQtd, q + 1))}
-                  disabled={quantidade >= maxQtd}
+                  onClick={() => setQuantidade((q) => Math.min(maxQtdNaUnidade, q + 1))}
+                  disabled={quantidade >= maxQtdNaUnidade}
                   className="h-10 w-10 rounded-xl bg-surface border border-border/30 font-bold text-lg text-foreground hover:bg-surface/80 disabled:opacity-30 transition-all"
                 >
                   +

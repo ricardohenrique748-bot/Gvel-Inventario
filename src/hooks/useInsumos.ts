@@ -8,6 +8,34 @@ const STORAGE_EXCLUIDOS_CONSUMO_KEY = 'gvel_inventario_consumo_excluidos_v1'
 
 const REGEX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// Colunas `numeric` do Postgres voltam como string no PostgREST (pra não
+// perder precisão) — sem isso, contas tipo `quantidade_atual + qtd` viram
+// concatenação de texto em vez de soma.
+function normalizarItemConsumo(item: ItemConsumo): ItemConsumo {
+  return {
+    ...item,
+    quantidade_atual: Number(item.quantidade_atual) || 0,
+    quantidade_minima: Number(item.quantidade_minima) || 0,
+    capacidade_maxima: item.capacidade_maxima != null ? Number(item.capacidade_maxima) : item.capacidade_maxima,
+    quantidade_tambores: item.quantidade_tambores != null ? Number(item.quantidade_tambores) : item.quantidade_tambores,
+    numero_tambor_atual: item.numero_tambor_atual != null ? Number(item.numero_tambor_atual) : item.numero_tambor_atual,
+  }
+}
+
+// Evita sujeira de ponto flutuante (ex: 220.5 - 0.001 = 220.49900000000002)
+// em contas de litros fracionados por baixas em ml.
+function arredondar3(valor: number): number {
+  return Math.round(valor * 1000) / 1000
+}
+
+function normalizarBaixaConsumo(baixa: RegistroBaixaConsumo): RegistroBaixaConsumo {
+  return {
+    ...baixa,
+    quantidade: Number(baixa.quantidade) || 0,
+    quantidade_restante: baixa.quantidade_restante != null ? Number(baixa.quantidade_restante) : baixa.quantidade_restante,
+  }
+}
+
 // ----------------------------------------------------
 // Helpers de LocalStorage (cache/offline, não é mais a fonte da verdade)
 // ----------------------------------------------------
@@ -115,7 +143,7 @@ export async function fetchTodosInsumosSupabase(): Promise<ItemConsumo[]> {
     }
 
     if (data && data.length > 0) {
-      todos.push(...(data as ItemConsumo[]))
+      todos.push(...(data as ItemConsumo[]).map(normalizarItemConsumo))
       temMais = data.length >= pageSize
       page++
     } else {
@@ -147,7 +175,7 @@ export async function fetchTodasBaixasConsumoSupabase(): Promise<RegistroBaixaCo
     }
 
     if (data && data.length > 0) {
-      todas.push(...(data as RegistroBaixaConsumo[]))
+      todas.push(...(data as RegistroBaixaConsumo[]).map(normalizarBaixaConsumo))
       temMais = data.length >= pageSize
       page++
     } else {
@@ -308,7 +336,7 @@ export async function criarInsumo(dados: ItemConsumo): Promise<ItemConsumo> {
       }
     }
     if (!error && data) {
-      const novo = data as ItemConsumo
+      const novo = normalizarItemConsumo(data as ItemConsumo)
       salvarInsumosLocais([novo, ...getInsumosLocais()])
       return novo
     }
@@ -335,7 +363,7 @@ export async function atualizarInsumo(id: string, dados: ItemConsumo): Promise<I
         }
       }
       if (!error && data) {
-        const atualizado = data as ItemConsumo
+        const atualizado = normalizarItemConsumo(data as ItemConsumo)
         const locais = getInsumosLocais()
         const idx = locais.findIndex((it) => it.id === id)
         if (idx >= 0) locais[idx] = atualizado
@@ -354,7 +382,7 @@ export async function atualizarInsumo(id: string, dados: ItemConsumo): Promise<I
         }
       }
       if (!error && data) {
-        const atualizado = data as ItemConsumo
+        const atualizado = normalizarItemConsumo(data as ItemConsumo)
         const locais = getInsumosLocais().filter((it) => it.id !== id)
         salvarInsumosLocais([atualizado, ...locais])
         return atualizado
@@ -398,7 +426,7 @@ export async function registrarBaixaConsumo(
   item: ItemConsumo,
   baixa: RegistroBaixaConsumo,
 ): Promise<{ item: ItemConsumo; baixa: RegistroBaixaConsumo }> {
-  const restante = Math.max(0, item.quantidade_atual - baixa.quantidade)
+  const restante = Math.max(0, arredondar3(item.quantidade_atual - baixa.quantidade))
   const temReserva = restante <= 0 && Boolean(item.capacidade_maxima) && (item.quantidade_tambores || 0) > 0
 
   const camposItem = temReserva
@@ -434,7 +462,7 @@ export async function registrarBaixaConsumo(
   try {
     if (REGEX_UUID.test(item.id)) {
       const { data, error } = await supabase.from('itens_consumo').update(camposItem).eq('id', item.id).select().single()
-      if (!error && data) itemAtualizado = data as ItemConsumo
+      if (!error && data) itemAtualizado = normalizarItemConsumo(data as ItemConsumo)
     }
   } catch (err) {
     console.warn('Erro ao atualizar estoque do insumo no Supabase:', err)
@@ -442,7 +470,7 @@ export async function registrarBaixaConsumo(
 
   try {
     const { data, error } = await supabase.from('consumo_baixas').insert(baixaPayload).select().single()
-    if (!error && data) baixaGravada = data as RegistroBaixaConsumo
+    if (!error && data) baixaGravada = normalizarBaixaConsumo(data as RegistroBaixaConsumo)
   } catch (err) {
     console.warn('Erro ao registrar baixa de consumo no Supabase:', err)
   }
@@ -470,14 +498,14 @@ export async function registrarEntradaConsumo(item: ItemConsumo, quantidadeAdici
         numero_tambor_atual: (item.numero_tambor_atual || 1) + 1,
         quantidade_tambores: Math.max(0, (item.quantidade_tambores || 0) - 1),
       }
-    : { quantidade_atual: item.quantidade_atual + quantidadeAdicionar }
+    : { quantidade_atual: arredondar3(item.quantidade_atual + quantidadeAdicionar) }
 
   let itemAtualizado: ItemConsumo = { ...item, ...camposItem }
 
   try {
     if (REGEX_UUID.test(item.id)) {
       const { data, error } = await supabase.from('itens_consumo').update(camposItem).eq('id', item.id).select().single()
-      if (!error && data) itemAtualizado = data as ItemConsumo
+      if (!error && data) itemAtualizado = normalizarItemConsumo(data as ItemConsumo)
     }
   } catch (err) {
     console.warn('Erro ao repor estoque do insumo no Supabase:', err)
