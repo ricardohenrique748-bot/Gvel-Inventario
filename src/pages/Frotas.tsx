@@ -33,6 +33,32 @@ import {
   ArrowRight,
   Construction,
   Banknote,
+  Route,
+  EyeOff,
+  Filter,
+  RotateCcw,
+  Printer,
+  ArrowUpDown,
+  MapPin,
+  Package,
+  Check,
+  Award,
+  Layers,
+  CreditCard,
+  Tag,
+  Landmark,
+  DollarSign,
+  FileBarChart,
+  UserCheck,
+  Building,
+  ExternalLink,
+  ChevronDown,
+  Warehouse,
+  Wrench,
+  Link2,
+  Download,
+  LogOut,
+  History,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -53,8 +79,18 @@ import { Badge } from '@/components/ui/Badge'
 import { Input, Label, FieldError, Select, Textarea } from '@/components/ui/Input'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
 import { TipoVeiculoRadioGroup } from '@/components/TipoVeiculoRadioGroup'
-import { useClientes } from '@/hooks/useClientes'
-import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarcasModelos'
+import { useClientes, criarCliente } from '@/hooks/useClientes'
+import {
+  useMarcas,
+  useModelos,
+  criarMarca,
+  criarModelo,
+  atualizarMarca,
+  excluirMarca,
+  atualizarModelo,
+  excluirModelo,
+} from '@/hooks/useMarcasModelos'
+import { useContas, type ContaBancaria } from '@/hooks/useContas'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -62,14 +98,89 @@ import { isAdminUsuario } from '@/lib/permissoes'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { isNativeApp } from '@/lib/isNativeApp'
 import { getErrorMessage } from '@/lib/erros'
+import { exportRowsToCsv } from '@/lib/csv'
 import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL, FROTA_PESADA_OFICIAL, FROTA_EMBARCADO_OFICIAL } from '@/data/veiculosFrotaPadrao'
 import { STORAGE_FROTAS_KEY } from '@/lib/frotasStorage'
-import type { FotosVistoria, StatusPreventivaChecklist, RegistroChecklist } from '@/lib/types'
+import type {
+  FotosVistoria,
+  StatusPreventivaChecklist,
+  RegistroChecklist,
+  RegistroViagem,
+  StatusViagem,
+  VeiculoCarregado,
+  FormaCalculoFrete,
+  TipoFrete,
+  Cliente,
+  CentroCusto,
+  Transportadora,
+  TipoCarga,
+  EnderecoFrequente,
+  ContaPagarReceber,
+  StatusContaPagarReceber,
+  TipoMovimentacaoConta,
+  EstadiaPatio,
+} from '@/lib/types'
 import {
   useChecklistsFrota,
   criarChecklistFrota,
   excluirChecklistFrota,
 } from '@/hooks/useChecklistsFrota'
+import {
+  useCentrosCusto,
+  useTransportadoras,
+  useTiposCarga,
+  useEnderecosFrequentes,
+  criarCentroCusto,
+  atualizarCentroCusto,
+  excluirCentroCusto,
+  criarTransportadora,
+  criarTipoCarga,
+  atualizarTipoCarga,
+  excluirTipoCarga,
+  criarEnderecoFrequente,
+  atualizarEnderecoFrequente,
+  excluirEnderecoFrequente,
+  usePessoas,
+  criarPessoa,
+  atualizarPessoa,
+  excluirPessoa,
+  useFormasPagamento,
+  criarFormaPagamento,
+  atualizarFormaPagamento,
+  excluirFormaPagamento,
+  useTiposLancamento,
+  criarTipoLancamento,
+  atualizarTipoLancamento,
+  excluirTipoLancamento,
+  useFornecedores,
+  criarFornecedor,
+} from '@/hooks/useCadastrosViagem'
+import {
+  useViagensFrota,
+  criarViagemFrota,
+  atualizarViagemFrota,
+  excluirViagemFrota,
+  type SalvarViagemInput,
+} from '@/hooks/useViagensFrota'
+import {
+  useContasPagarReceber,
+  criarContaPagarReceber,
+  atualizarContaPagarReceber,
+  excluirContaPagarReceber,
+  type SalvarContaPagarReceberInput,
+} from '@/hooks/useContasPagarReceber'
+import {
+  useVeiculosClientes,
+  criarVeiculoCliente,
+  usePatioEstadias,
+  criarEstadiaPatio,
+  atualizarEstadiaPatio,
+  finalizarEstadiaPatio,
+  excluirEstadiaPatio,
+  type SalvarEstadiaPatioInput,
+} from '@/hooks/usePatio'
+import { ManutencaoViagens } from '@/pages/frotas/ManutencaoViagens'
+import { ConciliacaoViagens } from '@/pages/frotas/ConciliacaoViagens'
 
 export function isFrotaEmbarcado(v: { placa?: string; tipo?: string }): boolean {
   const placa = (v.placa || '').toUpperCase().trim()
@@ -267,6 +378,195 @@ function precisaChecklistIdaVolta(placa: string): boolean {
   return PLACAS_CHECKLIST_IDA_VOLTA.includes(placa.toUpperCase().trim())
 }
 
+type OrdenacaoViagemCampo = 'id' | 'dataColeta' | 'dataEntrega' | 'frete' | 'adiantamento' | 'saldo'
+
+const LABEL_TIPO_FROTA: Record<ItemFrotaCadastrada['tipo'], string> = {
+  leve: 'FROTA LEVE',
+  pesado: 'RODOCAÇAMBA',
+  trator: 'TRATOR',
+  carreta: 'CARRETA',
+  embarcado: 'EMBARCADO',
+}
+
+function ThOrdenavelViagem({
+  label,
+  campo,
+  ordenacao,
+  onClick,
+}: {
+  label: string
+  campo: OrdenacaoViagemCampo
+  ordenacao: { campo: OrdenacaoViagemCampo; direcao: 'asc' | 'desc' }
+  onClick: (campo: OrdenacaoViagemCampo) => void
+}) {
+  const ativo = ordenacao.campo === campo
+  return (
+    <th className="px-4 py-3.5">
+      <button
+        type="button"
+        onClick={() => onClick(campo)}
+        className={`flex items-center gap-1 hover:text-foreground transition-colors ${ativo ? 'text-foreground' : ''}`}
+      >
+        {label}
+        <ArrowUpDown className={`h-3 w-3 ${ativo ? 'text-primary' : 'text-secondary/50'}`} />
+      </button>
+    </th>
+  )
+}
+
+type SubAbaViagens =
+  | 'viagens'
+  | 'enderecos'
+  | 'centros_custo'
+  | 'tipos_carga'
+  | 'marcas'
+  | 'modelos'
+  | 'pessoas'
+  | 'formas_pagamento'
+  | 'tipos_lancamento'
+  | 'contas_bancarias'
+  | 'contas_pagar_receber'
+  | 'financeiro_viagens'
+  | 'patio'
+  | 'manutencao'
+  | 'conciliacao'
+
+type ItemMenuViagens =
+  | { kind: 'tab'; id: SubAbaViagens; label: string; icon: React.ComponentType<{ className?: string }> }
+  | { kind: 'link'; to: string; label: string; icon: React.ComponentType<{ className?: string }> }
+
+// Sub-menu do Controle de Viagens, agrupado nas mesmas categorias do menu de
+// referência (Operação / Gestão / Cadastro / Configurações) — alguns itens
+// são abas próprias desta tela, outros são atalhos pra módulos que já
+// existem em outro lugar do sistema (marcados com o ícone de link externo).
+const GRUPOS_MENU_VIAGENS: { titulo: string; itens: ItemMenuViagens[] }[] = [
+  {
+    titulo: 'Operação',
+    itens: [
+      { kind: 'tab', id: 'viagens', label: 'VIAGENS', icon: Route },
+      { kind: 'tab', id: 'financeiro_viagens', label: 'FINANCEIRO', icon: DollarSign },
+      { kind: 'tab', id: 'patio', label: 'PÁTIO', icon: Warehouse },
+      { kind: 'tab', id: 'manutencao', label: 'MANUTENÇÃO', icon: Wrench },
+    ],
+  },
+  {
+    titulo: 'Gestão',
+    itens: [
+      { kind: 'link', to: '/relatorios', label: 'RELATÓRIOS', icon: FileBarChart },
+      { kind: 'tab', id: 'contas_bancarias', label: 'CONTAS BANCÁRIAS', icon: Landmark },
+      { kind: 'tab', id: 'contas_pagar_receber', label: 'CONTAS A PAGAR/RECEBER', icon: CreditCard },
+      { kind: 'tab', id: 'conciliacao', label: 'CONCILIAÇÃO', icon: Link2 },
+    ],
+  },
+  {
+    titulo: 'Cadastro',
+    itens: [
+      { kind: 'tab', id: 'pessoas', label: 'PESSOAS', icon: Users },
+      { kind: 'link', to: '/frotas?aba=veiculos', label: 'VEÍCULOS', icon: Truck },
+      { kind: 'tab', id: 'marcas', label: 'MARCAS', icon: Award },
+      { kind: 'tab', id: 'modelos', label: 'MODELOS', icon: Layers },
+      { kind: 'tab', id: 'enderecos', label: 'ENDEREÇOS FREQUENTES', icon: MapPin },
+      { kind: 'tab', id: 'centros_custo', label: 'CENTROS DE CUSTO', icon: Building2 },
+      { kind: 'tab', id: 'tipos_carga', label: 'TIPOS DE CARGA', icon: Package },
+      { kind: 'tab', id: 'tipos_lancamento', label: 'TIPOS DE LANÇAMENTO', icon: Tag },
+      { kind: 'tab', id: 'formas_pagamento', label: 'FORMAS DE PAGAMENTO', icon: CreditCard },
+    ],
+  },
+  {
+    titulo: 'Configurações',
+    itens: [
+      { kind: 'link', to: '/configuracoes?tab=usuarios', label: 'USUÁRIOS', icon: UserCheck },
+      { kind: 'link', to: '/configuracoes?tab=empresas', label: 'EMPRESA', icon: Building },
+    ],
+  },
+]
+
+// Um grupo do sub-menu de Controle de Viagens, renderizado como um botão que
+// abre uma lista suspensa com os itens daquele grupo — em vez de mostrar
+// tudo expandido o tempo todo (ficava poluído com 10+ abas de uma vez).
+function DropdownMenuGrupo({
+  titulo,
+  itens,
+  subAbaAtiva,
+  onSelecionarTab,
+  onNavegar,
+}: {
+  titulo: string
+  itens: ItemMenuViagens[]
+  subAbaAtiva: SubAbaViagens
+  onSelecionarTab: (id: SubAbaViagens) => void
+  onNavegar: (to: string) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const itemAtivo = itens.find((item) => item.kind === 'tab' && item.id === subAbaAtiva)
+
+  useEffect(() => {
+    if (!aberto) return
+    function handleClickFora(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickFora)
+    return () => document.removeEventListener('mousedown', handleClickFora)
+  }, [aberto])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-black text-xs uppercase transition-all ${
+          itemAtivo || aberto
+            ? 'bg-primary text-white shadow-lg shadow-primary/25'
+            : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+        }`}
+      >
+        <span>{titulo}</span>
+        {itemAtivo && <span className="opacity-80 normal-case font-bold">· {itemAtivo.label}</span>}
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${aberto ? 'rotate-180' : ''}`} />
+      </button>
+
+      {aberto && (
+        <div className="absolute left-0 top-full z-20 mt-1.5 w-64 rounded-xl border border-border/25 bg-surface shadow-2xl py-1.5 animate-fade-in">
+          {itens.map((item) => {
+            const Icon = item.icon
+            const ativo = item.kind === 'tab' && item.id === subAbaAtiva
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => {
+                  if (item.kind === 'tab') onSelecionarTab(item.id)
+                  else onNavegar(item.to)
+                  setAberto(false)
+                }}
+                className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-bold uppercase transition-colors ${
+                  ativo ? 'text-primary bg-primary/10' : 'text-foreground hover:bg-overlay/10'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1">{item.label}</span>
+                {item.kind === 'link' && <ExternalLink className="h-3 w-3 opacity-50 shrink-0" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Status do fluxo de cotação/execução de uma viagem de frete.
+const STATUS_VIAGEM_INFO: Record<StatusViagem, { label: string; tone: 'neutral' | 'warning' | 'success' | 'danger' }> = {
+  cotada: { label: 'COTADA', tone: 'neutral' },
+  confirmada: { label: 'CONFIRMADA', tone: 'warning' },
+  em_transito: { label: 'EM TRÂNSITO', tone: 'warning' },
+  entregue: { label: 'ENTREGUE', tone: 'success' },
+  cancelada: { label: 'CANCELADA', tone: 'danger' },
+}
+
 function DetalheCampo({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
@@ -307,7 +607,7 @@ function comprimirFoto(file: File, maxWidth = 1000, quality = 0.72): Promise<str
 export function Frotas() {
   const { user, perfil } = useAuth()
   const isAdmin = isAdminUsuario(perfil, user?.email)
-  const { clientes } = useClientes()
+  const { clientes, refetch: refetchClientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
   const { movimentacoes } = useMovimentacoes()
   const navigate = useNavigate()
@@ -323,10 +623,12 @@ export function Frotas() {
   const abaParam = searchParams.get('aba')
   const categoriaParam = searchParams.get('categoria')
 
-  const abaPrincipal: 'dashboard' | 'veiculos' | 'checklist' = isNative
+  const abaPrincipal: 'dashboard' | 'veiculos' | 'checklist' | 'viagens' = isNative
     ? 'checklist'
     : abaParam === 'checklist'
     ? 'checklist'
+    : abaParam === 'viagens'
+    ? 'viagens'
     : abaParam === 'veiculos' || categoriaParam === 'leve' || categoriaParam === 'pesado' || categoriaParam === 'embarcado'
     ? 'veiculos'
     : 'dashboard'
@@ -410,6 +712,172 @@ export function Frotas() {
   // registros antigos que ficavam só no localStorage)
   const { checklists, loading: carregandoChecklists, refetch: refetchChecklists } = useChecklistsFrota()
   const [salvandoChecklist, setSalvandoChecklist] = useState(false)
+
+  // Controle de Viagens (Supabase)
+  const { viagens, loading: carregandoViagens } = useViagensFrota()
+  const { centrosCusto, loading: carregandoCentrosCusto, refetch: refetchCentrosCusto } = useCentrosCusto()
+  const { transportadoras, refetch: refetchTransportadoras } = useTransportadoras()
+  const { tiposCarga, loading: carregandoTiposCarga, refetch: refetchTiposCarga } = useTiposCarga()
+  const {
+    enderecos: enderecosFrequentes,
+    loading: carregandoEnderecosFrequentes,
+    refetch: refetchEnderecosFrequentes,
+  } = useEnderecosFrequentes()
+  const { pessoas, loading: carregandoPessoas, refetch: refetchPessoas } = usePessoas()
+  const { formasPagamento, loading: carregandoFormasPagamento, refetch: refetchFormasPagamento } = useFormasPagamento()
+  const { tiposLancamento, loading: carregandoTiposLancamento, refetch: refetchTiposLancamento } = useTiposLancamento()
+  const { contas: contasBancarias, loading: carregandoContasBancarias, addConta, removeConta, updateConta } = useContas()
+  const { fornecedores, refetch: refetchFornecedores } = useFornecedores()
+  const { contas: contasPR, loading: carregandoContasPR } = useContasPagarReceber()
+  const { estadias: estadiasPatio, loading: carregandoPatio } = usePatioEstadias()
+  const [subAbaPatio, setSubAbaPatio] = useState<'ativos' | 'historico'>('ativos')
+  const [mostrarModalPatio, setMostrarModalPatio] = useState(false)
+  const [estadiaPatioEditando, setEstadiaPatioEditando] = useState<EstadiaPatio | null>(null)
+  const [buscaPatio, setBuscaPatio] = useState('')
+  const [filtroClientePatio, setFiltroClientePatio] = useState('')
+  const [mostrarModalContaPR, setMostrarModalContaPR] = useState(false)
+  const [contaPREditando, setContaPREditando] = useState<ContaPagarReceber | null>(null)
+  const [filtroStatusContaPR, setFiltroStatusContaPR] = useState<'todas' | StatusContaPagarReceber>('todas')
+  const [buscaContaPR, setBuscaContaPR] = useState('')
+  const [subAbaViagens, setSubAbaViagens] = useState<SubAbaViagens>('viagens')
+  const [mostrarModalViagem, setMostrarModalViagem] = useState(false)
+  const [viagemEditando, setViagemEditando] = useState<RegistroViagem | null>(null)
+  const [buscaViagem, setBuscaViagem] = useState('')
+  const [filtroVeiculoIdViagem, setFiltroVeiculoIdViagem] = useState('')
+  const [filtroClienteIdViagem, setFiltroClienteIdViagem] = useState('')
+  const [filtroCentroCustoIdViagem, setFiltroCentroCustoIdViagem] = useState('')
+  const [filtroStatusViagem, setFiltroStatusViagem] = useState<'ativas' | 'todas' | StatusViagem>('ativas')
+  const [ocultarTotaisViagem, setOcultarTotaisViagem] = useState(false)
+  const [mostrarFiltrosAvancadosViagem, setMostrarFiltrosAvancadosViagem] = useState(false)
+  const [filtroDataColetaDeViagem, setFiltroDataColetaDeViagem] = useState('')
+  const [filtroDataColetaAteViagem, setFiltroDataColetaAteViagem] = useState('')
+  const [filtroTipoFreteViagem, setFiltroTipoFreteViagem] = useState<'todos' | TipoFrete>('todos')
+  const [ordenacaoViagem, setOrdenacaoViagem] = useState<{ campo: OrdenacaoViagemCampo; direcao: 'asc' | 'desc' }>({
+    campo: 'dataColeta',
+    direcao: 'desc',
+  })
+
+  function limparFiltrosViagem() {
+    setBuscaViagem('')
+    setFiltroVeiculoIdViagem('')
+    setFiltroClienteIdViagem('')
+    setFiltroCentroCustoIdViagem('')
+    setFiltroStatusViagem('ativas')
+    setFiltroDataColetaDeViagem('')
+    setFiltroDataColetaAteViagem('')
+    setFiltroTipoFreteViagem('todos')
+  }
+
+  const contasPRFiltradas = useMemo(() => {
+    return contasPR.filter((c) => {
+      if (filtroStatusContaPR !== 'todas' && c.status !== filtroStatusContaPR) return false
+      if (!buscaContaPR.trim()) return true
+      const termo = buscaContaPR.toLowerCase().trim()
+      return (
+        (c.descricao && c.descricao.toLowerCase().includes(termo)) ||
+        (c.centroCustoNome && c.centroCustoNome.toLowerCase().includes(termo)) ||
+        (c.fornecedorNome && c.fornecedorNome.toLowerCase().includes(termo)) ||
+        (c.placa && c.placa.toLowerCase().includes(termo))
+      )
+    })
+  }, [contasPR, filtroStatusContaPR, buscaContaPR])
+
+  const metricasContasPR = useMemo(() => {
+    const hoje = new Date().toISOString().slice(0, 10)
+    const totalPagar = contasPR
+      .filter((c) => c.tipoMovimentacao === 'despesa' && c.status !== 'pago' && c.status !== 'cancelado')
+      .reduce((acc, c) => acc + c.valor, 0)
+    const totalReceber = contasPR
+      .filter((c) => c.tipoMovimentacao === 'receita' && c.status !== 'pago' && c.status !== 'cancelado')
+      .reduce((acc, c) => acc + c.valor, 0)
+    const vencidas = contasPR.filter((c) => c.status === 'pendente' && c.dataVencimento < hoje).length
+    const totalPago = contasPR.filter((c) => c.status === 'pago').reduce((acc, c) => acc + c.valor, 0)
+    return { totalPagar, totalReceber, vencidas, totalPago }
+  }, [contasPR])
+
+  // Painel "Financeiro" do Controle de Viagens — resumo próprio, calculado
+  // só a partir de Viagens + Contas a Pagar/Receber daqui (não é o painel
+  // gerencial da empresa toda, esse é só o financeiro do módulo de viagens).
+  const metricasFinanceiroViagens = useMemo(() => {
+    const faturamento = viagens
+      .filter((v) => v.status !== 'cancelada')
+      .reduce((acc, v) => acc + (v.freteBruto || 0), 0)
+    const receitas = contasPR
+      .filter((c) => c.tipoMovimentacao === 'receita' && c.status === 'pago')
+      .reduce((acc, c) => acc + c.valor, 0)
+    const despesas = contasPR
+      .filter((c) => c.tipoMovimentacao === 'despesa' && c.status === 'pago')
+      .reduce((acc, c) => acc + c.valor, 0)
+    const saldoCaixa = receitas - despesas
+    const resultadoLiquido = faturamento - despesas
+    return { faturamento, receitas, despesas, saldoCaixa, resultadoLiquido }
+  }, [viagens, contasPR])
+
+  async function handleExcluirContaPR(id: string) {
+    if (!confirm('Excluir este lançamento? Essa ação não pode ser desfeita.')) return
+    try {
+      await excluirContaPagarReceber(id)
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao excluir o lançamento.'))
+    }
+  }
+
+  const estadiasPatioFiltradas = useMemo(() => {
+    return estadiasPatio.filter((e) => {
+      const finalizada = Boolean(e.dataHoraSaidaReal)
+      if (subAbaPatio === 'ativos' && finalizada) return false
+      if (subAbaPatio === 'historico' && !finalizada) return false
+      if (filtroClientePatio && e.clienteId !== filtroClientePatio) return false
+      if (!buscaPatio.trim()) return true
+      const termo = buscaPatio.toLowerCase().trim()
+      return (
+        e.placa.toLowerCase().includes(termo) ||
+        (e.modelo && e.modelo.toLowerCase().includes(termo)) ||
+        (e.clienteNome && e.clienteNome.toLowerCase().includes(termo))
+      )
+    })
+  }, [estadiasPatio, subAbaPatio, filtroClientePatio, buscaPatio])
+
+  async function handleFinalizarEstadiaPatio(e: EstadiaPatio) {
+    if (!confirm(`Finalizar a estadia da placa ${e.placa} agora (${format(new Date(), 'dd/MM/yyyy HH:mm')})?`)) return
+    try {
+      await finalizarEstadiaPatio(e.id, new Date().toISOString())
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao finalizar a estadia.'))
+    }
+  }
+
+  async function handleExcluirEstadiaPatio(id: string) {
+    if (!confirm('Excluir este registro do pátio? Essa ação não pode ser desfeita.')) return
+    try {
+      await excluirEstadiaPatio(id)
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao excluir o registro.'))
+    }
+  }
+
+  function handleExportarPatio() {
+    exportRowsToCsv(
+      `patio_${subAbaPatio}_${format(new Date(), 'yyyy-MM-dd')}.csv`,
+      ['Placa', 'Modelo', 'Marca', 'Cor', 'Cliente', 'Entrada', 'Previsão Saída', 'Dias', 'Valor Diária', 'Taxímetro', 'Status'],
+      estadiasPatioFiltradas.map((e) => {
+        const { dias, valor } = calcularDiasEValorPatio(e)
+        return [
+          e.placa,
+          e.modelo || '',
+          e.marca || '',
+          e.cor || '',
+          e.clienteNome || '',
+          format(parseISO(e.dataHoraEntrada), 'dd/MM/yyyy HH:mm'),
+          e.previsaoSaida ? format(parseISO(e.previsaoSaida), 'dd/MM/yyyy HH:mm') : '',
+          String(dias),
+          e.valorDiaria.toFixed(2).replace('.', ','),
+          valor.toFixed(2).replace('.', ','),
+          e.dataHoraSaidaReal ? 'FINALIZADO' : 'NO PÁTIO',
+        ]
+      }),
+    )
+  }
 
   function salvarFrotas(novas: ItemFrotaCadastrada[]) {
     setFrotas(novas)
@@ -1305,6 +1773,85 @@ export function Frotas() {
     })
   }, [checklists, filtroResultadoChecklist, buscaChecklist])
 
+  // Filtro de Viagens
+  const STATUS_ATIVAS: StatusViagem[] = ['cotada', 'confirmada', 'em_transito']
+  const viagensFiltradas = useMemo(() => {
+    const filtradas = viagens.filter((v) => {
+      if (filtroStatusViagem === 'ativas' && !STATUS_ATIVAS.includes(v.status)) return false
+      if (filtroStatusViagem !== 'ativas' && filtroStatusViagem !== 'todas' && v.status !== filtroStatusViagem) return false
+      if (filtroVeiculoIdViagem && v.veiculoId !== filtroVeiculoIdViagem) return false
+      if (filtroClienteIdViagem && v.clienteId !== filtroClienteIdViagem) return false
+      if (filtroCentroCustoIdViagem && v.centroCustoId !== filtroCentroCustoIdViagem) return false
+      if (filtroTipoFreteViagem !== 'todos' && v.tipoFrete !== filtroTipoFreteViagem) return false
+      if (filtroDataColetaDeViagem && (!v.dataColetaPrevista || v.dataColetaPrevista < filtroDataColetaDeViagem)) return false
+      if (filtroDataColetaAteViagem && (!v.dataColetaPrevista || v.dataColetaPrevista > filtroDataColetaAteViagem)) return false
+      if (!buscaViagem.trim()) return true
+      const termo = buscaViagem.toLowerCase().trim()
+      return (
+        v.id.toLowerCase().includes(termo) ||
+        v.placa.toLowerCase().includes(termo) ||
+        v.motoristaNome.toLowerCase().includes(termo) ||
+        v.origem.toLowerCase().includes(termo) ||
+        v.destino.toLowerCase().includes(termo) ||
+        (v.clienteNome && v.clienteNome.toLowerCase().includes(termo)) ||
+        (v.veiculoNome && v.veiculoNome.toLowerCase().includes(termo)) ||
+        (v.finalidade && v.finalidade.toLowerCase().includes(termo))
+      )
+    })
+
+    const valorOrdenacao = (v: RegistroViagem): string | number => {
+      switch (ordenacaoViagem.campo) {
+        case 'id':
+          return v.id
+        case 'dataColeta':
+          return v.dataColetaPrevista || v.dataHoraSaida || ''
+        case 'dataEntrega':
+          return v.dataEntregaPrevista || ''
+        case 'frete':
+          return v.freteBruto || 0
+        case 'adiantamento':
+          return v.adiantamento || 0
+        case 'saldo':
+          return (v.freteBruto || 0) - (v.adiantamento || 0)
+      }
+    }
+
+    const ordenadas = [...filtradas].sort((a, b) => {
+      const va = valorOrdenacao(a)
+      const vb = valorOrdenacao(b)
+      const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))
+      return ordenacaoViagem.direcao === 'asc' ? cmp : -cmp
+    })
+
+    return ordenadas
+  }, [
+    viagens,
+    filtroStatusViagem,
+    filtroVeiculoIdViagem,
+    filtroClienteIdViagem,
+    filtroCentroCustoIdViagem,
+    filtroTipoFreteViagem,
+    filtroDataColetaDeViagem,
+    filtroDataColetaAteViagem,
+    buscaViagem,
+    ordenacaoViagem,
+  ])
+
+  const metricasViagens = useMemo(() => {
+    const totalFretes = viagensFiltradas.reduce((acc, v) => acc + (v.freteBruto || 0), 0)
+    const totalAdiantamentos = viagensFiltradas.reduce((acc, v) => acc + (v.adiantamento || 0), 0)
+    const saldo = totalFretes - totalAdiantamentos
+    const custoOperacionalTotal = viagensFiltradas.reduce((acc, v) => acc + (v.custoOperacional || 0), 0)
+    const saldoLiquido = saldo - custoOperacionalTotal
+    return { totalFretes, totalAdiantamentos, saldo, custoOperacionalTotal, saldoLiquido }
+  }, [viagensFiltradas])
+
+  function alternarOrdenacaoViagem(campo: OrdenacaoViagemCampo) {
+    setOrdenacaoViagem((atual) =>
+      atual.campo === campo ? { campo, direcao: atual.direcao === 'asc' ? 'desc' : 'asc' } : { campo, direcao: 'asc' },
+    )
+  }
+
   // Handlers de Veículo
   function iniciarCriacaoVeiculo() {
     setEditandoId(null)
@@ -1493,6 +2040,25 @@ export function Frotas() {
     setMostrarModalNovoChecklist(true)
   }
 
+  function iniciarNovaViagem() {
+    setViagemEditando(null)
+    setMostrarModalViagem(true)
+  }
+
+  function iniciarEdicaoViagem(viagem: RegistroViagem) {
+    setViagemEditando(viagem)
+    setMostrarModalViagem(true)
+  }
+
+  async function handleExcluirViagem(id: string) {
+    if (!confirm('Excluir este registro de viagem? Essa ação não pode ser desfeita.')) return
+    try {
+      await excluirViagemFrota(id)
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao excluir a viagem.'))
+    }
+  }
+
   async function handleUploadFoto(tipo: keyof FotosVistoria, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -1583,6 +2149,8 @@ export function Frotas() {
             ? 'DASHBOARD DA FROTA'
             : abaPrincipal === 'checklist'
             ? 'CHECKLIST DA FROTA'
+            : abaPrincipal === 'viagens'
+            ? 'CONTROLE DE VIAGENS'
             : 'VEÍCULOS DA FROTA'
         }
         subtitle={
@@ -1590,6 +2158,8 @@ export function Frotas() {
             ? 'KM RESTANTE PARA PREVENTIVA, AUDITORIA DE CHECKLISTS E VENCIMENTO DE DOCUMENTOS'
             : abaPrincipal === 'checklist'
             ? 'INSPEÇÕES VEICULARES, VISTORIAS OPERACIONAIS E LAUDOS DE CONFORMIDADE'
+            : abaPrincipal === 'viagens'
+            ? 'ORIGEM, DESTINO, MOTORISTA E KM RODADO DE CADA VIAGEM DA FROTA'
             : 'CONTROLE DE CAMINHÕES, PREVENTIVAS E VENCIMENTO DE DOCUMENTOS (CRLV)'
         }
         actions={
@@ -1639,6 +2209,22 @@ export function Frotas() {
         }
       />
 
+      {/* SUB-MENU DO CONTROLE DE VIAGENS: cada grupo é uma lista suspensa (dropdown) pra economizar espaço */}
+      {abaPrincipal === 'viagens' && (
+        <div className="flex flex-wrap items-center gap-2 p-2 bg-surface/90 border border-border/30 rounded-2xl backdrop-blur-md shadow-sm">
+          {GRUPOS_MENU_VIAGENS.map((grupo) => (
+            <DropdownMenuGrupo
+              key={grupo.titulo}
+              titulo={grupo.titulo}
+              itens={grupo.itens}
+              subAbaAtiva={subAbaViagens}
+              onSelecionarTab={setSubAbaViagens}
+              onNavegar={navigate}
+            />
+          ))}
+        </div>
+      )}
+
       {erroLista && (
         <div className="rounded-2xl border border-status-danger/30 bg-status-danger/10 p-4 text-xs font-bold text-status-danger flex items-center justify-between">
           <span>{erroLista}</span>
@@ -1648,8 +2234,8 @@ export function Frotas() {
         </div>
       )}
 
-      {/* ALERTA PISCANTE: checklists de IDA pendentes de VOLTA (placas de ida/volta) */}
-      {checklistsIdaVoltaPendentes.length > 0 && (
+      {/* ALERTA PISCANTE: checklists de IDA pendentes de VOLTA (placas de ida/volta) — não faz sentido dentro do Controle de Viagens, que é outro contexto */}
+      {abaPrincipal !== 'viagens' && checklistsIdaVoltaPendentes.length > 0 && (
         <div className="animate-blink-alert rounded-2xl border-2 border-red-500/50 bg-red-500/15 p-4 flex flex-wrap items-center gap-3 shadow-lg shadow-red-500/10">
           <AlertOctagon className="h-5 w-5 text-red-400 shrink-0" />
           <div className="flex-1 min-w-0">
@@ -1677,7 +2263,7 @@ export function Frotas() {
       )}
 
       {/* SELETOR DE CATEGORIA DA FROTA: FROTA LEVE vs FROTA PESADA vs VISÃO CONSOLIDADA */}
-      {abaPrincipal !== 'checklist' && (
+      {abaPrincipal !== 'checklist' && abaPrincipal !== 'viagens' && (
       <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-surface/90 border border-border/30 rounded-2xl backdrop-blur-md shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -3223,6 +3809,989 @@ export function Frotas() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ABA 3: CONTROLE DE VIAGENS */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'viagens' && (
+        <div className="space-y-6 print:space-y-3">
+          {/* Indicadores Financeiros */}
+          {!ocultarTotaisViagem && (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+              <Card className="p-4 border-border/30 bg-surface/90">
+                <div className="flex items-center justify-between text-secondary">
+                  <span className="text-[10px] font-black uppercase tracking-wider">TOTAL DE FRETES</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </div>
+                </div>
+                <p className="mt-2 text-xl font-black font-mono text-foreground">
+                  {metricasViagens.totalFretes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+
+              <Card className="p-4 border-border/30 bg-surface/90">
+                <div className="flex items-center justify-between text-secondary">
+                  <span className="text-[10px] font-black uppercase tracking-wider">ADIANTAMENTOS</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Banknote className="h-3.5 w-3.5" />
+                  </div>
+                </div>
+                <p className="mt-2 text-xl font-black font-mono text-foreground">
+                  {metricasViagens.totalAdiantamentos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+
+              <Card className="p-4 border-amber-500/20 bg-surface/90">
+                <div className="flex items-center justify-between text-secondary">
+                  <span className="text-[10px] font-black uppercase tracking-wider">SALDO</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400">
+                    <Gauge className="h-3.5 w-3.5" />
+                  </div>
+                </div>
+                <p className="mt-2 text-xl font-black font-mono text-foreground">
+                  {metricasViagens.saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+
+              <Card className="p-4 border-rose-500/20 bg-surface/90">
+                <div className="flex items-center justify-between text-secondary">
+                  <span className="text-[10px] font-black uppercase tracking-wider">CUSTO OPERACIONAL</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500">
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </div>
+                </div>
+                <p className="mt-2 text-xl font-black font-mono text-rose-500">
+                  {metricasViagens.custoOperacionalTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+
+              <Card className="p-4 border-emerald-500/20 bg-surface/90">
+                <div className="flex items-center justify-between text-secondary">
+                  <span className="text-[10px] font-black uppercase tracking-wider">SALDO LÍQUIDO</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                    <Banknote className="h-3.5 w-3.5" />
+                  </div>
+                </div>
+                <p className="mt-2 text-xl font-black font-mono text-emerald-500">
+                  {metricasViagens.saldoLiquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </Card>
+            </div>
+          )}
+
+          {/* Filtros de Viagens */}
+          <Card className="p-4 space-y-3 print:hidden">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div>
+                <Label className="normal-case text-[10px]">ID da Viagem</Label>
+                <div className="relative mt-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-secondary" />
+                  <input
+                    value={buscaViagem}
+                    onChange={(e) => setBuscaViagem(e.target.value)}
+                    placeholder="ID..."
+                    className="h-10 w-full rounded-xl border border-border/25 bg-surface/90 pl-8 pr-2 text-xs text-foreground placeholder:text-secondary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="normal-case text-[10px]">Veículo</Label>
+                <Select
+                  value={filtroVeiculoIdViagem}
+                  onChange={(e) => setFiltroVeiculoIdViagem(e.target.value)}
+                  className="mt-1 text-xs font-bold"
+                >
+                  <option value="">TODOS OS VEÍCULOS</option>
+                  {[...frotas].sort((a, b) => a.placa.localeCompare(b.placa)).map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.placa}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label className="normal-case text-[10px]">Cliente</Label>
+                <Select
+                  value={filtroClienteIdViagem}
+                  onChange={(e) => setFiltroClienteIdViagem(e.target.value)}
+                  className="mt-1 text-xs font-bold"
+                >
+                  <option value="">TODOS OS CLIENTES</option>
+                  {clientes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label className="normal-case text-[10px]">Centro de Custo</Label>
+                <Select
+                  value={filtroCentroCustoIdViagem}
+                  onChange={(e) => setFiltroCentroCustoIdViagem(e.target.value)}
+                  className="mt-1 text-xs font-bold"
+                >
+                  <option value="">TODOS OS CENTROS</option>
+                  {centrosCusto.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label className="normal-case text-[10px]">Status</Label>
+                <Select
+                  value={filtroStatusViagem}
+                  onChange={(e) => setFiltroStatusViagem(e.target.value as typeof filtroStatusViagem)}
+                  className="mt-1 text-xs font-bold"
+                >
+                  <option value="ativas">ATIVAS</option>
+                  <option value="todas">TODAS</option>
+                  {(Object.keys(STATUS_VIAGEM_INFO) as StatusViagem[]).map((s) => (
+                    <option key={s} value={s}>
+                      {STATUS_VIAGEM_INFO[s].label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+
+            {mostrarFiltrosAvancadosViagem && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-border/15">
+                <div>
+                  <Label className="normal-case text-[10px]">Coleta De</Label>
+                  <Input
+                    type="date"
+                    value={filtroDataColetaDeViagem}
+                    onChange={(e) => setFiltroDataColetaDeViagem(e.target.value)}
+                    className="mt-1 text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <Label className="normal-case text-[10px]">Coleta Até</Label>
+                  <Input
+                    type="date"
+                    value={filtroDataColetaAteViagem}
+                    onChange={(e) => setFiltroDataColetaAteViagem(e.target.value)}
+                    className="mt-1 text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <Label className="normal-case text-[10px]">Tipo de Frete</Label>
+                  <Select
+                    value={filtroTipoFreteViagem}
+                    onChange={(e) => setFiltroTipoFreteViagem(e.target.value as typeof filtroTipoFreteViagem)}
+                    className="mt-1 text-xs font-bold"
+                  >
+                    <option value="todos">TODOS</option>
+                    <option value="CIF">CIF (REMETENTE PAGA)</option>
+                    <option value="FOB">FOB (DESTINATÁRIO PAGA)</option>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setOcultarTotaisViagem((v) => !v)}
+                className="gap-1.5 text-xs font-bold"
+              >
+                {ocultarTotaisViagem ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                {ocultarTotaisViagem ? 'MOSTRAR TOTAIS' : 'OCULTAR TOTAIS'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setMostrarFiltrosAvancadosViagem((v) => !v)}
+                className="gap-1.5 text-xs font-bold"
+              >
+                <Filter className="h-3.5 w-3.5" />
+                FILTROS AVANÇADOS
+              </Button>
+              <Button type="button" variant="secondary" onClick={limparFiltrosViagem} className="gap-1.5 text-xs font-bold">
+                <RotateCcw className="h-3.5 w-3.5" />
+                LIMPAR
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => window.print()} className="gap-1.5 text-xs font-bold">
+                <Printer className="h-3.5 w-3.5" />
+                IMPRIMIR
+              </Button>
+              <Button type="button" onClick={iniciarNovaViagem} className="ml-auto gap-1.5 text-xs font-bold shadow-md shadow-primary/20">
+                <Plus className="h-3.5 w-3.5" />
+                NOVA VIAGEM
+              </Button>
+            </div>
+          </Card>
+
+          {/* Listagem de Viagens */}
+          {carregandoViagens && viagensFiltradas.length === 0 ? (
+            <Card className="p-12 text-center">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
+              <p className="mt-3 text-xs font-semibold text-secondary">CARREGANDO VIAGENS…</p>
+            </Card>
+          ) : viagensFiltradas.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Route className="mx-auto mb-3 h-10 w-10 text-secondary/40" />
+              <p className="text-base font-bold text-foreground">NENHUMA VIAGEM ENCONTRADA</p>
+              <p className="mt-1 text-xs text-secondary">
+                {buscaViagem || filtroStatusViagem !== 'ativas'
+                  ? 'TENTE AJUSTAR OS FILTROS DE BUSCA.'
+                  : 'CLIQUE NO BOTÃO "+ NOVA VIAGEM" PARA REGISTRAR A PRIMEIRA VIAGEM DA FROTA.'}
+              </p>
+            </Card>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-border/25 bg-surface/80 shadow-sm backdrop-blur-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm uppercase">
+                  <thead className="border-b border-border/15 bg-surface/95 text-[11px] font-black text-secondary uppercase tracking-wider">
+                    <tr>
+                      <ThOrdenavelViagem label="VIAGEM" campo="id" ordenacao={ordenacaoViagem} onClick={alternarOrdenacaoViagem} />
+                      <th className="px-4 py-3.5">ROTA</th>
+                      <th className="px-4 py-3.5">PLACA</th>
+                      <ThOrdenavelViagem label="COLETA" campo="dataColeta" ordenacao={ordenacaoViagem} onClick={alternarOrdenacaoViagem} />
+                      <ThOrdenavelViagem label="ENTREGA" campo="dataEntrega" ordenacao={ordenacaoViagem} onClick={alternarOrdenacaoViagem} />
+                      <ThOrdenavelViagem label="FRETE" campo="frete" ordenacao={ordenacaoViagem} onClick={alternarOrdenacaoViagem} />
+                      <ThOrdenavelViagem label="ADIANT." campo="adiantamento" ordenacao={ordenacaoViagem} onClick={alternarOrdenacaoViagem} />
+                      <ThOrdenavelViagem label="SALDO" campo="saldo" ordenacao={ordenacaoViagem} onClick={alternarOrdenacaoViagem} />
+                      <th className="px-4 py-3.5">CUSTO</th>
+                      <th className="px-4 py-3.5 text-right print:hidden">AÇÕES</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/10 font-medium">
+                    {viagensFiltradas.map((v) => {
+                      const statusInfo = STATUS_VIAGEM_INFO[v.status]
+                      const veiculoDaViagem = frotas.find((f) => f.id === v.veiculoId)
+                      const saldoViagem = (v.freteBruto || 0) - (v.adiantamento || 0)
+                      return (
+                        <tr key={v.id} className="hover:bg-overlay/5 transition-colors align-top">
+                          <td className="px-4 py-3">
+                            <p className="font-mono font-black text-foreground">#{v.id.slice(0, 8)}</p>
+                            <Badge tone={statusInfo.tone} className="mt-1 text-[9px] font-black uppercase">
+                              {veiculoDaViagem ? LABEL_TIPO_FROTA[veiculoDaViagem.tipo] : statusInfo.label}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-xs font-bold text-foreground normal-case">
+                              {v.cidadeOrigem || v.origem} → {v.cidadeDestino || v.destino}
+                            </p>
+                            {v.distanciaEstimadaKm != null && (
+                              <p className="text-[10px] text-secondary font-mono">
+                                {v.distanciaEstimadaKm.toLocaleString('pt-BR')} km
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-block rounded-lg border border-border/25 bg-background/60 px-2 py-1 font-mono font-black text-foreground text-[11px]">
+                              {v.placa}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs">
+                            {v.dataColetaPrevista ? format(parseISO(v.dataColetaPrevista), 'dd/MM/yyyy') : '—'}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs">
+                            {v.dataEntregaPrevista ? format(parseISO(v.dataEntregaPrevista), 'dd/MM/yyyy') : '—'}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs font-black text-foreground">
+                            {v.freteBruto != null ? formatarMoeda(v.freteBruto) : '—'}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs font-bold text-primary">
+                            {v.adiantamento != null ? formatarMoeda(v.adiantamento) : formatarMoeda(0)}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs font-black text-emerald-500">{formatarMoeda(saldoViagem)}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-rose-500">
+                            {v.custoOperacional != null ? formatarMoeda(v.custoOperacional) : '—'}
+                          </td>
+                          <td className="px-4 py-3 print:hidden">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => iniciarEdicaoViagem(v)}
+                                className="rounded-lg p-1.5 text-secondary hover:text-primary hover:bg-overlay/10 transition-colors"
+                                title="Editar Viagem"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleExcluirViagem(v.id)}
+                                  className="rounded-lg p-1.5 text-secondary hover:text-status-danger hover:bg-status-danger/10 transition-colors"
+                                  title="Excluir Viagem"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SUB-ABA: ENDEREÇOS FREQUENTES */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'enderecos' && (
+        <GerenciadorEnderecosFrequentes
+          enderecos={enderecosFrequentes}
+          loading={carregandoEnderecosFrequentes}
+          refetch={refetchEnderecosFrequentes}
+        />
+      )}
+
+      {/* SUB-ABA: CENTROS DE CUSTO */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'centros_custo' && (
+        <GerenciadorCadastroSimples
+          titulo="Centros de Custo"
+          subtitulo="Centros de custo usados para classificar as viagens"
+          icon={Building2}
+          itens={centrosCusto}
+          loading={carregandoCentrosCusto}
+          refetch={refetchCentrosCusto}
+          onCriar={criarCentroCusto}
+          onAtualizar={atualizarCentroCusto}
+          onExcluir={excluirCentroCusto}
+        />
+      )}
+
+      {/* SUB-ABA: TIPOS DE CARGA */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'tipos_carga' && (
+        <GerenciadorCadastroSimples
+          titulo="Tipos de Carga"
+          subtitulo="Categorias de carga transportada nas viagens"
+          icon={Package}
+          itens={tiposCarga}
+          loading={carregandoTiposCarga}
+          refetch={refetchTiposCarga}
+          onCriar={criarTipoCarga}
+          onAtualizar={atualizarTipoCarga}
+          onExcluir={excluirTipoCarga}
+        />
+      )}
+
+      {/* SUB-ABA: MARCAS */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'marcas' && (
+        <GerenciadorCadastroSimples
+          titulo="Marcas"
+          subtitulo="Marcas de veículos usadas no cadastro da frota"
+          icon={Award}
+          itens={marcas}
+          loading={false}
+          refetch={refetchMarcas}
+          onCriar={criarMarca}
+          onAtualizar={atualizarMarca}
+          onExcluir={excluirMarca}
+        />
+      )}
+
+      {/* SUB-ABA: MODELOS */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'modelos' && (
+        <GerenciadorModelos marcas={marcas} />
+      )}
+
+      {/* SUB-ABA: PESSOAS */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'pessoas' && (
+        <GerenciadorCadastroSimples
+          titulo="Pessoas"
+          subtitulo="Contatos vinculáveis às viagens (motoristas, responsáveis por imposto/comissão)"
+          icon={Users}
+          itens={pessoas}
+          loading={carregandoPessoas}
+          refetch={refetchPessoas}
+          onCriar={criarPessoa}
+          onAtualizar={atualizarPessoa}
+          onExcluir={excluirPessoa}
+        />
+      )}
+
+      {/* SUB-ABA: FORMAS DE PAGAMENTO */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'formas_pagamento' && (
+        <GerenciadorCadastroSimples
+          titulo="Formas de Pagamento"
+          subtitulo="Formas de pagamento usadas nos fechamentos financeiros das viagens"
+          icon={CreditCard}
+          itens={formasPagamento}
+          loading={carregandoFormasPagamento}
+          refetch={refetchFormasPagamento}
+          onCriar={criarFormaPagamento}
+          onAtualizar={atualizarFormaPagamento}
+          onExcluir={excluirFormaPagamento}
+        />
+      )}
+
+      {/* SUB-ABA: TIPOS DE LANÇAMENTO */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'tipos_lancamento' && (
+        <GerenciadorCadastroSimples
+          titulo="Tipos de Lançamento"
+          subtitulo="Categorias usadas para classificar lançamentos financeiros das viagens"
+          icon={Tag}
+          itens={tiposLancamento}
+          loading={carregandoTiposLancamento}
+          refetch={refetchTiposLancamento}
+          onCriar={criarTipoLancamento}
+          onAtualizar={atualizarTipoLancamento}
+          onExcluir={excluirTipoLancamento}
+        />
+      )}
+
+      {/* SUB-ABA: CONTAS BANCÁRIAS */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'contas_bancarias' && (
+        <GerenciadorContasBancarias
+          contas={contasBancarias}
+          loading={carregandoContasBancarias}
+          onCriar={addConta}
+          onAtualizar={updateConta}
+          onExcluir={removeConta}
+        />
+      )}
+
+      {/* SUB-ABA: CONTAS A PAGAR / RECEBER */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'contas_pagar_receber' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <CreditCard className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-foreground uppercase">Contas a Pagar/Receber</h2>
+              <p className="text-[11px] text-secondary normal-case">Lançamentos financeiros com centro de custo, vencimento e status</p>
+            </div>
+          </div>
+
+          {/* KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            <Card className="p-4 border-rose-500/20 bg-surface/90">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[10px] font-black uppercase tracking-wider">TOTAL A PAGAR</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500">
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p className="mt-2 text-xl font-black font-mono text-rose-500">
+                {metricasContasPR.totalPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            </Card>
+            <Card className="p-4 border-emerald-500/20 bg-surface/90">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[10px] font-black uppercase tracking-wider">TOTAL A RECEBER</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p className="mt-2 text-xl font-black font-mono text-emerald-500">
+                {metricasContasPR.totalReceber.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            </Card>
+            <Card className="p-4 border-amber-500/20 bg-surface/90">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[10px] font-black uppercase tracking-wider">VENCIDAS</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p className="mt-2 text-xl font-black font-mono text-amber-400">{metricasContasPR.vencidas}</p>
+            </Card>
+            <Card className="p-4 border-border/30 bg-surface/90">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[10px] font-black uppercase tracking-wider">TOTAL PAGO/RECEBIDO</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p className="mt-2 text-xl font-black font-mono text-foreground">
+                {metricasContasPR.totalPago.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            </Card>
+          </div>
+
+          {/* Filtros + Novo Lançamento */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col sm:flex-row gap-2 flex-1">
+              <input
+                value={buscaContaPR}
+                onChange={(e) => setBuscaContaPR(e.target.value)}
+                placeholder="BUSCAR POR DESCRIÇÃO, CENTRO DE CUSTO, FORNECEDOR, PLACA..."
+                className="h-10 flex-1 rounded-xl border border-border/25 bg-surface/90 px-3 text-xs text-foreground placeholder:text-secondary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+              />
+              <Select
+                value={filtroStatusContaPR}
+                onChange={(e) => setFiltroStatusContaPR(e.target.value as typeof filtroStatusContaPR)}
+                className="text-xs font-bold sm:max-w-[200px]"
+              >
+                <option value="todas">TODOS OS STATUS</option>
+                <option value="pendente">PENDENTE</option>
+                <option value="pago">PAGO</option>
+                <option value="atrasado">ATRASADO</option>
+                <option value="cancelado">CANCELADO</option>
+              </Select>
+            </div>
+            <Button
+              type="button"
+              onClick={() => {
+                setContaPREditando(null)
+                setMostrarModalContaPR(true)
+              }}
+              className="gap-1.5 text-xs font-bold shadow-md shadow-primary/20"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              NOVO LANÇAMENTO
+            </Button>
+          </div>
+
+          {/* Listagem */}
+          {carregandoContasPR && contasPRFiltradas.length === 0 ? (
+            <Card className="p-10 text-center">
+              <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
+            </Card>
+          ) : contasPRFiltradas.length === 0 ? (
+            <Card className="p-10 text-center">
+              <CreditCard className="mx-auto mb-2 h-8 w-8 text-secondary/40" />
+              <p className="text-xs font-bold text-secondary">NENHUM LANÇAMENTO ENCONTRADO</p>
+            </Card>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-border/25 bg-surface/80 shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm uppercase">
+                  <thead className="border-b border-border/15 bg-surface/95 text-[10px] font-black text-secondary uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3">DESCRIÇÃO / CENTRO DE CUSTO</th>
+                      <th className="px-4 py-3">TIPO</th>
+                      <th className="px-4 py-3">VALOR</th>
+                      <th className="px-4 py-3">VENCIMENTO</th>
+                      <th className="px-4 py-3">STATUS</th>
+                      <th className="px-4 py-3 text-right">AÇÕES</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/10 font-medium">
+                    {contasPRFiltradas.map((c) => (
+                      <tr key={c.id} className="hover:bg-overlay/5 transition-colors">
+                        <td className="px-4 py-3">
+                          <p className="text-xs font-bold text-foreground normal-case">{c.descricao || '—'}</p>
+                          <p className="text-[10px] text-secondary normal-case">{c.centroCustoNome}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge tone={c.tipoMovimentacao === 'despesa' ? 'danger' : 'success'} className="text-[9px] font-black">
+                            {c.tipoMovimentacao === 'despesa' ? 'A PAGAR' : 'A RECEBER'}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs font-black text-foreground">
+                          {c.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs">{c.dataVencimento.split('-').reverse().join('/')}</td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            tone={
+                              c.status === 'pago'
+                                ? 'success'
+                                : c.status === 'atrasado'
+                                ? 'danger'
+                                : c.status === 'cancelado'
+                                ? 'neutral'
+                                : 'warning'
+                            }
+                            className="text-[9px] font-black"
+                          >
+                            {c.status.toUpperCase()}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setContaPREditando(c)
+                                setMostrarModalContaPR(true)
+                              }}
+                              className="rounded-lg p-1.5 text-secondary hover:text-primary hover:bg-overlay/10 transition-colors"
+                              title="Editar"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleExcluirContaPR(c.id)}
+                              className="rounded-lg p-1.5 text-secondary hover:text-status-danger hover:bg-status-danger/10 transition-colors"
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {mostrarModalContaPR && createPortal(
+        <ModalContaPagarReceber
+          contaEditando={contaPREditando}
+          centrosCusto={centrosCusto}
+          onRefetchCentrosCusto={refetchCentrosCusto}
+          tiposLancamento={tiposLancamento}
+          onRefetchTiposLancamento={refetchTiposLancamento}
+          fornecedores={fornecedores}
+          onRefetchFornecedores={refetchFornecedores}
+          contasBancarias={contasBancarias}
+          veiculos={frotas}
+          onClose={() => setMostrarModalContaPR(false)}
+        />,
+        document.body,
+      )}
+
+      {/* SUB-ABA: FINANCEIRO (resumo próprio das viagens — não é o painel gerencial da empresa) */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'financeiro_viagens' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <DollarSign className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-foreground uppercase">Financeiro das Viagens</h2>
+              <p className="text-[11px] text-secondary normal-case">
+                Resumo calculado a partir das Viagens e das Contas a Pagar/Receber daqui — não é o painel gerencial da empresa
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+            <Card className="p-4 border-blue-500/20 bg-surface/90">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">FATURAMENTO</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+                  <DollarSign className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p className="mt-2 text-xl font-black font-mono text-blue-400">
+                {metricasFinanceiroViagens.faturamento.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+              <p className="mt-1 text-[10px] text-secondary font-medium">FRETE BRUTO (REGIME COMPETÊNCIA)</p>
+            </Card>
+
+            <Card className="p-4 border-emerald-500/20 bg-surface/90">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-500">RECEITAS</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p className="mt-2 text-xl font-black font-mono text-emerald-500">
+                {metricasFinanceiroViagens.receitas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+              <p className="mt-1 text-[10px] text-secondary font-medium">CONTAS A RECEBER JÁ PAGAS (CAIXA)</p>
+            </Card>
+
+            <Card className="p-4 border-rose-500/20 bg-surface/90">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-500">DESPESAS</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500">
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p className="mt-2 text-xl font-black font-mono text-rose-500">
+                {metricasFinanceiroViagens.despesas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+              <p className="mt-1 text-[10px] text-secondary font-medium">CONTAS A PAGAR JÁ PAGAS (CAIXA)</p>
+            </Card>
+
+            <Card className="p-4 border-amber-500/20 bg-surface/90">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">SALDO DE CAIXA</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400">
+                  <Gauge className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p
+                className={`mt-2 text-xl font-black font-mono ${
+                  metricasFinanceiroViagens.saldoCaixa >= 0 ? 'text-amber-400' : 'text-rose-500'
+                }`}
+              >
+                {metricasFinanceiroViagens.saldoCaixa.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+              <p className="mt-1 text-[10px] text-secondary font-medium">RECEITAS − DESPESAS</p>
+            </Card>
+
+            <Card className="p-4 border-border/30 bg-surface/90">
+              <div className="flex items-center justify-between text-secondary">
+                <span className="text-[10px] font-black uppercase tracking-wider">RESULTADO LÍQUIDO</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Banknote className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p
+                className={`mt-2 text-xl font-black font-mono ${
+                  metricasFinanceiroViagens.resultadoLiquido >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                }`}
+              >
+                {metricasFinanceiroViagens.resultadoLiquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+              <p className="mt-1 text-[10px] text-secondary font-medium">FATURAMENTO − DESPESAS</p>
+            </Card>
+          </div>
+
+          <Card className="p-4 border-border/20 bg-background/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-[11px] text-secondary normal-case leading-relaxed">
+              Pra ver os lançamentos um a um, dar baixa ou editar, use a aba{' '}
+              <button
+                type="button"
+                onClick={() => setSubAbaViagens('contas_pagar_receber')}
+                className="font-bold text-primary hover:underline"
+              >
+                Contas a Pagar/Receber
+              </button>
+              .
+            </p>
+            <Button
+              type="button"
+              onClick={() => {
+                setContaPREditando(null)
+                setMostrarModalContaPR(true)
+              }}
+              className="gap-1.5 text-xs font-bold shadow-md shadow-primary/20 shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              NOVO LANÇAMENTO
+            </Button>
+          </Card>
+        </div>
+      )}
+
+      {/* SUB-ABA: PÁTIO */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'patio' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <Warehouse className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-foreground uppercase">Gestão de Pátio</h2>
+              <p className="text-[11px] text-secondary normal-case">
+                Veículos de clientes guardados no pátio, com diária e taxímetro por dia
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle Pátio / Histórico */}
+          <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm w-full sm:w-fit">
+            <button
+              type="button"
+              onClick={() => setSubAbaPatio('ativos')}
+              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all flex-1 sm:flex-none ${
+                subAbaPatio === 'ativos'
+                  ? 'bg-primary text-white shadow-md shadow-primary/20'
+                  : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+              }`}
+            >
+              <Warehouse className="h-3.5 w-3.5" />
+              NO PÁTIO
+            </button>
+            <button
+              type="button"
+              onClick={() => setSubAbaPatio('historico')}
+              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all flex-1 sm:flex-none ${
+                subAbaPatio === 'historico'
+                  ? 'bg-primary text-white shadow-md shadow-primary/20'
+                  : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+              }`}
+            >
+              <History className="h-3.5 w-3.5" />
+              HISTÓRICO
+            </button>
+          </div>
+
+          {/* Filtros + Nova Entrada */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col sm:flex-row gap-2 flex-1">
+              <div className="relative flex-1 max-w-md">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+                <input
+                  value={buscaPatio}
+                  onChange={(e) => setBuscaPatio(e.target.value)}
+                  placeholder="BUSCAR POR PLACA OU MODELO..."
+                  className="h-10 w-full rounded-xl border border-border/25 bg-surface/90 pl-10 pr-3 text-xs text-foreground placeholder:text-secondary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+                />
+              </div>
+              <Select
+                value={filtroClientePatio}
+                onChange={(e) => setFiltroClientePatio(e.target.value)}
+                className="text-xs font-bold sm:max-w-[220px]"
+              >
+                <option value="">TODOS OS CLIENTES</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button type="button" variant="secondary" onClick={handleExportarPatio} className="gap-1.5 text-xs font-bold">
+                <Download className="h-3.5 w-3.5" />
+                EXPORTAR
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setEstadiaPatioEditando(null)
+                  setMostrarModalPatio(true)
+                }}
+                className="gap-1.5 text-xs font-bold shadow-md shadow-primary/20"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                NOVA ENTRADA
+              </Button>
+            </div>
+          </div>
+
+          {/* Listagem */}
+          {carregandoPatio && estadiasPatioFiltradas.length === 0 ? (
+            <Card className="p-10 text-center">
+              <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
+            </Card>
+          ) : estadiasPatioFiltradas.length === 0 ? (
+            <Card className="p-10 text-center">
+              <Warehouse className="mx-auto mb-2 h-8 w-8 text-secondary/40" />
+              <p className="text-xs font-bold text-secondary">
+                {subAbaPatio === 'ativos' ? 'NENHUM VEÍCULO NO PÁTIO' : 'NENHUM REGISTRO NO HISTÓRICO'}
+              </p>
+            </Card>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-border/25 bg-surface/80 shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm uppercase">
+                  <thead className="border-b border-border/15 bg-surface/95 text-[10px] font-black text-secondary uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3">PLACA</th>
+                      <th className="px-4 py-3">MODELO/COR</th>
+                      <th className="px-4 py-3">CLIENTE</th>
+                      <th className="px-4 py-3">ENTRADA</th>
+                      <th className="px-4 py-3">PREVISÃO SAÍDA</th>
+                      <th className="px-4 py-3">DIAS</th>
+                      <th className="px-4 py-3">TAXÍMETRO</th>
+                      <th className="px-4 py-3 text-right">AÇÕES</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/10 font-medium">
+                    {estadiasPatioFiltradas.map((e) => {
+                      const { dias, valor } = calcularDiasEValorPatio(e)
+                      const finalizada = Boolean(e.dataHoraSaidaReal)
+                      return (
+                        <tr key={e.id} className="hover:bg-overlay/5 transition-colors">
+                          <td className="px-4 py-3 font-mono font-black text-foreground">{e.placa}</td>
+                          <td className="px-4 py-3">
+                            <p className="text-xs font-bold text-foreground normal-case">{e.modelo || '—'}</p>
+                            <p className="text-[10px] text-secondary normal-case">
+                              {[e.marca, e.cor].filter(Boolean).join(' • ') || '—'}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3 text-xs font-bold text-foreground normal-case">{e.clienteNome}</td>
+                          <td className="px-4 py-3">
+                            <p className="font-mono text-xs">{format(parseISO(e.dataHoraEntrada), 'dd/MM/yyyy')}</p>
+                            <p className="text-[10px] text-secondary font-mono">{format(parseISO(e.dataHoraEntrada), 'HH:mm')}</p>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-secondary">
+                            {e.previsaoSaida ? format(parseISO(e.previsaoSaida), 'dd/MM/yyyy HH:mm') : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge tone={finalizada ? 'neutral' : 'warning'} className="text-[9px] font-black">
+                              {dias} {dias === 1 ? 'DIA' : 'DIAS'}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-mono text-sm font-black text-emerald-500">
+                              {valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </p>
+                            <p className="text-[10px] text-secondary font-mono">
+                              {e.valorDiaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/DIA
+                            </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEstadiaPatioEditando(e)
+                                  setMostrarModalPatio(true)
+                                }}
+                                className="rounded-lg p-1.5 text-secondary hover:text-primary hover:bg-overlay/10 transition-colors"
+                                title="Editar"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              {!finalizada && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleFinalizarEstadiaPatio(e)}
+                                  className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[10px] font-black text-emerald-500 hover:bg-emerald-500/20 transition-colors"
+                                  title="Finalizar Estadia"
+                                >
+                                  <LogOut className="h-3.5 w-3.5" />
+                                  FINALIZAR
+                                </button>
+                              )}
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleExcluirEstadiaPatio(e.id)}
+                                  className="rounded-lg p-1.5 text-secondary hover:text-status-danger hover:bg-status-danger/10 transition-colors"
+                                  title="Excluir"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {mostrarModalPatio && createPortal(
+        <ModalEstadiaPatio
+          estadiaEditando={estadiaPatioEditando}
+          clientes={clientes}
+          onRefetchClientes={refetchClientes}
+          centrosCusto={centrosCusto}
+          onRefetchCentrosCusto={refetchCentrosCusto}
+          onClose={() => setMostrarModalPatio(false)}
+        />,
+        document.body,
+      )}
+
+      {/* SUB-ABA: MANUTENÇÃO */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'manutencao' && (
+        <ManutencaoViagens
+          veiculos={frotas}
+          centrosCusto={centrosCusto}
+          onRefetchCentrosCusto={refetchCentrosCusto}
+          onCriarCentroCusto={criarCentroCusto}
+          fornecedores={fornecedores}
+          onRefetchFornecedores={refetchFornecedores}
+          onCriarFornecedor={criarFornecedor}
+          isAdmin={isAdmin}
+        />
+      )}
+
+      {/* SUB-ABA: CONCILIAÇÃO */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'conciliacao' && (
+        <ConciliacaoViagens contasPR={contasPR} contasBancarias={contasBancarias} />
       )}
 
       {/* ========================================================================= */}
@@ -4819,6 +6388,2437 @@ export function Frotas() {
         </div>,
         document.body,
       )}
+
+      {mostrarModalViagem && createPortal(
+        <ModalViagem
+          viagemEditando={viagemEditando}
+          veiculos={frotas}
+          clientes={clientes}
+          onRefetchClientes={refetchClientes}
+          centrosCusto={centrosCusto}
+          onRefetchCentrosCusto={refetchCentrosCusto}
+          transportadoras={transportadoras}
+          onRefetchTransportadoras={refetchTransportadoras}
+          tiposCarga={tiposCarga}
+          onRefetchTiposCarga={refetchTiposCarga}
+          enderecosFrequentes={enderecosFrequentes}
+          onRefetchEnderecosFrequentes={refetchEnderecosFrequentes}
+          onClose={() => setMostrarModalViagem(false)}
+        />,
+        document.body,
+      )}
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Nova Viagem / Encerrar Viagem
+// ----------------------------------------------------------------------------------
+function formatarMoeda(valor: number): string {
+  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+// Campos de valor/percentual digitados no padrão pt-BR ("1.500,50") — "." é
+// sempre separador de milhar (removido) e a "," vira o ponto decimal do
+// JS. `Number("1500,50")` sozinho retorna NaN, por isso não dá pra só
+// jogar o texto digitado direto num Number(...).
+function parseDecimalPtBr(valor: string): number {
+  const limpo = valor.replace(/\./g, '').replace(',', '.')
+  return Number(limpo) || 0
+}
+
+// Taxímetro do Pátio: dias corridos desde a entrada (até agora, ou até a
+// saída real se já finalizada) × valor da diária. Mínimo de 1 dia.
+function calcularDiasEValorPatio(estadia: EstadiaPatio): { dias: number; valor: number } {
+  const inicio = parseISO(estadia.dataHoraEntrada)
+  const fim = estadia.dataHoraSaidaReal ? parseISO(estadia.dataHoraSaidaReal) : new Date()
+  const dias = Math.max(1, differenceInDays(fim, inicio))
+  return { dias, valor: dias * estadia.valorDiaria }
+}
+
+// Converte um ISO (ou vazio) pro formato aceito pelo <input type="datetime-local"> e vice-versa.
+function isoParaDatetimeLocal(iso?: string): string {
+  if (!iso) return ''
+  const data = new Date(iso)
+  if (Number.isNaN(data.getTime())) return ''
+  const offset = data.getTimezoneOffset()
+  const local = new Date(data.getTime() - offset * 60000)
+  return local.toISOString().slice(0, 16)
+}
+
+function datetimeLocalParaIso(valor: string): string | null {
+  if (!valor) return null
+  const data = new Date(valor)
+  if (Number.isNaN(data.getTime())) return null
+  return data.toISOString()
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Gerenciador de um cadastro simples (id + nome) — usado pelas
+// telas de Centro de Custo e Tipo de Carga do Controle de Viagens.
+// ----------------------------------------------------------------------------------
+function GerenciadorCadastroSimples({
+  titulo,
+  subtitulo,
+  icon: Icon,
+  itens,
+  loading,
+  refetch,
+  onCriar,
+  onAtualizar,
+  onExcluir,
+}: {
+  titulo: string
+  subtitulo: string
+  icon: React.ComponentType<{ className?: string }>
+  itens: { id: string; nome: string }[]
+  loading: boolean
+  refetch: () => Promise<void>
+  onCriar: (nome: string) => Promise<unknown>
+  onAtualizar: (id: string, nome: string) => Promise<unknown>
+  onExcluir: (id: string) => Promise<void>
+}) {
+  const [busca, setBusca] = useState('')
+  const [novoNome, setNovoNome] = useState('')
+  const [criando, setCriando] = useState(false)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [nomeEdicao, setNomeEdicao] = useState('')
+  const [salvandoId, setSalvandoId] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const itensFiltrados = itens.filter((it) => it.nome.toLowerCase().includes(busca.toLowerCase().trim()))
+
+  async function handleCriar(e: React.FormEvent) {
+    e.preventDefault()
+    if (!novoNome.trim()) return
+    setCriando(true)
+    setErro(null)
+    try {
+      await onCriar(novoNome.trim())
+      await refetch()
+      setNovoNome('')
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Erro ao criar registro.'))
+    } finally {
+      setCriando(false)
+    }
+  }
+
+  function iniciarEdicao(it: { id: string; nome: string }) {
+    setEditandoId(it.id)
+    setNomeEdicao(it.nome)
+  }
+
+  async function salvarEdicao(id: string) {
+    if (!nomeEdicao.trim()) return
+    setSalvandoId(id)
+    setErro(null)
+    try {
+      await onAtualizar(id, nomeEdicao.trim())
+      await refetch()
+      setEditandoId(null)
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Erro ao salvar alteração.'))
+    } finally {
+      setSalvandoId(null)
+    }
+  }
+
+  async function handleExcluir(id: string) {
+    if (!confirm('Excluir este registro? Essa ação não pode ser desfeita.')) return
+    setSalvandoId(id)
+    setErro(null)
+    try {
+      await onExcluir(id)
+      await refetch()
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Não foi possível excluir. Verifique se não está em uso em alguma viagem.'))
+    } finally {
+      setSalvandoId(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div>
+          <h2 className="text-sm font-black text-foreground uppercase">{titulo}</h2>
+          <p className="text-[11px] text-secondary normal-case">{subtitulo}</p>
+        </div>
+      </div>
+
+      {erro && (
+        <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3.5 py-2.5 text-xs font-semibold text-red-400 normal-case">
+          {erro}
+        </div>
+      )}
+
+      <form onSubmit={handleCriar} className="flex gap-2">
+        <Input
+          placeholder={`NOVO ITEM (EX: ${titulo.toUpperCase()})`}
+          value={novoNome}
+          onChange={(e) => setNovoNome(e.target.value.toUpperCase())}
+          className="text-xs font-bold"
+        />
+        <Button type="submit" disabled={criando || !novoNome.trim()} className="gap-1.5 text-xs font-bold shrink-0">
+          <Plus className="h-3.5 w-3.5" />
+          ADICIONAR
+        </Button>
+      </form>
+
+      <div className="relative max-w-sm">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="BUSCAR..."
+          className="h-10 w-full rounded-xl border border-border/25 bg-surface/90 pl-10 pr-3 text-xs text-foreground placeholder:text-secondary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+        />
+      </div>
+
+      {loading && itens.length === 0 ? (
+        <Card className="p-10 text-center">
+          <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
+        </Card>
+      ) : itensFiltrados.length === 0 ? (
+        <Card className="p-10 text-center">
+          <Icon className="mx-auto mb-2 h-8 w-8 text-secondary/40" />
+          <p className="text-xs font-bold text-secondary">{itens.length === 0 ? 'NENHUM REGISTRO CADASTRADO' : 'NADA ENCONTRADO PARA A BUSCA'}</p>
+        </Card>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-border/25 bg-surface/80 shadow-sm">
+          <div className="divide-y divide-border/10">
+            {itensFiltrados.map((it) => (
+              <div key={it.id} className="flex items-center gap-2 px-4 py-3">
+                {editandoId === it.id ? (
+                  <>
+                    <Input
+                      autoFocus
+                      value={nomeEdicao}
+                      onChange={(e) => setNomeEdicao(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          salvarEdicao(it.id)
+                        } else if (e.key === 'Escape') {
+                          setEditandoId(null)
+                        }
+                      }}
+                      className="flex-1 text-xs font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => salvarEdicao(it.id)}
+                      disabled={salvandoId === it.id}
+                      className="rounded-lg p-1.5 text-status-success hover:bg-status-success/10 transition-colors"
+                      title="Salvar"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditandoId(null)}
+                      className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 transition-colors"
+                      title="Cancelar"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-xs font-bold text-foreground normal-case">{it.nome}</span>
+                    <button
+                      type="button"
+                      onClick={() => iniciarEdicao(it)}
+                      className="rounded-lg p-1.5 text-secondary hover:text-primary hover:bg-overlay/10 transition-colors"
+                      title="Editar"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExcluir(it.id)}
+                      disabled={salvandoId === it.id}
+                      className="rounded-lg p-1.5 text-secondary hover:text-status-danger hover:bg-status-danger/10 transition-colors"
+                      title="Excluir"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Gerenciador de Endereços Frequentes (apelido + endereço + cidade + UF)
+// ----------------------------------------------------------------------------------
+function GerenciadorEnderecosFrequentes({
+  enderecos,
+  loading,
+  refetch,
+}: {
+  enderecos: EnderecoFrequente[]
+  loading: boolean
+  refetch: () => Promise<void>
+}) {
+  const [busca, setBusca] = useState('')
+  const [form, setForm] = useState({ apelido: '', endereco: '', cidade: '', uf: '' })
+  const [criando, setCriando] = useState(false)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [formEdicao, setFormEdicao] = useState({ apelido: '', endereco: '', cidade: '', uf: '' })
+  const [salvandoId, setSalvandoId] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const enderecosFiltrados = enderecos.filter((e) => {
+    const termo = busca.toLowerCase().trim()
+    if (!termo) return true
+    return (
+      e.apelido.toLowerCase().includes(termo) ||
+      e.endereco.toLowerCase().includes(termo) ||
+      e.cidade.toLowerCase().includes(termo)
+    )
+  })
+
+  async function handleCriar(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.apelido.trim() || !form.endereco.trim() || !form.cidade.trim() || !form.uf.trim()) {
+      setErro('Preencha apelido, endereço, cidade e UF.')
+      return
+    }
+    setCriando(true)
+    setErro(null)
+    try {
+      await criarEnderecoFrequente(form)
+      await refetch()
+      setForm({ apelido: '', endereco: '', cidade: '', uf: '' })
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Erro ao criar endereço.'))
+    } finally {
+      setCriando(false)
+    }
+  }
+
+  function iniciarEdicao(e: EnderecoFrequente) {
+    setEditandoId(e.id)
+    setFormEdicao({ apelido: e.apelido, endereco: e.endereco, cidade: e.cidade, uf: e.uf })
+  }
+
+  async function salvarEdicao(id: string) {
+    if (!formEdicao.apelido.trim() || !formEdicao.endereco.trim() || !formEdicao.cidade.trim() || !formEdicao.uf.trim()) return
+    setSalvandoId(id)
+    setErro(null)
+    try {
+      await atualizarEnderecoFrequente(id, formEdicao)
+      await refetch()
+      setEditandoId(null)
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Erro ao salvar alteração.'))
+    } finally {
+      setSalvandoId(null)
+    }
+  }
+
+  async function handleExcluir(id: string) {
+    if (!confirm('Excluir este endereço frequente? Essa ação não pode ser desfeita.')) return
+    setSalvandoId(id)
+    setErro(null)
+    try {
+      await excluirEnderecoFrequente(id)
+      await refetch()
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Não foi possível excluir.'))
+    } finally {
+      setSalvandoId(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+          <MapPin className="h-4 w-4" />
+        </div>
+        <div>
+          <h2 className="text-sm font-black text-foreground uppercase">Endereços Frequentes</h2>
+          <p className="text-[11px] text-secondary normal-case">Endereços salvos para agilizar a rota das viagens</p>
+        </div>
+      </div>
+
+      {erro && (
+        <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3.5 py-2.5 text-xs font-semibold text-red-400 normal-case">
+          {erro}
+        </div>
+      )}
+
+      <form onSubmit={handleCriar} className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+        <Input
+          placeholder="APELIDO"
+          value={form.apelido}
+          onChange={(e) => setForm((f) => ({ ...f, apelido: e.target.value.toUpperCase() }))}
+          className="text-xs font-bold"
+        />
+        <Input
+          placeholder="ENDEREÇO"
+          value={form.endereco}
+          onChange={(e) => setForm((f) => ({ ...f, endereco: e.target.value.toUpperCase() }))}
+          className="text-xs font-bold sm:col-span-2"
+        />
+        <Input
+          placeholder="CIDADE"
+          value={form.cidade}
+          onChange={(e) => setForm((f) => ({ ...f, cidade: e.target.value.toUpperCase() }))}
+          className="text-xs font-bold"
+        />
+        <div className="flex gap-2">
+          <Input
+            placeholder="UF"
+            maxLength={2}
+            value={form.uf}
+            onChange={(e) => setForm((f) => ({ ...f, uf: e.target.value.toUpperCase() }))}
+            className="text-xs font-bold w-16"
+          />
+          <Button type="submit" disabled={criando} className="gap-1.5 text-xs font-bold shrink-0 flex-1">
+            <Plus className="h-3.5 w-3.5" />
+            ADICIONAR
+          </Button>
+        </div>
+      </form>
+
+      <div className="relative max-w-sm">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="BUSCAR..."
+          className="h-10 w-full rounded-xl border border-border/25 bg-surface/90 pl-10 pr-3 text-xs text-foreground placeholder:text-secondary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+        />
+      </div>
+
+      {loading && enderecos.length === 0 ? (
+        <Card className="p-10 text-center">
+          <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
+        </Card>
+      ) : enderecosFiltrados.length === 0 ? (
+        <Card className="p-10 text-center">
+          <MapPin className="mx-auto mb-2 h-8 w-8 text-secondary/40" />
+          <p className="text-xs font-bold text-secondary">
+            {enderecos.length === 0 ? 'NENHUM ENDEREÇO CADASTRADO' : 'NADA ENCONTRADO PARA A BUSCA'}
+          </p>
+        </Card>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-border/25 bg-surface/80 shadow-sm">
+          <div className="divide-y divide-border/10">
+            {enderecosFiltrados.map((e) => (
+              <div key={e.id} className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3">
+                {editandoId === e.id ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 flex-1">
+                      <Input
+                        autoFocus
+                        value={formEdicao.apelido}
+                        onChange={(ev) => setFormEdicao((f) => ({ ...f, apelido: ev.target.value.toUpperCase() }))}
+                        className="text-xs font-bold"
+                      />
+                      <Input
+                        value={formEdicao.endereco}
+                        onChange={(ev) => setFormEdicao((f) => ({ ...f, endereco: ev.target.value.toUpperCase() }))}
+                        className="text-xs font-bold sm:col-span-2"
+                      />
+                      <Input
+                        value={formEdicao.cidade}
+                        onChange={(ev) => setFormEdicao((f) => ({ ...f, cidade: ev.target.value.toUpperCase() }))}
+                        className="text-xs font-bold"
+                      />
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        value={formEdicao.uf}
+                        maxLength={2}
+                        onChange={(ev) => setFormEdicao((f) => ({ ...f, uf: ev.target.value.toUpperCase() }))}
+                        className="text-xs font-bold w-16"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => salvarEdicao(e.id)}
+                        disabled={salvandoId === e.id}
+                        className="rounded-lg p-1.5 text-status-success hover:bg-status-success/10 transition-colors"
+                        title="Salvar"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditandoId(null)}
+                        className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 transition-colors"
+                        title="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-black text-foreground normal-case">{e.apelido}</p>
+                      <p className="text-[11px] text-secondary normal-case truncate">
+                        {e.endereco}, {e.cidade}/{e.uf}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => iniciarEdicao(e)}
+                        className="rounded-lg p-1.5 text-secondary hover:text-primary hover:bg-overlay/10 transition-colors"
+                        title="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExcluir(e.id)}
+                        disabled={salvandoId === e.id}
+                        className="rounded-lg p-1.5 text-secondary hover:text-status-danger hover:bg-status-danger/10 transition-colors"
+                        title="Excluir"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Gerenciador de Modelos (escopado por Marca selecionada)
+// ----------------------------------------------------------------------------------
+function GerenciadorModelos({ marcas }: { marcas: { id: string; nome: string }[] }) {
+  const [marcaId, setMarcaId] = useState(marcas[0]?.id || '')
+  const { modelos, loading, refetch } = useModelos(marcaId || undefined)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+          <Layers className="h-4 w-4" />
+        </div>
+        <div>
+          <h2 className="text-sm font-black text-foreground uppercase">Modelos</h2>
+          <p className="text-[11px] text-secondary normal-case">Modelos de veículos, agrupados por marca</p>
+        </div>
+      </div>
+
+      <div className="max-w-xs">
+        <Label className="normal-case text-[11px]">Marca</Label>
+        <Select value={marcaId} onChange={(e) => setMarcaId(e.target.value)} className="mt-1 text-xs font-bold">
+          <option value="">SELECIONE UMA MARCA</option>
+          {marcas.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.nome}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {!marcaId ? (
+        <Card className="p-10 text-center">
+          <Layers className="mx-auto mb-2 h-8 w-8 text-secondary/40" />
+          <p className="text-xs font-bold text-secondary">SELECIONE UMA MARCA PARA VER OS MODELOS</p>
+        </Card>
+      ) : (
+        <GerenciadorCadastroSimples
+          titulo={`Modelos`}
+          subtitulo="Modelos cadastrados para a marca selecionada"
+          icon={Layers}
+          itens={modelos}
+          loading={loading}
+          refetch={refetch}
+          onCriar={(nome) => criarModelo(marcaId, nome)}
+          onAtualizar={atualizarModelo}
+          onExcluir={excluirModelo}
+        />
+      )}
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Gerenciador de Contas Bancárias
+// ----------------------------------------------------------------------------------
+function GerenciadorContasBancarias({
+  contas,
+  loading,
+  onCriar,
+  onAtualizar,
+  onExcluir,
+}: {
+  contas: ContaBancaria[]
+  loading: boolean
+  onCriar: (form: Omit<ContaBancaria, 'id' | 'created_at'>) => Promise<void>
+  onAtualizar: (id: string, form: Omit<ContaBancaria, 'id' | 'created_at'>) => Promise<void>
+  onExcluir: (id: string) => Promise<void>
+}) {
+  const [mostrarModal, setMostrarModal] = useState(false)
+  const [contaEditando, setContaEditando] = useState<ContaBancaria | null>(null)
+  const [excluindoId, setExcluindoId] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function handleExcluir(id: string) {
+    if (!confirm('Excluir esta conta bancária? Essa ação não pode ser desfeita.')) return
+    setExcluindoId(id)
+    setErro(null)
+    try {
+      await onExcluir(id)
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Não foi possível excluir.'))
+    } finally {
+      setExcluindoId(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+            <Landmark className="h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-black text-foreground uppercase">Contas Bancárias</h2>
+            <p className="text-[11px] text-secondary normal-case">Contas usadas nos fechamentos financeiros das viagens</p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          onClick={() => {
+            setContaEditando(null)
+            setMostrarModal(true)
+          }}
+          className="gap-1.5 text-xs font-bold shadow-md shadow-primary/20 shrink-0"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          NOVA CONTA BANCÁRIA
+        </Button>
+      </div>
+
+      {erro && (
+        <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3.5 py-2.5 text-xs font-semibold text-red-400 normal-case">
+          {erro}
+        </div>
+      )}
+
+      {loading && contas.length === 0 ? (
+        <Card className="p-10 text-center">
+          <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
+        </Card>
+      ) : contas.length === 0 ? (
+        <Card className="p-10 text-center">
+          <Landmark className="mx-auto mb-2 h-8 w-8 text-secondary/40" />
+          <p className="text-xs font-bold text-secondary">NENHUMA CONTA CADASTRADA</p>
+        </Card>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-border/25 bg-surface/80 shadow-sm">
+          <div className="divide-y divide-border/10">
+            {contas.map((c) => (
+              <div key={c.id} className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs font-black text-foreground normal-case">{c.nome}</p>
+                    <Badge tone={c.ativa ? 'success' : 'neutral'} className="text-[9px] font-black">
+                      {c.ativa ? 'ATIVO' : 'INATIVO'}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-secondary normal-case truncate">
+                    {c.codigo_banco ? `${c.codigo_banco} — ` : ''}{c.banco} · AG {c.agencia || '—'} · CC {c.conta || '—'} · {c.tipo.toUpperCase()}
+                    {c.saldo_inicial ? ` · SALDO INICIAL ${c.saldo_inicial.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContaEditando(c)
+                      setMostrarModal(true)
+                    }}
+                    className="rounded-lg p-1.5 text-secondary hover:text-primary hover:bg-overlay/10 transition-colors"
+                    title="Editar"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExcluir(c.id)}
+                    disabled={excluindoId === c.id}
+                    className="rounded-lg p-1.5 text-secondary hover:text-status-danger hover:bg-status-danger/10 transition-colors"
+                    title="Excluir"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {mostrarModal && createPortal(
+        <ModalContaBancaria
+          contaEditando={contaEditando}
+          onCriar={onCriar}
+          onAtualizar={onAtualizar}
+          onClose={() => setMostrarModal(false)}
+        />,
+        document.body,
+      )}
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Nova / Editar Conta Bancária
+// ----------------------------------------------------------------------------------
+function ModalContaBancaria({
+  contaEditando,
+  onCriar,
+  onAtualizar,
+  onClose,
+}: {
+  contaEditando: ContaBancaria | null
+  onCriar: (form: Omit<ContaBancaria, 'id' | 'created_at'>) => Promise<void>
+  onAtualizar: (id: string, form: Omit<ContaBancaria, 'id' | 'created_at'>) => Promise<void>
+  onClose: () => void
+}) {
+  const [nome, setNome] = useState(contaEditando?.nome || '')
+  const [tipo, setTipo] = useState<ContaBancaria['tipo']>(contaEditando?.tipo || 'corrente')
+  const [codigoBanco, setCodigoBanco] = useState(contaEditando?.codigo_banco || '')
+  const [banco, setBanco] = useState(contaEditando?.banco || '')
+  const [agencia, setAgencia] = useState(contaEditando?.agencia || '')
+  const [conta, setConta] = useState(contaEditando?.conta || '')
+  const [saldoInicial, setSaldoInicial] = useState(
+    contaEditando?.saldo_inicial != null ? contaEditando.saldo_inicial.toFixed(2).replace('.', ',') : '',
+  )
+  const [ativa, setAtiva] = useState(contaEditando?.ativa ?? true)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (!nome.trim()) {
+      setErro('Informe o nome/apelido da conta.')
+      return
+    }
+    if (!codigoBanco.trim()) {
+      setErro('Informe o código do banco.')
+      return
+    }
+    if (!banco.trim()) {
+      setErro('Informe o nome do banco.')
+      return
+    }
+    if (!agencia.trim()) {
+      setErro('Informe a agência.')
+      return
+    }
+    if (!conta.trim()) {
+      setErro('Informe o número da conta.')
+      return
+    }
+
+    const form: Omit<ContaBancaria, 'id' | 'created_at'> = {
+      nome: nome.trim().toUpperCase(),
+      tipo,
+      codigo_banco: codigoBanco.trim(),
+      banco: banco.trim().toUpperCase(),
+      agencia: agencia.trim(),
+      conta: conta.trim(),
+      saldo_inicial: parseDecimalPtBr(saldoInicial),
+      ativa,
+    }
+
+    setSalvando(true)
+    setErro(null)
+    try {
+      if (contaEditando) {
+        await onAtualizar(contaEditando.id, form)
+      } else {
+        await onCriar(form)
+      }
+      onClose()
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Erro ao salvar a conta bancária.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="w-full max-w-lg rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="flex items-center justify-between border-b border-border/10 px-6 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <Landmark className="h-5 w-5" />
+            </div>
+            <h2 className="text-base font-black text-foreground uppercase">
+              {contaEditando ? 'Editar Conta Bancária' : 'Nova Conta Bancária'}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-1.5 text-secondary hover:bg-background hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 uppercase">
+          {erro && (
+            <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3.5 py-2.5 text-xs font-semibold text-red-400 normal-case">
+              {erro}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="cbNome" className="normal-case text-[11px]">Nome/Apelido *</Label>
+              <Input
+                id="cbNome"
+                placeholder="EX: ITAÚ PRINCIPAL"
+                value={nome}
+                onChange={(e) => setNome(e.target.value.toUpperCase())}
+                className="text-xs font-bold"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cbTipo" className="normal-case text-[11px]">Tipo</Label>
+              <Select id="cbTipo" value={tipo} onChange={(e) => setTipo(e.target.value as ContaBancaria['tipo'])} className="text-xs font-bold">
+                <option value="corrente">CORRENTE</option>
+                <option value="poupanca">POUPANÇA</option>
+                <option value="cartao">CARTÃO</option>
+                <option value="outro">OUTRO</option>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="cbCodigoBanco" className="normal-case text-[11px]">Código do Banco *</Label>
+              <Input
+                id="cbCodigoBanco"
+                placeholder="EX: 341"
+                value={codigoBanco}
+                onChange={(e) => setCodigoBanco(e.target.value)}
+                className="text-xs font-bold font-mono"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cbBanco" className="normal-case text-[11px]">Nome do Banco *</Label>
+              <Input
+                id="cbBanco"
+                placeholder="EX: ITAÚ"
+                value={banco}
+                onChange={(e) => setBanco(e.target.value.toUpperCase())}
+                className="text-xs font-bold"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="cbAgencia" className="normal-case text-[11px]">Agência *</Label>
+              <Input
+                id="cbAgencia"
+                placeholder="EX: 0001"
+                value={agencia}
+                onChange={(e) => setAgencia(e.target.value)}
+                className="text-xs font-bold font-mono"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cbConta" className="normal-case text-[11px]">Número da Conta *</Label>
+              <Input
+                id="cbConta"
+                placeholder="EX: 12345-6"
+                value={conta}
+                onChange={(e) => setConta(e.target.value)}
+                className="text-xs font-bold font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="cbSaldo" className="normal-case text-[11px]">Saldo Inicial (R$)</Label>
+              <Input
+                id="cbSaldo"
+                type="text"
+                inputMode="decimal"
+                placeholder="0"
+                value={saldoInicial}
+                onChange={(e) => setSaldoInicial(e.target.value.replace(/[^0-9.,]/g, ''))}
+                className="text-xs font-bold font-mono"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cbStatus" className="normal-case text-[11px]">Status</Label>
+              <Select
+                id="cbStatus"
+                value={ativa ? 'ativo' : 'inativo'}
+                onChange={(e) => setAtiva(e.target.value === 'ativo')}
+                className="text-xs font-bold"
+              >
+                <option value="ativo">ATIVO</option>
+                <option value="inativo">INATIVO</option>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/15">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="!h-10 px-5 text-xs font-semibold">
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={salvando} className="!h-10 px-6 text-xs font-bold bg-primary hover:bg-primary/90 text-white">
+              {salvando ? 'Salvando...' : contaEditando ? 'Salvar Alterações' : 'Cadastrar'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Novo Lançamento / Editar Lançamento (Contas a Pagar/Receber)
+// ----------------------------------------------------------------------------------
+function ModalContaPagarReceber({
+  contaEditando,
+  centrosCusto,
+  onRefetchCentrosCusto,
+  tiposLancamento,
+  onRefetchTiposLancamento,
+  fornecedores,
+  onRefetchFornecedores,
+  contasBancarias,
+  veiculos,
+  onClose,
+}: {
+  contaEditando: ContaPagarReceber | null
+  centrosCusto: { id: string; nome: string }[]
+  onRefetchCentrosCusto: () => Promise<void>
+  tiposLancamento: { id: string; nome: string }[]
+  onRefetchTiposLancamento: () => Promise<void>
+  fornecedores: { id: string; nome: string }[]
+  onRefetchFornecedores: () => Promise<void>
+  contasBancarias: { id: string; nome: string }[]
+  veiculos: ItemFrotaCadastrada[]
+  onClose: () => void
+}) {
+  const [descricao, setDescricao] = useState(contaEditando?.descricao || '')
+  const [centroCustoId, setCentroCustoId] = useState(contaEditando?.centroCustoId || '')
+  const [tipoMovimentacao, setTipoMovimentacao] = useState<TipoMovimentacaoConta>(contaEditando?.tipoMovimentacao || 'despesa')
+  const [tipoLancamentoId, setTipoLancamentoId] = useState(contaEditando?.tipoLancamentoId || '')
+  const [valor, setValor] = useState(contaEditando?.valor != null ? String(contaEditando.valor) : '')
+  const [dataLancamento, setDataLancamento] = useState(contaEditando?.dataLancamento || new Date().toISOString().slice(0, 10))
+  const [dataVencimento, setDataVencimento] = useState(contaEditando?.dataVencimento || '')
+  const [status, setStatus] = useState<StatusContaPagarReceber>(contaEditando?.status || 'pendente')
+  const [veiculoId, setVeiculoId] = useState(contaEditando?.veiculoId || '')
+  const [fornecedorId, setFornecedorId] = useState(contaEditando?.fornecedorId || '')
+  const [contaBancariaId, setContaBancariaId] = useState(contaEditando?.contaBancariaId || '')
+  const [observacoes, setObservacoes] = useState(contaEditando?.observacoes || '')
+  const [numeroParcelas, setNumeroParcelas] = useState(String(contaEditando?.numeroParcelas || 1))
+  const [mostrarDetalhes, setMostrarDetalhes] = useState(false)
+  const [mostrarParcelamento, setMostrarParcelamento] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const veiculosOrdenados = useMemo(() => [...veiculos].sort((a, b) => a.placa.localeCompare(b.placa)), [veiculos])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (!centroCustoId) {
+      setErro('Selecione o centro de custo.')
+      return
+    }
+    if (!tipoLancamentoId) {
+      setErro('Selecione o tipo de lançamento.')
+      return
+    }
+    const valorNum = parseDecimalPtBr(valor)
+    if (!valor || Number.isNaN(valorNum) || valorNum <= 0) {
+      setErro('Informe um valor válido.')
+      return
+    }
+    if (!dataLancamento || !dataVencimento) {
+      setErro('Informe a data de lançamento e a data de vencimento.')
+      return
+    }
+    if (dataVencimento < dataLancamento) {
+      setErro('A data de vencimento não pode ser antes da data de lançamento.')
+      return
+    }
+
+    const centro = centrosCusto.find((c) => c.id === centroCustoId)
+    const tipo = tiposLancamento.find((t) => t.id === tipoLancamentoId)
+    const fornecedor = fornecedores.find((f) => f.id === fornecedorId)
+    const veiculo = veiculosOrdenados.find((v) => v.id === veiculoId)
+    const contaBanco = contasBancarias.find((c) => c.id === contaBancariaId)
+
+    const input: SalvarContaPagarReceberInput = {
+      descricao: descricao.trim() ? descricao.trim().toUpperCase() : undefined,
+      centroCustoId,
+      centroCustoNome: centro?.nome,
+      tipoMovimentacao,
+      tipoLancamentoId,
+      tipoLancamentoNome: tipo?.nome,
+      valor: valorNum,
+      dataLancamento,
+      dataVencimento,
+      status,
+      veiculoId: veiculoId || undefined,
+      placa: veiculo?.placa,
+      fornecedorId: fornecedorId || undefined,
+      fornecedorNome: fornecedor?.nome,
+      contaBancariaId: contaBancariaId || undefined,
+      contaBancariaNome: contaBanco?.nome,
+      observacoes: observacoes.trim() ? observacoes.trim().toUpperCase() : undefined,
+      numeroParcelas: Number(numeroParcelas) || 1,
+    }
+
+    setSalvando(true)
+    setErro(null)
+    try {
+      if (contaEditando) {
+        await atualizarContaPagarReceber(contaEditando.id, input)
+      } else {
+        await criarContaPagarReceber(input)
+      }
+      onClose()
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Erro ao salvar o lançamento.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="w-full max-w-lg rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="flex items-center justify-between border-b border-border/10 px-6 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <CreditCard className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-foreground uppercase">
+                {contaEditando ? 'Editar Lançamento' : 'Novo Lançamento'}
+              </h2>
+              <p className="text-[11px] text-secondary">Conta a pagar ou a receber</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-1.5 text-secondary hover:bg-background hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 uppercase">
+          {erro && (
+            <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3.5 py-2.5 text-xs font-semibold text-red-400 normal-case">
+              {erro}
+            </div>
+          )}
+
+          <div>
+            <Label htmlFor="lancDescricao">Descrição</Label>
+            <Input
+              id="lancDescricao"
+              placeholder="EX: COMBUSTÍVEL POSTO IPIRANGA"
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value.toUpperCase())}
+              className="text-xs font-bold"
+            />
+          </div>
+
+          <QuickCreateSelect
+            label="Centro de Custo *"
+            placeholder="Selecione o centro de custo..."
+            options={centrosCusto}
+            value={centroCustoId}
+            onChange={setCentroCustoId}
+            onCreate={async (nome) => {
+              const novo = await criarCentroCusto(nome)
+              await onRefetchCentrosCusto()
+              return novo
+            }}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="lancMovimentacao">Tipo de Movimentação</Label>
+              <Select
+                id="lancMovimentacao"
+                value={tipoMovimentacao}
+                onChange={(e) => setTipoMovimentacao(e.target.value as TipoMovimentacaoConta)}
+                className="text-xs font-bold"
+              >
+                <option value="despesa">CONTA A PAGAR (DESPESA)</option>
+                <option value="receita">CONTA A RECEBER (RECEITA)</option>
+              </Select>
+            </div>
+            <QuickCreateSelect
+              label="Tipo de Lançamento *"
+              placeholder="Selecione o tipo de lançamento..."
+              options={tiposLancamento}
+              value={tipoLancamentoId}
+              onChange={setTipoLancamentoId}
+              onCreate={async (nome) => {
+                const novo = await criarTipoLancamento(nome)
+                await onRefetchTiposLancamento()
+                return novo
+              }}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <Label htmlFor="lancValor" className="normal-case text-[11px]">Valor (R$)</Label>
+              <Input
+                id="lancValor"
+                type="text"
+                inputMode="decimal"
+                placeholder="R$ 0,00"
+                value={valor}
+                onChange={(e) => setValor(e.target.value.replace(/[^0-9.,]/g, ''))}
+                className="text-xs font-bold font-mono"
+              />
+            </div>
+            <div>
+              <Label htmlFor="lancDataLancamento" className="normal-case text-[11px]">Data de Lançamento *</Label>
+              <Input
+                id="lancDataLancamento"
+                type="date"
+                value={dataLancamento}
+                onChange={(e) => setDataLancamento(e.target.value)}
+                className="text-xs font-bold"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="lancDataVencimento" className="normal-case text-[11px]">Data de Vencimento *</Label>
+              <Input
+                id="lancDataVencimento"
+                type="date"
+                value={dataVencimento}
+                onChange={(e) => setDataVencimento(e.target.value)}
+                className="text-xs font-bold"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="lancStatus">Status</Label>
+              <Select
+                id="lancStatus"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as StatusContaPagarReceber)}
+                className="text-xs font-bold"
+              >
+                <option value="pendente">PENDENTE</option>
+                <option value="pago">PAGO</option>
+                <option value="atrasado">ATRASADO</option>
+                <option value="cancelado">CANCELADO</option>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="lancVeiculo">Veículo (Opcional)</Label>
+              <Select
+                id="lancVeiculo"
+                value={veiculoId}
+                onChange={(e) => setVeiculoId(e.target.value)}
+                className="text-xs font-bold"
+              >
+                <option value="">NENHUM VEÍCULO SELECIONADO</option>
+                {veiculosOrdenados.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.placa}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <QuickCreateSelect
+              label="Fornecedor / Favorecido (Opcional)"
+              placeholder="Selecione o fornecedor/favorecido..."
+              options={fornecedores}
+              value={fornecedorId}
+              onChange={setFornecedorId}
+              onCreate={async (nome) => {
+                const novo = await criarFornecedor(nome)
+                await onRefetchFornecedores()
+                return novo
+              }}
+            />
+            <div>
+              <Label htmlFor="lancContaBancaria">Conta Bancária (Opcional)</Label>
+              <Select
+                id="lancContaBancaria"
+                value={contaBancariaId}
+                onChange={(e) => setContaBancariaId(e.target.value)}
+                className="text-xs font-bold"
+              >
+                <option value="">SELECIONE A CONTA BANCÁRIA</option>
+                {contasBancarias.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/20 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setMostrarDetalhes((v) => !v)}
+              className="flex w-full items-center justify-between px-3.5 py-2.5 bg-background/50 text-xs font-black text-foreground"
+            >
+              <span>DETALHES ADICIONAIS</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${mostrarDetalhes ? 'rotate-180' : ''}`} />
+            </button>
+            {mostrarDetalhes && (
+              <div className="p-3.5 border-t border-border/15">
+                <Label htmlFor="lancObs" className="normal-case text-[11px]">Observações</Label>
+                <Textarea
+                  id="lancObs"
+                  placeholder="OBSERVAÇÕES ADICIONAIS..."
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value.toUpperCase())}
+                  className="text-xs"
+                  rows={3}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-border/20 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setMostrarParcelamento((v) => !v)}
+              className="flex w-full items-center justify-between px-3.5 py-2.5 bg-background/50 text-xs font-black text-foreground"
+            >
+              <span className="flex items-center gap-2">
+                PARCELAMENTO
+                <Badge tone="neutral" className="text-[9px] font-black normal-case">{numeroParcelas}x</Badge>
+              </span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${mostrarParcelamento ? 'rotate-180' : ''}`} />
+            </button>
+            {mostrarParcelamento && (
+              <div className="p-3.5 border-t border-border/15">
+                <Label htmlFor="lancParcelas" className="normal-case text-[11px]">Número de Parcelas</Label>
+                <Input
+                  id="lancParcelas"
+                  type="text"
+                  inputMode="numeric"
+                  value={numeroParcelas}
+                  onChange={(e) => setNumeroParcelas(e.target.value.replace(/\D/g, '') || '1')}
+                  className="text-xs font-bold font-mono max-w-[120px]"
+                />
+                <p className="mt-1.5 text-[10px] text-secondary normal-case">
+                  Só informativo por enquanto — cada parcela ainda precisa ser lançada separadamente.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/15">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="!h-10 px-5 text-xs font-semibold">
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={salvando} className="!h-10 px-6 text-xs font-bold bg-primary hover:bg-primary/90 text-white">
+              {salvando ? 'Salvando...' : 'Salvar Lançamento'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Modal de Nova Entrada / Editar Estadia no Pátio
+// ----------------------------------------------------------------------------------
+const VALOR_DIARIA_PADRAO = '60,00'
+
+function ModalEstadiaPatio({
+  estadiaEditando,
+  clientes,
+  onRefetchClientes,
+  centrosCusto,
+  onRefetchCentrosCusto,
+  onClose,
+}: {
+  estadiaEditando: EstadiaPatio | null
+  clientes: Cliente[]
+  onRefetchClientes: () => Promise<void>
+  centrosCusto: { id: string; nome: string }[]
+  onRefetchCentrosCusto: () => Promise<void>
+  onClose: () => void
+}) {
+  const [clienteId, setClienteId] = useState(estadiaEditando?.clienteId || '')
+  const [veiculoClienteId, setVeiculoClienteId] = useState(estadiaEditando?.veiculoClienteId || '')
+  const [placa, setPlaca] = useState(estadiaEditando?.placa || '')
+  const [modelo, setModelo] = useState(estadiaEditando?.modelo || '')
+  const [marca, setMarca] = useState(estadiaEditando?.marca || '')
+  const [cor, setCor] = useState(estadiaEditando?.cor || '')
+  const [dataHoraEntrada, setDataHoraEntrada] = useState(
+    isoParaDatetimeLocal(estadiaEditando?.dataHoraEntrada) || isoParaDatetimeLocal(new Date().toISOString()),
+  )
+  const [previsaoSaida, setPrevisaoSaida] = useState(isoParaDatetimeLocal(estadiaEditando?.previsaoSaida))
+  const [valorDiaria, setValorDiaria] = useState(
+    estadiaEditando?.valorDiaria != null ? estadiaEditando.valorDiaria.toFixed(2).replace('.', ',') : VALOR_DIARIA_PADRAO,
+  )
+  const [centroCustoId, setCentroCustoId] = useState(estadiaEditando?.centroCustoId || '')
+  const [observacoes, setObservacoes] = useState(estadiaEditando?.observacoes || '')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const { veiculos: veiculosDoCliente, refetch: refetchVeiculosCliente } = useVeiculosClientes(clienteId || undefined)
+  const veiculosComoOpcoes = useMemo(
+    () => veiculosDoCliente.map((v) => ({ id: v.id, nome: `${v.placa}${v.modelo ? ` — ${v.modelo}` : ''}` })),
+    [veiculosDoCliente],
+  )
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (!clienteId) {
+      setErro('Selecione o cliente.')
+      return
+    }
+    if (!placa.trim()) {
+      setErro('Selecione ou cadastre o veículo.')
+      return
+    }
+    const dataEntradaIso = datetimeLocalParaIso(dataHoraEntrada)
+    if (!dataEntradaIso) {
+      setErro('Informe a data e hora de entrada.')
+      return
+    }
+    if (!centroCustoId) {
+      setErro('Selecione o centro de custo.')
+      return
+    }
+    const previsaoSaidaIso = datetimeLocalParaIso(previsaoSaida)
+    if (previsaoSaidaIso && previsaoSaidaIso < dataEntradaIso) {
+      setErro('A previsão de saída não pode ser antes da entrada.')
+      return
+    }
+
+    const cliente = clientes.find((c) => c.id === clienteId)
+    const centro = centrosCusto.find((c) => c.id === centroCustoId)
+
+    const input: SalvarEstadiaPatioInput = {
+      clienteId,
+      clienteNome: cliente?.nome,
+      veiculoClienteId: veiculoClienteId || undefined,
+      placa: placa.trim().toUpperCase(),
+      modelo: modelo.trim() ? modelo.trim().toUpperCase() : undefined,
+      marca: marca.trim() ? marca.trim().toUpperCase() : undefined,
+      cor: cor.trim() ? cor.trim().toUpperCase() : undefined,
+      dataHoraEntrada: dataEntradaIso,
+      previsaoSaida: previsaoSaidaIso,
+      valorDiaria: parseDecimalPtBr(valorDiaria),
+      centroCustoId,
+      centroCustoNome: centro?.nome,
+      observacoes: observacoes.trim() ? observacoes.trim().toUpperCase() : undefined,
+    }
+
+    setSalvando(true)
+    setErro(null)
+    try {
+      if (estadiaEditando) {
+        await atualizarEstadiaPatio(estadiaEditando.id, input)
+      } else {
+        await criarEstadiaPatio(input)
+      }
+      onClose()
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Erro ao salvar a entrada no pátio.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="w-full max-w-lg rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="flex items-center justify-between border-b border-border/10 px-6 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <Warehouse className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-foreground uppercase">
+                {estadiaEditando ? 'Editar Entrada no Pátio' : 'Registrar Nova Entrada no Pátio'}
+              </h2>
+              <p className="text-[11px] text-secondary">Veículo de cliente guardado no pátio</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-1.5 text-secondary hover:bg-background hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 uppercase">
+          {erro && (
+            <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3.5 py-2.5 text-xs font-semibold text-red-400 normal-case">
+              {erro}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <QuickCreateSelect
+              label="Cliente *"
+              placeholder="Pesquise o cliente..."
+              options={clientes}
+              value={clienteId}
+              onChange={(id) => {
+                setClienteId(id)
+                setVeiculoClienteId('')
+                setPlaca('')
+                setModelo('')
+                setMarca('')
+                setCor('')
+              }}
+              onCreate={async (nome) => {
+                const novo = await criarCliente(nome)
+                await onRefetchClientes()
+                return novo
+              }}
+            />
+
+            <QuickCreateSelect
+              label="Veículo *"
+              placeholder={clienteId ? 'Pesquise o veículo...' : 'Selecione o cliente primeiro'}
+              options={veiculosComoOpcoes}
+              value={veiculoClienteId}
+              onChange={(id) => {
+                setVeiculoClienteId(id)
+                const v = veiculosDoCliente.find((vv) => vv.id === id)
+                if (v) {
+                  setPlaca(v.placa)
+                  setModelo(v.modelo || '')
+                  setMarca(v.marca || '')
+                  setCor(v.cor || '')
+                }
+              }}
+              disabled={!clienteId}
+              onCreate={async (nomePlaca) => {
+                if (!clienteId) throw new Error('Selecione o cliente primeiro.')
+                const novo = await criarVeiculoCliente(clienteId, { placa: nomePlaca })
+                await refetchVeiculosCliente()
+                setPlaca(novo.placa)
+                return { id: novo.id, nome: novo.placa }
+              }}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <Label htmlFor="patioPlaca" className="normal-case text-[11px]">Placa</Label>
+              <Input
+                id="patioPlaca"
+                value={placa}
+                onChange={(e) => setPlaca(e.target.value.toUpperCase())}
+                className="text-xs font-bold font-mono"
+              />
+            </div>
+            <div>
+              <Label htmlFor="patioModelo" className="normal-case text-[11px]">Modelo</Label>
+              <Input
+                id="patioModelo"
+                value={modelo}
+                onChange={(e) => setModelo(e.target.value.toUpperCase())}
+                className="text-xs font-bold"
+              />
+            </div>
+            <div>
+              <Label htmlFor="patioCor" className="normal-case text-[11px]">Marca / Cor</Label>
+              <div className="flex gap-1.5">
+                <Input
+                  value={marca}
+                  onChange={(e) => setMarca(e.target.value.toUpperCase())}
+                  placeholder="MARCA"
+                  className="text-xs font-bold"
+                />
+                <Input
+                  value={cor}
+                  onChange={(e) => setCor(e.target.value.toUpperCase())}
+                  placeholder="COR"
+                  className="text-xs font-bold"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="patioEntrada" className="normal-case text-[11px]">Data/Hora de Entrada *</Label>
+              <Input
+                id="patioEntrada"
+                type="datetime-local"
+                value={dataHoraEntrada}
+                onChange={(e) => setDataHoraEntrada(e.target.value)}
+                className="text-xs font-bold"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="patioPrevisao" className="normal-case text-[11px]">Previsão de Saída</Label>
+              <Input
+                id="patioPrevisao"
+                type="datetime-local"
+                value={previsaoSaida}
+                onChange={(e) => setPrevisaoSaida(e.target.value)}
+                className="text-xs font-bold"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="patioDiaria" className="normal-case text-[11px]">Valor da Diária (R$)</Label>
+              <Input
+                id="patioDiaria"
+                type="text"
+                inputMode="decimal"
+                value={valorDiaria}
+                onChange={(e) => setValorDiaria(e.target.value.replace(/[^0-9.,]/g, ''))}
+                className="text-xs font-bold font-mono"
+              />
+              {!estadiaEditando && (
+                <p className="mt-1 text-[10px] text-secondary normal-case">
+                  Pré-preenchido com {VALOR_DIARIA_PADRAO} de padrão. Edite se necessário.
+                </p>
+              )}
+            </div>
+            <QuickCreateSelect
+              label="Centro de Custo *"
+              placeholder="Selecione o centro de custo..."
+              options={centrosCusto}
+              value={centroCustoId}
+              onChange={setCentroCustoId}
+              onCreate={async (nome) => {
+                const novo = await criarCentroCusto(nome)
+                await onRefetchCentrosCusto()
+                return novo
+              }}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="patioObs">Observações</Label>
+            <Textarea
+              id="patioObs"
+              placeholder="OBSERVAÇÕES ADICIONAIS..."
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value.toUpperCase())}
+              className="text-xs"
+              rows={3}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/15">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="!h-10 px-5 text-xs font-semibold">
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={salvando} className="!h-10 px-6 text-xs font-bold bg-primary hover:bg-primary/90 text-white">
+              {salvando ? 'Salvando...' : estadiaEditando ? 'Salvar Alterações' : 'Confirmar Entrada'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function ModalViagem({
+  viagemEditando,
+  veiculos,
+  clientes,
+  onRefetchClientes,
+  centrosCusto,
+  onRefetchCentrosCusto,
+  transportadoras,
+  onRefetchTransportadoras,
+  tiposCarga,
+  onRefetchTiposCarga,
+  enderecosFrequentes,
+  onRefetchEnderecosFrequentes,
+  onClose,
+}: {
+  viagemEditando: RegistroViagem | null
+  veiculos: ItemFrotaCadastrada[]
+  clientes: Cliente[]
+  onRefetchClientes: () => Promise<void>
+  centrosCusto: CentroCusto[]
+  onRefetchCentrosCusto: () => Promise<void>
+  transportadoras: Transportadora[]
+  onRefetchTransportadoras: () => Promise<void>
+  tiposCarga: TipoCarga[]
+  onRefetchTiposCarga: () => Promise<void>
+  enderecosFrequentes: EnderecoFrequente[]
+  onRefetchEnderecosFrequentes: () => Promise<void>
+  onClose: () => void
+}) {
+  const veiculosOrdenados = useMemo(
+    () => [...veiculos].sort((a, b) => a.placa.localeCompare(b.placa)),
+    [veiculos],
+  )
+  const enderecosComoOpcoes = useMemo(
+    () => enderecosFrequentes.map((e) => ({ id: e.id, nome: e.apelido })),
+    [enderecosFrequentes],
+  )
+
+  const veiculoInicial = viagemEditando
+    ? veiculosOrdenados.find((v) => v.id === viagemEditando.veiculoId || v.placa === viagemEditando.placa)
+    : undefined
+
+  // Participantes
+  const [clienteId, setClienteId] = useState(viagemEditando?.clienteId || '')
+  const [veiculoId, setVeiculoId] = useState(veiculoInicial?.id || '')
+  const [placaManual, setPlacaManual] = useState(viagemEditando?.placa || '')
+  const [motoristaNome, setMotoristaNome] = useState(viagemEditando?.motoristaNome || '')
+  const [centroCustoId, setCentroCustoId] = useState(viagemEditando?.centroCustoId || '')
+  const [transportadoraId, setTransportadoraId] = useState(viagemEditando?.transportadoraId || '')
+
+  // Rota de transporte
+  const [enderecoOrigem, setEnderecoOrigem] = useState(viagemEditando?.enderecoOrigem || '')
+  const [cidadeOrigem, setCidadeOrigem] = useState(viagemEditando?.cidadeOrigem || '')
+  const [ufOrigem, setUfOrigem] = useState(viagemEditando?.ufOrigem || '')
+  const [dataColetaPrevista, setDataColetaPrevista] = useState(viagemEditando?.dataColetaPrevista || '')
+  const [enderecoDestino, setEnderecoDestino] = useState(viagemEditando?.enderecoDestino || '')
+  const [cidadeDestino, setCidadeDestino] = useState(viagemEditando?.cidadeDestino || '')
+  const [ufDestino, setUfDestino] = useState(viagemEditando?.ufDestino || '')
+  const [dataEntregaPrevista, setDataEntregaPrevista] = useState(viagemEditando?.dataEntregaPrevista || '')
+  const [distanciaEstimadaKm, setDistanciaEstimadaKm] = useState(
+    viagemEditando?.distanciaEstimadaKm != null ? String(viagemEditando.distanciaEstimadaKm) : '',
+  )
+  const [tempoEstimadoHoras, setTempoEstimadoHoras] = useState(
+    viagemEditando?.tempoEstimadoHoras != null ? String(viagemEditando.tempoEstimadoHoras) : '',
+  )
+
+  // Detalhes da carga
+  const [tipoCargaId, setTipoCargaId] = useState(viagemEditando?.tipoCargaId || '')
+  const [veiculosCarregados, setVeiculosCarregados] = useState<VeiculoCarregado[]>(viagemEditando?.veiculosCarregados || [])
+  const [veiculoCarregadoSelecionado, setVeiculoCarregadoSelecionado] = useState('')
+  const [pesoCargaToneladas, setPesoCargaToneladas] = useState(
+    viagemEditando?.pesoCargaToneladas != null ? String(viagemEditando.pesoCargaToneladas) : '',
+  )
+  const [volumeM3, setVolumeM3] = useState(viagemEditando?.volumeM3 != null ? String(viagemEditando.volumeM3) : '')
+
+  // Detalhes financeiros
+  const [formaCalculoFrete, setFormaCalculoFrete] = useState<FormaCalculoFrete>(viagemEditando?.formaCalculoFrete || 'valor_fixo')
+  const [freteBruto, setFreteBruto] = useState(viagemEditando?.freteBruto != null ? String(viagemEditando.freteBruto) : '')
+  const [despesasAbater, setDespesasAbater] = useState(viagemEditando?.despesasAbater != null ? String(viagemEditando.despesasAbater) : '')
+  const [adiantamento, setAdiantamento] = useState(viagemEditando?.adiantamento != null ? String(viagemEditando.adiantamento) : '')
+  const [tipoFrete, setTipoFrete] = useState<TipoFrete>(viagemEditando?.tipoFrete || 'CIF')
+  const [percentualImposto, setPercentualImposto] = useState(
+    viagemEditando?.percentualImposto != null ? String(viagemEditando.percentualImposto) : '',
+  )
+  const [pessoaImposto, setPessoaImposto] = useState(viagemEditando?.pessoaImposto || '')
+  const [percentualComissao, setPercentualComissao] = useState(
+    viagemEditando?.percentualComissao != null ? String(viagemEditando.percentualComissao) : '',
+  )
+  const [pessoaComissao, setPessoaComissao] = useState(viagemEditando?.pessoaComissao || '')
+  const [custoOperacional, setCustoOperacional] = useState(
+    viagemEditando?.custoOperacional != null ? String(viagemEditando.custoOperacional) : '',
+  )
+
+  // Status e fechamento
+  const [status, setStatus] = useState<StatusViagem>(viagemEditando?.status || 'cotada')
+  const [observacoes, setObservacoes] = useState(viagemEditando?.observacoes || '')
+
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const veiculoSelecionado = veiculosOrdenados.find((v) => v.id === veiculoId)
+  const usaPlacaManual = !veiculoId
+  const veiculosDisponiveisParaCarga = veiculosOrdenados.filter(
+    (v) => v.id !== veiculoId && !veiculosCarregados.some((vc) => vc.veiculoId === v.id),
+  )
+
+  // Cálculos financeiros (somente leitura, recalculados a cada mudança)
+  const freteBrutoNum = parseDecimalPtBr(freteBruto)
+  const despesasAbaterNum = parseDecimalPtBr(despesasAbater)
+  const freteLiquido = Math.max(0, freteBrutoNum - despesasAbaterNum)
+  const adiantamentoNum = parseDecimalPtBr(adiantamento)
+  const saldoReceber = freteLiquido - adiantamentoNum
+  const percentualImpostoNum = parseDecimalPtBr(percentualImposto)
+  const valorImposto = (freteBrutoNum * percentualImpostoNum) / 100
+  const percentualComissaoNum = parseDecimalPtBr(percentualComissao)
+  const valorComissao = (freteBrutoNum * percentualComissaoNum) / 100
+  const custoOperacionalNum = parseDecimalPtBr(custoOperacional)
+  const lucroLiquido = freteLiquido - valorImposto - valorComissao - custoOperacionalNum
+
+  function adicionarVeiculoCarregado() {
+    const v = veiculosOrdenados.find((x) => x.id === veiculoCarregadoSelecionado)
+    if (!v) return
+    setVeiculosCarregados((prev) => [...prev, { veiculoId: v.id, placa: v.placa }])
+    setVeiculoCarregadoSelecionado('')
+  }
+
+  function removerVeiculoCarregado(idParaRemover: string) {
+    setVeiculosCarregados((prev) => prev.filter((vc) => vc.veiculoId !== idParaRemover))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+
+    const placaFinal = (veiculoSelecionado?.placa || placaManual).trim().toUpperCase()
+    if (!clienteId) {
+      setErro('Selecione o cliente.')
+      return
+    }
+    if (!placaFinal) {
+      setErro('Selecione o veículo ou informe a placa.')
+      return
+    }
+    if (!motoristaNome.trim()) {
+      setErro('Informe o motorista.')
+      return
+    }
+    if (!centroCustoId) {
+      setErro('Selecione o centro de custo.')
+      return
+    }
+    if (!enderecoOrigem.trim() || !cidadeOrigem.trim() || !ufOrigem.trim() || !dataColetaPrevista) {
+      setErro('Preencha o endereço, cidade, UF e data de coleta da origem.')
+      return
+    }
+    if (!enderecoDestino.trim() || !cidadeDestino.trim() || !ufDestino.trim() || !dataEntregaPrevista) {
+      setErro('Preencha o endereço, cidade, UF e data de entrega do destino.')
+      return
+    }
+
+    const clienteSelecionado = clientes.find((c) => c.id === clienteId)
+    const centroCustoSelecionado = centrosCusto.find((c) => c.id === centroCustoId)
+    const transportadoraSelecionada = transportadoras.find((t) => t.id === transportadoraId)
+    const tipoCargaSelecionado = tiposCarga.find((t) => t.id === tipoCargaId)
+
+    const dataHoraSaida = new Date(`${dataColetaPrevista}T00:00:00`).toISOString()
+
+    const input: SalvarViagemInput = {
+      clienteId,
+      clienteNome: clienteSelecionado?.nome,
+      veiculoId: veiculoSelecionado?.id,
+      placa: placaFinal,
+      veiculoNome: veiculoSelecionado ? [veiculoSelecionado.marcaNome, veiculoSelecionado.modeloNome].filter(Boolean).join(' ') : undefined,
+      motoristaNome: motoristaNome.trim().toUpperCase(),
+      centroCustoId,
+      centroCustoNome: centroCustoSelecionado?.nome,
+      transportadoraId: transportadoraId || undefined,
+      transportadoraNome: transportadoraSelecionada?.nome,
+      origem: [enderecoOrigem, cidadeOrigem, ufOrigem].filter(Boolean).join(', ').toUpperCase(),
+      destino: [enderecoDestino, cidadeDestino, ufDestino].filter(Boolean).join(', ').toUpperCase(),
+      enderecoOrigem: enderecoOrigem.trim().toUpperCase(),
+      cidadeOrigem: cidadeOrigem.trim().toUpperCase(),
+      ufOrigem: ufOrigem.trim().toUpperCase(),
+      dataColetaPrevista,
+      enderecoDestino: enderecoDestino.trim().toUpperCase(),
+      cidadeDestino: cidadeDestino.trim().toUpperCase(),
+      ufDestino: ufDestino.trim().toUpperCase(),
+      dataEntregaPrevista,
+      distanciaEstimadaKm: distanciaEstimadaKm.trim() ? parseDecimalPtBr(distanciaEstimadaKm) : null,
+      tempoEstimadoHoras: tempoEstimadoHoras.trim() ? parseDecimalPtBr(tempoEstimadoHoras) : null,
+      tipoCargaId: tipoCargaId || undefined,
+      tipoCargaNome: tipoCargaSelecionado?.nome,
+      veiculosCarregados,
+      pesoCargaToneladas: pesoCargaToneladas.trim() ? parseDecimalPtBr(pesoCargaToneladas) : null,
+      volumeM3: volumeM3.trim() ? parseDecimalPtBr(volumeM3) : null,
+      formaCalculoFrete,
+      freteBruto: freteBruto.trim() ? freteBrutoNum : null,
+      despesasAbater: despesasAbater.trim() ? despesasAbaterNum : null,
+      adiantamento: adiantamento.trim() ? adiantamentoNum : null,
+      tipoFrete,
+      percentualImposto: percentualImposto.trim() ? percentualImpostoNum : null,
+      pessoaImposto: pessoaImposto.trim() ? pessoaImposto.trim().toUpperCase() : undefined,
+      percentualComissao: percentualComissao.trim() ? percentualComissaoNum : null,
+      pessoaComissao: pessoaComissao.trim() ? pessoaComissao.trim().toUpperCase() : undefined,
+      custoOperacional: custoOperacional.trim() ? custoOperacionalNum : null,
+      dataHoraSaida,
+      status,
+      observacoes: observacoes.trim() ? observacoes.trim().toUpperCase() : undefined,
+    }
+
+    setSalvando(true)
+    setErro(null)
+    try {
+      if (viagemEditando) {
+        await atualizarViagemFrota(viagemEditando.id, input)
+      } else {
+        await criarViagemFrota(input)
+      }
+      onClose()
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Erro ao salvar a viagem.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="w-full max-w-2xl rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="flex items-center justify-between border-b border-border/10 px-6 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+              <Route className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-foreground uppercase">
+                {viagemEditando ? 'EDITAR VIAGEM OPERACIONAL' : 'NOVA VIAGEM OPERACIONAL'}
+              </h2>
+              <p className="text-[11px] text-secondary">Cotação de frete, rota, carga e financeiro</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-1.5 text-secondary hover:bg-background hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 uppercase">
+          {erro && (
+            <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-3.5 py-2.5 text-xs font-semibold text-red-400 normal-case">
+              {erro}
+            </div>
+          )}
+
+          {/* 1. PARTICIPANTES */}
+          <div className="space-y-3">
+            <p className="text-xs font-black text-primary uppercase tracking-widest border-b border-border/15 pb-1.5">
+              1. Participantes
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <QuickCreateSelect
+                label="Cliente *"
+                placeholder="Selecione o cliente..."
+                options={clientes}
+                value={clienteId}
+                onChange={setClienteId}
+                onCreate={async (nome) => {
+                  const novo = await criarCliente(nome)
+                  await onRefetchClientes()
+                  return novo
+                }}
+              />
+
+              <div>
+                <Label htmlFor="viagemVeiculo">Veículo *</Label>
+                <Select
+                  id="viagemVeiculo"
+                  value={veiculoId}
+                  onChange={(e) => setVeiculoId(e.target.value)}
+                  className="text-xs font-bold"
+                >
+                  <option value="">OUTRO VEÍCULO (INFORMAR PLACA)</option>
+                  {veiculosOrdenados.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.placa} {v.modeloNome ? `— ${v.modeloNome}` : ''}
+                    </option>
+                  ))}
+                </Select>
+                {usaPlacaManual && (
+                  <Input
+                    placeholder="PLACA (EX: ABC1D23)"
+                    value={placaManual}
+                    onChange={(e) => setPlacaManual(e.target.value.toUpperCase())}
+                    className="mt-2 text-xs font-bold"
+                    required
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="viagemMotorista">Motorista *</Label>
+                <div className="relative mt-1">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+                  <Input
+                    id="viagemMotorista"
+                    placeholder="NOME DO MOTORISTA"
+                    value={motoristaNome}
+                    onChange={(e) => setMotoristaNome(e.target.value.toUpperCase())}
+                    className="pl-9 text-xs font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <QuickCreateSelect
+                label="Centro de Custo *"
+                placeholder="Selecione o centro de custo..."
+                options={centrosCusto}
+                value={centroCustoId}
+                onChange={setCentroCustoId}
+                onCreate={async (nome) => {
+                  const novo = await criarCentroCusto(nome)
+                  await onRefetchCentrosCusto()
+                  return novo
+                }}
+              />
+            </div>
+
+            <QuickCreateSelect
+              label="Transportadora (Opcional)"
+              placeholder="Selecione a transportadora..."
+              options={transportadoras}
+              value={transportadoraId}
+              onChange={setTransportadoraId}
+              onCreate={async (nome) => {
+                const nova = await criarTransportadora(nome)
+                await onRefetchTransportadoras()
+                return nova
+              }}
+            />
+          </div>
+
+          {/* 2. ROTA DE TRANSPORTE */}
+          <div className="space-y-3">
+            <p className="text-xs font-black text-primary uppercase tracking-widest border-b border-border/15 pb-1.5">
+              2. Rota de Transporte
+            </p>
+
+            <div className="rounded-xl border border-border/20 bg-background/50 p-3 space-y-3">
+              <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Origem</p>
+              <QuickCreateSelect
+                label="Endereço Frequente (Origem)"
+                placeholder="Buscar endereço de origem..."
+                options={enderecosComoOpcoes}
+                value=""
+                onChange={(id) => {
+                  const enc = enderecosFrequentes.find((e) => e.id === id)
+                  if (enc) {
+                    setEnderecoOrigem(enc.endereco)
+                    setCidadeOrigem(enc.cidade)
+                    setUfOrigem(enc.uf)
+                  }
+                }}
+                onCreate={async (apelido) => {
+                  const novo = await criarEnderecoFrequente({
+                    apelido,
+                    endereco: enderecoOrigem,
+                    cidade: cidadeOrigem,
+                    uf: ufOrigem,
+                  })
+                  await onRefetchEnderecosFrequentes()
+                  return { id: novo.id, nome: novo.apelido }
+                }}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-2">
+                  <Label htmlFor="viagemEndOrigem" className="normal-case text-[11px]">Endereço *</Label>
+                  <Input
+                    id="viagemEndOrigem"
+                    placeholder="RUA, NÚMERO, BAIRRO"
+                    value={enderecoOrigem}
+                    onChange={(e) => setEnderecoOrigem(e.target.value.toUpperCase())}
+                    className="text-xs font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="viagemCidadeOrigem" className="normal-case text-[11px]">Cidade *</Label>
+                  <Input
+                    id="viagemCidadeOrigem"
+                    placeholder="CIDADE"
+                    value={cidadeOrigem}
+                    onChange={(e) => setCidadeOrigem(e.target.value.toUpperCase())}
+                    className="text-xs font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="viagemUfOrigem" className="normal-case text-[11px]">UF *</Label>
+                  <Input
+                    id="viagemUfOrigem"
+                    placeholder="UF"
+                    maxLength={2}
+                    value={ufOrigem}
+                    onChange={(e) => setUfOrigem(e.target.value.toUpperCase())}
+                    className="text-xs font-bold"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="viagemDataColeta" className="normal-case text-[11px]">Data Coleta (Prevista) *</Label>
+                  <Input
+                    id="viagemDataColeta"
+                    type="date"
+                    value={dataColetaPrevista}
+                    onChange={(e) => setDataColetaPrevista(e.target.value)}
+                    className="text-xs font-bold"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/20 bg-background/50 p-3 space-y-3">
+              <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Destino</p>
+              <QuickCreateSelect
+                label="Endereço Frequente (Destino)"
+                placeholder="Buscar endereço de destino..."
+                options={enderecosComoOpcoes}
+                value=""
+                onChange={(id) => {
+                  const enc = enderecosFrequentes.find((e) => e.id === id)
+                  if (enc) {
+                    setEnderecoDestino(enc.endereco)
+                    setCidadeDestino(enc.cidade)
+                    setUfDestino(enc.uf)
+                  }
+                }}
+                onCreate={async (apelido) => {
+                  const novo = await criarEnderecoFrequente({
+                    apelido,
+                    endereco: enderecoDestino,
+                    cidade: cidadeDestino,
+                    uf: ufDestino,
+                  })
+                  await onRefetchEnderecosFrequentes()
+                  return { id: novo.id, nome: novo.apelido }
+                }}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-2">
+                  <Label htmlFor="viagemEndDestino" className="normal-case text-[11px]">Endereço *</Label>
+                  <Input
+                    id="viagemEndDestino"
+                    placeholder="RUA, NÚMERO, BAIRRO"
+                    value={enderecoDestino}
+                    onChange={(e) => setEnderecoDestino(e.target.value.toUpperCase())}
+                    className="text-xs font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="viagemCidadeDestino" className="normal-case text-[11px]">Cidade *</Label>
+                  <Input
+                    id="viagemCidadeDestino"
+                    placeholder="CIDADE"
+                    value={cidadeDestino}
+                    onChange={(e) => setCidadeDestino(e.target.value.toUpperCase())}
+                    className="text-xs font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="viagemUfDestino" className="normal-case text-[11px]">UF *</Label>
+                  <Input
+                    id="viagemUfDestino"
+                    placeholder="UF"
+                    maxLength={2}
+                    value={ufDestino}
+                    onChange={(e) => setUfDestino(e.target.value.toUpperCase())}
+                    className="text-xs font-bold"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="viagemDataEntrega" className="normal-case text-[11px]">Data Entrega (Prevista) *</Label>
+                  <Input
+                    id="viagemDataEntrega"
+                    type="date"
+                    value={dataEntregaPrevista}
+                    onChange={(e) => setDataEntregaPrevista(e.target.value)}
+                    className="text-xs font-bold"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="viagemDistancia" className="normal-case text-[11px]">Distância Estimada (KM)</Label>
+                <Input
+                  id="viagemDistancia"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="EX: 450"
+                  value={distanciaEstimadaKm}
+                  onChange={(e) => setDistanciaEstimadaKm(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  className="text-xs font-bold font-mono"
+                />
+              </div>
+              <div>
+                <Label htmlFor="viagemTempo" className="normal-case text-[11px]">Tempo Estimado (Horas)</Label>
+                <Input
+                  id="viagemTempo"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="EX: 8"
+                  value={tempoEstimadoHoras}
+                  onChange={(e) => setTempoEstimadoHoras(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  className="text-xs font-bold font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 3. DETALHES DA CARGA */}
+          <div className="space-y-3">
+            <p className="text-xs font-black text-primary uppercase tracking-widest border-b border-border/15 pb-1.5">
+              3. Detalhes da Carga
+            </p>
+
+            <QuickCreateSelect
+              label="Tipo de Carga"
+              placeholder="Selecione o tipo de carga..."
+              options={tiposCarga}
+              value={tipoCargaId}
+              onChange={setTipoCargaId}
+              onCreate={async (nome) => {
+                const novo = await criarTipoCarga(nome)
+                await onRefetchTiposCarga()
+                return novo
+              }}
+            />
+
+            <div>
+              <Label className="normal-case text-[11px]">Veículos Carregados</Label>
+              <div className="rounded-xl border border-border/20 bg-background/50 p-3 space-y-2">
+                <div className="flex gap-2">
+                  <Select
+                    value={veiculoCarregadoSelecionado}
+                    onChange={(e) => setVeiculoCarregadoSelecionado(e.target.value)}
+                    className="text-xs font-bold flex-1"
+                  >
+                    <option value="">PESQUISAR VEÍCULO PARA ADICIONAR À LISTA...</option>
+                    {veiculosDisponiveisParaCarga.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.placa} {v.modeloNome ? `— ${v.modeloNome}` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    disabled={!veiculoCarregadoSelecionado}
+                    onClick={adicionarVeiculoCarregado}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {veiculosCarregados.length === 0 ? (
+                  <p className="text-[11px] text-secondary normal-case italic">Nenhum veículo carregado informado.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {veiculosCarregados.map((vc) => (
+                      <div
+                        key={vc.veiculoId}
+                        className="flex items-center justify-between rounded-lg border border-border/20 bg-surface px-3 py-1.5"
+                      >
+                        <span className="text-xs font-mono font-bold text-foreground">{vc.placa}</span>
+                        <button
+                          type="button"
+                          onClick={() => removerVeiculoCarregado(vc.veiculoId)}
+                          className="text-secondary hover:text-status-danger p-0.5"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="viagemPeso" className="normal-case text-[11px]">Peso da Carga (Toneladas)</Label>
+                <Input
+                  id="viagemPeso"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="EX: 12.500"
+                  value={pesoCargaToneladas}
+                  onChange={(e) => setPesoCargaToneladas(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  className="text-xs font-bold font-mono"
+                />
+              </div>
+              <div>
+                <Label htmlFor="viagemVolume" className="normal-case text-[11px]">Volume (m³)</Label>
+                <Input
+                  id="viagemVolume"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="EX: 45"
+                  value={volumeM3}
+                  onChange={(e) => setVolumeM3(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  className="text-xs font-bold font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 4. DETALHES FINANCEIROS */}
+          <div className="space-y-3">
+            <p className="text-xs font-black text-primary uppercase tracking-widest border-b border-border/15 pb-1.5">
+              4. Detalhes Financeiros
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <Label htmlFor="viagemFormaCalculo" className="normal-case text-[11px]">Forma de Cálculo</Label>
+                <Select
+                  id="viagemFormaCalculo"
+                  value={formaCalculoFrete}
+                  onChange={(e) => setFormaCalculoFrete(e.target.value as FormaCalculoFrete)}
+                  className="text-xs font-bold"
+                >
+                  <option value="valor_fixo">VALOR FIXO</option>
+                  <option value="por_km">POR KM</option>
+                  <option value="por_tonelada">POR TONELADA</option>
+                  <option value="por_m3">POR M³</option>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="viagemFreteBruto" className="normal-case text-[11px]">Frete Bruto / Base (R$)</Label>
+                <Input
+                  id="viagemFreteBruto"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="R$ 0,00"
+                  value={freteBruto}
+                  onChange={(e) => setFreteBruto(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  className="text-xs font-bold font-mono"
+                />
+              </div>
+              <div>
+                <Label htmlFor="viagemDespesas" className="normal-case text-[11px]">Despesas a Abater (R$)</Label>
+                <Input
+                  id="viagemDespesas"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="R$ 0,00"
+                  value={despesasAbater}
+                  onChange={(e) => setDespesasAbater(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  className="text-xs font-bold font-mono text-rose-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <Label className="normal-case text-[11px]">Valor do Frete Líquido (R$)</Label>
+                <div className="h-12 flex items-center rounded-xl border border-border/20 bg-background/50 px-4 text-xs font-mono font-bold text-secondary">
+                  {formatarMoeda(freteLiquido)}
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="viagemAdiantamento" className="normal-case text-[11px]">Adiantamento (R$)</Label>
+                <Input
+                  id="viagemAdiantamento"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="R$ 0,00"
+                  value={adiantamento}
+                  onChange={(e) => setAdiantamento(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  className="text-xs font-bold font-mono"
+                />
+              </div>
+              <div>
+                <Label className="normal-case text-[11px]">Saldo a Receber (R$)</Label>
+                <div className="h-12 flex items-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 text-xs font-mono font-black text-emerald-500">
+                  {formatarMoeda(saldoReceber)}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="viagemTipoFrete" className="normal-case text-[11px]">Tipo de Frete</Label>
+              <Select
+                id="viagemTipoFrete"
+                value={tipoFrete}
+                onChange={(e) => setTipoFrete(e.target.value as TipoFrete)}
+                className="text-xs font-bold sm:max-w-xs"
+              >
+                <option value="CIF">CIF (REMETENTE PAGA)</option>
+                <option value="FOB">FOB (DESTINATÁRIO PAGA)</option>
+              </Select>
+            </div>
+
+            <div className="rounded-xl border border-border/20 bg-background/50 p-3 space-y-3">
+              <p className="text-[11px] font-black text-secondary uppercase tracking-widest">Impostos, Comissões e Custos</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label htmlFor="viagemPercImposto" className="normal-case text-[11px]">% Imposto</Label>
+                  <Input
+                    id="viagemPercImposto"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={percentualImposto}
+                    onChange={(e) => setPercentualImposto(e.target.value.replace(/[^0-9.,]/g, ''))}
+                    className="text-xs font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="normal-case text-[11px]">Valor Total do Imposto (R$)</Label>
+                  <div className="h-12 flex items-center rounded-xl border border-border/20 bg-background/50 px-4 text-xs font-mono font-bold text-secondary">
+                    {formatarMoeda(valorImposto)}
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="viagemPessoaImposto" className="normal-case text-[11px]">Pessoa do Imposto (Opcional)</Label>
+                  <Input
+                    id="viagemPessoaImposto"
+                    placeholder="EX: GOVERNO"
+                    value={pessoaImposto}
+                    onChange={(e) => setPessoaImposto(e.target.value.toUpperCase())}
+                    className="text-xs font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label htmlFor="viagemPercComissao" className="normal-case text-[11px]">% Comissão</Label>
+                  <Input
+                    id="viagemPercComissao"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={percentualComissao}
+                    onChange={(e) => setPercentualComissao(e.target.value.replace(/[^0-9.,]/g, ''))}
+                    className="text-xs font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="normal-case text-[11px]">Valor da Comissão (R$)</Label>
+                  <div className="h-12 flex items-center rounded-xl border border-border/20 bg-background/50 px-4 text-xs font-mono font-bold text-secondary">
+                    {formatarMoeda(valorComissao)}
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="viagemPessoaComissao" className="normal-case text-[11px]">Pessoa da Comissão / Vendedor (Opcional)</Label>
+                  <Input
+                    id="viagemPessoaComissao"
+                    placeholder="NOME"
+                    value={pessoaComissao}
+                    onChange={(e) => setPessoaComissao(e.target.value.toUpperCase())}
+                    className="text-xs font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="viagemCustoOp" className="normal-case text-[11px]">Custo Operacional (R$)</Label>
+                  <Input
+                    id="viagemCustoOp"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="R$ 0,00"
+                    value={custoOperacional}
+                    onChange={(e) => setCustoOperacional(e.target.value.replace(/[^0-9.,]/g, ''))}
+                    className="text-xs font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="normal-case text-[11px]">Lucro Líquido (R$)</Label>
+                  <div className="h-12 flex items-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 text-sm font-mono font-black text-emerald-500">
+                    {formatarMoeda(lucroLiquido)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. STATUS E FECHAMENTO */}
+          <div className="space-y-3">
+            <p className="text-xs font-black text-primary uppercase tracking-widest border-b border-border/15 pb-1.5">
+              5. Status e Fechamento
+            </p>
+            <div>
+              <Label htmlFor="viagemStatus">Status da Viagem *</Label>
+              <Select
+                id="viagemStatus"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as StatusViagem)}
+                className="text-xs font-bold sm:max-w-xs"
+              >
+                {(Object.keys(STATUS_VIAGEM_INFO) as StatusViagem[]).map((s) => (
+                  <option key={s} value={s}>
+                    {STATUS_VIAGEM_INFO[s].label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="viagemObs">Observações da Viagem</Label>
+              <Textarea
+                id="viagemObs"
+                placeholder="INSTRUÇÕES ESPECIAIS DE CARGA, MANUSEIO OU DESCARGA..."
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value.toUpperCase())}
+                className="text-xs"
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/15">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="!h-10 px-5 text-xs font-semibold">
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={salvando} className="!h-10 px-6 text-xs font-bold bg-primary hover:bg-primary/90 text-white">
+              {salvando ? 'Salvando...' : viagemEditando ? 'Salvar Alterações' : 'Registrar Viagem'}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp,
@@ -301,11 +301,15 @@ export function Financeiro() {
   const autorizado = isFinanceiroAuthorized(userRef)
   const podeVisaoGeral = isModuloAuthorized(userRef, 'financeiro_visao_geral')
   const podeFluxoCaixa = isModuloAuthorized(userRef, 'financeiro_fluxo_caixa')
+  const permissaoPorAba: Record<AbaFinanceiro, boolean> = {
+    'visao-geral': podeVisaoGeral,
+    'fluxo-caixa': podeFluxoCaixa,
+  }
 
   // Abas
   const [searchParams, setSearchParams] = useSearchParams()
   const abaParam = searchParams.get('aba')
-  const abaPadrao: AbaFinanceiro = podeVisaoGeral || !podeFluxoCaixa ? 'visao-geral' : 'fluxo-caixa'
+  const abaPadrao: AbaFinanceiro = ABAS_VALIDAS.find((a) => permissaoPorAba[a]) || 'visao-geral'
   const [abaAtiva, setAbaAtivaState] = useState<AbaFinanceiro>(() =>
     abaParam && ABAS_VALIDAS.includes(abaParam as AbaFinanceiro) ? (abaParam as AbaFinanceiro) : abaPadrao,
   )
@@ -321,13 +325,12 @@ export function Financeiro() {
 
   // Se o usuário não tem acesso à aba que está ativa (ex: perdeu a permissão,
   // ou entrou direto pela URL com ?aba=fluxo-caixa sem ter liberação), pula
-  // para a aba que ele realmente pode ver.
+  // para a primeira aba que ele realmente pode ver.
   useEffect(() => {
     if (perfilLoading) return
-    if (abaAtiva === 'visao-geral' && !podeVisaoGeral && podeFluxoCaixa) {
-      setAbaAtiva('fluxo-caixa')
-    } else if (abaAtiva === 'fluxo-caixa' && !podeFluxoCaixa && podeVisaoGeral) {
-      setAbaAtiva('visao-geral')
+    if (!permissaoPorAba[abaAtiva]) {
+      const primeiraPermitida = ABAS_VALIDAS.find((a) => permissaoPorAba[a])
+      if (primeiraPermitida) setAbaAtiva(primeiraPermitida)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perfilLoading, podeVisaoGeral, podeFluxoCaixa, abaAtiva])
@@ -744,8 +747,9 @@ export function Financeiro() {
       )}
 
       {/* Barra de Abas */}
-      {podeVisaoGeral && podeFluxoCaixa && (
+      {[podeVisaoGeral, podeFluxoCaixa].filter(Boolean).length > 1 && (
       <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md w-full sm:w-fit">
+        {podeVisaoGeral && (
         <button
           type="button"
           onClick={() => setAbaAtiva('visao-geral')}
@@ -758,6 +762,8 @@ export function Financeiro() {
           <LayoutDashboard className="h-4 w-4" />
           VISÃO GERAL
         </button>
+        )}
+        {podeFluxoCaixa && (
         <button
           type="button"
           onClick={() => setAbaAtiva('fluxo-caixa')}
@@ -770,6 +776,7 @@ export function Financeiro() {
           <Wallet className="h-4 w-4" />
           FLUXO DE CAIXA
         </button>
+        )}
       </div>
       )}
 

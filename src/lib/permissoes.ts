@@ -61,6 +61,7 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
       { id: 'frotas_dashboard', label: 'Dashboard Frota', descricao: 'Gráficos, status e vencimentos de documentos', rota: '/frotas' },
       { id: 'frotas_veiculos', label: 'Veículos', descricao: 'Listagem e cadastro completo de veículos', rota: '/frotas?aba=veiculos' },
       { id: 'frotas_checklist', label: 'Checklist', descricao: 'Inspeções e conferência de itens', rota: '/frotas?aba=checklist' },
+      { id: 'frotas_viagens', label: 'Controle de Viagens', descricao: 'Registro de viagens, KM rodado e motoristas', rota: '/frotas?aba=viagens' },
     ],
   },
   {

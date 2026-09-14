@@ -294,6 +294,108 @@ export interface RegistroChecklist {
   tipoChecklist?: 'ida' | 'volta'
 }
 
+export type StatusViagem = 'cotada' | 'confirmada' | 'em_transito' | 'entregue' | 'cancelada'
+export type FormaCalculoFrete = 'valor_fixo' | 'por_km' | 'por_tonelada' | 'por_m3'
+export type TipoFrete = 'CIF' | 'FOB'
+
+export interface CentroCusto {
+  id: string
+  nome: string
+}
+
+export interface Transportadora {
+  id: string
+  nome: string
+}
+
+export interface TipoCarga {
+  id: string
+  nome: string
+}
+
+export interface Pessoa {
+  id: string
+  nome: string
+}
+
+export interface FormaPagamento {
+  id: string
+  nome: string
+}
+
+export interface TipoLancamento {
+  id: string
+  nome: string
+}
+
+export interface EnderecoFrequente {
+  id: string
+  apelido: string
+  endereco: string
+  cidade: string
+  uf: string
+}
+
+export interface VeiculoCarregado {
+  veiculoId: string
+  placa: string
+}
+
+export interface RegistroViagem {
+  id: string
+  // Participantes
+  clienteId?: string
+  clienteNome?: string
+  veiculoId?: string
+  placa: string
+  veiculoNome?: string
+  motoristaNome: string
+  centroCustoId?: string
+  centroCustoNome?: string
+  transportadoraId?: string
+  transportadoraNome?: string
+  // Rota de transporte
+  origem: string
+  destino: string
+  enderecoOrigem?: string
+  cidadeOrigem?: string
+  ufOrigem?: string
+  dataColetaPrevista?: string // YYYY-MM-DD
+  enderecoDestino?: string
+  cidadeDestino?: string
+  ufDestino?: string
+  dataEntregaPrevista?: string // YYYY-MM-DD
+  distanciaEstimadaKm?: number
+  tempoEstimadoHoras?: number
+  // Detalhes da carga
+  tipoCargaId?: string
+  tipoCargaNome?: string
+  veiculosCarregados?: VeiculoCarregado[]
+  pesoCargaToneladas?: number
+  volumeM3?: number
+  // Detalhes financeiros
+  formaCalculoFrete?: FormaCalculoFrete
+  freteBruto?: number
+  despesasAbater?: number
+  adiantamento?: number
+  tipoFrete?: TipoFrete
+  percentualImposto?: number
+  pessoaImposto?: string
+  percentualComissao?: number
+  pessoaComissao?: string
+  custoOperacional?: number
+  // Legado (viagens registradas antes da tela de frete completa)
+  dataHoraSaida: string
+  dataHoraChegada?: string
+  kmSaida?: number
+  kmChegada?: number
+  // Status e fechamento
+  status: StatusViagem
+  finalidade?: string
+  observacoes?: string
+  createdAt: string
+}
+
 export interface LancamentoFluxoCaixa {
   id: string
   data: string
@@ -302,6 +404,160 @@ export interface LancamentoFluxoCaixa {
   valor: number
   observacao?: string
   usuarioNome?: string
+  createdAt: string
+}
+
+export interface Fornecedor {
+  id: string
+  nome: string
+}
+
+export type TipoMovimentacaoConta = 'despesa' | 'receita'
+export type StatusContaPagarReceber = 'pendente' | 'pago' | 'atrasado' | 'cancelado'
+
+export interface ContaPagarReceber {
+  id: string
+  descricao?: string
+  centroCustoId: string
+  centroCustoNome?: string
+  tipoMovimentacao: TipoMovimentacaoConta
+  tipoLancamentoId: string
+  tipoLancamentoNome?: string
+  valor: number
+  dataLancamento: string // YYYY-MM-DD
+  dataVencimento: string // YYYY-MM-DD
+  status: StatusContaPagarReceber
+  veiculoId?: string
+  placa?: string
+  fornecedorId?: string
+  fornecedorNome?: string
+  contaBancariaId?: string
+  contaBancariaNome?: string
+  observacoes?: string
+  numeroParcelas?: number
+  createdAt: string
+}
+
+export interface VeiculoCliente {
+  id: string
+  clienteId: string
+  clienteNome?: string
+  placa: string
+  modelo?: string
+  marca?: string
+  cor?: string
+}
+
+export type StatusEstadiaPatio = 'no_patio' | 'finalizado'
+
+export interface EstadiaPatio {
+  id: string
+  clienteId: string
+  clienteNome?: string
+  veiculoClienteId?: string
+  placa: string
+  modelo?: string
+  marca?: string
+  cor?: string
+  dataHoraEntrada: string
+  previsaoSaida?: string
+  dataHoraSaidaReal?: string
+  valorDiaria: number
+  centroCustoId: string
+  centroCustoNome?: string
+  observacoes?: string
+  createdAt: string
+}
+
+export type TipoOrdemServico = 'preventiva' | 'corretiva'
+export type StatusOrdemServico = 'solicitada' | 'em_andamento' | 'aguardando_peca' | 'concluida' | 'cancelada'
+export type PrioridadeOrdemServico = 'baixa' | 'normal' | 'alta' | 'critica'
+
+export interface OrdemServico {
+  id: string
+  veiculoId: string
+  placa: string
+  veiculoNome?: string
+  centroCustoId: string
+  centroCustoNome?: string
+  tipo: TipoOrdemServico
+  status: StatusOrdemServico
+  prioridade: PrioridadeOrdemServico
+  dataEntrada?: string // YYYY-MM-DD
+  dataConclusao?: string // YYYY-MM-DD
+  descricaoServico: string
+  oficina: string
+  kmEntrada?: number
+  valor: number
+  fornecedorId?: string
+  fornecedorNome?: string
+  observacoes?: string
+  createdAt: string
+}
+
+export type OrigemAbastecimento = 'manual' | 'despesa_viagem'
+
+export interface Abastecimento {
+  id: string
+  veiculoId: string
+  placa: string
+  veiculoNome?: string
+  centroCustoId: string
+  centroCustoNome?: string
+  combustivel: string
+  dataHora: string
+  odometro?: number
+  horasMotor?: number
+  postoFornecedor: string
+  volume: number
+  valorUnitario?: number
+  valorTotal: number
+  origem: OrigemAbastecimento
+  aprovado: boolean
+  observacoes?: string
+  createdAt: string
+}
+
+export type OrigemLeituraOdometro = 'manual' | 'abastecimento'
+
+export interface LeituraOdometro {
+  id: string
+  veiculoId: string
+  placa: string
+  dataLeitura: string
+  quilometragem: number
+  horasMotor?: number
+  origem: OrigemLeituraOdometro
+  validada: boolean
+  justificativa?: string
+  createdAt: string
+}
+
+export interface LoteImportacaoExtrato {
+  id: string
+  nomeArquivo: string
+  banco?: string
+  contaBancariaId?: string
+  contaBancariaNome?: string
+  dataInicio?: string
+  dataFim?: string
+  totalTransacoes: number
+  createdAt: string
+}
+
+export type StatusTransacaoExtrato = 'pendente' | 'conciliada' | 'divergente' | 'ignorada'
+
+export interface TransacaoExtrato {
+  id: string
+  loteId: string
+  fitid: string
+  data: string
+  descricao: string
+  valor: number
+  tipo?: string
+  status: StatusTransacaoExtrato
+  contaPagarReceberId?: string
+  contaPagarReceberDescricao?: string
   createdAt: string
 }
 

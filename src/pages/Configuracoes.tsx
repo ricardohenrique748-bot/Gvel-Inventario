@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/Header'
 import { useAuth } from '@/contexts/AuthContext'
 import { ClientesTab } from '@/pages/configuracoes/ClientesTab'
@@ -36,7 +37,11 @@ export function Configuracoes() {
     })
   }, [isAdmin, userRef])
 
+  const [searchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab') as TabId | null
+
   const [tab, setTab] = useState<TabId>(() => {
+    if (tabParam && ALL_TABS.some((t) => t.id === tabParam)) return tabParam
     if (isAdmin) return 'empresas'
     return allowedTabs[0]?.id || 'notificacoes'
   })

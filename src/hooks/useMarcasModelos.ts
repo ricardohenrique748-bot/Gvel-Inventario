@@ -58,3 +58,25 @@ export async function criarModelo(marcaId: string, nome: string) {
   if (error) throw error
   return data as Modelo
 }
+
+export async function atualizarMarca(id: string, nome: string) {
+  const { data, error } = await supabase.from('marcas').update({ nome: up(nome) }).eq('id', id).select().single()
+  if (error) throw error
+  return data as Marca
+}
+
+export async function excluirMarca(id: string) {
+  const { error } = await supabase.from('marcas').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function atualizarModelo(id: string, nome: string) {
+  const { data, error } = await supabase.from('modelos').update({ nome: up(nome) }).eq('id', id).select().single()
+  if (error) throw error
+  return data as Modelo
+}
+
+export async function excluirModelo(id: string) {
+  const { error } = await supabase.from('modelos').delete().eq('id', id)
+  if (error) throw error
+}
