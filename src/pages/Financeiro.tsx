@@ -83,6 +83,34 @@ interface MesFinanceiroData {
 }
 
 const DADOS_MESES: Record<string, MesFinanceiroData> = {
+  agosto: {
+    empresas: [
+      { id: 'gvel', nome: 'GVel Diesel', faturamento: 2881678.02, receitas: 3149933.71, despesas: 2456074.97 },
+      { id: 'leves', nome: 'GVel Leves', faturamento: 243347.53, receitas: 15581.48, despesas: 227307.84 },
+      { id: 'distribuidora', nome: 'GV Distribuidora', faturamento: 227018.14, receitas: 423737.42, despesas: 234748.13 },
+      { id: 'transportes', nome: 'GV Transportes', faturamento: 969902.50, receitas: 927383.70, despesas: 1065922.29 },
+      { id: 'investimento', nome: 'Investimento', faturamento: 0.00, receitas: 0.00, despesas: 675496.49 },
+    ],
+    topClientes: [
+      { rank: 1, nome: 'LOCALIZA VEICULOS ESPECIAIS S.A', faturamento: 2412089.43 },
+      { rank: 2, nome: 'Contrato Mensal Rodando', faturamento: 160000.00 },
+      { rank: 3, nome: 'VAMOS LOCACAO DE CAMINHOES, MAQUINAS E EQUIPAMENTOS S.A.', faturamento: 132074.84 },
+      { rank: 4, nome: 'GDT0I02', faturamento: 130159.16 },
+      { rank: 5, nome: 'CUL2E24', faturamento: 114920.68 },
+    ],
+    topPlanosConta: [
+      { rank: 1, nome: 'Compra de Peças', despesa: 758784.64 },
+      { rank: 2, nome: 'Serviços de Terceiros', despesa: 487105.55 },
+      { rank: 3, nome: '(-) Investimento da Empresa em Veículos', despesa: 377068.22 },
+      { rank: 4, nome: 'Combustível', despesa: 353170.18 },
+      { rank: 5, nome: 'Aluguel - conjunto', despesa: 210000.00 },
+      { rank: 6, nome: 'Estorno', despesa: 190000.00 },
+      { rank: 7, nome: 'COMPRA DE MERCADORIA', despesa: 165713.53 },
+      { rank: 8, nome: 'Amortização de Contrato', despesa: 160105.08 },
+      { rank: 9, nome: 'Salário', despesa: 137261.68 },
+      { rank: 10, nome: '(-) Investimento de Sócios em Imóveis', despesa: 115506.44 },
+    ],
+  },
   julho: {
     empresas: [
       { id: 'gvel', nome: 'GVel Diesel', faturamento: 2289426.16, receitas: 4266448.55, despesas: 3490604.84 },
@@ -285,7 +313,8 @@ type AbaFinanceiro = 'visao-geral' | 'fluxo-caixa'
 const ABAS_VALIDAS: AbaFinanceiro[] = ['visao-geral', 'fluxo-caixa']
 
 const MESES_OPCOES = [
-  { id: 'todos', label: 'Todos os Meses (Janeiro a Julho / Consolidado)' },
+  { id: 'todos', label: 'Todos os Meses (Janeiro a Agosto / Consolidado)' },
+  { id: 'agosto', label: 'Agosto' },
   { id: 'julho', label: 'Julho' },
   { id: 'junho', label: 'Junho' },
   { id: 'maio', label: 'Maio' },
@@ -352,6 +381,7 @@ export function Financeiro() {
   const [empresaFiltro, setEmpresaFiltro] = useState<string>('TODAS')
   const [mesFiltro, setMesFiltro] = useState<string>('todos')
   const [planoContaFiltro, setPlanoContaFiltro] = useState<string>('TODOS')
+  const [empresasOcultasTabela, setEmpresasOcultasTabela] = useState<Set<string>>(new Set())
 
   // Modais e Estados de Ação
   const [showHistoricoModal, setShowHistoricoModal] = useState(false)
@@ -371,7 +401,7 @@ export function Financeiro() {
   // Mês Ativo da base de dados (ou consolidação de todos os meses)
   const dadosMesAtivo = useMemo(() => {
     if (mesFiltro === 'todos') {
-      const listaMeses = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho']
+      const listaMeses = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto']
       const empresasIds = ['gvel', 'leves', 'distribuidora', 'transportes', 'investimento']
       const empresas = empresasIds.map((id) => {
         const nome =
@@ -430,7 +460,7 @@ export function Financeiro() {
       return { empresas, topClientes, topPlanosConta }
     }
 
-    return DADOS_MESES[mesFiltro] || DADOS_MESES.julho
+    return DADOS_MESES[mesFiltro] || DADOS_MESES.agosto
   }, [mesFiltro])
 
   // Empresas filtradas
@@ -457,6 +487,29 @@ export function Financeiro() {
       resultadoFaturamento,
     }
   }, [empresasExibidas])
+
+  // Empresas/totais só da tabela "Desempenho Consolidado" — cada linha tem
+  // seu próprio checkbox de mostrar/ocultar, sem afetar os gráficos e KPIs
+  // do resto da página, que continuam usando `empresasExibidas`/`totais`.
+  const empresasTabela = useMemo(
+    () => empresasExibidas.filter((e) => !empresasOcultasTabela.has(e.id)),
+    [empresasExibidas, empresasOcultasTabela],
+  )
+
+  function alternarEmpresaTabela(id: string) {
+    setEmpresasOcultasTabela((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const totaisTabela = useMemo(() => {
+    const faturamento = empresasTabela.reduce((acc, e) => acc + e.faturamento, 0)
+    const receitas = empresasTabela.reduce((acc, e) => acc + e.receitas, 0)
+    const despesas = empresasTabela.reduce((acc, e) => acc + e.despesas, 0)
+    return { faturamento, receitas, despesas, saldoCaixa: totais.saldoCaixa, resultadoFaturamento: faturamento - despesas }
+  }, [empresasTabela, totais.saldoCaixa])
 
   // Dados para o Gráfico Recharts
   const chartData = useMemo(() => {
@@ -491,10 +544,11 @@ export function Financeiro() {
       { id: 'maio', label: 'MAI 2026' },
       { id: 'junho', label: 'JUN 2026' },
       { id: 'julho', label: 'JUL 2026' },
+      { id: 'agosto', label: 'AGO 2026' },
     ]
 
     return meses.map((m) => {
-      const dataMes = DADOS_MESES[m.id] || DADOS_MESES.julho
+      const dataMes = DADOS_MESES[m.id] || DADOS_MESES.agosto
       const empresas =
         empresaFiltro === 'TODAS'
           ? dataMes.empresas
@@ -997,35 +1051,44 @@ export function Financeiro() {
             </thead>
             <tbody className="divide-y divide-border/15 font-mono">
               {empresasExibidas.map((emp) => {
+                const oculta = empresasOcultasTabela.has(emp.id)
                 const sCaixa = emp.receitas - emp.despesas
                 const sFat = emp.faturamento - emp.despesas
 
                 return (
-                  <tr key={emp.id} className="hover:bg-overlay/5 transition-colors">
-                    <td className="py-3.5 px-4 font-sans font-bold text-foreground flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-primary" />
-                      {emp.nome}
+                  <tr key={emp.id} className={`hover:bg-overlay/5 transition-colors ${oculta ? 'opacity-40' : ''}`}>
+                    <td className="py-3.5 px-4 font-sans font-bold text-foreground">
+                      <label className="flex items-center gap-2 cursor-pointer select-none uppercase">
+                        <input
+                          type="checkbox"
+                          checked={oculta}
+                          onChange={() => alternarEmpresaTabela(emp.id)}
+                          title="Ocultar da tabela e do total"
+                          className="h-3.5 w-3.5 rounded border-border/40 accent-primary cursor-pointer shrink-0"
+                        />
+                        {emp.nome}
+                      </label>
                     </td>
                     <td className="py-3.5 px-4 text-right text-blue-400 font-bold">
-                      {fmtBRL(emp.faturamento)}
+                      {oculta ? '••••••' : fmtBRL(emp.faturamento)}
                     </td>
                     <td className="py-3.5 px-4 text-right text-emerald-400 font-bold">
-                      {fmtBRL(emp.receitas)}
+                      {oculta ? '••••••' : fmtBRL(emp.receitas)}
                     </td>
                     <td className="py-3.5 px-4 text-right text-red-400 font-bold">
-                      {fmtBRL(emp.despesas)}
+                      {oculta ? '••••••' : fmtBRL(emp.despesas)}
                     </td>
                     <td
-                      className={`py-3.5 px-4 text-right font-black ${sCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      className={`py-3.5 px-4 text-right font-black ${oculta ? '' : sCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
                         }`}
                     >
-                      {fmtBRL(sCaixa)}
+                      {oculta ? '••••••' : fmtBRL(sCaixa)}
                     </td>
                     <td
-                      className={`py-3.5 px-4 text-right font-black ${sFat >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      className={`py-3.5 px-4 text-right font-black ${oculta ? '' : sFat >= 0 ? 'text-emerald-400' : 'text-red-400'
                         }`}
                     >
-                      {fmtBRL(sFat)}
+                      {oculta ? '••••••' : fmtBRL(sFat)}
                     </td>
                   </tr>
                 )
@@ -1037,25 +1100,25 @@ export function Financeiro() {
                   TOTAL GRUPO VEL
                 </td>
                 <td className="py-4 px-4 text-right text-blue-400">
-                  {fmtBRL(totais.faturamento)}
+                  {fmtBRL(totaisTabela.faturamento)}
                 </td>
                 <td className="py-4 px-4 text-right text-emerald-400">
-                  {fmtBRL(totais.receitas)}
+                  {fmtBRL(totaisTabela.receitas)}
                 </td>
                 <td className="py-4 px-4 text-right text-red-400">
-                  {fmtBRL(totais.despesas)}
+                  {fmtBRL(totaisTabela.despesas)}
                 </td>
                 <td
-                  className={`py-4 px-4 text-right ${totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  className={`py-4 px-4 text-right ${totaisTabela.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
                     }`}
                 >
-                  {fmtBRL(totais.saldoCaixa)}
+                  {fmtBRL(totaisTabela.saldoCaixa)}
                 </td>
                 <td
-                  className={`py-4 px-4 text-right ${totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  className={`py-4 px-4 text-right ${totaisTabela.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
                     }`}
                 >
-                  {fmtBRL(totais.resultadoFaturamento)}
+                  {fmtBRL(totaisTabela.resultadoFaturamento)}
                 </td>
               </tr>
             </tbody>
@@ -1186,11 +1249,11 @@ export function Financeiro() {
                 <BarChart2 className="h-4 w-4" />
               </div>
               <h3 className="text-sm sm:text-base font-black text-foreground uppercase tracking-wide">
-                FATURAMENTO × DESPESAS POR EMPRESA — {mesFiltro === 'todos' ? 'TODOS OS MESES (MAIO A JULHO)' : `${mesFiltro.toUpperCase()} 2026`}
+                FATURAMENTO × DESPESAS POR EMPRESA — {mesFiltro === 'todos' ? 'TODOS OS MESES (JANEIRO A AGOSTO)' : `${mesFiltro.toUpperCase()} 2026`}
               </h3>
             </div>
             <p className="text-xs text-secondary font-medium mt-1">
-              Comparativo de faturamento e despesas por unidade de negócio {mesFiltro === 'todos' ? 'consolidado (Maio, Junho e Julho)' : `em ${mesFiltro.toUpperCase()} / 2026`}
+              Comparativo de faturamento e despesas por unidade de negócio {mesFiltro === 'todos' ? 'consolidado (Janeiro a Agosto)' : `em ${mesFiltro.toUpperCase()} / 2026`}
             </p>
           </div>
 
@@ -1201,7 +1264,7 @@ export function Financeiro() {
               <select
                 value={mesFiltro}
                 onChange={(e) => setMesFiltro(e.target.value)}
-                className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
+                className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
               >
                 {MESES_OPCOES.map((m) => (
                   <option key={m.id} value={m.id} className="bg-surface text-foreground font-bold">
@@ -1340,11 +1403,11 @@ export function Financeiro() {
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white tracking-wide uppercase">
+              <h3 className="text-sm font-black text-foreground tracking-wide uppercase">
                 COMPARATIVO EVOLUTIVO MÊS A MÊS — {empresaFiltro === 'TODAS' ? 'GRUPO VEL' : empresaFiltro.toUpperCase()}
               </h3>
               <p className="text-xs text-secondary font-medium lowercase">
-                Evolução comparativa de faturamento, receitas e despesas ao longo do ano (Janeiro a Julho / 2026)
+                Evolução comparativa de faturamento, receitas e despesas ao longo do ano (Janeiro a Agosto / 2026)
               </p>
             </div>
           </div>
@@ -1356,7 +1419,7 @@ export function Financeiro() {
               <select
                 value={empresaFiltro}
                 onChange={(e) => setEmpresaFiltro(e.target.value)}
-                className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
+                className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
               >
                 <option value="TODAS" className="bg-surface text-foreground font-bold">
                   TODAS AS EMPRESAS (GRUPO VEL)
@@ -1379,14 +1442,14 @@ export function Financeiro() {
               </select>
             </div>
 
-            <Badge tone="neutral" className="text-[11px] font-bold border-border/30 text-white">
-              JAN · FEV · MAR · ABR · MAI · JUN · JUL
+            <Badge tone="neutral" className="text-[11px] font-bold border-border/30">
+              JAN · FEV · MAR · ABR · MAI · JUN · JUL · AGO
             </Badge>
           </div>
         </div>
 
         {/* Legenda do Gráfico */}
-        <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-white bg-background/40 p-3 rounded-2xl border border-border/20">
+        <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-foreground bg-background/40 p-3 rounded-2xl border border-border/20">
           <div className="flex items-center gap-2">
             <span className="h-3 w-3 rounded-md bg-blue-500 shadow-sm shadow-blue-500/50" />
             <span className="text-blue-400 font-black">FATURAMENTO</span>
@@ -1434,7 +1497,7 @@ export function Financeiro() {
                   return (
                     <div className="rounded-2xl border border-border/40 bg-surface/95 p-4 shadow-2xl backdrop-blur-md uppercase text-xs space-y-2 min-w-[250px]">
                       <div className="border-b border-border/20 pb-2 flex items-center justify-between">
-                        <span className="font-black text-white text-sm flex items-center gap-1.5">
+                        <span className="font-black text-foreground text-sm flex items-center gap-1.5">
                           📅 {label}
                         </span>
                       </div>
@@ -1444,14 +1507,14 @@ export function Financeiro() {
                           <span className="text-blue-400 font-sans font-bold flex items-center gap-1">
                             <span className="h-2 w-2 rounded-full bg-blue-500" /> FATURAMENTO:
                           </span>
-                          <span className="font-bold text-white">{fmtBRL(fat)}</span>
+                          <span className="font-bold text-foreground">{fmtBRL(fat)}</span>
                         </div>
 
                         <div className="flex items-center justify-between">
                           <span className="text-red-400 font-sans font-bold flex items-center gap-1">
                             <span className="h-2 w-2 rounded-full bg-red-500" /> DESPESAS:
                           </span>
-                          <span className="font-bold text-white">{fmtBRL(desp)}</span>
+                          <span className="font-bold text-foreground">{fmtBRL(desp)}</span>
                         </div>
                       </div>
 
@@ -1531,7 +1594,7 @@ export function Financeiro() {
               <select
                 value={mesFiltro}
                 onChange={(e) => setMesFiltro(e.target.value)}
-                className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
+                className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
               >
                 {MESES_OPCOES.map((m) => (
                   <option key={m.id} value={m.id} className="bg-surface text-foreground font-bold">
@@ -2123,7 +2186,8 @@ export function Financeiro() {
 
             <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
               {[
-                { mes: 'Julho / 2026', status: 'Apuração Aberta (Atual)', fat: 'R$ 4.071.713,83', rec: 'R$ 6.003.286,13', desp: 'R$ 5.823.982,53', tag: 'EM ABERTO', tagTone: 'warning' },
+                { mes: 'Agosto / 2026', status: 'Apuração Aberta (Atual)', fat: 'R$ 4.321.946,20', rec: 'R$ 4.516.636,31', desp: 'R$ 4.659.549,72', tag: 'EM ABERTO', tagTone: 'warning' },
+                { mes: 'Julho / 2026', status: 'Fechamento Consolidado', fat: 'R$ 4.071.713,83', rec: 'R$ 6.003.286,13', desp: 'R$ 5.823.982,53', tag: 'CONCLUÍDO', tagTone: 'success' },
                 { mes: 'Junho / 2026', status: 'Fechamento Consolidado', fat: 'R$ 3.935.729,16', rec: 'R$ 4.501.605,61', desp: 'R$ 4.556.820,03', tag: 'CONCLUÍDO', tagTone: 'success' },
                 { mes: 'Maio / 2026', status: 'Fechamento Consolidado', fat: 'R$ 3.056.636,95', rec: 'R$ 2.698.802,76', desp: 'R$ 3.414.090,52', tag: 'CONCLUÍDO', tagTone: 'success' },
                 { mes: 'Abril / 2026', status: 'Fechamento Consolidado', fat: 'R$ 1.221.524,45', rec: 'R$ 1.221.524,45', desp: 'R$ 1.080.000,00', tag: 'CONCLUÍDO', tagTone: 'success' },
