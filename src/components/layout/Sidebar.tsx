@@ -69,7 +69,7 @@ function CompanySwitcher() {
               position: 'fixed',
               top: `${coords.top}px`,
               left: `${coords.left}px`,
-              width: '250px',
+              width: '300px',
             }}
             className="z-[99999] rounded-xl border border-border/20 bg-[#18181b] shadow-2xl shadow-black/90 overflow-hidden animate-in fade-in zoom-in-95 duration-150 font-sans"
           >
@@ -81,7 +81,7 @@ function CompanySwitcher() {
                 ADMIN
               </span>
             </div>
-            <div className="py-1 max-h-64 overflow-y-auto">
+            <div className="py-1 max-h-72 overflow-y-auto">
               {empresas.map((empresa) => {
                 const isActive = empresa.id === empresaAtiva?.id
                 return (
@@ -94,26 +94,27 @@ function CompanySwitcher() {
                       setEmpresaAtiva(empresa.id)
                       setOpen(false)
                     }}
+                    style={isActive ? { borderLeftColor: empresa.cor } : undefined}
                     className={cn(
-                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer',
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer border-l-2',
                       isActive
-                        ? 'bg-primary/15 text-foreground font-semibold'
-                        : 'text-secondary hover:bg-white/5 hover:text-foreground',
+                        ? 'bg-white/[0.06] text-foreground font-semibold'
+                        : 'border-l-transparent text-secondary hover:bg-white/5 hover:text-foreground',
                     )}
                   >
                     <div
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white text-[10px] font-black shadow-sm"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white text-[10px] font-black shadow-sm ring-1 ring-white/15"
                       style={{ backgroundColor: empresa.cor }}
                     >
                       <Building2 className="h-3.5 w-3.5" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold truncate text-foreground">{empresa.nome}</p>
+                      <p className="text-xs font-bold leading-snug break-words text-foreground">{empresa.nome}</p>
                       <p className="text-[10px] text-secondary/70 uppercase tracking-wide truncate">
                         {empresa.sistemaLabel}
                       </p>
                     </div>
-                    {isActive && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                    {isActive && <Check className="h-4 w-4 shrink-0 text-white bg-primary rounded-full p-0.5" />}
                   </button>
                 )
               })}
