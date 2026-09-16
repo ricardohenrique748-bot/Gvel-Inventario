@@ -23,6 +23,7 @@ import {
   UserX,
   Upload,
   Building2,
+  Medal,
 } from 'lucide-react'
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from 'recharts'
 import { PageHeader } from '@/components/layout/Header'
@@ -38,7 +39,7 @@ import { isRhAuthorized } from '@/components/layout/nav'
 import { useRhSheet, type ColaboradorRH } from '@/hooks/useRhSheet'
 import { useAtestadosSheet, type RegistroAtestado, type TipoAtestado } from '@/hooks/useAtestadosSheet'
 import { useFaltas, useLotesImportacaoFaltas, importarFaltasPdf, type RegistroFalta } from '@/hooks/useFaltas'
-import { CHART_CATEGORICAL, CHART_OTHER, CHART_ENTRADA } from '@/lib/chartColors'
+import { CHART_CATEGORICAL, CHART_OTHER, CHART_ENTRADA, CHART_SAIDA } from '@/lib/chartColors'
 import { cn } from '@/lib/cn'
 import { getErrorMessage } from '@/lib/erros'
 
@@ -163,6 +164,31 @@ function DonutCard({ titulo, icone: Icone, dados, formatarValor, centroValor, ce
   )
 }
 
+// Medalha desenhada em SVG (círculo + número) no início das 3 primeiras
+// barras — em vez de um emoji, que renderiza sem cor (só o contorno) dentro
+// de um <text> de SVG na maioria dos navegadores.
+const CORES_MEDALHA = ['#FFD700', '#C0C0C0', '#CD7F32'] // ouro, prata, bronze
+
+function renderMedalhaNaBarra(props: any) {
+  const { x, y, height, index } = props
+  if (index > 2) return null
+  const tamanho = 18
+  const cy = y + height / 2
+  return (
+    <g key={`medalha-${index}`} filter="drop-shadow(0 1px 1.5px rgba(0,0,0,0.5))">
+      <Medal
+        x={x + 4}
+        y={cy - tamanho / 2}
+        width={tamanho}
+        height={tamanho}
+        color="rgba(0,0,0,0.55)"
+        fill={CORES_MEDALHA[index]}
+        strokeWidth={1.5}
+      />
+    </g>
+  )
+}
+
 interface BarRankingCardProps {
   titulo: string
   icone: React.ElementType
@@ -175,6 +201,8 @@ interface BarRankingCardProps {
   axisLineColor: string
   tooltipStyle: React.CSSProperties
   tooltipLabel: string
+  /** Desenha uma medalha (ouro/prata/bronze) no início das 3 primeiras barras. */
+  destacarTop3?: boolean
 }
 
 function BarRankingCard({
@@ -189,6 +217,7 @@ function BarRankingCard({
   axisLineColor,
   tooltipStyle,
   tooltipLabel,
+  destacarTop3,
 }: BarRankingCardProps) {
   return (
     <Card className="overflow-hidden">
@@ -240,6 +269,7 @@ function BarRankingCard({
                     offset={8}
                     formatter={(val: any) => (typeof val === 'number' ? formatarEixo(val) : String(val ?? ''))}
                   />
+                  {destacarTop3 && <LabelList dataKey="value" content={renderMedalhaNaBarra} />}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -904,6 +934,30 @@ export function RH() {
     return { total: faltas.length, colaboradoresUnicos, departamentos: departamentosFaltas.length }
   }, [faltas, departamentosFaltas])
 
+  const rankingColaboradoresFaltas = useMemo(() => {
+    const contagem = new Map<string, { nome: string; value: number }>()
+    for (const f of faltas) {
+      const atual = contagem.get(f.matricula)
+      if (atual) atual.value += 1
+      else contagem.set(f.matricula, { nome: f.nome, value: 1 })
+    }
+    return [...contagem.values()]
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8)
+      .map((c) => ({ name: c.nome, value: c.value }))
+  }, [faltas])
+
+  const rankingDepartamentosFaltas = useMemo(() => {
+    const contagem = new Map<string, number>()
+    for (const f of faltas) {
+      if (!f.departamento) continue
+      contagem.set(f.departamento, (contagem.get(f.departamento) || 0) + 1)
+    }
+    return [...contagem.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({ name, value }))
+  }, [faltas])
+
   const ultimoLoteFaltas = lotesFaltas[0]
 
   if (!perfilLoading && !autorizado) {
@@ -1224,6 +1278,33 @@ export function RH() {
             <StatCard align="center" valueClassName="text-2xl" icon={UserX} label="Faltas Registradas" value={String(totaisFaltas.total)} />
             <StatCard align="center" valueClassName="text-2xl" icon={Users} label="Colaboradores Únicos" value={String(totaisFaltas.colaboradoresUnicos)} />
             <StatCard align="center" valueClassName="text-2xl" icon={Building2} label="Departamentos" value={String(totaisFaltas.departamentos)} />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <BarRankingCard
+              titulo="Colaboradores com Mais Faltas"
+              icone={UserX}
+              dados={rankingColaboradoresFaltas}
+              cor={CHART_SAIDA}
+              formatarValor={(v) => `${v} ${v === 1 ? 'FALTA' : 'FALTAS'}`}
+              formatarEixo={(v) => String(v)}
+              textColor={textColor}
+              gridColor={gridColor}
+              axisLineColor={axisLineColor}
+              tooltipStyle={tooltipStyle}
+              tooltipLabel="Faltas"
+              destacarTop3
+            />
+            <DonutCard
+              titulo="Faltas por Departamento"
+              icone={Building2}
+              dados={rankingDepartamentosFaltas}
+              formatarValor={(v) => `${v} ${v === 1 ? 'falta' : 'faltas'}`}
+              centroValor={String(totaisFaltas.total)}
+              centroLegenda="FALTAS"
+              tooltipStyle={tooltipStyle}
+              isDark={isDark}
+            />
           </div>
 
           <TabelaFaltas
