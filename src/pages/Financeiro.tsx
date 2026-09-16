@@ -88,7 +88,11 @@ const ORDEM_MESES = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 
 // receitas - despesas reais de cada mês em cima dessa base.
 const SALDO_CAIXA_BASE_JUNHO = -350000.0
 
-function calcularSaldoCaixa(mesFiltroAtual: string, empresaFiltroAtual: string): number {
+function calcularSaldoCaixa(
+  mesFiltroAtual: string,
+  empresaFiltroAtual: string,
+  empresasExcluidas?: Set<string>,
+): number {
   const mesAlvo = mesFiltroAtual === 'todos' ? 'agosto' : mesFiltroAtual
   const idxMes = ORDEM_MESES.indexOf(mesAlvo)
   const idxJulho = ORDEM_MESES.indexOf('julho')
@@ -98,10 +102,13 @@ function calcularSaldoCaixa(mesFiltroAtual: string, empresaFiltroAtual: string):
   for (let i = idxJulho; i <= idxMes; i++) {
     const dataMes = DADOS_MESES[ORDEM_MESES[i]]
     if (!dataMes) continue
-    const empresas =
+    let empresas =
       empresaFiltroAtual === 'TODAS'
         ? dataMes.empresas
         : dataMes.empresas.filter((e) => e.nome === empresaFiltroAtual || e.id === empresaFiltroAtual)
+    if (empresasExcluidas && empresasExcluidas.size > 0) {
+      empresas = empresas.filter((e) => !empresasExcluidas.has(e.id))
+    }
     const receitas = empresas.reduce((acc, e) => acc + e.receitas, 0)
     const despesas = empresas.reduce((acc, e) => acc + e.despesas, 0)
     saldo += receitas - despesas
@@ -498,26 +505,11 @@ export function Financeiro() {
     return dadosMesAtivo.empresas.filter((e) => e.nome === empresaFiltro || e.id === empresaFiltro)
   }, [empresaFiltro, dadosMesAtivo])
 
-  // Totais consolidados
-  const totais = useMemo(() => {
-    const faturamento = empresasExibidas.reduce((acc, e) => acc + e.faturamento, 0)
-    const receitas = empresasExibidas.reduce((acc, e) => acc + e.receitas, 0)
-    const despesas = empresasExibidas.reduce((acc, e) => acc + e.despesas, 0)
-    const saldoCaixa = calcularSaldoCaixa(mesFiltro, empresaFiltro)
-    const resultadoFaturamento = faturamento - despesas
-
-    return {
-      faturamento,
-      receitas,
-      despesas,
-      saldoCaixa,
-      resultadoFaturamento,
-    }
-  }, [empresasExibidas, mesFiltro, empresaFiltro])
-
-  // Empresas/totais só da tabela "Desempenho Consolidado" — cada linha tem
-  // seu próprio checkbox de mostrar/ocultar, sem afetar os gráficos e KPIs
-  // do resto da página, que continuam usando `empresasExibidas`/`totais`.
+  // Empresas com checkbox marcado na tabela "Desempenho Consolidado" ficam de
+  // fora daqui — a ocultação de uma empresa (ex.: Investimento) precisa refletir
+  // em toda a página, não só na própria tabela, senão os cards do topo (Saldo de
+  // Caixa, Resultado Líquido etc.) continuam somando um valor que a tela já não
+  // mostra mais em lugar nenhum.
   const empresasTabela = useMemo(
     () => empresasExibidas.filter((e) => !empresasOcultasTabela.has(e.id)),
     [empresasExibidas, empresasOcultasTabela],
@@ -531,12 +523,23 @@ export function Financeiro() {
       return next
     })
   }
-  const totaisTabela = useMemo(() => {
+
+  // Totais consolidados — já excluem as empresas ocultadas pelos checkboxes.
+  const totais = useMemo(() => {
     const faturamento = empresasTabela.reduce((acc, e) => acc + e.faturamento, 0)
     const receitas = empresasTabela.reduce((acc, e) => acc + e.receitas, 0)
     const despesas = empresasTabela.reduce((acc, e) => acc + e.despesas, 0)
-    return { faturamento, receitas, despesas, saldoCaixa: totais.saldoCaixa, resultadoFaturamento: faturamento - despesas }
-  }, [empresasTabela, totais.saldoCaixa])
+    const saldoCaixa = calcularSaldoCaixa(mesFiltro, empresaFiltro, empresasOcultasTabela)
+    const resultadoFaturamento = faturamento - despesas
+
+    return {
+      faturamento,
+      receitas,
+      despesas,
+      saldoCaixa,
+      resultadoFaturamento,
+    }
+  }, [empresasTabela, mesFiltro, empresaFiltro, empresasOcultasTabela])
 
   // Dados para o Gráfico Recharts
   const chartData = useMemo(() => {
@@ -1127,25 +1130,25 @@ export function Financeiro() {
                   TOTAL GRUPO VEL
                 </td>
                 <td className="py-4 px-4 text-right text-blue-400">
-                  {fmtBRL(totaisTabela.faturamento)}
+                  {fmtBRL(totais.faturamento)}
                 </td>
                 <td className="py-4 px-4 text-right text-emerald-400">
-                  {fmtBRL(totaisTabela.receitas)}
+                  {fmtBRL(totais.receitas)}
                 </td>
                 <td className="py-4 px-4 text-right text-red-400">
-                  {fmtBRL(totaisTabela.despesas)}
+                  {fmtBRL(totais.despesas)}
                 </td>
                 <td
-                  className={`py-4 px-4 text-right ${totaisTabela.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  className={`py-4 px-4 text-right ${totais.saldoCaixa >= 0 ? 'text-emerald-400' : 'text-red-400'
                     }`}
                 >
-                  {fmtBRL(totaisTabela.saldoCaixa)}
+                  {fmtBRL(totais.saldoCaixa)}
                 </td>
                 <td
-                  className={`py-4 px-4 text-right ${totaisTabela.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  className={`py-4 px-4 text-right ${totais.resultadoFaturamento >= 0 ? 'text-emerald-400' : 'text-red-400'
                     }`}
                 >
-                  {fmtBRL(totaisTabela.resultadoFaturamento)}
+                  {fmtBRL(totais.resultadoFaturamento)}
                 </td>
               </tr>
             </tbody>
