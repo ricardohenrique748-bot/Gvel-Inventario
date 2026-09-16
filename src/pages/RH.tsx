@@ -714,8 +714,8 @@ type AbaRH = 'dashboard' | 'planilha' | 'atestado' | 'faltas'
 const ABAS_VALIDAS: AbaRH[] = ['dashboard', 'planilha', 'atestado', 'faltas']
 
 export function RH() {
-  const { user, perfilLoading } = useAuth()
-  const autorizado = isRhAuthorized(user?.email)
+  const { user, perfil, perfilLoading } = useAuth()
+  const autorizado = isRhAuthorized(perfil || { email: user?.email })
   const { theme } = useTheme()
   const isDark = theme === 'dark'
   const textColor = isDark ? '#ffffff' : '#18181b'

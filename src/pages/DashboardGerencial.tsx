@@ -205,11 +205,11 @@ export function DashboardGerencial() {
   const atalhosExibidos = useMemo(() => {
     return atalhos.filter((item) => {
       if (item.to === '/inventario-ferramentas') {
-        return isEstoqueAuthorized(user?.email)
+        return isEstoqueAuthorized(perfil || { email: user?.email })
       }
       return true
     })
-  }, [atalhos, user?.email])
+  }, [atalhos, perfil, user?.email])
 
   return (
     <div className="space-y-6 animate-fade-in uppercase">
