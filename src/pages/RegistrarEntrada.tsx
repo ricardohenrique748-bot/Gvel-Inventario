@@ -52,7 +52,10 @@ const schema = z
     statusId: z.string().optional(),
     motorista: z.string().optional(),
     dataHoraEntrada: z.string().min(1, 'Informe a data/hora de entrada'),
-    kmEntrada: z.number().int('KM inválido').min(0, 'KM inválido').optional(),
+    kmEntrada: z
+      .number({ message: 'Informe o KM' })
+      .int('KM inválido')
+      .min(0, 'KM inválido'),
     observacoes: z.string().optional(),
   })
   .superRefine((values, ctx) => {
@@ -290,7 +293,7 @@ export function RegistrarEntrada() {
             statusId: values.statusId || undefined,
             motorista: values.motorista || undefined,
             dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
-            kmEntrada: values.kmEntrada || undefined,
+            kmEntrada: values.kmEntrada,
             observacoes: values.observacoes?.trim() || undefined,
           }
         : {
@@ -299,7 +302,7 @@ export function RegistrarEntrada() {
             statusId: values.statusId || undefined,
             motorista: values.motorista || undefined,
             dataHoraEntrada: new Date(values.dataHoraEntrada).toISOString(),
-            kmEntrada: values.kmEntrada || undefined,
+            kmEntrada: values.kmEntrada,
             observacoes: values.observacoes?.trim() || undefined,
           }
 
@@ -631,12 +634,12 @@ export function RegistrarEntrada() {
                 <FieldError message={errors.motorista?.message} />
               </div>
               <div>
-                <Label htmlFor="kmEntrada">KM</Label>
+                <Label htmlFor="kmEntrada">KM<Req /></Label>
                 <Input
                   id="kmEntrada"
                   type="number"
                   inputMode="numeric"
-                  placeholder="Opcional"
+                  placeholder="0"
                   {...register('kmEntrada', { valueAsNumber: true })}
                 />
                 <FieldError message={errors.kmEntrada?.message} />
