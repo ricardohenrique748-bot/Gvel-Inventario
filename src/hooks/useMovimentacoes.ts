@@ -22,6 +22,9 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
   const [raw, setRaw] = useState<MovimentacaoComVeiculo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Só a transição vazio<->preenchido deve disparar uma nova busca no servidor
+  // (troca o limite aplicado); o texto em si é filtrado em memória a cada tecla.
+  const temBusca = Boolean(filters.search?.trim())
 
   const refetch = useCallback(async () => {
     setLoading(true)
@@ -44,7 +47,10 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
     } else if (filters.dataFim) {
       query = query.or(`data_hora_entrada.lte.${filters.dataFim},data_hora_saida.lte.${filters.dataFim}`)
     }
-    if (filters.limit) query = query.limit(filters.limit)
+    // O limite de paginação só se aplica quando NÃO há busca por placa — senão um
+    // veículo com movimentação em aberto há mais tempo (fora das últimas N linhas
+    // mais recentes) nunca apareceria na busca, mesmo estando de fato no pátio.
+    if (filters.limit && !temBusca) query = query.limit(filters.limit)
 
     const { data, error } = await query
     if (error) {
@@ -55,7 +61,7 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
     setError(null)
     setRaw((data as unknown as MovimentacaoComVeiculo[]) ?? [])
     setLoading(false)
-  }, [filters.patioId, filters.status, filters.dataInicio, filters.dataFim, filters.limit])
+  }, [filters.patioId, filters.status, filters.dataInicio, filters.dataFim, filters.limit, temBusca])
 
   useEffect(() => {
     refetch()
@@ -109,7 +115,7 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
 
   // Sinaliza que o servidor pode ter mais linhas além do limite pedido (para mostrar
   // o botão "carregar mais"); só faz sentido quando um limite foi de fato aplicado.
-  const podeTerMais = Boolean(filters.limit) && raw.length >= (filters.limit ?? 0)
+  const podeTerMais = !temBusca && Boolean(filters.limit) && raw.length >= (filters.limit ?? 0)
 
   return { movimentacoes, loading, error, podeTerMais, refetch }
 }

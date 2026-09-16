@@ -82,6 +82,33 @@ interface MesFinanceiroData {
   topPlanosConta: { rank: number; nome: string; despesa: number }[]
 }
 
+const ORDEM_MESES = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto']
+// Saldo de caixa apurado e fechado até junho/2026 — valor congelado, não recalculado.
+// A partir de julho/2026 o saldo passa a se movimentar de fato, somando as
+// receitas - despesas reais de cada mês em cima dessa base.
+const SALDO_CAIXA_BASE_JUNHO = -350000.0
+
+function calcularSaldoCaixa(mesFiltroAtual: string, empresaFiltroAtual: string): number {
+  const mesAlvo = mesFiltroAtual === 'todos' ? 'agosto' : mesFiltroAtual
+  const idxMes = ORDEM_MESES.indexOf(mesAlvo)
+  const idxJulho = ORDEM_MESES.indexOf('julho')
+  if (idxMes < 0 || idxMes < idxJulho) return SALDO_CAIXA_BASE_JUNHO
+
+  let saldo = SALDO_CAIXA_BASE_JUNHO
+  for (let i = idxJulho; i <= idxMes; i++) {
+    const dataMes = DADOS_MESES[ORDEM_MESES[i]]
+    if (!dataMes) continue
+    const empresas =
+      empresaFiltroAtual === 'TODAS'
+        ? dataMes.empresas
+        : dataMes.empresas.filter((e) => e.nome === empresaFiltroAtual || e.id === empresaFiltroAtual)
+    const receitas = empresas.reduce((acc, e) => acc + e.receitas, 0)
+    const despesas = empresas.reduce((acc, e) => acc + e.despesas, 0)
+    saldo += receitas - despesas
+  }
+  return saldo
+}
+
 const DADOS_MESES: Record<string, MesFinanceiroData> = {
   agosto: {
     empresas: [
@@ -476,7 +503,7 @@ export function Financeiro() {
     const faturamento = empresasExibidas.reduce((acc, e) => acc + e.faturamento, 0)
     const receitas = empresasExibidas.reduce((acc, e) => acc + e.receitas, 0)
     const despesas = empresasExibidas.reduce((acc, e) => acc + e.despesas, 0)
-    const saldoCaixa = -350000.00
+    const saldoCaixa = calcularSaldoCaixa(mesFiltro, empresaFiltro)
     const resultadoFaturamento = faturamento - despesas
 
     return {
@@ -486,7 +513,7 @@ export function Financeiro() {
       saldoCaixa,
       resultadoFaturamento,
     }
-  }, [empresasExibidas])
+  }, [empresasExibidas, mesFiltro, empresaFiltro])
 
   // Empresas/totais só da tabela "Desempenho Consolidado" — cada linha tem
   // seu próprio checkbox de mostrar/ocultar, sem afetar os gráficos e KPIs
