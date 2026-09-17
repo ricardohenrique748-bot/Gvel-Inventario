@@ -257,7 +257,11 @@ export function getModulosUsuario(usuario?: Partial<Usuario> | null): string[] {
     ]
   }
 
-  return MODULOS_PADRAO_USUARIO
+  // Sem módulos salvos e sem nenhum dos fallbacks acima: nenhum acesso por
+  // padrão. Um usuário só deve ver o que o admin marcou explicitamente pra
+  // ele — cair num conjunto "padrão" implícito é exatamente o que causava
+  // módulos aparecerem sozinhos pra usuários recém-criados/editados.
+  return []
 }
 
 /**
