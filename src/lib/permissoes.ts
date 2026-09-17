@@ -111,6 +111,9 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
       { id: 'rh_planilha', label: 'Planilha', descricao: 'Folha de pagamento completa por colaborador', rota: '/rh?aba=planilha' },
       { id: 'rh_atestado', label: 'Atestado', descricao: 'Controle de atestados e declarações médicas', rota: '/rh?aba=atestado' },
       { id: 'rh_faltas', label: 'Faltas', descricao: 'Relatório de ausências importado em PDF', rota: '/rh?aba=faltas' },
+      // "Hora Extra" não entra aqui de propósito — é restrita a admin + RH
+      // (rh@gveldiesel.com) direto no código, não fica liberável por
+      // checkbox pra qualquer usuário (dado salarial sensível).
     ],
   },
   {

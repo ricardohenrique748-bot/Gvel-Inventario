@@ -8,6 +8,7 @@ export interface RegistroAtestado {
   cargo: string
   data: string
   dataIso: string
+  mes: string
   tipo: TipoAtestado
   horaInicio: string
   horaFim: string
@@ -101,6 +102,7 @@ const ALIASES_CABECALHO: Record<string, string[]> = {
   nome: ['NOME DO COLABORADOR', 'NOME'],
   cargo: ['CARGO', 'FUNCAO', 'FUNÇÃO'],
   data: ['DATA'],
+  mes: ['MES', 'MÊS', 'MES DE REFERENCIA', 'MÊS DE REFERÊNCIA'],
   tipo: ['TIPO'],
   horaInicio: ['INICIO', 'INÍCIO'],
   horaFim: ['FIM'],
@@ -157,6 +159,7 @@ function parseCsv(csvText: string): RegistroAtestado[] {
       cargo: (col('cargo') || '').trim().toUpperCase(),
       data,
       dataIso,
+      mes: (col('mes') || '').trim().toUpperCase(),
       tipo: normalizarTipo(col('tipo')),
       horaInicio: (col('horaInicio') || '').trim(),
       horaFim: (col('horaFim') || '').trim(),

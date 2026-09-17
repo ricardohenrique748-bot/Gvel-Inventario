@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   ShieldAlert,
@@ -24,6 +24,9 @@ import {
   Upload,
   Building2,
   Medal,
+  Timer,
+  HandCoins,
+  ChevronDown,
 } from 'lucide-react'
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from 'recharts'
 import { PageHeader } from '@/components/layout/Header'
@@ -36,9 +39,11 @@ import { DragScrollArea } from '@/components/ui/DragScrollArea'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { isRhAuthorized, isModuloAuthorized } from '@/components/layout/nav'
+import { isAdminUsuario } from '@/lib/permissoes'
 import { useRhSheet, type ColaboradorRH } from '@/hooks/useRhSheet'
 import { useAtestadosSheet, type RegistroAtestado, type TipoAtestado } from '@/hooks/useAtestadosSheet'
 import { useFaltas, useLotesImportacaoFaltas, importarFaltasPdf, type RegistroFalta } from '@/hooks/useFaltas'
+import { useHoraExtraSheet, type RegistroHoraExtra } from '@/hooks/useHoraExtraSheet'
 import { CHART_CATEGORICAL, CHART_OTHER, CHART_ENTRADA, CHART_SAIDA } from '@/lib/chartColors'
 import { cn } from '@/lib/cn'
 import { getErrorMessage } from '@/lib/erros'
@@ -192,7 +197,7 @@ function renderMedalhaNaBarra(props: any) {
 interface BarRankingCardProps {
   titulo: string
   icone: React.ElementType
-  dados: { name: string; value: number }[]
+  dados: Array<{ name: string; value: number } & Record<string, unknown>>
   cor: string
   formatarValor: (v: number) => string
   formatarEixo: (v: number) => string
@@ -203,6 +208,8 @@ interface BarRankingCardProps {
   tooltipLabel: string
   /** Desenha uma medalha (ouro/prata/bronze) no início das 3 primeiras barras. */
   destacarTop3?: boolean
+  /** Quando informado, torna as barras clicáveis e recebe o item original de `dados`. */
+  onBarClick?: (item: { name: string; value: number } & Record<string, unknown>) => void
 }
 
 function BarRankingCard({
@@ -218,6 +225,7 @@ function BarRankingCard({
   tooltipStyle,
   tooltipLabel,
   destacarTop3,
+  onBarClick,
 }: BarRankingCardProps) {
   return (
     <Card className="overflow-hidden">
@@ -259,7 +267,14 @@ function BarRankingCard({
                   cursor={{ fill: 'rgba(128,128,128,0.08)' }}
                   formatter={(value) => [formatarValor(Number(value)), tooltipLabel]}
                 />
-                <Bar dataKey="value" fill={cor} radius={[0, 6, 6, 0]} maxBarSize={22}>
+                <Bar
+                  dataKey="value"
+                  fill={cor}
+                  radius={[0, 6, 6, 0]}
+                  maxBarSize={22}
+                  cursor={onBarClick ? 'pointer' : undefined}
+                  onClick={(data: any) => onBarClick?.(data?.payload ?? data)}
+                >
                   <LabelList
                     dataKey="value"
                     position="right"
@@ -437,6 +452,93 @@ function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca,
 
 const FILTROS_TIPO_ATESTADO: Array<TipoAtestado | 'TODOS'> = ['TODOS', 'Atestado', 'Declaração', 'Outro']
 
+const ORDEM_MESES = [
+  'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
+  'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
+]
+
+function ordenarMeses(meses: string[]): string[] {
+  return [...meses].sort((a, b) => {
+    const ia = ORDEM_MESES.indexOf(a)
+    const ib = ORDEM_MESES.indexOf(b)
+    if (ia === -1 && ib === -1) return a.localeCompare(b)
+    if (ia === -1) return 1
+    if (ib === -1) return -1
+    return ia - ib
+  })
+}
+
+interface FiltroMesDropdownProps {
+  meses: string[]
+  valor: string
+  onChange: (valor: string) => void
+}
+
+function FiltroMesDropdown({ meses, valor, onChange }: FiltroMesDropdownProps) {
+  const [aberto, setAberto] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!aberto) return
+    const onClickFora = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickFora)
+    return () => document.removeEventListener('mousedown', onClickFora)
+  }, [aberto])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+          valor !== 'TODOS'
+            ? 'bg-primary text-white shadow-md shadow-primary/20'
+            : 'border border-border/25 bg-surface/60 text-secondary hover:text-foreground hover:bg-surface-hover/50'
+        }`}
+      >
+        {valor === 'TODOS' ? 'TODOS OS MESES' : valor}
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${aberto ? 'rotate-180' : ''}`} />
+      </button>
+
+      {aberto && (
+        <div className="absolute left-0 top-full z-50 mt-1.5 w-44 max-h-64 overflow-y-auto rounded-xl border border-border/25 bg-surface shadow-lg shadow-black/20 py-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              onChange('TODOS')
+              setAberto(false)
+            }}
+            className={`w-full text-left px-3.5 py-2 text-xs font-bold cursor-pointer transition-colors ${
+              valor === 'TODOS' ? 'text-primary' : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            TODOS OS MESES
+          </button>
+          {meses.map((mes) => (
+            <button
+              key={mes}
+              type="button"
+              onClick={() => {
+                onChange(mes)
+                setAberto(false)
+              }}
+              className={`w-full text-left px-3.5 py-2 text-xs font-bold cursor-pointer transition-colors ${
+                valor === mes ? 'text-primary' : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+              }`}
+            >
+              {mes}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function toneStatusAtestado(status: string): 'success' | 'warning' | 'neutral' {
   const limpo = status.trim().toUpperCase()
   if (limpo === 'CONFERIDO') return 'success'
@@ -478,6 +580,9 @@ interface TabelaAtestadosProps {
   onBuscaChange: (valor: string) => void
   filtroTipo: TipoAtestado | 'TODOS'
   onFiltroTipoChange: (valor: TipoAtestado | 'TODOS') => void
+  meses: string[]
+  filtroMes: string
+  onFiltroMesChange: (valor: string) => void
 }
 
 function TabelaAtestados({
@@ -488,6 +593,9 @@ function TabelaAtestados({
   onBuscaChange,
   filtroTipo,
   onFiltroTipoChange,
+  meses,
+  filtroMes,
+  onFiltroMesChange,
 }: TabelaAtestadosProps) {
   return (
     <Card>
@@ -519,6 +627,12 @@ function TabelaAtestados({
               {tipo === 'TODOS' ? 'TODOS' : tipo.toUpperCase()}
             </button>
           ))}
+          {meses.length > 0 && (
+            <>
+              <div className="w-px h-6 bg-border/25 mx-1" />
+              <FiltroMesDropdown meses={meses} valor={filtroMes} onChange={onFiltroMesChange} />
+            </>
+          )}
         </div>
 
         {loading && !temItensOriginais ? (
@@ -534,20 +648,22 @@ function TabelaAtestados({
           <DragScrollArea>
             <table className="w-full text-[11px] table-fixed">
               <colgroup>
-                <col className="w-[15%]" />
-                <col className="w-[11%]" />
-                <col className="w-[8%]" />
-                <col className="w-[11%]" />
                 <col className="w-[14%]" />
+                <col className="w-[10%]" />
+                <col className="w-[10%]" />
+                <col className="w-[7%]" />
+                <col className="w-[10%]" />
+                <col className="w-[13%]" />
                 <col className="w-[6%]" />
-                <col className="w-[19%]" />
-                <col className="w-[16%]" />
+                <col className="w-[17%]" />
+                <col className="w-[13%]" />
               </colgroup>
               <thead>
                 <tr className="border-b border-border/10 text-left text-foreground font-bold">
                   <th className="px-1.5 py-2 font-bold">Colaborador</th>
                   <th className="px-1.5 py-2 font-bold">Cargo</th>
                   <th className="px-1.5 py-2 font-bold whitespace-nowrap">Data</th>
+                  <th className="px-1.5 py-2 font-bold whitespace-nowrap">Mês</th>
                   <th className="px-1.5 py-2 font-bold whitespace-nowrap">Tipo</th>
                   <th className="px-1.5 py-2 font-bold whitespace-nowrap">Período / Dias</th>
                   <th className="px-1.5 py-2 font-bold whitespace-nowrap">CID</th>
@@ -565,6 +681,9 @@ function TabelaAtestados({
                       {a.cargo}
                     </td>
                     <td className="px-1.5 py-1.5 text-secondary whitespace-nowrap">{a.data}</td>
+                    <td className="px-1.5 py-1.5 text-secondary truncate" title={a.mes}>
+                      {a.mes || '—'}
+                    </td>
                     <td className="px-1.5 py-1.5 whitespace-nowrap overflow-hidden">
                       <MiniBadge tone={a.tipo === 'Atestado' ? 'danger' : a.tipo === 'Declaração' ? 'neutral' : 'warning'}>
                         {a.tipo}
@@ -740,8 +859,136 @@ function TabelaFaltas({
   )
 }
 
-type AbaRH = 'dashboard' | 'planilha' | 'atestado' | 'faltas'
-const ABAS_VALIDAS: AbaRH[] = ['dashboard', 'planilha', 'atestado', 'faltas']
+interface TabelaHoraExtraProps {
+  itens: RegistroHoraExtra[]
+  loading: boolean
+  temItensOriginais: boolean
+  busca: string
+  onBuscaChange: (valor: string) => void
+  empresas: string[]
+  filtroEmpresa: string
+  onFiltroEmpresaChange: (valor: string) => void
+}
+
+function TabelaHoraExtra({
+  itens,
+  loading,
+  temItensOriginais,
+  busca,
+  onBuscaChange,
+  empresas,
+  filtroEmpresa,
+  onFiltroEmpresaChange,
+}: TabelaHoraExtraProps) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <CardTitle>Relação de Horas Extras</CardTitle>
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+          <Input
+            value={busca}
+            onChange={(e) => onBuscaChange(e.target.value)}
+            placeholder="BUSCAR POR COLABORADOR"
+            className="h-10 pl-9"
+          />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {empresas.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-4">
+            <button
+              type="button"
+              onClick={() => onFiltroEmpresaChange('TODOS')}
+              className={`rounded-xl px-3.5 py-2 text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+                filtroEmpresa === 'TODOS'
+                  ? 'bg-primary text-white shadow-md shadow-primary/20'
+                  : 'border border-border/25 bg-surface/60 text-secondary hover:text-foreground hover:bg-surface-hover/50'
+              }`}
+            >
+              TODOS
+            </button>
+            {empresas.map((emp) => (
+              <button
+                key={emp}
+                type="button"
+                onClick={() => onFiltroEmpresaChange(emp)}
+                className={`rounded-xl px-3.5 py-2 text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+                  filtroEmpresa === emp
+                    ? 'bg-primary text-white shadow-md shadow-primary/20'
+                    : 'border border-border/25 bg-surface/60 text-secondary hover:text-foreground hover:bg-surface-hover/50'
+                }`}
+              >
+                {emp}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {loading && !temItensOriginais ? (
+          <div className="flex items-center justify-center py-16 text-secondary text-sm">
+            <RefreshCw className="h-5 w-5 animate-spin mr-2" />
+            CARREGANDO DADOS DA PLANILHA...
+          </div>
+        ) : itens.length === 0 ? (
+          <div className="flex items-center justify-center py-16 text-secondary text-sm">
+            NENHUM REGISTRO DE HORA EXTRA ENCONTRADO
+          </div>
+        ) : (
+          <DragScrollArea>
+            <table className="w-full text-[11px] table-fixed">
+              <colgroup>
+                <col className="w-[26%]" />
+                <col className="w-[14%]" />
+                <col className="w-[13%]" />
+                <col className="w-[13%]" />
+                <col className="w-[14%]" />
+                <col className="w-[20%]" />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-border/10 text-left text-foreground font-bold">
+                  <th className="px-1.5 py-2 font-bold">Colaborador</th>
+                  <th className="px-1.5 py-2 font-bold">Empresa</th>
+                  <th className="px-1.5 py-2 font-bold whitespace-nowrap text-right">Salário</th>
+                  <th className="px-1.5 py-2 font-bold whitespace-nowrap text-right">Valor H.E.</th>
+                  <th className="px-1.5 py-2 font-bold whitespace-nowrap text-right">Horas Mês</th>
+                  <th className="px-1.5 py-2 font-bold whitespace-nowrap text-right">Total H.E.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itens.map((h) => (
+                  <tr key={h.id} className="border-b border-border/5 last:border-0 hover:bg-overlay/[0.03]">
+                    <td className="px-1.5 py-1.5 font-medium text-foreground truncate" title={h.colaborador}>
+                      {h.colaborador}
+                    </td>
+                    <td className="px-1.5 py-1.5 text-secondary truncate" title={h.empresa}>
+                      {h.empresa}
+                    </td>
+                    <td className="px-1.5 py-1.5 text-secondary whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(h.salario)}
+                    </td>
+                    <td className="px-1.5 py-1.5 text-secondary whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(h.valorHoraExtra)}
+                    </td>
+                    <td className="px-1.5 py-1.5 text-secondary whitespace-nowrap text-right tabular-nums">
+                      {h.horasExtrasMes.toLocaleString('pt-BR')}
+                    </td>
+                    <td className="px-1.5 py-1.5 font-bold text-primary whitespace-nowrap text-right tabular-nums">
+                      {formatMoeda(h.valorTotalHE)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DragScrollArea>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+type AbaRH = 'dashboard' | 'planilha' | 'atestado' | 'faltas' | 'horaExtra'
+const ABAS_VALIDAS: AbaRH[] = ['dashboard', 'planilha', 'atestado', 'faltas', 'horaExtra']
 
 export function RH() {
   const { user, perfil, perfilLoading } = useAuth()
@@ -751,6 +998,11 @@ export function RH() {
   const podePlanilha = isModuloAuthorized(usuarioOuEmail, 'rh_planilha')
   const podeAtestado = isModuloAuthorized(usuarioOuEmail, 'rh_atestado')
   const podeFaltas = isModuloAuthorized(usuarioOuEmail, 'rh_faltas')
+  // Restrito de propósito: só administradores + Norival (RH) veem essa aba,
+  // independente do que estiver marcado na tela de permissões — dado
+  // salarial sensível que não deve ficar liberável pra qualquer usuário via
+  // checkbox.
+  const podeHoraExtra = isAdminUsuario(perfil, user?.email) || (user?.email || '').toLowerCase().trim() === 'rh@gveldiesel.com'
   const { theme } = useTheme()
   const isDark = theme === 'dark'
   const textColor = isDark ? '#ffffff' : '#18181b'
@@ -774,9 +1026,20 @@ export function RH() {
   } = useAtestadosSheet()
   const { registros: faltas, loading: loadingFaltas, error: erroFaltasFetch, refetch: refetchFaltas } = useFaltas()
   const { lotes: lotesFaltas, refetch: refetchLotesFaltas } = useLotesImportacaoFaltas()
+  const {
+    items: horasExtras,
+    mesReferencia: mesReferenciaHoraExtra,
+    loading: loadingHoraExtra,
+    error: erroHoraExtra,
+    fetchSheet: fetchHoraExtra,
+  } = useHoraExtraSheet()
   const [busca, setBusca] = useState('')
   const [buscaAtestado, setBuscaAtestado] = useState('')
   const [filtroTipoAtestado, setFiltroTipoAtestado] = useState<TipoAtestado | 'TODOS'>('TODOS')
+  const [filtroMesAtestado, setFiltroMesAtestado] = useState('TODOS')
+  const [buscaHoraExtra, setBuscaHoraExtra] = useState('')
+  const [filtroEmpresaHoraExtra, setFiltroEmpresaHoraExtra] = useState('TODOS')
+  const [colaboradorHoraExtraModal, setColaboradorHoraExtraModal] = useState<RegistroHoraExtra | null>(null)
   const [buscaFalta, setBuscaFalta] = useState('')
   const [filtroDepartamentoFalta, setFiltroDepartamentoFalta] = useState('TODOS')
   const [importandoFaltas, setImportandoFaltas] = useState(false)
@@ -818,8 +1081,9 @@ export function RH() {
     if (podePlanilha) abas.push('planilha')
     if (podeAtestado) abas.push('atestado')
     if (podeFaltas) abas.push('faltas')
+    if (podeHoraExtra) abas.push('horaExtra')
     return abas
-  }, [podeDashboard, podePlanilha, podeAtestado, podeFaltas])
+  }, [podeDashboard, podePlanilha, podeAtestado, podeFaltas, podeHoraExtra])
 
   // Corrige a aba ativa se ela não estiver entre as liberadas pra esse
   // usuário — cobre tanto o caso de alguém digitar ?aba=faltas na mão sem
@@ -907,10 +1171,18 @@ export function RH() {
     ]
   }, [totaisGerais])
 
+  const mesesAtestado = useMemo(() => {
+    const unicos = new Set(atestados.map((a) => a.mes).filter(Boolean))
+    return ordenarMeses([...unicos])
+  }, [atestados])
+
   const atestadosFiltrados = useMemo(() => {
     let result = atestados
     if (filtroTipoAtestado !== 'TODOS') {
       result = result.filter((a) => a.tipo === filtroTipoAtestado)
+    }
+    if (filtroMesAtestado !== 'TODOS') {
+      result = result.filter((a) => a.mes === filtroMesAtestado)
     }
     const termo = buscaAtestado.trim().toUpperCase()
     if (termo) {
@@ -919,7 +1191,7 @@ export function RH() {
       )
     }
     return result
-  }, [atestados, filtroTipoAtestado, buscaAtestado])
+  }, [atestados, filtroTipoAtestado, filtroMesAtestado, buscaAtestado])
 
   const totaisAtestados = useMemo(() => {
     return atestados.reduce(
@@ -986,6 +1258,44 @@ export function RH() {
 
   const ultimoLoteFaltas = lotesFaltas[0]
 
+  const empresasHoraExtra = useMemo(() => {
+    const set = new Set<string>()
+    for (const h of horasExtras) {
+      if (h.empresa) set.add(h.empresa)
+    }
+    return [...set].sort()
+  }, [horasExtras])
+
+  const horasExtrasFiltradas = useMemo(() => {
+    let result = horasExtras
+    if (filtroEmpresaHoraExtra !== 'TODOS') {
+      result = result.filter((h) => h.empresa === filtroEmpresaHoraExtra)
+    }
+    const termo = buscaHoraExtra.trim().toUpperCase()
+    if (termo) {
+      result = result.filter((h) => h.colaborador.includes(termo))
+    }
+    return result
+  }, [horasExtras, filtroEmpresaHoraExtra, buscaHoraExtra])
+
+  const totaisHoraExtra = useMemo(() => {
+    return horasExtras.reduce(
+      (acc, h) => ({
+        colaboradores: acc.colaboradores + 1,
+        totalHoras: acc.totalHoras + h.horasExtrasMes,
+        totalPago: acc.totalPago + h.valorTotalHE,
+      }),
+      { colaboradores: 0, totalHoras: 0, totalPago: 0 },
+    )
+  }, [horasExtras])
+
+  const rankingColaboradoresHoraExtra = useMemo(() => {
+    return [...horasExtras]
+      .sort((a, b) => b.horasExtrasMes - a.horasExtrasMes)
+      .slice(0, 8)
+      .map((h) => ({ name: h.colaborador, value: h.horasExtrasMes, valorPago: h.valorTotalHE }))
+  }, [horasExtras])
+
   if (!perfilLoading && !autorizado) {
     return (
       <div className="flex min-h-[65vh] flex-col items-center justify-center p-6 text-center animate-fade-in uppercase">
@@ -1040,12 +1350,13 @@ export function RH() {
             onClick={() => {
               fetchSheet()
               fetchAtestados()
+              fetchHoraExtra()
             }}
-            disabled={loading || loadingAtestados}
+            disabled={loading || loadingAtestados || loadingHoraExtra}
             className="gap-2 font-bold shadow-lg shadow-primary/20"
           >
-            <RefreshCw className={`h-4 w-4 ${loading || loadingAtestados ? 'animate-spin' : ''}`} />
-            <span>{loading || loadingAtestados ? 'SINCRONIZANDO...' : 'ATUALIZAR'}</span>
+            <RefreshCw className={`h-4 w-4 ${loading || loadingAtestados || loadingHoraExtra ? 'animate-spin' : ''}`} />
+            <span>{loading || loadingAtestados || loadingHoraExtra ? 'SINCRONIZANDO...' : 'ATUALIZAR'}</span>
           </Button>
         }
       />
@@ -1092,6 +1403,13 @@ export function RH() {
         <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span className="lowercase font-medium">{erroImportacaoFaltas}</span>
+        </div>
+      )}
+
+      {erroHoraExtra && (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="lowercase font-medium">{erroHoraExtra}</span>
         </div>
       )}
 
@@ -1168,6 +1486,25 @@ export function RH() {
             </span>
           </button>
         )}
+        {podeHoraExtra && (
+          <button
+            type="button"
+            onClick={() => setAbaAtiva('horaExtra')}
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
+              abaAtiva === 'horaExtra'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            <Timer className="h-4 w-4" />
+            HORA EXTRA
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+              abaAtiva === 'horaExtra' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+            }`}>
+              {horasExtras.length}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Importação do Relatório de Ausências (PDF) — só na aba Faltas */}
@@ -1202,8 +1539,17 @@ export function RH() {
         </div>
       )}
 
+      {/* Mês de referência da planilha de Hora Extra — só na aba Hora Extra */}
+      {abaAtiva === 'horaExtra' && mesReferenciaHoraExtra && (
+        <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-border/10 bg-surface/80 px-4 py-3 text-xs font-medium text-secondary backdrop-blur-md">
+          <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          <span className="font-bold text-foreground">MÊS DE REFERÊNCIA:</span>
+          <span>{mesReferenciaHoraExtra.toUpperCase()}</span>
+        </div>
+      )}
+
       {/* Filtro por Empresa do Grupo */}
-      {abaAtiva !== 'atestado' && abaAtiva !== 'faltas' && empresasComContagem.length > 0 && (
+      {abaAtiva !== 'atestado' && abaAtiva !== 'faltas' && abaAtiva !== 'horaExtra' && empresasComContagem.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
@@ -1323,6 +1669,9 @@ export function RH() {
             onBuscaChange={setBuscaAtestado}
             filtroTipo={filtroTipoAtestado}
             onFiltroTipoChange={setFiltroTipoAtestado}
+            meses={mesesAtestado}
+            filtroMes={filtroMesAtestado}
+            onFiltroMesChange={setFiltroMesAtestado}
           />
         </>
       )}
@@ -1373,6 +1722,101 @@ export function RH() {
             onFiltroDepartamentoChange={setFiltroDepartamentoFalta}
           />
         </>
+      )}
+
+      {abaAtiva === 'horaExtra' && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <StatCard align="center" valueClassName="text-2xl" icon={Users} label="Colaboradores" value={String(totaisHoraExtra.colaboradores)} />
+            <StatCard
+              align="center"
+              valueClassName="text-lg sm:text-xl"
+              icon={Timer}
+              label="Total de Horas Extras"
+              value={`${totaisHoraExtra.totalHoras.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`}
+            />
+            <StatCard
+              align="center"
+              valueClassName="text-lg sm:text-xl"
+              icon={HandCoins}
+              label="Valor Total Pago"
+              value={formatMoeda(totaisHoraExtra.totalPago)}
+            />
+          </div>
+
+          <BarRankingCard
+            titulo="Colaboradores com Mais Horas Extras"
+            icone={Timer}
+            dados={rankingColaboradoresHoraExtra}
+            cor={CHART_SAIDA}
+            formatarValor={(v) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`}
+            formatarEixo={(v) => v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+            textColor={textColor}
+            gridColor={gridColor}
+            axisLineColor={axisLineColor}
+            tooltipStyle={tooltipStyle}
+            tooltipLabel="Horas Extras"
+            destacarTop3
+            onBarClick={(item) => {
+              const registro = horasExtras.find((h) => h.colaborador === item.name)
+              if (registro) setColaboradorHoraExtraModal(registro)
+            }}
+          />
+
+          <TabelaHoraExtra
+            itens={horasExtrasFiltradas}
+            loading={loadingHoraExtra}
+            temItensOriginais={horasExtras.length > 0}
+            busca={buscaHoraExtra}
+            onBuscaChange={setBuscaHoraExtra}
+            empresas={empresasHoraExtra}
+            filtroEmpresa={filtroEmpresaHoraExtra}
+            onFiltroEmpresaChange={setFiltroEmpresaHoraExtra}
+          />
+        </>
+      )}
+
+      {colaboradorHoraExtraModal && (
+        <div
+          onClick={() => setColaboradorHoraExtraModal(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl border border-border/30 bg-surface p-6 shadow-2xl animate-scale-in space-y-4 cursor-default"
+          >
+            <div className="flex items-center justify-between border-b border-border/20 pb-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
+                  <Timer className="h-4 w-4" />
+                </div>
+                <h3 className="font-black text-sm text-foreground uppercase truncate" title={colaboradorHoraExtraModal.colaborador}>
+                  {colaboradorHoraExtraModal.colaborador}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setColaboradorHoraExtraModal(null)}
+                className="shrink-0 text-secondary hover:text-foreground transition-colors cursor-pointer text-xs font-bold px-2 py-1"
+              >
+                FECHAR
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-border/20 bg-surface-hover/40 p-3.5 text-center">
+                <p className="text-[10px] font-bold text-secondary uppercase mb-1">Horas Extras</p>
+                <p className="text-lg font-black text-foreground">
+                  {colaboradorHoraExtraModal.horasExtrasMes.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/20 bg-surface-hover/40 p-3.5 text-center">
+                <p className="text-[10px] font-bold text-secondary uppercase mb-1">Valor Pago</p>
+                <p className="text-lg font-black text-primary">{formatMoeda(colaboradorHoraExtraModal.valorTotalHE)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
