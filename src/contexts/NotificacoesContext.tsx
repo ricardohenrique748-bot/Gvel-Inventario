@@ -3,6 +3,7 @@ import { differenceInDays, parseISO, isBefore, startOfDay, format } from 'date-f
 import { supabase } from '@/lib/supabase'
 import { notificationSound } from '@/lib/notificationSound'
 import { dispararPushLocal, solicitarPermissaoNotificacoes, inicializarPushRemoto } from '@/lib/pushNotifications'
+import { useAuth } from '@/contexts/AuthContext'
 
 export interface NotificacaoItem {
   id: string
@@ -77,6 +78,7 @@ interface NotificacoesContextType {
 const NotificacoesContext = createContext<NotificacoesContextType | undefined>(undefined)
 
 export function NotificacoesProvider({ children }: { children: React.ReactNode }) {
+  const { session, loading: authLoading } = useAuth()
   const inicializadoRef = useRef(false)
   const disparadasRef = useRef<Set<string>>(new Set())
 
@@ -584,6 +586,13 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
   }, [config])
 
   useEffect(() => {
+    // Sem sessão ainda (tela de login, troca de senha obrigatória no primeiro
+    // acesso, ou o próprio carregamento inicial do auth) — abrir o canal de
+    // realtime nesse momento tenta autenticar com nada (só a anon key), e o
+    // Supabase rejeita a conexão com "no valid credentials available". Espera
+    // a sessão existir de verdade antes de tentar.
+    if (authLoading || !session) return
+
     carregarEventos()
     const timer = setInterval(carregarEventos, 10000)
 
@@ -619,7 +628,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
       window.removeEventListener('movimentacao_cadastrada', onLocalUpdate)
       window.removeEventListener('movimentacao_updated', onLocalUpdate)
     }
-  }, [carregarEventos])
+  }, [carregarEventos, authLoading, session])
 
   const tocarSom = useCallback(() => {
     notificationSound.playChime()
