@@ -27,6 +27,23 @@ import { formatarNomeSobrenome, obterNomeCompletoMembro } from '@/constants/equi
 
 const MEDALHAS = ['🥇', '🥈', '🥉']
 
+// Nome/sobrenome em duas linhas, sem rotação — evita o texto girado (-35°)
+// de um colaborador colidir visualmente com o do vizinho quando o nome é
+// comprido, o que virava uma sopa de letras ilegível no eixo X.
+function TickNomeDuasLinhas(props: any) {
+  const { x, y, payload, fill, fontSize, fontWeight } = props
+  const palavras = String(payload?.value ?? '').split(' ').filter(Boolean)
+  return (
+    <g transform={`translate(${x},${y})`}>
+      {palavras.map((palavra: string, i: number) => (
+        <text key={i} x={0} y={0} dy={14 + i * 13} textAnchor="middle" fontSize={fontSize} fontWeight={fontWeight} fill={fill}>
+          {palavra}
+        </text>
+      ))}
+    </g>
+  )
+}
+
 interface Filtros {
   nome?: string
   funcao?: string
@@ -550,18 +567,16 @@ export function ControleDeHoras() {
               ) : (
                 <div style={{ minWidth: Math.max(380, porMecanico.length * 85), height: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart key={theme} data={porMecanico} margin={{ top: 42, right: 16, left: -10, bottom: 40 }}>
+                    <BarChart key={theme} data={porMecanico} margin={{ top: 42, right: 16, left: -10, bottom: 8 }}>
                       <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 3" />
                       <XAxis
                         dataKey="name"
                         stroke={textColor}
-                        tick={{ fill: textColor, fontSize: 10, fontWeight: 700 }}
+                        tick={<TickNomeDuasLinhas fill={textColor} fontSize={10} fontWeight={700} />}
                         tickLine={false}
                         axisLine={{ stroke: axisLineColor }}
                         interval={0}
-                        angle={porMecanico.length > 2 ? -35 : 0}
-                        textAnchor={porMecanico.length > 2 ? 'end' : 'middle'}
-                        height={porMecanico.length > 2 ? 65 : 26}
+                        height={40}
                       />
                       <YAxis
                         type="number"

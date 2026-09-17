@@ -181,6 +181,7 @@ import {
 } from '@/hooks/usePatio'
 import { ManutencaoViagens } from '@/pages/frotas/ManutencaoViagens'
 import { ConciliacaoViagens } from '@/pages/frotas/ConciliacaoViagens'
+import { formatarNomeSobrenome } from '@/constants/equipe'
 
 export function isFrotaEmbarcado(v: { placa?: string; tipo?: string }): boolean {
   const placa = (v.placa || '').toUpperCase().trim()
@@ -2743,46 +2744,39 @@ export function Frotas() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={dadosGraficoChecklistPessoa.slice(0, 8)}
-                      margin={{ top: 20, right: 20, left: 0, bottom: 45 }}
+                      margin={{ top: 20, right: 20, left: 0, bottom: 8 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
                       <XAxis
                         type="category"
                         dataKey="nome"
                         interval={0}
-                        height={50}
+                        height={40}
                         axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
                         tickLine={false}
                         tick={(props: any) => {
+                          // Nome/sobrenome em duas linhas, sem a lista de placas embaixo
+                          // (já disponível no tooltip) — mostrar tudo junto no eixo
+                          // virava uma mistura ilegível quando a pessoa tinha várias
+                          // placas ou nome comprido.
                           const { x, y, payload } = props
-                          const item = dadosGraficoChecklistPessoa
-                            .slice(0, 8)
-                            .find((d) => d.nome === payload.value)
-                          const placasTexto = item?.placas.length ? item.placas.join(' · ') : 'SEM PLACA'
+                          const palavras = formatarNomeSobrenome(String(payload.value)).split(' ').filter(Boolean)
                           return (
                             <g transform={`translate(${x},${y})`}>
-                              <text
-                                x={0}
-                                y={0}
-                                dy={14}
-                                textAnchor="middle"
-                                fill="var(--text-foreground, #f8fafc)"
-                                fontSize={10}
-                                fontWeight="bold"
-                              >
-                                {payload.value}
-                              </text>
-                              <text
-                                x={0}
-                                y={0}
-                                dy={29}
-                                textAnchor="middle"
-                                fill="var(--text-secondary, #94a3b8)"
-                                fontSize={9}
-                                fontFamily="monospace"
-                              >
-                                {placasTexto}
-                              </text>
+                              {palavras.map((palavra: string, i: number) => (
+                                <text
+                                  key={i}
+                                  x={0}
+                                  y={0}
+                                  dy={14 + i * 13}
+                                  textAnchor="middle"
+                                  fill="var(--text-foreground, #f8fafc)"
+                                  fontSize={10}
+                                  fontWeight="bold"
+                                >
+                                  {palavra}
+                                </text>
+                              ))}
                             </g>
                           )
                         }}
