@@ -27,6 +27,7 @@ import {
   Timer,
   HandCoins,
   ChevronDown,
+  X,
 } from 'lucide-react'
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from 'recharts'
 import { PageHeader } from '@/components/layout/Header'
@@ -607,8 +608,18 @@ function TabelaAtestados({
             value={busca}
             onChange={(e) => onBuscaChange(e.target.value)}
             placeholder="BUSCAR POR NOME, CARGO OU CID"
-            className="h-10 pl-9"
+            className="h-10 pl-9 pr-9"
           />
+          {busca && (
+            <button
+              type="button"
+              onClick={() => onBuscaChange('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-foreground transition-colors cursor-pointer"
+              aria-label="Limpar busca"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -1205,6 +1216,33 @@ export function RH() {
     )
   }, [atestados])
 
+  const rankingColaboradoresAtestados = useMemo(() => {
+    const contagem = new Map<string, { nome: string; dias: number; registros: number }>()
+    for (const a of atestados) {
+      const atual = contagem.get(a.nome)
+      if (atual) {
+        atual.dias += a.diasAfastamento
+        atual.registros += 1
+      } else {
+        contagem.set(a.nome, { nome: a.nome, dias: a.diasAfastamento, registros: 1 })
+      }
+    }
+    return [...contagem.values()]
+      .sort((a, b) => b.dias - a.dias || b.registros - a.registros)
+      .slice(0, 8)
+      .map((c) => ({ name: c.nome, value: c.dias, registros: c.registros }))
+  }, [atestados])
+
+  const composicaoTipoAtestado = useMemo(() => {
+    const contagem = new Map<string, number>()
+    for (const a of atestados) {
+      contagem.set(a.tipo, (contagem.get(a.tipo) || 0) + 1)
+    }
+    return [...contagem.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({ name, value }))
+  }, [atestados])
+
   const departamentosFaltas = useMemo(() => {
     const set = new Set<string>()
     for (const f of faltas) {
@@ -1661,18 +1699,53 @@ export function RH() {
             />
           </div>
 
-          <TabelaAtestados
-            itens={atestadosFiltrados}
-            loading={loadingAtestados}
-            temItensOriginais={atestados.length > 0}
-            busca={buscaAtestado}
-            onBuscaChange={setBuscaAtestado}
-            filtroTipo={filtroTipoAtestado}
-            onFiltroTipoChange={setFiltroTipoAtestado}
-            meses={mesesAtestado}
-            filtroMes={filtroMesAtestado}
-            onFiltroMesChange={setFiltroMesAtestado}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <BarRankingCard
+              titulo="Colaboradores que Mais Faltaram"
+              icone={UserX}
+              dados={rankingColaboradoresAtestados}
+              cor={CHART_SAIDA}
+              formatarValor={(v) => `${v} ${v === 1 ? 'DIA DE AFASTAMENTO' : 'DIAS DE AFASTAMENTO'}`}
+              formatarEixo={(v) => String(v)}
+              textColor={textColor}
+              gridColor={gridColor}
+              axisLineColor={axisLineColor}
+              tooltipStyle={tooltipStyle}
+              tooltipLabel="Dias de Afastamento"
+              destacarTop3
+              onBarClick={(item) => {
+                setFiltroTipoAtestado('TODOS')
+                setFiltroMesAtestado('TODOS')
+                setBuscaAtestado(item.name)
+                document.getElementById('tabela-atestados')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
+            />
+            <DonutCard
+              titulo="Atestado x Declaração"
+              icone={Stethoscope}
+              dados={composicaoTipoAtestado}
+              formatarValor={(v) => `${v} ${v === 1 ? 'registro' : 'registros'}`}
+              centroValor={String(atestados.length)}
+              centroLegenda="REGISTROS"
+              tooltipStyle={tooltipStyle}
+              isDark={isDark}
+            />
+          </div>
+
+          <div id="tabela-atestados">
+            <TabelaAtestados
+              itens={atestadosFiltrados}
+              loading={loadingAtestados}
+              temItensOriginais={atestados.length > 0}
+              busca={buscaAtestado}
+              onBuscaChange={setBuscaAtestado}
+              filtroTipo={filtroTipoAtestado}
+              onFiltroTipoChange={setFiltroTipoAtestado}
+              meses={mesesAtestado}
+              filtroMes={filtroMesAtestado}
+              onFiltroMesChange={setFiltroMesAtestado}
+            />
+          </div>
         </>
       )}
 
