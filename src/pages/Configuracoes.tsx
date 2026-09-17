@@ -33,7 +33,7 @@ export function Configuracoes() {
     if (isAdmin) return ALL_TABS
     return ALL_TABS.filter((t) => {
       if (t.id === 'usuarios') return false // Apenas administradores podem ver ou gerenciar usuários
-      return temPermissaoModulo(userRef, t.subId) || temPermissaoModulo(userRef, 'configuracoes')
+      return temPermissaoModulo(userRef, t.subId)
     })
   }, [isAdmin, userRef])
 

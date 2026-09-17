@@ -106,6 +106,12 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     iconeNome: 'UserCheck',
     rotaPadrao: '/rh',
     categoria: 'administrativo',
+    subModulos: [
+      { id: 'rh_dashboard', label: 'Dashboard', descricao: 'Indicadores e gráficos da folha de pagamento', rota: '/rh' },
+      { id: 'rh_planilha', label: 'Planilha', descricao: 'Folha de pagamento completa por colaborador', rota: '/rh?aba=planilha' },
+      { id: 'rh_atestado', label: 'Atestado', descricao: 'Controle de atestados e declarações médicas', rota: '/rh?aba=atestado' },
+      { id: 'rh_faltas', label: 'Faltas', descricao: 'Relatório de ausências importado em PDF', rota: '/rh?aba=faltas' },
+    ],
   },
   {
     id: 'relatorios',
@@ -274,6 +280,7 @@ const PREFIXO_PAI_MAP: Record<string, string> = {
   caminhoes_: 'inventario_caminhoes',
   dashboard_: 'dashboard_gerencial',
   financeiro_: 'financeiro',
+  rh_: 'rh',
 }
 
 /**
@@ -293,10 +300,19 @@ export function temPermissaoModulo(
   // Se tem o ID exato
   if (permitidos.includes(moduloId)) return true
 
-  // Verifica se o usuário possui o módulo pai do sub-módulo
+  // Verifica se o usuário possui o módulo pai do sub-módulo — mas só trata
+  // isso como "libera todos os filhos" quando NENHUM filho desse pai está
+  // marcado individualmente (permissão antiga, de antes do módulo ganhar
+  // sub-abas). Quando já existe pelo menos um filho explícito na lista, o
+  // pai fica presente só porque o toggle da UI sempre o mantém junto (ver
+  // toggleSubModulo em UsuariosTab) — nesse caso é uma seleção parcial de
+  // propósito, e tratar "pai presente" como "libera tudo" apagaria a
+  // granularidade (foi exatamente o que deixava "Configurações: 1/6 abas"
+  // sem efeito nenhum na prática).
   for (const [prefixo, paiId] of Object.entries(PREFIXO_PAI_MAP)) {
     if (moduloId.startsWith(prefixo) && permitidos.includes(paiId)) {
-      return true
+      const temAlgumFilhoExplicito = permitidos.some((p) => p !== paiId && p.startsWith(prefixo))
+      if (!temAlgumFilhoExplicito) return true
     }
   }
 

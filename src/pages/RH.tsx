@@ -35,7 +35,7 @@ import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { DragScrollArea } from '@/components/ui/DragScrollArea'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
-import { isRhAuthorized } from '@/components/layout/nav'
+import { isRhAuthorized, isModuloAuthorized } from '@/components/layout/nav'
 import { useRhSheet, type ColaboradorRH } from '@/hooks/useRhSheet'
 import { useAtestadosSheet, type RegistroAtestado, type TipoAtestado } from '@/hooks/useAtestadosSheet'
 import { useFaltas, useLotesImportacaoFaltas, importarFaltasPdf, type RegistroFalta } from '@/hooks/useFaltas'
@@ -745,7 +745,12 @@ const ABAS_VALIDAS: AbaRH[] = ['dashboard', 'planilha', 'atestado', 'faltas']
 
 export function RH() {
   const { user, perfil, perfilLoading } = useAuth()
-  const autorizado = isRhAuthorized(perfil || { email: user?.email })
+  const usuarioOuEmail = perfil || { email: user?.email }
+  const autorizado = isRhAuthorized(usuarioOuEmail)
+  const podeDashboard = isModuloAuthorized(usuarioOuEmail, 'rh_dashboard')
+  const podePlanilha = isModuloAuthorized(usuarioOuEmail, 'rh_planilha')
+  const podeAtestado = isModuloAuthorized(usuarioOuEmail, 'rh_atestado')
+  const podeFaltas = isModuloAuthorized(usuarioOuEmail, 'rh_faltas')
   const { theme } = useTheme()
   const isDark = theme === 'dark'
   const textColor = isDark ? '#ffffff' : '#18181b'
@@ -806,6 +811,27 @@ export function RH() {
       setAbaAtivaState('dashboard')
     }
   }, [abaParam])
+
+  const abasPermitidas = useMemo(() => {
+    const abas: AbaRH[] = []
+    if (podeDashboard) abas.push('dashboard')
+    if (podePlanilha) abas.push('planilha')
+    if (podeAtestado) abas.push('atestado')
+    if (podeFaltas) abas.push('faltas')
+    return abas
+  }, [podeDashboard, podePlanilha, podeAtestado, podeFaltas])
+
+  // Corrige a aba ativa se ela não estiver entre as liberadas pra esse
+  // usuário — cobre tanto o caso de alguém digitar ?aba=faltas na mão sem
+  // permissão, quanto o instante inicial em que o perfil ainda está
+  // carregando (as permissões reais só ficam conhecidas depois).
+  useEffect(() => {
+    if (perfilLoading || abasPermitidas.length === 0) return
+    if (!abasPermitidas.includes(abaAtiva)) {
+      setAbaAtiva(abasPermitidas[0])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfilLoading, abasPermitidas, abaAtiva])
 
   function setAbaAtiva(nova: AbaRH) {
     setAbaAtivaState(nova)
@@ -981,6 +1007,27 @@ export function RH() {
     )
   }
 
+  if (!perfilLoading && autorizado && abasPermitidas.length === 0) {
+    return (
+      <div className="flex min-h-[65vh] flex-col items-center justify-center p-6 text-center animate-fade-in uppercase">
+        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-amber-500/15 border border-amber-500/30 text-amber-400 mb-4 shadow-2xl shadow-amber-500/10">
+          <ShieldAlert className="h-8 w-8" />
+        </div>
+        <h2 className="text-lg font-black text-foreground mb-1">NENHUMA ABA LIBERADA</h2>
+        <p className="text-xs text-secondary font-medium max-w-md mb-6 lowercase">
+          Seu acesso ao RH foi liberado, mas nenhuma aba específica (Dashboard, Planilha, Atestado ou Faltas) foi marcada. Peça a um administrador pra revisar suas permissões em Configurações.
+        </p>
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 rounded-2xl bg-surface border border-border/30 px-5 py-2.5 text-xs font-bold text-foreground hover:bg-surface-hover transition-colors shadow-lg"
+        >
+          <Home className="h-4 w-4 text-primary" />
+          VOLTAR PARA A HOME
+        </Link>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 animate-fade-in uppercase pb-28">
       <PageHeader
@@ -1050,69 +1097,77 @@ export function RH() {
 
       {/* Barra de Abas */}
       <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md w-full sm:w-fit">
-        <button
-          type="button"
-          onClick={() => setAbaAtiva('dashboard')}
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
-            abaAtiva === 'dashboard'
-              ? 'bg-primary text-white shadow-md shadow-primary/20'
-              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
-          }`}
-        >
-          <LayoutDashboard className="h-4 w-4" />
-          DASHBOARD
-        </button>
-        <button
-          type="button"
-          onClick={() => setAbaAtiva('planilha')}
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
-            abaAtiva === 'planilha'
-              ? 'bg-primary text-white shadow-md shadow-primary/20'
-              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
-          }`}
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          PLANILHA
-          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-            abaAtiva === 'planilha' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
-          }`}>
-            {itensEmpresa.length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setAbaAtiva('atestado')}
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
-            abaAtiva === 'atestado'
-              ? 'bg-primary text-white shadow-md shadow-primary/20'
-              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
-          }`}
-        >
-          <Stethoscope className="h-4 w-4" />
-          ATESTADO
-          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-            abaAtiva === 'atestado' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
-          }`}>
-            {atestados.length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setAbaAtiva('faltas')}
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
-            abaAtiva === 'faltas'
-              ? 'bg-primary text-white shadow-md shadow-primary/20'
-              : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
-          }`}
-        >
-          <UserX className="h-4 w-4" />
-          FALTAS
-          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-            abaAtiva === 'faltas' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
-          }`}>
-            {faltas.length}
-          </span>
-        </button>
+        {podeDashboard && (
+          <button
+            type="button"
+            onClick={() => setAbaAtiva('dashboard')}
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
+              abaAtiva === 'dashboard'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            DASHBOARD
+          </button>
+        )}
+        {podePlanilha && (
+          <button
+            type="button"
+            onClick={() => setAbaAtiva('planilha')}
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
+              abaAtiva === 'planilha'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            PLANILHA
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+              abaAtiva === 'planilha' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+            }`}>
+              {itensEmpresa.length}
+            </span>
+          </button>
+        )}
+        {podeAtestado && (
+          <button
+            type="button"
+            onClick={() => setAbaAtiva('atestado')}
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
+              abaAtiva === 'atestado'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            <Stethoscope className="h-4 w-4" />
+            ATESTADO
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+              abaAtiva === 'atestado' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+            }`}>
+              {atestados.length}
+            </span>
+          </button>
+        )}
+        {podeFaltas && (
+          <button
+            type="button"
+            onClick={() => setAbaAtiva('faltas')}
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
+              abaAtiva === 'faltas'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            <UserX className="h-4 w-4" />
+            FALTAS
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+              abaAtiva === 'faltas' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+            }`}>
+              {faltas.length}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Importação do Relatório de Ausências (PDF) — só na aba Faltas */}
