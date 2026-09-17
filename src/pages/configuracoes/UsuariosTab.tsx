@@ -338,7 +338,7 @@ export function UsuariosTab() {
     defaultValues: {
       nivel: 'usuario',
       empresa_id: empresaAtiva?.id || empresas[0]?.id || 'gvel_diesel',
-      modulos: MODULOS_PADRAO_USUARIO,
+      modulos: [],
     },
   })
 
@@ -377,7 +377,7 @@ export function UsuariosTab() {
       reset({
         nivel: 'usuario',
         empresa_id: empresaAtiva?.id || empresas[0]?.id || 'gvel_diesel',
-        modulos: MODULOS_PADRAO_USUARIO,
+        modulos: [],
       })
       setMostrarForm(false)
     } catch (err) {
@@ -471,7 +471,7 @@ export function UsuariosTab() {
                   reset({
                     nivel: 'usuario',
                     empresa_id: filtroEmpresa !== 'TODAS' ? filtroEmpresa : (empresaAtiva?.id || 'gvel_diesel'),
-                    modulos: MODULOS_PADRAO_USUARIO,
+                    modulos: [],
                   })
                   setMostrarForm(true)
                 }}
