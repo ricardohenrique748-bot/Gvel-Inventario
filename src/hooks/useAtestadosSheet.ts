@@ -84,34 +84,88 @@ function normalizarTipo(raw: string | undefined): TipoAtestado {
   return 'Outro'
 }
 
+function normalizarCabecalho(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // remove acentos
+    .trim()
+    .toUpperCase()
+}
+
+// Cada campo aceita algumas variações plausíveis do rótulo da coluna na
+// planilha — resolvido pelo texto do cabeçalho, não pela posição. Assim,
+// inserir/reordenar uma coluna nova na planilha (ex.: "MÊS") não desalinha
+// os campos seguintes, como acontecia com índices fixos.
+const ALIASES_CABECALHO: Record<string, string[]> = {
+  id: ['ID'],
+  nome: ['NOME DO COLABORADOR', 'NOME'],
+  cargo: ['CARGO', 'FUNCAO', 'FUNÇÃO'],
+  data: ['DATA'],
+  tipo: ['TIPO'],
+  horaInicio: ['INICIO', 'INÍCIO'],
+  horaFim: ['FIM'],
+  diasAfastamento: ['DIAS DE AFASTAMENTO', 'DIAS'],
+  horasAusencia: ['HORAS DE AUSENCIA', 'HORAS DE AUSÊNCIA', 'HORAS'],
+  cid: ['CID'],
+  descricao: ['DESCRICAO / OBSERVACAO', 'DESCRIÇÃO / OBSERVAÇÃO', 'DESCRICAO', 'DESCRIÇÃO', 'OBSERVACAO', 'OBSERVAÇÃO'],
+  status: ['STATUS'],
+  documentoEntregue: ['DOCUMENTO ENTREGUE', 'DOCUMENTO'],
+}
+
+function resolverIndicesColunas(linhaCabecalho: string[]): Record<string, number> {
+  const cabecalhosNormalizados = linhaCabecalho.map(normalizarCabecalho)
+  const indices: Record<string, number> = {}
+  for (const [campo, aliases] of Object.entries(ALIASES_CABECALHO)) {
+    const aliasesNormalizados = aliases.map(normalizarCabecalho)
+    const idx = cabecalhosNormalizados.findIndex((c) => aliasesNormalizados.includes(c))
+    if (idx >= 0) indices[campo] = idx
+  }
+  return indices
+}
+
+const RE_LINHA_CABECALHO = /^(NOME DO COLABORADOR|NOME)$/
+
 function parseCsv(csvText: string): RegistroAtestado[] {
   const lines = csvText.split(/\r?\n/).filter((line) => line.trim().length > 0)
   const items: RegistroAtestado[] = []
+  let indices: Record<string, number> | null = null
 
   for (let i = 0; i < lines.length; i++) {
     const cols = parseCsvLine(lines[i])
-    const nome = (cols[1] || '').trim()
 
+    // Linha de cabeçalho: calibra os índices de cada campo pelo texto da
+    // coluna, em vez de assumir uma posição fixa (a coluna "Nome" pode estar
+    // em qualquer posição, não necessariamente a segunda).
+    if (!indices) {
+      const temColunaNome = cols.some((c) => RE_LINHA_CABECALHO.test(normalizarCabecalho(c)))
+      if (temColunaNome) {
+        indices = resolverIndicesColunas(cols)
+      }
+      continue
+    }
+
+    const col = (campo: string) => (indices![campo] !== undefined ? cols[indices![campo]] : undefined)
+
+    const nome = (col('nome') || '').trim()
     if (!nome) continue // linha de título da planilha (mês/ano), sem colaborador
-    if (nome.toUpperCase() === 'NOME DO COLABORADOR') continue // linha de cabeçalho
 
-    const { exibicao: data, iso: dataIso } = parseData(cols[3])
+    const { exibicao: data, iso: dataIso } = parseData(col('data'))
 
     items.push({
-      id: `atestado-${i}-${cols[0] || nome}`,
+      id: `atestado-${i}-${col('id') || nome}`,
       nome: nome.toUpperCase(),
-      cargo: (cols[2] || '').trim().toUpperCase(),
+      cargo: (col('cargo') || '').trim().toUpperCase(),
       data,
       dataIso,
-      tipo: normalizarTipo(cols[4]),
-      horaInicio: (cols[5] || '').trim(),
-      horaFim: (cols[6] || '').trim(),
-      diasAfastamento: parseInteiro(cols[7]),
-      horasAusencia: parseNumeroDecimal(cols[8]),
-      cid: (cols[9] || '').trim(),
-      descricao: (cols[10] || '').trim(),
-      status: (cols[11] || '').trim(),
-      documentoEntregue: (cols[12] || '').trim().toUpperCase() === 'SIM',
+      tipo: normalizarTipo(col('tipo')),
+      horaInicio: (col('horaInicio') || '').trim(),
+      horaFim: (col('horaFim') || '').trim(),
+      diasAfastamento: parseInteiro(col('diasAfastamento')),
+      horasAusencia: parseNumeroDecimal(col('horasAusencia')),
+      cid: (col('cid') || '').trim(),
+      descricao: (col('descricao') || '').trim(),
+      status: (col('status') || '').trim(),
+      documentoEntregue: (col('documentoEntregue') || '').trim().toUpperCase() === 'SIM',
     })
   }
 
