@@ -469,6 +469,26 @@ function ordenarMeses(meses: string[]): string[] {
   })
 }
 
+// Faltas guardam só a data (ISO), sem coluna de mês pronta como os
+// atestados — por isso o rótulo "Mês/Ano" é derivado aqui e a ordenação
+// precisa considerar o ano (dado que o relatório pode acumular vários anos).
+function mesAnoFromIso(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-\d{2}$/)
+  if (!m) return ''
+  const [, ano, mes] = m
+  const nomeMes = ORDEM_MESES[parseInt(mes, 10) - 1]
+  return nomeMes ? `${nomeMes}/${ano}` : ''
+}
+
+function ordenarMesesAno(mesesAno: string[]): string[] {
+  return [...mesesAno].sort((a, b) => {
+    const [mesA, anoA] = a.split('/')
+    const [mesB, anoB] = b.split('/')
+    if (anoA !== anoB) return Number(anoA) - Number(anoB)
+    return ORDEM_MESES.indexOf(mesA) - ORDEM_MESES.indexOf(mesB)
+  })
+}
+
 interface FiltroMesDropdownProps {
   meses: string[]
   valor: string
@@ -753,6 +773,9 @@ interface TabelaFaltasProps {
   departamentos: string[]
   filtroDepartamento: string
   onFiltroDepartamentoChange: (valor: string) => void
+  meses: string[]
+  filtroMes: string
+  onFiltroMesChange: (valor: string) => void
 }
 
 function TabelaFaltas({
@@ -764,6 +787,9 @@ function TabelaFaltas({
   departamentos,
   filtroDepartamento,
   onFiltroDepartamentoChange,
+  meses,
+  filtroMes,
+  onFiltroMesChange,
 }: TabelaFaltasProps) {
   return (
     <Card>
@@ -780,7 +806,7 @@ function TabelaFaltas({
         </div>
       </CardHeader>
       <CardContent>
-        {departamentos.length > 0 && (
+        {(departamentos.length > 0 || meses.length > 0) && (
           <div className="flex flex-wrap items-center gap-1.5 mb-4">
             <button
               type="button"
@@ -807,6 +833,12 @@ function TabelaFaltas({
                 {depto}
               </button>
             ))}
+            {meses.length > 0 && (
+              <>
+                <div className="w-px h-6 bg-border/25 mx-1" />
+                <FiltroMesDropdown meses={meses} valor={filtroMes} onChange={onFiltroMesChange} />
+              </>
+            )}
           </div>
         )}
 
@@ -1053,6 +1085,7 @@ export function RH() {
   const [colaboradorHoraExtraModal, setColaboradorHoraExtraModal] = useState<RegistroHoraExtra | null>(null)
   const [buscaFalta, setBuscaFalta] = useState('')
   const [filtroDepartamentoFalta, setFiltroDepartamentoFalta] = useState('TODOS')
+  const [filtroMesFalta, setFiltroMesFalta] = useState('TODOS')
   const [importandoFaltas, setImportandoFaltas] = useState(false)
   const [erroImportacaoFaltas, setErroImportacaoFaltas] = useState<string | null>(null)
 
@@ -1251,10 +1284,18 @@ export function RH() {
     return [...set].sort()
   }, [faltas])
 
+  const mesesFalta = useMemo(() => {
+    const unicos = new Set(faltas.map((f) => mesAnoFromIso(f.data)).filter(Boolean))
+    return ordenarMesesAno([...unicos])
+  }, [faltas])
+
   const faltasFiltradas = useMemo(() => {
     let result = faltas
     if (filtroDepartamentoFalta !== 'TODOS') {
       result = result.filter((f) => f.departamento === filtroDepartamentoFalta)
+    }
+    if (filtroMesFalta !== 'TODOS') {
+      result = result.filter((f) => mesAnoFromIso(f.data) === filtroMesFalta)
     }
     const termo = buscaFalta.trim().toUpperCase()
     if (termo) {
@@ -1263,7 +1304,7 @@ export function RH() {
       )
     }
     return result
-  }, [faltas, filtroDepartamentoFalta, buscaFalta])
+  }, [faltas, filtroDepartamentoFalta, filtroMesFalta, buscaFalta])
 
   const totaisFaltas = useMemo(() => {
     const colaboradoresUnicos = new Set(faltas.map((f) => f.matricula)).size
@@ -1793,6 +1834,9 @@ export function RH() {
             departamentos={departamentosFaltas}
             filtroDepartamento={filtroDepartamentoFalta}
             onFiltroDepartamentoChange={setFiltroDepartamentoFalta}
+            meses={mesesFalta}
+            filtroMes={filtroMesFalta}
+            onFiltroMesChange={setFiltroMesFalta}
           />
         </>
       )}
