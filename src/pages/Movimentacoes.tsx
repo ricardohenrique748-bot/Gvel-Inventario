@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Pencil, Trash2, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, ChevronDown } from 'lucide-react'
 import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { LinkButton } from '@/components/ui/LinkButton'
@@ -89,6 +89,36 @@ export function Movimentacoes() {
 
   const editandoMovimentacao = movimentacoes.find((m) => m.id === editandoId)
 
+  // Um mesmo veículo pode entrar e sair do pátio várias vezes — sem agrupar,
+  // cada ciclo vira uma linha separada e a lista fica poluída de repetições
+  // da mesma placa. Como a busca já vem ordenada por entrada mais recente, a
+  // primeira ocorrência de cada veículo é a visita atual; as demais viram
+  // histórico escondido atrás de "ver visitas anteriores".
+  const gruposMovimentacoes = useMemo(() => {
+    const grupos = new Map<string, { veiculoId: string; principal: MovimentacaoComVeiculo; anteriores: MovimentacaoComVeiculo[] }>()
+    const ordem: string[] = []
+    for (const m of movimentacoes) {
+      const existente = grupos.get(m.veiculo_id)
+      if (existente) {
+        existente.anteriores.push(m)
+      } else {
+        grupos.set(m.veiculo_id, { veiculoId: m.veiculo_id, principal: m, anteriores: [] })
+        ordem.push(m.veiculo_id)
+      }
+    }
+    return ordem.map((id) => grupos.get(id)!)
+  }, [movimentacoes])
+
+  const [veiculosExpandidos, setVeiculosExpandidos] = useState<Set<string>>(new Set())
+  function toggleVeiculoExpandido(veiculoId: string) {
+    setVeiculosExpandidos((prev) => {
+      const next = new Set(prev)
+      if (next.has(veiculoId)) next.delete(veiculoId)
+      else next.add(veiculoId)
+      return next
+    })
+  }
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const dragState = useRef({ isDown: false, startX: 0, startScrollLeft: 0, moved: false })
   const [isDragging, setIsDragging] = useState(false)
@@ -152,6 +182,137 @@ export function Movimentacoes() {
     }
   }
 
+  function renderLinhaMovimentacaoDesktop(m: MovimentacaoComVeiculo, secundaria = false) {
+    return (
+      <tr
+        key={m.id}
+        className={cn(
+          'group border-b border-border/5 last:border-0 hover:bg-background/60 cursor-pointer',
+          secundaria && 'bg-background/10 text-secondary/70',
+        )}
+        onClick={() => navigate(`/veiculos/${m.veiculo_id}`)}
+      >
+        <td className="sticky left-0 z-10 bg-surface group-hover:bg-background/60 px-3 py-3 font-medium text-foreground whitespace-nowrap border-r border-border/5">
+          {m.veiculo?.placa}
+        </td>
+        <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={`${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`}>
+          {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+        </td>
+        <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={m.veiculo?.cliente?.nome}>
+          {m.veiculo?.cliente?.nome}
+        </td>
+        <td className="px-3 py-3 text-secondary max-w-[100px] truncate">{m.patio?.nome || '—'}</td>
+        <td className="px-3 py-3 text-secondary whitespace-nowrap">{formatDateTime(m.data_hora_entrada)}</td>
+        <td className="px-3 py-3 text-secondary whitespace-nowrap">
+          {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}
+        </td>
+        <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={m.destino ?? undefined}>
+          {m.destino || '—'}
+        </td>
+        <td className="px-3 py-3 text-secondary whitespace-nowrap">
+          {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap">
+          {m.status === 'no_patio' ? (
+            <Badge tone="success">No pátio</Badge>
+          ) : (
+            <Badge tone="neutral">Saiu</Badge>
+          )}
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap">
+          <StatusManutencaoBadge status={m.status_manutencao} />
+        </td>
+        <td className="px-3 py-3 text-secondary text-xs whitespace-nowrap">
+          <p>Entrada: {m.usuario_entrada?.nome ?? '—'}</p>
+          {m.data_hora_saida && <p>Saída: {m.usuario_saida?.nome ?? '—'}</p>}
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap">
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            {podeGerenciar && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="!h-8 !w-8"
+                onClick={() => setEditandoId(m.id)}
+                aria-label={`Editar movimentação de ${m.veiculo?.placa}`}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {podeGerenciar && (
+              <Button
+                type="button"
+                variant="danger"
+                size="icon"
+                className="!h-8 !w-8"
+                onClick={() => handleExcluir(m.id, m.veiculo?.placa)}
+                disabled={excluindoId === m.id}
+                aria-label={`Excluir movimentação de ${m.veiculo?.placa}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        </td>
+      </tr>
+    )
+  }
+
+  function renderCardMovimentacao(m: MovimentacaoComVeiculo, secundaria = false) {
+    return (
+      <Card key={m.id} className={cn('p-4', secundaria && 'bg-background/30')}>
+        <Link to={`/veiculos/${m.veiculo_id}`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="font-semibold text-foreground">{m.veiculo?.placa}</p>
+              <p className="text-sm text-secondary">
+                {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              {m.status === 'no_patio' ? (
+                <Badge tone="success">No pátio</Badge>
+              ) : (
+                <Badge tone="neutral">Saiu</Badge>
+              )}
+              <StatusManutencaoBadge status={m.status_manutencao} />
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-secondary">
+            <p>Cliente: {m.veiculo?.cliente?.nome}</p>
+            <p>Pátio: {m.patio?.nome || '—'}</p>
+            <p>Permanência: {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}</p>
+            <p>Entrada: {formatDateTime(m.data_hora_entrada)}</p>
+            <p>Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}</p>
+            {m.data_hora_saida && <p>Destino: {m.destino || '—'}</p>}
+            <p>Registrado por: {m.usuario_entrada?.nome ?? '—'}</p>
+            {m.data_hora_saida && <p>Saída por: {m.usuario_saida?.nome ?? '—'}</p>}
+          </div>
+        </Link>
+        <div className="mt-3 flex justify-end gap-2 border-t border-border/5 pt-3">
+          {podeGerenciar && (
+            <Button type="button" variant="secondary" size="icon" onClick={() => setEditandoId(m.id)} aria-label="Editar">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {podeGerenciar && (
+            <Button
+              type="button"
+              variant="danger"
+              size="icon"
+              onClick={() => handleExcluir(m.id, m.veiculo?.placa)}
+              disabled={excluindoId === m.id}
+              aria-label="Excluir"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </Card>
+    )
+  }
+
   return (
     <div>
       <PageHeader
@@ -213,76 +374,32 @@ export function Movimentacoes() {
                   </tr>
                 </thead>
                 <tbody>
-                  {movimentacoes.map((m) => (
-                      <tr
-                        key={m.id}
-                        className="group border-b border-border/5 last:border-0 hover:bg-background/60 cursor-pointer"
-                        onClick={() => navigate(`/veiculos/${m.veiculo_id}`)}
-                      >
-                        <td className="sticky left-0 z-10 bg-surface group-hover:bg-background/60 px-3 py-3 font-medium text-foreground whitespace-nowrap border-r border-border/5">
-                          {m.veiculo?.placa}
-                        </td>
-                        <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={`${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`}>
-                          {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
-                        </td>
-                        <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={m.veiculo?.cliente?.nome}>
-                          {m.veiculo?.cliente?.nome}
-                        </td>
-                        <td className="px-3 py-3 text-secondary max-w-[100px] truncate">{m.patio?.nome || '—'}</td>
-                        <td className="px-3 py-3 text-secondary whitespace-nowrap">{formatDateTime(m.data_hora_entrada)}</td>
-                        <td className="px-3 py-3 text-secondary whitespace-nowrap">
-                          {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}
-                        </td>
-                        <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={m.destino ?? undefined}>
-                          {m.destino || '—'}
-                        </td>
-                        <td className="px-3 py-3 text-secondary whitespace-nowrap">
-                          {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap">
-                          {m.status === 'no_patio' ? (
-                            <Badge tone="success">No pátio</Badge>
-                          ) : (
-                            <Badge tone="neutral">Saiu</Badge>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap">
-                          <StatusManutencaoBadge status={m.status_manutencao} />
-                        </td>
-                        <td className="px-3 py-3 text-secondary text-xs whitespace-nowrap">
-                          <p>Entrada: {m.usuario_entrada?.nome ?? '—'}</p>
-                          {m.data_hora_saida && <p>Saída: {m.usuario_saida?.nome ?? '—'}</p>}
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            {podeGerenciar && (
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="icon"
-                                className="!h-8 !w-8"
-                                onClick={() => setEditandoId(m.id)}
-                                aria-label={`Editar movimentação de ${m.veiculo?.placa}`}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {podeGerenciar && (
-                              <Button
-                                type="button"
-                                variant="danger"
-                                size="icon"
-                                className="!h-8 !w-8"
-                                onClick={() => handleExcluir(m.id, m.veiculo?.placa)}
-                                disabled={excluindoId === m.id}
-                                aria-label={`Excluir movimentação de ${m.veiculo?.placa}`}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                  {gruposMovimentacoes.map((g) => (
+                    <Fragment key={g.veiculoId}>
+                      {renderLinhaMovimentacaoDesktop(g.principal)}
+                      {g.anteriores.length > 0 && (
+                        <tr className="border-b border-border/5 bg-background/10">
+                          <td colSpan={12} className="px-3 py-1.5">
+                            <button
+                              type="button"
+                              onClick={() => toggleVeiculoExpandido(g.veiculoId)}
+                              className="flex items-center gap-1.5 text-xs font-medium text-secondary hover:text-foreground cursor-pointer"
+                            >
+                              <ChevronDown
+                                className={cn(
+                                  'h-3.5 w-3.5 transition-transform',
+                                  veiculosExpandidos.has(g.veiculoId) && 'rotate-180',
+                                )}
+                              />
+                              {veiculosExpandidos.has(g.veiculoId) ? 'Ocultar' : 'Ver'} {g.anteriores.length}{' '}
+                              {g.anteriores.length > 1 ? 'visitas anteriores' : 'visita anterior'} desse veículo
+                            </button>
+                          </td>
+                        </tr>
+                      )}
+                      {veiculosExpandidos.has(g.veiculoId) &&
+                        g.anteriores.map((m) => renderLinhaMovimentacaoDesktop(m, true))}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -291,56 +408,28 @@ export function Movimentacoes() {
 
           {/* Mobile: cards */}
           <div className="md:hidden space-y-3">
-            {movimentacoes.map((m) => (
-                <Card key={m.id} className="p-4">
-                  <Link to={`/veiculos/${m.veiculo_id}`}>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-foreground">{m.veiculo?.placa}</p>
-                        <p className="text-sm text-secondary">
-                          {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        {m.status === 'no_patio' ? (
-                          <Badge tone="success">No pátio</Badge>
-                        ) : (
-                          <Badge tone="neutral">Saiu</Badge>
-                        )}
-                        <StatusManutencaoBadge status={m.status_manutencao} />
-                      </div>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-secondary">
-                      <p>Cliente: {m.veiculo?.cliente?.nome}</p>
-                      <p>Pátio: {m.patio?.nome || '—'}</p>
-                      <p>Permanência: {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}</p>
-                      <p>Entrada: {formatDateTime(m.data_hora_entrada)}</p>
-                      <p>Saída: {m.data_hora_saida ? formatDateTime(m.data_hora_saida) : '—'}</p>
-                      {m.data_hora_saida && <p>Destino: {m.destino || '—'}</p>}
-                      <p>Registrado por: {m.usuario_entrada?.nome ?? '—'}</p>
-                      {m.data_hora_saida && <p>Saída por: {m.usuario_saida?.nome ?? '—'}</p>}
-                    </div>
-                  </Link>
-                  <div className="mt-3 flex justify-end gap-2 border-t border-border/5 pt-3">
-                    {podeGerenciar && (
-                      <Button type="button" variant="secondary" size="icon" onClick={() => setEditandoId(m.id)} aria-label="Editar">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {podeGerenciar && (
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="icon"
-                        onClick={() => handleExcluir(m.id, m.veiculo?.placa)}
-                        disabled={excluindoId === m.id}
-                        aria-label="Excluir"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </Card>
+            {gruposMovimentacoes.map((g) => (
+              <Fragment key={g.veiculoId}>
+                {renderCardMovimentacao(g.principal)}
+                {g.anteriores.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => toggleVeiculoExpandido(g.veiculoId)}
+                    className="flex w-full items-center justify-center gap-1.5 py-1 text-xs font-medium text-secondary hover:text-foreground cursor-pointer"
+                  >
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 transition-transform',
+                        veiculosExpandidos.has(g.veiculoId) && 'rotate-180',
+                      )}
+                    />
+                    {veiculosExpandidos.has(g.veiculoId) ? 'Ocultar' : 'Ver'} {g.anteriores.length}{' '}
+                    {g.anteriores.length > 1 ? 'visitas anteriores' : 'visita anterior'} desse veículo
+                  </button>
+                )}
+                {veiculosExpandidos.has(g.veiculoId) &&
+                  g.anteriores.map((m) => renderCardMovimentacao(m, true))}
+              </Fragment>
             ))}
           </div>
 

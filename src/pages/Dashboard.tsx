@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Truck, LogIn, LogOut, Clock, FileSpreadsheet, AlertTriangle, Settings, X } from 'lucide-react'
+import { Truck, LogIn, LogOut, Clock, FileSpreadsheet, AlertTriangle, X } from 'lucide-react'
 import {
   ResponsiveContainer,
   BarChart,
@@ -421,21 +421,21 @@ export function Dashboard() {
         actions={
           isAdmin && (
             <>
-              <Button
-                variant="secondary"
-                size="icon"
-                onClick={() => setDuplicatasAbertas(true)}
-                aria-label="Movimentações duplicadas"
-                title="Movimentações duplicadas"
-                className="relative"
-              >
-                <Settings className="h-4 w-4" />
-                {duplicatas.length > 0 && (
+              {duplicatas.length > 0 && (
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  onClick={() => setDuplicatasAbertas(true)}
+                  aria-label="Movimentações duplicadas"
+                  title="Movimentações duplicadas"
+                  className="relative"
+                >
+                  <AlertTriangle className="h-4 w-4" />
                   <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
                     {duplicatas.length}
                   </span>
-                )}
-              </Button>
+                </Button>
+              )}
               <Button variant="secondary" onClick={handleExportarExcel} disabled={loadingNoPatio || noPatio.length === 0}>
                 <FileSpreadsheet className="h-4 w-4" />
                 Exportar Excel
