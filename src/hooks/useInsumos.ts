@@ -486,6 +486,111 @@ export async function registrarBaixaConsumo(
 }
 
 /**
+ * Corrige um lançamento de baixa já registrado (responsável, placa, motivo
+ * e/ou quantidade). Quando a quantidade muda, a diferença é aplicada de
+ * volta no estoque atual do item — por isso `podeAjustarQuantidade` deve vir
+ * `false` sempre que essa baixa não for mais a mais recente do item (ou,
+ * pra barril, não pertencer mais ao tambor em uso), senão a correção mexeria
+ * num estoque que já teve outros lançamentos por cima.
+ */
+export async function atualizarBaixaConsumo(
+  baixaAtual: RegistroBaixaConsumo,
+  dados: { quantidade: number; responsavel: string; placa?: string; motivo?: string },
+  item: ItemConsumo | null,
+  podeAjustarQuantidade: boolean,
+): Promise<{ baixa: RegistroBaixaConsumo; item: ItemConsumo | null }> {
+  const deltaQuantidade = podeAjustarQuantidade ? dados.quantidade - baixaAtual.quantidade : 0
+  let itemAtualizado: ItemConsumo | null = item
+
+  if (item && deltaQuantidade !== 0) {
+    const camposItem = { quantidade_atual: arredondar3(item.quantidade_atual - deltaQuantidade) }
+    itemAtualizado = { ...item, ...camposItem }
+    try {
+      if (REGEX_UUID.test(item.id)) {
+        const { data, error } = await supabase.from('itens_consumo').update(camposItem).eq('id', item.id).select().single()
+        if (!error && data) itemAtualizado = normalizarItemConsumo(data as ItemConsumo)
+      }
+    } catch (err) {
+      console.warn('Erro ao ajustar estoque do insumo ao editar baixa:', err)
+    }
+    const locais = getInsumosLocais()
+    const idx = locais.findIndex((it) => it.id === item.id)
+    if (idx >= 0) locais[idx] = itemAtualizado
+    salvarInsumosLocais(locais)
+  }
+
+  const payload = {
+    quantidade: podeAjustarQuantidade ? dados.quantidade : baixaAtual.quantidade,
+    responsavel: dados.responsavel,
+    placa: dados.placa || null,
+    motivo: dados.motivo || null,
+    quantidade_restante:
+      item?.capacidade_maxima && podeAjustarQuantidade ? itemAtualizado?.quantidade_atual ?? null : baixaAtual.quantidade_restante,
+  }
+
+  let baixaAtualizada: RegistroBaixaConsumo = { ...baixaAtual, ...payload }
+  try {
+    if (REGEX_UUID.test(baixaAtual.id)) {
+      const { data, error } = await supabase.from('consumo_baixas').update(payload).eq('id', baixaAtual.id).select().single()
+      if (!error && data) baixaAtualizada = normalizarBaixaConsumo(data as RegistroBaixaConsumo)
+    }
+  } catch (err) {
+    console.warn('Erro ao atualizar baixa de consumo no Supabase:', err)
+  }
+
+  const locaisBaixas = getBaixasConsumoLocais()
+  const idxBaixa = locaisBaixas.findIndex((b) => b.id === baixaAtual.id)
+  if (idxBaixa >= 0) locaisBaixas[idxBaixa] = baixaAtualizada
+  salvarBaixasConsumoLocais(locaisBaixas)
+
+  return { baixa: baixaAtualizada, item: itemAtualizado }
+}
+
+/**
+ * Exclui um lançamento de baixa e devolve a quantidade pro estoque atual do
+ * item. Só chame com `podeAjustarEstoque = true` pra baixa mais recente do
+ * item (ou do tambor em uso, no caso de barril) — pelo mesmo motivo do
+ * comentário em `atualizarBaixaConsumo`.
+ */
+export async function excluirBaixaConsumo(
+  baixa: RegistroBaixaConsumo,
+  item: ItemConsumo | null,
+  podeAjustarEstoque: boolean,
+): Promise<ItemConsumo | null> {
+  let itemAtualizado: ItemConsumo | null = item
+
+  if (item && podeAjustarEstoque) {
+    const camposItem = { quantidade_atual: arredondar3(item.quantidade_atual + baixa.quantidade) }
+    itemAtualizado = { ...item, ...camposItem }
+    try {
+      if (REGEX_UUID.test(item.id)) {
+        const { data, error } = await supabase.from('itens_consumo').update(camposItem).eq('id', item.id).select().single()
+        if (!error && data) itemAtualizado = normalizarItemConsumo(data as ItemConsumo)
+      }
+    } catch (err) {
+      console.warn('Erro ao restaurar estoque do insumo ao excluir baixa:', err)
+    }
+    const locais = getInsumosLocais()
+    const idx = locais.findIndex((it) => it.id === item.id)
+    if (idx >= 0) locais[idx] = itemAtualizado
+    salvarInsumosLocais(locais)
+  }
+
+  try {
+    if (REGEX_UUID.test(baixa.id)) {
+      const { error } = await supabase.from('consumo_baixas').delete().eq('id', baixa.id)
+      if (error) throw error
+    }
+  } catch (err) {
+    console.error('Erro ao excluir baixa de consumo no Supabase:', err)
+    throw new Error('Não foi possível excluir agora. Verifique sua conexão e tente novamente.')
+  }
+
+  salvarBaixasConsumoLocais(getBaixasConsumoLocais().filter((b) => b.id !== baixa.id))
+  return itemAtualizado
+}
+
+/**
  * Repõe estoque de um insumo. Se o tambor atual zerou e o item tem
  * capacidade máxima definida, o novo tambor entra cheio e a numeração sobe
  * sozinha; caso contrário só soma a quantidade adicionada.

@@ -79,6 +79,8 @@ import {
   excluirInsumo,
   registrarBaixaConsumo,
   registrarEntradaConsumo,
+  atualizarBaixaConsumo,
+  excluirBaixaConsumo,
 } from '@/hooks/useInsumos'
 
 export interface ItemCaixa {
@@ -3295,12 +3297,35 @@ export function InventarioFerramentas() {
       {/* ==================== MODAL: HISTÓRICO DE BAIXAS DO BARRIL/INSUMO ==================== */}
       {itemConsumoHistorico && (
         <ModalHistoricoConsumo
-          item={itemConsumoHistorico}
+          item={itensConsumo.find((it) => it.id === itemConsumoHistorico.id) ?? itemConsumoHistorico}
           baixas={baixasConsumo}
+          podeGerenciar={podeExcluir}
           onClose={() => setItemConsumoHistorico(null)}
           onBaixar={(it) => {
             setItemConsumoParaBaixa(it)
             setModalBaixaConsumoAberto(true)
+          }}
+          onEditarBaixa={async (baixa, dados, podeAjustarQuantidade) => {
+            const itemRef = itensConsumo.find((it) => it.id === baixa.item_id) ?? null
+            try {
+              await atualizarBaixaConsumo(baixa, dados, itemRef, podeAjustarQuantidade)
+              await Promise.all([refetchInsumos(), refetchBaixasConsumo()])
+            } catch (err) {
+              setMensagemErro(err instanceof Error ? err.message : 'Erro ao editar baixa de consumo.')
+            }
+          }}
+          onExcluirBaixa={async (baixa, podeAjustarQuantidade) => {
+            if (!podeExcluir) {
+              setMensagemErro('SÓ RICARDO OU O USUÁRIO INVENTARIO PODEM EXCLUIR LANÇAMENTOS DE BAIXA.')
+              return
+            }
+            const itemRef = itensConsumo.find((it) => it.id === baixa.item_id) ?? null
+            try {
+              await excluirBaixaConsumo(baixa, itemRef, podeAjustarQuantidade)
+              await Promise.all([refetchInsumos(), refetchBaixasConsumo()])
+            } catch (err) {
+              setMensagemErro(err instanceof Error ? err.message : 'Erro ao excluir baixa de consumo.')
+            }
           }}
         />
       )}
@@ -3551,19 +3576,87 @@ function ModalHistoricoFerramenta({
 function ModalHistoricoConsumo({
   item,
   baixas,
+  podeGerenciar,
   onClose,
   onBaixar,
+  onEditarBaixa,
+  onExcluirBaixa,
 }: {
   item: ItemConsumo
   baixas: RegistroBaixaConsumo[]
+  podeGerenciar: boolean
   onClose: () => void
   onBaixar: (item: ItemConsumo) => void
+  onEditarBaixa: (
+    baixa: RegistroBaixaConsumo,
+    dados: { quantidade: number; responsavel: string; placa: string; motivo: string },
+    podeAjustarQuantidade: boolean,
+  ) => Promise<void>
+  onExcluirBaixa: (baixa: RegistroBaixaConsumo, podeAjustarQuantidade: boolean) => Promise<void>
 }) {
   const [busca, setBusca] = useState('')
+  const [editandoBaixaId, setEditandoBaixaId] = useState<string | null>(null)
+  const [formEdicao, setFormEdicao] = useState({ quantidade: '', responsavel: '', placa: '', motivo: '' })
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false)
+  const [excluindoBaixaId, setExcluindoBaixaId] = useState<string | null>(null)
 
   const historico = useMemo(() => {
     return baixas.filter((b) => b.item_id === item.id)
   }, [baixas, item.id])
+
+  // Baixa mais recente do item — só nela é seguro ajustar a quantidade
+  // automaticamente no estoque atual (editar/excluir uma baixa mais antiga
+  // mexeria num estoque que já sofreu lançamentos por cima dela).
+  const baixaMaisRecente = useMemo(() => {
+    if (historico.length === 0) return null
+    return historico.reduce((mais, b) => (new Date(b.data_hora) > new Date(mais.data_hora) ? b : mais))
+  }, [historico])
+
+  const isBarril = Boolean(item.capacidade_maxima && item.capacidade_maxima > 0)
+
+  function podeAjustarQuantidade(b: RegistroBaixaConsumo): boolean {
+    if (!baixaMaisRecente || b.id !== baixaMaisRecente.id) return false
+    if (isBarril && b.numero_tambor != null && item.numero_tambor_atual != null && b.numero_tambor !== item.numero_tambor_atual) {
+      return false
+    }
+    return true
+  }
+
+  function iniciarEdicao(b: RegistroBaixaConsumo) {
+    setEditandoBaixaId(b.id)
+    setFormEdicao({
+      quantidade: String(b.quantidade),
+      responsavel: b.responsavel || '',
+      placa: b.placa || '',
+      motivo: b.motivo || '',
+    })
+  }
+
+  async function salvarEdicao(b: RegistroBaixaConsumo) {
+    const quantidade = Number(formEdicao.quantidade.replace(',', '.'))
+    if (!formEdicao.responsavel.trim() || !Number.isFinite(quantidade) || quantidade <= 0) return
+    setSalvandoEdicao(true)
+    try {
+      await onEditarBaixa(
+        b,
+        { quantidade, responsavel: formEdicao.responsavel.trim().toUpperCase(), placa: formEdicao.placa.trim().toUpperCase(), motivo: formEdicao.motivo.trim() },
+        podeAjustarQuantidade(b),
+      )
+      setEditandoBaixaId(null)
+    } finally {
+      setSalvandoEdicao(false)
+    }
+  }
+
+  async function excluirBaixa(b: RegistroBaixaConsumo) {
+    if (!confirm(`Excluir esta baixa de ${b.quantidade.toLocaleString('pt-BR')} ${b.unidade}?`)) return
+    setExcluindoBaixaId(b.id)
+    try {
+      await onExcluirBaixa(b, podeAjustarQuantidade(b))
+    } finally {
+      setExcluindoBaixaId(null)
+    }
+  }
 
   const filtrado = useMemo(() => {
     if (!busca.trim()) return historico
@@ -3577,7 +3670,6 @@ function ModalHistoricoConsumo({
     })
   }, [historico, busca])
 
-  const isBarril = Boolean(item.capacidade_maxima && item.capacidade_maxima > 0)
   const pctBarril = isBarril ? percentualBarril(item.quantidade_atual, item.capacidade_maxima!) : 0
   const totalConsumido = historico.reduce((soma, b) => soma + b.quantidade, 0)
 
@@ -3703,32 +3795,131 @@ function ModalHistoricoConsumo({
                       )}
                     </div>
 
-                    <span className="text-[11px] font-mono text-secondary font-semibold shrink-0">
-                      {format(new Date(b.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[11px] font-mono text-secondary font-semibold">
+                        {format(new Date(b.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </span>
+                      {podeGerenciar && editandoBaixaId !== b.id && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicao(b)}
+                            className="rounded-lg p-1.5 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
+                            aria-label="Editar baixa"
+                            title="Editar baixa"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => excluirBaixa(b)}
+                            disabled={excluindoBaixaId === b.id}
+                            className="rounded-lg p-1.5 text-secondary hover:bg-status-danger/10 hover:text-status-danger transition-colors cursor-pointer disabled:opacity-50"
+                            aria-label="Excluir baixa"
+                            title="Excluir baixa"
+                          >
+                            {excluindoBaixaId === b.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs pt-1 border-t border-border/10">
-                    {b.foto_responsavel_url ? (
-                      <img
-                        src={b.foto_responsavel_url}
-                        alt={obterNomeCompletoMembro(b.responsavel)}
-                        loading="lazy"
-                        decoding="async"
-                        className="h-6 w-6 rounded-full object-cover border border-primary/40"
-                      />
-                    ) : (
-                      <span className="text-xs">👤</span>
-                    )}
-                    <span className="font-black text-foreground uppercase">
-                      {obterNomeCompletoMembro(b.responsavel)}
-                    </span>
-                  </div>
+                  {editandoBaixaId === b.id ? (
+                    <div className="space-y-2 pt-1 border-t border-border/10">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-black uppercase text-secondary">
+                            Quantidade {!podeAjustarQuantidade(b) && '(travada)'}
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            value={formEdicao.quantidade}
+                            onChange={(e) => setFormEdicao((f) => ({ ...f, quantidade: e.target.value }))}
+                            disabled={!podeAjustarQuantidade(b)}
+                            className="h-9 w-full rounded-lg border border-border/25 bg-surface px-2.5 text-xs text-foreground disabled:opacity-50 focus:border-primary focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase text-secondary">Placa</label>
+                          <input
+                            value={formEdicao.placa}
+                            onChange={(e) => setFormEdicao((f) => ({ ...f, placa: e.target.value }))}
+                            className="h-9 w-full rounded-lg border border-border/25 bg-surface px-2.5 text-xs uppercase text-foreground focus:border-primary focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-secondary">Responsável</label>
+                        <input
+                          value={formEdicao.responsavel}
+                          onChange={(e) => setFormEdicao((f) => ({ ...f, responsavel: e.target.value }))}
+                          className="h-9 w-full rounded-lg border border-border/25 bg-surface px-2.5 text-xs uppercase text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-secondary">Motivo</label>
+                        <input
+                          value={formEdicao.motivo}
+                          onChange={(e) => setFormEdicao((f) => ({ ...f, motivo: e.target.value }))}
+                          className="h-9 w-full rounded-lg border border-border/25 bg-surface px-2.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                      {!podeAjustarQuantidade(b) && (
+                        <p className="text-[10px] text-secondary italic">
+                          A quantidade só pode ser corrigida na baixa mais recente deste item.
+                        </p>
+                      )}
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setEditandoBaixaId(null)}
+                          className="!h-8 px-3 text-[11px] font-bold uppercase"
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => salvarEdicao(b)}
+                          disabled={salvandoEdicao || !formEdicao.responsavel.trim()}
+                          className="!h-8 px-3 text-[11px] font-bold uppercase gap-1"
+                        >
+                          {salvandoEdicao ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                          Salvar
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 text-xs pt-1 border-t border-border/10">
+                        {b.foto_responsavel_url ? (
+                          <img
+                            src={b.foto_responsavel_url}
+                            alt={obterNomeCompletoMembro(b.responsavel)}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-6 w-6 rounded-full object-cover border border-primary/40"
+                          />
+                        ) : (
+                          <span className="text-xs">👤</span>
+                        )}
+                        <span className="font-black text-foreground uppercase">
+                          {obterNomeCompletoMembro(b.responsavel)}
+                        </span>
+                      </div>
 
-                  {b.motivo && (
-                    <p className="text-[11px] text-secondary italic bg-background/50 rounded-xl p-2 border border-border/10">
-                      "{b.motivo}"
-                    </p>
+                      {b.motivo && (
+                        <p className="text-[11px] text-secondary italic bg-background/50 rounded-xl p-2 border border-border/10">
+                          "{b.motivo}"
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               ))}
