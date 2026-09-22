@@ -101,6 +101,7 @@ import { getErrorMessage } from '@/lib/erros'
 import { exportRowsToCsv } from '@/lib/csv'
 import { SETORES_FROTA_LEVE, FROTA_LEVE_OFICIAL, FROTA_PESADA_OFICIAL, FROTA_EMBARCADO_OFICIAL } from '@/data/veiculosFrotaPadrao'
 import { STORAGE_FROTAS_KEY } from '@/lib/frotasStorage'
+import { useVeiculosFrotaOverrides, upsertVeiculoFrota, excluirVeiculoFrotaOverride } from '@/hooks/useVeiculosFrota'
 import type {
   FotosVistoria,
   StatusPreventivaChecklist,
@@ -605,6 +606,94 @@ function comprimirFoto(file: File, maxWidth = 1000, quality = 0.72): Promise<str
   })
 }
 
+// Mescla a lista oficial de veículos (fixa em código, veiculosFrotaPadrao.ts)
+// com os "overrides" — edições e cadastros manuais vindos do Supabase (tabela
+// veiculos_frota). A lista oficial sempre vence pras datas de vencimento
+// (CRLV/seguro/tacógrafo), que são corrigidas direto no código; o override
+// vence pro resto (placa, cor, setor, responsável, situação etc.).
+function reconciliarFrotas(overrides: ItemFrotaCadastrada[]): ItemFrotaCadastrada[] {
+  const mapa = new Map<string, ItemFrotaCadastrada>()
+  // 1. Inserir todos os veículos oficiais da Frota Leve
+  FROTA_LEVE_OFICIAL.forEach((v) => {
+    mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: 'leve' } as ItemFrotaCadastrada)
+  })
+  // 2. Inserir todos os veículos oficiais da Frota Pesada (Rodocaçamba)
+  FROTA_PESADA_OFICIAL.forEach((v) => {
+    mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: v.tipo || 'pesado' } as ItemFrotaCadastrada)
+  })
+  // 3. Inserir todos os veículos oficiais Embarcados (munck, plataformas)
+  FROTA_EMBARCADO_OFICIAL.forEach((v) => {
+    mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: 'embarcado' } as ItemFrotaCadastrada)
+  })
+
+  if (!Array.isArray(overrides) || overrides.length === 0) {
+    return Array.from(mapa.values())
+  }
+
+  // Índice reverso id -> placa oficial original, para achar o veículo
+  // oficial mesmo quando o usuário editou a placa dele (a chave do mapa
+  // muda, mas o id do veículo nunca muda).
+  const placaOriginalPorId = new Map<string, string>()
+  mapa.forEach((val, chave) => {
+    if (val.id) placaOriginalPorId.set(val.id, chave)
+  })
+
+  // 4. Mesclar com as edições e novos cadastros manuais do usuário
+  overrides.forEach((v: ItemFrotaCadastrada) => {
+    const placa = v.placa ? v.placa.toUpperCase().trim() : v.id
+    const chaveOriginal = v.id ? placaOriginalPorId.get(v.id) : undefined
+    const base = mapa.get(placa) ?? (chaveOriginal ? mapa.get(chaveOriginal) : undefined)
+    if (base) {
+      // A placa foi editada (a chave nova é diferente da placa oficial
+      // original) — remove a chave velha pra não duplicar o veículo.
+      if (chaveOriginal && chaveOriginal !== placa) {
+        mapa.delete(chaveOriginal)
+      }
+      const ehEmbarcadoOficial = FROTA_EMBARCADO_OFICIAL.some((fe) => fe.placa.toUpperCase().trim() === placa)
+      mapa.set(placa, {
+        ...base,
+        ...v,
+        // Reforça a reclassificação para "embarcado": um cache antigo do
+        // navegador (de antes desta categoria existir) ainda pode guardar
+        // tipo 'leve'/'pesado' para essas placas — a lista oficial vence.
+        tipo: ehEmbarcadoOficial ? 'embarcado' : v.tipo,
+        chassi: v.chassi || base.chassi,
+        renavam: v.renavam || base.renavam,
+        marcaNome: v.marcaNome || base.marcaNome,
+        modeloNome: v.modeloNome || base.modeloNome,
+        setor: v.setor || base.setor,
+        responsavel: v.responsavel || base.responsavel,
+        tipoVeiculo: v.tipoVeiculo || base.tipoVeiculo,
+        clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
+        clienteId: 'cliente_gvel_diesel_transportes',
+        // Datas de vencimento (CRLV, seguro e tacógrafo) vêm da lista oficial,
+        // que é a fonte da verdade e é corrigida diretamente no código — um
+        // override antigo não pode continuar sobrepondo uma data já
+        // corrigida ali.
+        vencimentoDocumento: base.vencimentoDocumento !== undefined ? base.vencimentoDocumento : v.vencimentoDocumento,
+        vencimentoSeguro: base.vencimentoSeguro !== undefined ? base.vencimentoSeguro : v.vencimentoSeguro,
+        numeroTacografo: base.numeroTacografo !== undefined ? base.numeroTacografo : v.numeroTacografo,
+        emissaoTacografo: base.emissaoTacografo !== undefined ? base.emissaoTacografo : v.emissaoTacografo,
+        vencimentoTacografo: base.vencimentoTacografo !== undefined ? base.vencimentoTacografo : v.vencimentoTacografo,
+        observacoes: base.observacoes || v.observacoes,
+      })
+    } else if (v.id && !v.id.startsWith('frota_') && !v.id.startsWith('pesado_')) {
+      // Veículos criados manualmente pelo usuário
+      mapa.set(placa, {
+        ...v,
+        clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
+        clienteId: 'cliente_gvel_diesel_transportes',
+      })
+    }
+  })
+
+  return Array.from(mapa.values()).map((item) => ({
+    ...item,
+    clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
+    clienteId: 'cliente_gvel_diesel_transportes',
+  }))
+}
+
 export function Frotas() {
   const { user, perfil } = useAuth()
   const isAdmin = isAdminUsuario(perfil, user?.email)
@@ -634,80 +723,18 @@ export function Frotas() {
     ? 'veiculos'
     : 'dashboard'
 
-  // Lista de veículos de frotas
-  const [frotas, setFrotas] = useState<ItemFrotaCadastrada[]>(() => {
+  // Lista de veículos de frotas — vem do Supabase (edições e cadastros
+  // manuais) mesclada com a lista oficial fixa em código. Mantém uma cópia
+  // no localStorage (STORAGE_FROTAS_KEY) só como cache síncrono pra outras
+  // telas (ex: autocomplete de placa na baixa de estoque).
+  const { overrides: veiculosFrotaOverrides, refetch: refetchVeiculosFrota } = useVeiculosFrotaOverrides()
+  const frotas = useMemo(() => reconciliarFrotas(veiculosFrotaOverrides), [veiculosFrotaOverrides])
+
+  useEffect(() => {
     try {
-      const salvo = localStorage.getItem(STORAGE_FROTAS_KEY)
-      if (salvo) {
-        const parsed = JSON.parse(salvo)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const mapa = new Map<string, ItemFrotaCadastrada>()
-          // 1. Inserir todos os veículos oficiais da Frota Leve
-          FROTA_LEVE_OFICIAL.forEach((v) => {
-            mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: 'leve' } as ItemFrotaCadastrada)
-          })
-          // 2. Inserir todos os veículos oficiais da Frota Pesada (Rodocaçamba)
-          FROTA_PESADA_OFICIAL.forEach((v) => {
-            mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: v.tipo || 'pesado' } as ItemFrotaCadastrada)
-          })
-          // 3. Inserir todos os veículos oficiais Embarcados (munck, plataformas)
-          FROTA_EMBARCADO_OFICIAL.forEach((v) => {
-            mapa.set(v.placa.toUpperCase().trim(), { ...v, tipo: 'embarcado' } as ItemFrotaCadastrada)
-          })
-          // 4. Mesclar com as edições e novos cadastros manuais do usuário
-          parsed.forEach((v: ItemFrotaCadastrada) => {
-            const placa = v.placa ? v.placa.toUpperCase().trim() : v.id
-            const base = mapa.get(placa)
-            if (base) {
-              const ehEmbarcadoOficial = FROTA_EMBARCADO_OFICIAL.some((fe) => fe.placa.toUpperCase().trim() === placa)
-              mapa.set(placa, {
-                ...base,
-                ...v,
-                // Reforça a reclassificação para "embarcado": um cache antigo do
-                // navegador (de antes desta categoria existir) ainda pode guardar
-                // tipo 'leve'/'pesado' para essas placas — a lista oficial vence.
-                tipo: ehEmbarcadoOficial ? 'embarcado' : v.tipo,
-                chassi: v.chassi || base.chassi,
-                renavam: v.renavam || base.renavam,
-                marcaNome: v.marcaNome || base.marcaNome,
-                modeloNome: v.modeloNome || base.modeloNome,
-                setor: v.setor || base.setor,
-                responsavel: v.responsavel || base.responsavel,
-                tipoVeiculo: v.tipoVeiculo || base.tipoVeiculo,
-                clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
-                clienteId: 'cliente_gvel_diesel_transportes',
-                // Datas de vencimento (CRLV, seguro e tacógrafo) vêm da lista oficial,
-                // que é a fonte da verdade e é corrigida diretamente no código — um
-                // cadastro antigo salvo no navegador não pode continuar sobrepondo
-                // uma data já corrigida ali.
-                vencimentoDocumento: base.vencimentoDocumento !== undefined ? base.vencimentoDocumento : v.vencimentoDocumento,
-                vencimentoSeguro: base.vencimentoSeguro !== undefined ? base.vencimentoSeguro : v.vencimentoSeguro,
-                numeroTacografo: base.numeroTacografo !== undefined ? base.numeroTacografo : v.numeroTacografo,
-                emissaoTacografo: base.emissaoTacografo !== undefined ? base.emissaoTacografo : v.emissaoTacografo,
-                vencimentoTacografo: base.vencimentoTacografo !== undefined ? base.vencimentoTacografo : v.vencimentoTacografo,
-                observacoes: base.observacoes || v.observacoes,
-              })
-            } else if (v.id && !v.id.startsWith('frota_') && !v.id.startsWith('pesado_')) {
-              // Veículos criados manualmente pelo usuário
-              mapa.set(placa, {
-                ...v,
-                clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
-                clienteId: 'cliente_gvel_diesel_transportes',
-              })
-            }
-          })
-          const resultado = Array.from(mapa.values()).map((item) => ({
-            ...item,
-            clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
-            clienteId: 'cliente_gvel_diesel_transportes',
-          }))
-          localStorage.setItem(STORAGE_FROTAS_KEY, JSON.stringify(resultado))
-          return resultado
-        }
-      }
+      localStorage.setItem(STORAGE_FROTAS_KEY, JSON.stringify(frotas))
     } catch {}
-    return [...FROTA_LEVE_OFICIAL, ...FROTA_PESADA_OFICIAL, ...FROTA_EMBARCADO_OFICIAL] as ItemFrotaCadastrada[]
-  })
+  }, [frotas])
 
   // Lista de Checklists realizados (Supabase — com migração automática dos
   // registros antigos que ficavam só no localStorage)
@@ -880,20 +907,26 @@ export function Frotas() {
     )
   }
 
-  function salvarFrotas(novas: ItemFrotaCadastrada[]) {
-    setFrotas(novas)
+  async function alternarCrlvPago(id: string) {
+    const item = frotas.find((f) => f.id === id)
+    if (!item) return
     try {
-      localStorage.setItem(STORAGE_FROTAS_KEY, JSON.stringify(novas))
-      window.dispatchEvent(new Event('frota_updated'))
-    } catch {}
+      await upsertVeiculoFrota({ ...item, crlvPago: !item.crlvPago })
+      await refetchVeiculosFrota()
+    } catch (err) {
+      setErroLista(err instanceof Error ? err.message : 'Erro ao atualizar CRLV.')
+    }
   }
 
-  function alternarCrlvPago(id: string) {
-    salvarFrotas(frotas.map((f) => (f.id === id ? { ...f, crlvPago: !f.crlvPago } : f)))
-  }
-
-  function alternarSeguroOk(id: string) {
-    salvarFrotas(frotas.map((f) => (f.id === id ? { ...f, seguroOk: !f.seguroOk } : f)))
+  async function alternarSeguroOk(id: string) {
+    const item = frotas.find((f) => f.id === id)
+    if (!item) return
+    try {
+      await upsertVeiculoFrota({ ...item, seguroOk: !item.seguroOk })
+      await refetchVeiculosFrota()
+    } catch (err) {
+      setErroLista(err instanceof Error ? err.message : 'Erro ao atualizar seguro.')
+    }
   }
 
   // Modais de Veículo
@@ -1959,16 +1992,16 @@ export function Frotas() {
         values.intervaloPreventivaKm ||
         (tipoCorreto === 'pesado' || tipoCorreto === 'trator' || tipoCorreto === 'embarcado' ? 20000 : 10000),
       observacoes: values.observacoes?.trim() || undefined,
-      createdAt: new Date().toISOString(),
+      createdAt: (editandoId && frotas.find((f) => f.id === editandoId)?.createdAt) || new Date().toISOString(),
     }
 
-    if (editandoId) {
-      salvarFrotas(frotas.map((f) => (f.id === editandoId ? novoItem : f)))
-    } else {
-      salvarFrotas([novoItem, ...frotas])
+    try {
+      await upsertVeiculoFrota(novoItem)
+      await refetchVeiculosFrota()
+      setMostrarModalVeiculo(false)
+    } catch (err) {
+      setErroLista(err instanceof Error ? err.message : 'Erro ao salvar veículo.')
     }
-
-    setMostrarModalVeiculo(false)
   }
 
   async function handleExcluirVeiculo(id: string) {
@@ -1977,7 +2010,12 @@ export function Frotas() {
       return
     }
     if (!confirm('Deseja realmente excluir este veículo da frota?')) return
-    salvarFrotas(frotas.filter((f) => f.id !== id))
+    try {
+      await excluirVeiculoFrotaOverride(id)
+      await refetchVeiculosFrota()
+    } catch (err) {
+      setErroLista(err instanceof Error ? err.message : 'Erro ao excluir veículo.')
+    }
   }
 
   // Lista de veículos disponíveis para o checklist — Frota Leve e Rodocaçamba
