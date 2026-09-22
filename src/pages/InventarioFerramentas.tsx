@@ -446,7 +446,6 @@ export function InventarioFerramentas() {
   const [itemConsumoParaBaixa, setItemConsumoParaBaixa] = useState<ItemConsumo | null>(null)
   const [modalEntradaConsumoAberto, setModalEntradaConsumoAberto] = useState(false)
   const [itemConsumoParaEntrada, setItemConsumoParaEntrada] = useState<ItemConsumo | null>(null)
-  const [entradaSomaNovoTambor, setEntradaSomaNovoTambor] = useState(false)
 
   const itensConsumoFiltrados = useMemo(() => {
     const termo = deferredBuscaConsumo.trim().toLowerCase()
@@ -2705,7 +2704,7 @@ export function InventarioFerramentas() {
                               </p>
                               {Boolean(item.quantidade_tambores && item.quantidade_tambores > 0) && (
                                 <p className="text-[10px] text-primary font-bold mt-0.5">
-                                  {item.quantidade_tambores} {item.quantidade_tambores === 1 ? 'TAMBOR' : 'TAMBORES'} EM ESTOQUE
+                                  +{item.quantidade_tambores} {item.quantidade_tambores === 1 ? 'TAMBOR' : 'TAMBORES'} DE RESERVA
                                 </p>
                               )}
                             </div>
@@ -3139,25 +3138,14 @@ export function InventarioFerramentas() {
       {modalEntradaConsumoAberto && itemConsumoParaEntrada && (
         <ModalEntradaConsumo
           item={itemConsumoParaEntrada}
-          onClose={() => {
-            setModalEntradaConsumoAberto(false)
-            setEntradaSomaNovoTambor(false)
-          }}
+          onClose={() => setModalEntradaConsumoAberto(false)}
           onSucesso={async (qtdAdicionada) => {
             setModalEntradaConsumoAberto(false)
             try {
-              const atualizado = await registrarEntradaConsumo(itemConsumoParaEntrada, qtdAdicionada)
-              if (entradaSomaNovoTambor) {
-                await atualizarInsumo(atualizado.id, {
-                  ...atualizado,
-                  quantidade_tambores: (atualizado.quantidade_tambores || 0) + 1,
-                })
-              }
+              await registrarEntradaConsumo(itemConsumoParaEntrada, qtdAdicionada)
               await refetchInsumos()
             } catch (err) {
               setMensagemErro(err instanceof Error ? err.message : 'Erro ao repor estoque.')
-            } finally {
-              setEntradaSomaNovoTambor(false)
             }
           }}
         />
@@ -3343,10 +3331,13 @@ export function InventarioFerramentas() {
             setItemConsumoParaEntrada(it)
             setModalEntradaConsumoAberto(true)
           }}
-          onAdicionarTambor={(it) => {
-            setItemConsumoParaEntrada(it)
-            setEntradaSomaNovoTambor(true)
-            setModalEntradaConsumoAberto(true)
+          onAdicionarTambor={async (it) => {
+            try {
+              await atualizarInsumo(it.id, { ...it, quantidade_tambores: (it.quantidade_tambores || 0) + 1 })
+              await refetchInsumos()
+            } catch (err) {
+              setMensagemErro(err instanceof Error ? err.message : 'Erro ao adicionar tambor ao estoque.')
+            }
           }}
           podeEditarItem={podeExcluir || !REGEX_UUID_INSUMO.test(itemConsumoHistorico.id) || canAccess}
           onEditarItem={(it) => {
@@ -3751,9 +3742,9 @@ function ModalHistoricoConsumo({
                 <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[10px] font-black uppercase text-secondary tracking-wider">
                   {item.categoria}
                 </span>
-                {Boolean(item.quantidade_tambores && item.quantidade_tambores > 0) && (
+                {isBarril && (
                   <span className="rounded-lg bg-primary/10 border border-primary/30 px-2 py-0.5 text-[10px] font-black uppercase text-primary tracking-wider">
-                    {item.quantidade_tambores} {item.quantidade_tambores === 1 ? 'TAMBOR' : 'TAMBORES'} EM ESTOQUE
+                    {1 + (item.quantidade_tambores || 0)} {1 + (item.quantidade_tambores || 0) === 1 ? 'TAMBOR' : 'TAMBORES'}
                   </span>
                 )}
               </div>
@@ -6969,7 +6960,7 @@ function ModalItemConsumo({
   const UNIDADES_SUGERIDAS = ['UN', 'CX', 'RL', 'LT', 'KG', 'PAR', 'PCT', 'M']
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
       <div className="w-full max-w-lg rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between border-b border-border/10 px-6 py-4">
           <div className="flex items-center gap-2.5">
@@ -7804,7 +7795,7 @@ function ModalEntradaConsumo({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
       <div className="w-full max-w-sm rounded-2xl border border-border/20 bg-surface shadow-2xl p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-border/10 pb-3">
           <div className="flex items-center gap-2">
