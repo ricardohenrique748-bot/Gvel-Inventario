@@ -666,16 +666,17 @@ function reconciliarFrotas(overrides: ItemFrotaCadastrada[]): ItemFrotaCadastrad
         tipoVeiculo: v.tipoVeiculo || base.tipoVeiculo,
         clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
         clienteId: 'cliente_gvel_diesel_transportes',
-        // Datas de vencimento (CRLV, seguro e tacógrafo) vêm da lista oficial,
-        // que é a fonte da verdade e é corrigida diretamente no código — um
-        // override antigo não pode continuar sobrepondo uma data já
-        // corrigida ali.
-        vencimentoDocumento: base.vencimentoDocumento !== undefined ? base.vencimentoDocumento : v.vencimentoDocumento,
-        vencimentoSeguro: base.vencimentoSeguro !== undefined ? base.vencimentoSeguro : v.vencimentoSeguro,
-        numeroTacografo: base.numeroTacografo !== undefined ? base.numeroTacografo : v.numeroTacografo,
-        emissaoTacografo: base.emissaoTacografo !== undefined ? base.emissaoTacografo : v.emissaoTacografo,
-        vencimentoTacografo: base.vencimentoTacografo !== undefined ? base.vencimentoTacografo : v.vencimentoTacografo,
-        observacoes: base.observacoes || v.observacoes,
+        // Datas de vencimento (CRLV, seguro e tacógrafo): agora que a edição
+        // fica salva de verdade no Supabase (não é mais um cache que se perde
+        // ao trocar de navegador), a edição feita pela tela passa a valer —
+        // a lista oficial só serve de valor inicial/fallback pra veículo que
+        // nunca foi editado.
+        vencimentoDocumento: v.vencimentoDocumento !== undefined ? v.vencimentoDocumento : base.vencimentoDocumento,
+        vencimentoSeguro: v.vencimentoSeguro !== undefined ? v.vencimentoSeguro : base.vencimentoSeguro,
+        numeroTacografo: v.numeroTacografo !== undefined ? v.numeroTacografo : base.numeroTacografo,
+        emissaoTacografo: v.emissaoTacografo !== undefined ? v.emissaoTacografo : base.emissaoTacografo,
+        vencimentoTacografo: v.vencimentoTacografo !== undefined ? v.vencimentoTacografo : base.vencimentoTacografo,
+        observacoes: v.observacoes || base.observacoes,
       })
     } else if (v.id && !v.id.startsWith('frota_') && !v.id.startsWith('pesado_')) {
       // Veículos criados manualmente pelo usuário
