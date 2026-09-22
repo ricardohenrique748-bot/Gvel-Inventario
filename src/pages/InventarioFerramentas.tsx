@@ -446,6 +446,7 @@ export function InventarioFerramentas() {
   const [itemConsumoParaBaixa, setItemConsumoParaBaixa] = useState<ItemConsumo | null>(null)
   const [modalEntradaConsumoAberto, setModalEntradaConsumoAberto] = useState(false)
   const [itemConsumoParaEntrada, setItemConsumoParaEntrada] = useState<ItemConsumo | null>(null)
+  const [entradaSomaNovoTambor, setEntradaSomaNovoTambor] = useState(false)
 
   const itensConsumoFiltrados = useMemo(() => {
     const termo = deferredBuscaConsumo.trim().toLowerCase()
@@ -3138,14 +3139,25 @@ export function InventarioFerramentas() {
       {modalEntradaConsumoAberto && itemConsumoParaEntrada && (
         <ModalEntradaConsumo
           item={itemConsumoParaEntrada}
-          onClose={() => setModalEntradaConsumoAberto(false)}
+          onClose={() => {
+            setModalEntradaConsumoAberto(false)
+            setEntradaSomaNovoTambor(false)
+          }}
           onSucesso={async (qtdAdicionada) => {
             setModalEntradaConsumoAberto(false)
             try {
-              await registrarEntradaConsumo(itemConsumoParaEntrada, qtdAdicionada)
+              const atualizado = await registrarEntradaConsumo(itemConsumoParaEntrada, qtdAdicionada)
+              if (entradaSomaNovoTambor) {
+                await atualizarInsumo(atualizado.id, {
+                  ...atualizado,
+                  quantidade_tambores: (atualizado.quantidade_tambores || 0) + 1,
+                })
+              }
               await refetchInsumos()
             } catch (err) {
               setMensagemErro(err instanceof Error ? err.message : 'Erro ao repor estoque.')
+            } finally {
+              setEntradaSomaNovoTambor(false)
             }
           }}
         />
@@ -3325,6 +3337,39 @@ export function InventarioFerramentas() {
               await Promise.all([refetchInsumos(), refetchBaixasConsumo()])
             } catch (err) {
               setMensagemErro(err instanceof Error ? err.message : 'Erro ao excluir baixa de consumo.')
+            }
+          }}
+          onRepor={(it) => {
+            setItemConsumoParaEntrada(it)
+            setModalEntradaConsumoAberto(true)
+          }}
+          onAdicionarTambor={(it) => {
+            setItemConsumoParaEntrada(it)
+            setEntradaSomaNovoTambor(true)
+            setModalEntradaConsumoAberto(true)
+          }}
+          podeEditarItem={podeExcluir || !REGEX_UUID_INSUMO.test(itemConsumoHistorico.id) || canAccess}
+          onEditarItem={(it) => {
+            setItemConsumoEditando(it)
+            setModalItemConsumoAberto(true)
+          }}
+          onExcluirItem={async (it) => {
+            if (!confirm(`Deseja excluir o insumo "${it.nome}"?`)) return
+            try {
+              await excluirInsumo(it.id)
+              await refetchInsumos()
+              setItemConsumoHistorico(null)
+            } catch (err) {
+              setMensagemErro(err instanceof Error ? err.message : 'Erro ao excluir insumo.')
+            }
+          }}
+          onRemoverTambor={async (it) => {
+            if ((it.quantidade_tambores || 0) <= 0) return
+            try {
+              await atualizarInsumo(it.id, { ...it, quantidade_tambores: it.quantidade_tambores! - 1 })
+              await refetchInsumos()
+            } catch (err) {
+              setMensagemErro(err instanceof Error ? err.message : 'Erro ao remover tambor do estoque.')
             }
           }}
         />
@@ -3581,10 +3626,17 @@ function ModalHistoricoConsumo({
   onBaixar,
   onEditarBaixa,
   onExcluirBaixa,
+  onRepor,
+  onAdicionarTambor,
+  onEditarItem,
+  onExcluirItem,
+  onRemoverTambor,
+  podeEditarItem,
 }: {
   item: ItemConsumo
   baixas: RegistroBaixaConsumo[]
   podeGerenciar: boolean
+  podeEditarItem: boolean
   onClose: () => void
   onBaixar: (item: ItemConsumo) => void
   onEditarBaixa: (
@@ -3593,7 +3645,13 @@ function ModalHistoricoConsumo({
     podeAjustarQuantidade: boolean,
   ) => Promise<void>
   onExcluirBaixa: (baixa: RegistroBaixaConsumo, podeAjustarQuantidade: boolean) => Promise<void>
+  onRepor: (item: ItemConsumo) => void
+  onAdicionarTambor: (item: ItemConsumo) => void
+  onEditarItem: (item: ItemConsumo) => void
+  onExcluirItem: (item: ItemConsumo) => void
+  onRemoverTambor: (item: ItemConsumo) => void
 }) {
+  const [abaModal, setAbaModal] = useState<'estoque' | 'historico'>('estoque')
   const [busca, setBusca] = useState('')
   const [editandoBaixaId, setEditandoBaixaId] = useState<string | null>(null)
   const [formEdicao, setFormEdicao] = useState({ quantidade: '', responsavel: '', placa: '', motivo: '' })
@@ -3613,6 +3671,7 @@ function ModalHistoricoConsumo({
   }, [historico])
 
   const isBarril = Boolean(item.capacidade_maxima && item.capacidade_maxima > 0)
+  const ehCilindroGas = item.tipo_recipiente === 'cilindro_gas' || item.categoria === 'GÁS'
 
   function podeAjustarQuantidade(b: RegistroBaixaConsumo): boolean {
     if (!baixaMaisRecente || b.id !== baixaMaisRecente.id) return false
@@ -3675,7 +3734,7 @@ function ModalHistoricoConsumo({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in">
-      <div className="relative flex flex-col max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-3xl border border-border/25 bg-surface shadow-2xl animate-scale-in">
+      <div className="relative flex flex-col max-h-[95vh] w-full max-w-2xl overflow-hidden rounded-3xl border border-border/25 bg-surface shadow-2xl animate-scale-in">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between border-b border-border/15 p-5 bg-overlay/5">
           <div className="flex items-center gap-3.5 min-w-0">
@@ -3692,6 +3751,11 @@ function ModalHistoricoConsumo({
                 <span className="rounded-lg bg-overlay/5 border border-border/20 px-2 py-0.5 text-[10px] font-black uppercase text-secondary tracking-wider">
                   {item.categoria}
                 </span>
+                {Boolean(item.quantidade_tambores && item.quantidade_tambores > 0) && (
+                  <span className="rounded-lg bg-primary/10 border border-primary/30 px-2 py-0.5 text-[10px] font-black uppercase text-primary tracking-wider">
+                    {item.quantidade_tambores} {item.quantidade_tambores === 1 ? 'TAMBOR' : 'TAMBORES'} EM ESTOQUE
+                  </span>
+                )}
               </div>
               <h2 className="text-base font-black text-foreground uppercase truncate mt-0.5">
                 {item.nome}
@@ -3711,31 +3775,197 @@ function ModalHistoricoConsumo({
           </button>
         </div>
 
-        {/* Resumo de Estoque & Busca */}
-        <div className="p-5 pb-3 border-b border-border/10 space-y-3 bg-background/50">
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
-              <span className="text-[10px] font-black text-secondary uppercase">
-                {isBarril ? 'Nível Atual' : 'Estoque Atual'}
-              </span>
-              <p className="text-lg font-black font-mono text-emerald-500">
-                {isBarril ? `${pctBarril}%` : item.quantidade_atual.toLocaleString('pt-BR')}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
-              <span className="text-[10px] font-black text-secondary uppercase">Qtd. Atual</span>
-              <p className="text-lg font-black font-mono text-foreground">
-                {item.quantidade_atual.toLocaleString('pt-BR')} {item.unidade}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/15 bg-surface p-2.5">
-              <span className="text-[10px] font-black text-secondary uppercase">Total Baixado</span>
-              <p className="text-lg font-black font-mono text-amber-500">
-                {totalConsumido.toLocaleString('pt-BR')} {item.unidade}
-              </p>
-            </div>
-          </div>
+        {/* Abas: Estoque / Histórico de Baixas */}
+        <div className="flex shrink-0 border-b border-border/15 bg-overlay/5 px-5">
+          <button
+            type="button"
+            onClick={() => setAbaModal('estoque')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-colors ${
+              abaModal === 'estoque'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-secondary hover:text-foreground'
+            }`}
+          >
+            Estoque
+          </button>
+          <button
+            type="button"
+            onClick={() => setAbaModal('historico')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-colors ${
+              abaModal === 'historico'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-secondary hover:text-foreground'
+            }`}
+          >
+            Histórico de Baixas
+            <span className="text-[10px] font-bold opacity-70">({historico.length})</span>
+          </button>
+        </div>
 
+        {/* Tambores lado a lado — o em uso com o nível real, os de reserva cheios */}
+        {abaModal === 'estoque' && isBarril && (
+          <div className="flex shrink-0 items-center gap-3 overflow-x-auto overflow-y-visible border-b border-border/10 bg-background/30 px-5 py-3">
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => onRepor(item)}
+                title="Dar entrada de quantidade neste tambor"
+                className="cursor-pointer transition-transform hover:scale-[1.05] active:scale-95"
+              >
+                {ehCilindroGas ? (
+                  <CilindroGasSVG
+                    percentual={pctBarril}
+                    rotulo={`GV ${item.numero_tambor_atual || 1}`}
+                    className="h-20 w-20 animate-liquid-sway"
+                  />
+                ) : (
+                  <BarrilOleoSVG
+                    percentual={pctBarril}
+                    rotulo={`GV ${item.numero_tambor_atual || 1}`}
+                    className="h-20 w-20 animate-liquid-sway"
+                  />
+                )}
+              </button>
+              {podeEditarItem && (
+                <div className="absolute -top-1.5 -right-1.5 flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onEditarItem(item)}
+                    title="Editar dados do insumo (nome, categoria, capacidade...)"
+                    className="flex h-6 w-6 items-center justify-center rounded-full border border-border/40 bg-surface text-secondary shadow-md transition-colors hover:text-foreground"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onExcluirItem(item)}
+                    title="Excluir este insumo"
+                    className="flex h-6 w-6 items-center justify-center rounded-full border border-border/40 bg-surface text-secondary shadow-md transition-colors hover:text-red-400"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {Array.from({ length: item.quantidade_tambores || 0 }).map((_, i) => (
+              <div key={i} className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onRepor(item)}
+                  title="Dar entrada de quantidade — usa este tambor de reserva"
+                  className="cursor-pointer opacity-80 transition-transform hover:scale-[1.05] hover:opacity-100 active:scale-95"
+                >
+                  {ehCilindroGas ? (
+                    <CilindroGasSVG
+                      percentual={100}
+                      rotulo={`GV ${(item.numero_tambor_atual || 1) + i + 1}`}
+                      className="h-20 w-20"
+                    />
+                  ) : (
+                    <BarrilOleoSVG
+                      percentual={100}
+                      rotulo={`GV ${(item.numero_tambor_atual || 1) + i + 1}`}
+                      className="h-20 w-20"
+                    />
+                  )}
+                </button>
+                {podeEditarItem && (
+                  <div className="absolute -top-1.5 -right-1.5 flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onEditarItem(item)}
+                      title="Editar dados do insumo (nome, categoria, capacidade...)"
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-border/40 bg-surface text-secondary shadow-md transition-colors hover:text-foreground"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRemoverTambor(item)}
+                      title="Remover este tambor de reserva do estoque"
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-border/40 bg-surface text-secondary shadow-md transition-colors hover:text-red-400"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => onAdicionarTambor(item)}
+              title="Adicionar mais um tambor cheio ao estoque de reserva"
+              className="flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-primary/40 text-primary transition-colors hover:border-primary hover:bg-primary/10"
+            >
+              <Plus className="h-8 w-8" />
+            </button>
+          </div>
+        )}
+
+        {/* Resumo de Estoque */}
+        {abaModal === 'estoque' && (
+          <div className="p-5 pb-3 space-y-3 bg-background/50">
+            {isBarril ? (
+              <div className="grid grid-cols-5 divide-x divide-border/10 rounded-xl border border-border/15 bg-surface text-center overflow-hidden">
+                <div className="px-1.5 py-2.5">
+                  <span className="text-[9px] font-bold text-secondary uppercase tracking-wide leading-tight block">Tambor</span>
+                  <p className="text-sm font-black font-mono text-primary mt-0.5">
+                    GV {item.numero_tambor_atual || 1}
+                  </p>
+                </div>
+                <div className="px-1.5 py-2.5">
+                  <span className="text-[9px] font-bold text-secondary uppercase tracking-wide leading-tight block">Nível</span>
+                  <p className="text-sm font-black font-mono text-emerald-500 mt-0.5">{pctBarril}%</p>
+                </div>
+                <div className="px-1.5 py-2.5">
+                  <span className="text-[9px] font-bold text-secondary uppercase tracking-wide leading-tight block">Neste Tambor</span>
+                  <p className="text-sm font-black font-mono text-foreground mt-0.5">
+                    {item.quantidade_atual.toLocaleString('pt-BR')} {item.unidade}
+                  </p>
+                </div>
+                <div className="px-1.5 py-2.5">
+                  <span className="text-[9px] font-bold text-secondary uppercase tracking-wide leading-tight block">Total Estoque</span>
+                  <p className="text-sm font-black font-mono text-foreground mt-0.5">
+                    {(item.quantidade_atual + (item.quantidade_tambores || 0) * (item.capacidade_maxima || 0)).toLocaleString('pt-BR')} {item.unidade}
+                  </p>
+                </div>
+                <div className="px-1.5 py-2.5">
+                  <span className="text-[9px] font-bold text-secondary uppercase tracking-wide leading-tight block">Baixado</span>
+                  <p className="text-sm font-black font-mono text-amber-500 mt-0.5">
+                    {totalConsumido.toLocaleString('pt-BR')} {item.unidade}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 divide-x divide-border/10 rounded-xl border border-border/15 bg-surface text-center overflow-hidden">
+                <div className="px-2 py-2.5">
+                  <span className="text-[10px] font-bold text-secondary uppercase tracking-wide">Estoque Atual</span>
+                  <p className="text-lg font-black font-mono text-emerald-500 mt-0.5">
+                    {item.quantidade_atual.toLocaleString('pt-BR')}
+                  </p>
+                </div>
+                <div className="px-2 py-2.5">
+                  <span className="text-[10px] font-bold text-secondary uppercase tracking-wide">Qtd. Atual</span>
+                  <p className="text-lg font-black font-mono text-foreground mt-0.5">
+                    {item.quantidade_atual.toLocaleString('pt-BR')} {item.unidade}
+                  </p>
+                </div>
+                <div className="px-2 py-2.5">
+                  <span className="text-[10px] font-bold text-secondary uppercase tracking-wide">Total Baixado</span>
+                  <p className="text-lg font-black font-mono text-amber-500 mt-0.5">
+                    {totalConsumido.toLocaleString('pt-BR')} {item.unidade}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Lista de Baixas / Histórico */}
+        {abaModal === 'historico' && (
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
             <input
@@ -3745,10 +3975,6 @@ function ModalHistoricoConsumo({
               className="h-10 w-full rounded-xl border border-border/25 bg-surface pl-10 pr-4 text-xs uppercase text-foreground placeholder:text-secondary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
             />
           </div>
-        </div>
-
-        {/* Lista de Baixas / Histórico */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black uppercase tracking-wider text-secondary flex items-center gap-1.5">
               <Clock className="h-4 w-4 text-primary" />
@@ -3765,38 +3991,37 @@ function ModalHistoricoConsumo({
               </p>
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="rounded-2xl border border-border/15 bg-surface divide-y divide-border/10 overflow-hidden">
               {filtrado.map((b) => (
                 <div
                   key={b.id}
-                  className="rounded-2xl border border-border/20 bg-surface/90 p-3.5 space-y-2.5 hover:border-primary/30 transition-all shadow-sm"
+                  className="px-4 py-3 space-y-2 hover:bg-overlay/5 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-black font-mono text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 text-xs">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-black font-mono text-amber-500 text-xs">
                         −{b.quantidade.toLocaleString('pt-BR')} {b.unidade}
                       </span>
                       {isBarril && b.numero_tambor && (
-                        <div className="flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/25 px-2.5 py-1">
-                          <span className="text-xs">🛢️</span>
-                          <span className="text-xs font-black font-mono text-primary">GV {b.numero_tambor}</span>
-                        </div>
+                        <span className="flex items-center gap-1 text-xs font-bold font-mono text-primary before:content-['·'] before:text-border/50 before:mr-0.5">
+                          🛢️ GV {b.numero_tambor}
+                        </span>
                       )}
                       {isBarril && b.quantidade_restante != null && (
-                        <span className="font-black font-mono text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 text-xs">
-                          RESTOU {b.quantidade_restante.toLocaleString('pt-BR')} {b.unidade}
+                        <span className="text-[11px] font-semibold font-mono text-secondary before:content-['·'] before:text-border/50 before:mr-1">
+                          restou {b.quantidade_restante.toLocaleString('pt-BR')} {b.unidade}
                         </span>
                       )}
                       {b.placa && (
-                        <div className="flex items-center gap-1.5 rounded-lg bg-background border border-border/30 px-2.5 py-1">
-                          <Truck className="h-3.5 w-3.5 text-primary" />
-                          <span className="text-xs font-black font-mono text-foreground">{b.placa}</span>
+                        <div className="flex items-center gap-1 rounded-md bg-background border border-border/30 px-1.5 py-0.5 ml-0.5">
+                          <Truck className="h-3 w-3 text-primary" />
+                          <span className="text-[11px] font-black font-mono text-foreground">{b.placa}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[11px] font-mono text-secondary font-semibold">
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[11px] font-mono text-secondary">
                         {format(new Date(b.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                       </span>
                       {podeGerenciar && editandoBaixaId !== b.id && (
@@ -3896,36 +4121,32 @@ function ModalHistoricoConsumo({
                       </div>
                     </div>
                   ) : (
-                    <>
-                      <div className="flex items-center gap-2 text-xs pt-1 border-t border-border/10">
-                        {b.foto_responsavel_url ? (
-                          <img
-                            src={b.foto_responsavel_url}
-                            alt={obterNomeCompletoMembro(b.responsavel)}
-                            loading="lazy"
-                            decoding="async"
-                            className="h-6 w-6 rounded-full object-cover border border-primary/40"
-                          />
-                        ) : (
-                          <span className="text-xs">👤</span>
-                        )}
-                        <span className="font-black text-foreground uppercase">
-                          {obterNomeCompletoMembro(b.responsavel)}
-                        </span>
-                      </div>
-
-                      {b.motivo && (
-                        <p className="text-[11px] text-secondary italic bg-background/50 rounded-xl p-2 border border-border/10">
-                          "{b.motivo}"
-                        </p>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      {b.foto_responsavel_url ? (
+                        <img
+                          src={b.foto_responsavel_url}
+                          alt={obterNomeCompletoMembro(b.responsavel)}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-5 w-5 rounded-full object-cover border border-primary/40"
+                        />
+                      ) : (
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-overlay/10 text-[10px]">👤</span>
                       )}
-                    </>
+                      <span className="font-bold text-foreground uppercase">
+                        {obterNomeCompletoMembro(b.responsavel)}
+                      </span>
+                      {b.motivo && (
+                        <span className="text-secondary italic truncate">— "{b.motivo}"</span>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
             </div>
           )}
         </div>
+        )}
 
         {/* Rodapé */}
         <div className="flex items-center justify-between border-t border-border/15 p-4 bg-overlay/5">
