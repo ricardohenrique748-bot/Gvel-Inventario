@@ -5175,7 +5175,7 @@ function ModalRetirada({
                 {mecanicosConhecidos.length > 0 && (
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <span className="text-[9px] uppercase font-black tracking-wider text-secondary mr-0.5">Mecânicos:</span>
-                    {mecanicosConhecidos.slice(0, 5).map((m) => {
+                    {mecanicosConhecidos.map((m) => {
                       const isSel = responsavel.toUpperCase().trim() === m.nome
                       return (
                         <button

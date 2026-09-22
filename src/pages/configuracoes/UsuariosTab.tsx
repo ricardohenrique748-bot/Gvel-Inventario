@@ -797,7 +797,7 @@ function EditarUsuarioForm({
     handleSubmit,
     control,
     watch,
-    formState: { isSubmitting },
+    formState: { isSubmitting, isDirty },
   } = useForm<EditFormValues>({
     resolver: zodResolver(editSchema),
     defaultValues: {
@@ -810,6 +810,13 @@ function EditarUsuarioForm({
   })
 
   const nivelWatch = watch('nivel')
+
+  function handleCancelar() {
+    if (isDirty && !confirm('Existem alterações não salvas (dados ou permissões marcadas). Se sair agora, elas serão descartadas. Deseja realmente sair sem salvar?')) {
+      return
+    }
+    onCancel()
+  }
 
   const [fotoUrl, setFotoUrl] = useState(usuario.foto_url || '')
   const [enviandoFoto, setEnviandoFoto] = useState(false)
@@ -863,7 +870,7 @@ function EditarUsuarioForm({
         </h4>
         <button
           type="button"
-          onClick={onCancel}
+          onClick={handleCancelar}
           className="text-secondary hover:text-foreground transition-colors"
         >
           <X className="h-4 w-4" />
@@ -941,7 +948,7 @@ function EditarUsuarioForm({
       />
 
       <div className="flex justify-end gap-2.5 pt-2">
-        <Button type="button" variant="secondary" onClick={onCancel} aria-label="Cancelar edição">
+        <Button type="button" variant="secondary" onClick={handleCancelar} aria-label="Cancelar edição">
           Cancelar
         </Button>
         <Button type="submit" disabled={isSubmitting}>
