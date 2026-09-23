@@ -36,7 +36,8 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { useUsuarios, criarUsuario, excluirUsuario, atualizarUsuario, resetarSenha, uploadFotoUsuario } from '@/hooks/useUsuarios'
 import { useAuth } from '@/contexts/AuthContext'
-import { useEmpresa } from '@/contexts/EmpresaContext'
+import { useEmpresa, type Empresa } from '@/contexts/EmpresaContext'
+import { useCompanies } from '@/hooks/useCompanies'
 import { RecortarFotoModal } from '@/components/RecortarFotoModal'
 import { formatDate } from '@/lib/format'
 import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, getModulosUsuario, type ModuloSistema } from '@/lib/permissoes'
@@ -312,8 +313,22 @@ function ModulosSelector({ nivel, selected, onChange }: ModulosSelectorProps) {
 }
 
 export function UsuariosTab() {
-  const { perfil, user } = useAuth()
-  const { empresas, empresaAtiva } = useEmpresa()
+  const { perfil, user, isMasterAdmin } = useAuth()
+  const { empresas: minhaEmpresa, empresaAtiva } = useEmpresa()
+  const { empresas: todasEmpresas } = useCompanies()
+  // Admin comum só vincula usuários à própria empresa (é o que useEmpresa()
+  // já devolve). Master admin pode escolher entre todas as empresas
+  // cadastradas na plataforma — daí a lista vir de useCompanies() nesse caso.
+  const empresas: Empresa[] = isMasterAdmin
+    ? todasEmpresas.map((c) => ({
+        id: c.id,
+        nome: c.name,
+        sistemaLabel: c.sistema_label,
+        cor: c.primary_color,
+        cnpj: c.cnpj ?? undefined,
+        observacoes: c.observacoes ?? undefined,
+      }))
+    : minhaEmpresa
   const isAdmin = perfil?.nivel === 'admin' || user?.email === 'ricardo_h.16@hotmail.com' || user?.email === 'victor@gveldiesel.com'
   const { usuarios, loading, refetch } = useUsuarios()
   const [filtroEmpresa, setFiltroEmpresa] = useState<string>('TODAS')
@@ -600,6 +615,7 @@ export function UsuariosTab() {
                     <EditarUsuarioForm
                       key={u.id}
                       usuario={u}
+                      empresas={empresas}
                       onCancel={() => setEditandoId(null)}
                       onSalvo={async () => {
                         setEditandoId(null)
@@ -782,16 +798,17 @@ export function UsuariosTab() {
 
 function EditarUsuarioForm({
   usuario,
+  empresas,
   onCancel,
   onSalvo,
   onErro,
 }: {
   usuario: Usuario
+  empresas: Empresa[]
   onCancel: () => void
   onSalvo: () => void | Promise<void>
   onErro: (message: string) => void
 }) {
-  const { empresas } = useEmpresa()
   const {
     register,
     handleSubmit,
