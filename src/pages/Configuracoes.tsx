@@ -10,7 +10,7 @@ import { NotificacoesTab } from '@/pages/configuracoes/NotificacoesTab'
 import { EmpresasTab } from '@/pages/configuracoes/EmpresasTab'
 import { Users, Truck, UserCheck, Bell, Building2, ShieldAlert, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { temPermissaoModulo } from '@/lib/permissoes'
+import { temPermissaoModulo, temAcessoModuloEmpresa } from '@/lib/permissoes'
 
 const ALL_TABS = [
   { id: 'empresas', subId: 'config_empresas', label: 'Empresas', icon: Building2 },
@@ -24,18 +24,21 @@ const ALL_TABS = [
 type TabId = (typeof ALL_TABS)[number]['id']
 
 export function Configuracoes() {
-  const { perfil, user, perfilLoading } = useAuth()
+  const { perfil, user, perfilLoading, empresa } = useAuth()
   const isAdmin = perfil?.nivel === 'admin' || user?.email === 'ricardo_h.16@hotmail.com' || user?.email === 'victor@gveldiesel.com'
   const userRef = perfil || { email: user?.email }
 
-  // Filtra as abas autorizadas para o usuário logado
+  // Filtra as abas autorizadas para o usuário logado — combina permissão do
+  // usuário com o que a empresa dele tem habilitado (ex.: Notificações pode
+  // ficar desligada pra uma empresa mesmo pro admin dela).
   const allowedTabs = useMemo(() => {
-    if (isAdmin) return ALL_TABS
     return ALL_TABS.filter((t) => {
+      if (!temAcessoModuloEmpresa(empresa, t.subId)) return false
+      if (isAdmin) return true
       if (t.id === 'usuarios') return false // Apenas administradores podem ver ou gerenciar usuários
       return temPermissaoModulo(userRef, t.subId)
     })
-  }, [isAdmin, userRef])
+  }, [isAdmin, userRef, empresa])
 
   const [searchParams] = useSearchParams()
   const tabParam = searchParams.get('tab') as TabId | null

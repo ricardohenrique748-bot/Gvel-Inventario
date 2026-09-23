@@ -332,9 +332,13 @@ export function temPermissaoModulo(
 /**
  * Módulos que nunca são escondidos pela restrição por empresa — mesmo numa
  * empresa com menu reduzido, o admin/usuário precisa continuar conseguindo
- * chegar em Configurações pra gerenciar a própria conta/empresa.
+ * chegar em Configurações pra gerenciar a própria conta/empresa. As abas de
+ * Configurações abaixo (exceto Notificações) são cadastros básicos que toda
+ * empresa precisa; só Notificações é realmente opcional/desligável.
  */
-const MODULOS_SEMPRE_LIBERADOS_EMPRESA = ['configuracoes']
+const MODULOS_SEMPRE_LIBERADOS_EMPRESA = [
+  'configuracoes', 'config_empresas', 'config_clientes', 'config_frota', 'config_patios', 'config_usuarios',
+]
 
 /**
  * Verifica se um MÓDULO (não sub-aba) está liberado para a empresa. Isso é

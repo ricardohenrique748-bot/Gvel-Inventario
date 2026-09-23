@@ -9,6 +9,7 @@ import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa } from '@/contexts/EmpresaContext'
 import { useEmpresasVisiveis } from '@/hooks/useCompanies'
+import { temAcessoModuloEmpresa } from '@/lib/permissoes'
 import { cn } from '@/lib/cn'
 
 interface PageHeaderProps {
@@ -164,11 +165,12 @@ function MobileCompanySwitcher() {
 }
 
 export function MobileTopBar() {
+  const { empresa } = useAuth()
   return (
     <div className="md:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border/15 bg-surface/95 backdrop-blur-md px-4 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-3 gap-3 shadow-sm">
       <MobileCompanySwitcher />
       <div className="flex items-center gap-2 shrink-0">
-        <NotificacoesDropdown />
+        {temAcessoModuloEmpresa(empresa, 'config_notificacoes') && <NotificacoesDropdown />}
         <ThemeToggleButton />
       </div>
     </div>

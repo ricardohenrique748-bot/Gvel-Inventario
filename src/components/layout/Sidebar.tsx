@@ -299,7 +299,7 @@ export function Sidebar() {
           <CompanySwitcher />
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <NotificacoesDropdown />
+          {temAcessoModuloEmpresa(empresa, 'config_notificacoes') && <NotificacoesDropdown />}
         </div>
       </div>
 
