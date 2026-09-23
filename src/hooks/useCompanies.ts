@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa, type Empresa } from '@/contexts/EmpresaContext'
 import type { Company, CompanyStatus } from '@/lib/types'
@@ -37,9 +37,22 @@ function empresaFromCompany(c: Company): Empresa {
     nome: c.name,
     sistemaLabel: c.sistema_label,
     cor: c.primary_color,
+    logo: c.logo ?? undefined,
     cnpj: c.cnpj ?? undefined,
     observacoes: c.observacoes ?? undefined,
   }
+}
+
+/** Sobe a logo de uma empresa pro Storage e devolve a URL pública pra salvar em companies.logo. */
+export async function uploadLogoEmpresa(file: File, companyId: string): Promise<string> {
+  const ext = file.name.split('.').pop() || 'png'
+  const path = `${companyId}/logos/logo-${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
+    cacheControl: '3600',
+    upsert: true,
+  })
+  if (error) throw new Error(error.message)
+  return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
 }
 
 /**

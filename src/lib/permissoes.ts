@@ -1,4 +1,4 @@
-import type { Usuario } from './types'
+import type { Company, Usuario } from './types'
 
 export interface SubModuloSistema {
   id: string
@@ -327,4 +327,27 @@ export function temPermissaoModulo(
   }
 
   return false
+}
+
+/**
+ * Módulos que nunca são escondidos pela restrição por empresa — mesmo numa
+ * empresa com menu reduzido, o admin/usuário precisa continuar conseguindo
+ * chegar em Configurações pra gerenciar a própria conta/empresa.
+ */
+const MODULOS_SEMPRE_LIBERADOS_EMPRESA = ['configuracoes']
+
+/**
+ * Verifica se um MÓDULO (não sub-aba) está liberado para a empresa. Isso é
+ * independente da permissão do usuário (temPermissaoModulo) — os dois
+ * precisam liberar pro item aparecer no menu. `modulos_habilitados: null`
+ * (padrão de toda empresa nova/existente) significa "sem restrição".
+ */
+export function temAcessoModuloEmpresa(
+  empresa: Pick<Company, 'modulos_habilitados'> | null | undefined,
+  moduloId: string,
+): boolean {
+  if (MODULOS_SEMPRE_LIBERADOS_EMPRESA.includes(moduloId)) return true
+  const habilitados = empresa?.modulos_habilitados
+  if (!habilitados || habilitados.length === 0) return true
+  return habilitados.includes(moduloId)
 }

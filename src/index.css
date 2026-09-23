@@ -12,6 +12,10 @@
     --color-secondary: 107 114 128;
     --color-border: 24 24 27;
     --color-overlay: 24 24 27;
+    /* Cor de marca — padrão (GVEL). Trocada em runtime por empresa, ver
+       EmpresaContext.tsx, que aplica a cor cadastrada em `companies.primary_color`. */
+    --color-primary: 226 59 46;
+    --color-primary-hover: 199 48 31;
   }
 
   html.dark {

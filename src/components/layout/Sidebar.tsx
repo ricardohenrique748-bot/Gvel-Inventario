@@ -9,6 +9,7 @@ import { navItems, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinance
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa } from '@/contexts/EmpresaContext'
 import { useEmpresasVisiveis } from '@/hooks/useCompanies'
+import { temAcessoModuloEmpresa } from '@/lib/permissoes'
 import { cn } from '@/lib/cn'
 import { isNativeApp } from '@/lib/isNativeApp'
 import { uploadFotoUsuario, atualizarUsuario } from '@/hooks/useUsuarios'
@@ -131,7 +132,7 @@ function CompanySwitcher() {
 }
 
 export function Sidebar() {
-  const { signOut, user, perfil, perfilLoading, refetchPerfil } = useAuth()
+  const { signOut, user, perfil, perfilLoading, refetchPerfil, empresa } = useAuth()
   const [search, setSearch] = useState('')
   const native = isNativeApp()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
@@ -173,14 +174,14 @@ export function Sidebar() {
   }
 
   const canAccessKanban = isKanbanAuthorized(userRef)
-  const canAccessDashboardGerencial = isDashboardGerencialAuthorized(userRef)
-  const canAccessFinanceiro = isFinanceiroAuthorized(userRef)
-  const canAccessRh = isRhAuthorized(userRef)
+  const canAccessDashboardGerencial = isDashboardGerencialAuthorized(userRef) && temAcessoModuloEmpresa(empresa, 'dashboard_gerencial')
+  const canAccessFinanceiro = isFinanceiroAuthorized(userRef) && temAcessoModuloEmpresa(empresa, 'financeiro')
+  const canAccessRh = isRhAuthorized(userRef) && temAcessoModuloEmpresa(empresa, 'rh')
   const canAccessRelatorios = isRelatoriosAuthorized(userRef)
-  const canAccessEstoque = isEstoqueAuthorized(userRef, native)
-  const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao')
-  const canAccessInventarioCaminhoes = isModuloAuthorized(userRef, 'inventario_caminhoes')
-  const canAccessFrotas = isModuloAuthorized(userRef, 'frotas')
+  const canAccessEstoque = isEstoqueAuthorized(userRef, native) && temAcessoModuloEmpresa(empresa, 'estoque')
+  const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao') && temAcessoModuloEmpresa(empresa, 'manutencao')
+  const canAccessInventarioCaminhoes = isModuloAuthorized(userRef, 'inventario_caminhoes') && temAcessoModuloEmpresa(empresa, 'inventario_caminhoes')
+  const canAccessFrotas = isModuloAuthorized(userRef, 'frotas') && temAcessoModuloEmpresa(empresa, 'frotas')
   const canAccessConfiguracoes = isAdmin || isModuloAuthorized(userRef, 'configuracoes')
   const location = useLocation()
 
@@ -226,7 +227,7 @@ export function Sidebar() {
       .map((item) => {
         if ('children' in item && item.children && (item as any).children.length > 0) {
           const filteredChildren = ((item as any).children as any[]).filter((c: any) => {
-            if (c.to === '/controle-horas') return isModuloAuthorized(userRef, 'dashboard_controle_horas')
+            if (c.to === '/controle-horas') return isModuloAuthorized(userRef, 'dashboard_controle_horas') && temAcessoModuloEmpresa(empresa, 'dashboard_controle_horas')
             if (c.to === '/') return isModuloAuthorized(userRef, 'caminhoes_dashboard')
             if (c.to === '/movimentacoes') return isModuloAuthorized(userRef, 'caminhoes_movimentacoes')
             if (c.to === '/frotas') return isModuloAuthorized(userRef, 'frotas_dashboard')

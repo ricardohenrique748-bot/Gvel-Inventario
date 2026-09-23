@@ -4,6 +4,7 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { HomeRedirect } from '@/components/HomeRedirect'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Login } from '@/pages/Login'
 import { OrbitSplash, ORBIT_SPLASH_MS } from '@/components/OrbitSplash'
@@ -91,7 +92,7 @@ export default function App() {
                     </ProtectedRoute>
                   }
                 >
-                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/" element={<HomeRedirect><Dashboard /></HomeRedirect>} />
                   <Route path="/controle-horas" element={<ControleDeHoras />} />
                   <Route path="/movimentacoes" element={<Movimentacoes />} />
                   <Route path="/movimentacoes/nova" element={<RegistrarEntrada />} />

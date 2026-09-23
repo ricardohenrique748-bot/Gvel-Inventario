@@ -3,19 +3,25 @@ import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import { up } from '@/lib/text'
 import { salvarPermissoesUsuario, getModulosUsuario } from '@/lib/permissoes'
 import { comPrefixoEmpresa } from '@/lib/tenant'
+import { useAuth } from '@/contexts/AuthContext'
 import type { NivelUsuario, Usuario } from '@/lib/types'
 
 export function useUsuarios() {
+  const { perfil } = useAuth()
+  const companyId = perfil?.company_id
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const refetch = useCallback(async () => {
+    if (!companyId) return
     setLoading(true)
-    // O RLS já filtra pela empresa do usuário autenticado (ver migration
-    // 0072_multiempresa_companies.sql) — este select nunca traz usuário de
-    // outra empresa, então não há mais necessidade de filtrar no cliente.
-    const { data, error } = await supabase.from('usuarios').select('*').order('nome')
+    // O RLS já restringe usuário comum à própria empresa. Master admin tem
+    // acesso de escrita a todas via RLS (necessário pra mover usuário entre
+    // empresas e pro próprio switcher de empresa) — mas a listagem sempre
+    // filtra explicitamente pela empresa ativa no momento, senão master
+    // admin veria todo mundo de todas as empresas misturado.
+    const { data, error } = await supabase.from('usuarios').select('*').eq('company_id', companyId).order('nome')
     if (error) {
       setError(error.message)
     } else {
@@ -27,7 +33,7 @@ export function useUsuarios() {
       setUsuarios(listaTratada)
     }
     setLoading(false)
-  }, [])
+  }, [companyId])
 
   useEffect(() => {
     refetch()

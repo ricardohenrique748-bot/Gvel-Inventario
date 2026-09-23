@@ -9,8 +9,8 @@ export default {
         surface: 'rgb(var(--color-surface) / <alpha-value>)',
         'surface-hover': 'rgb(var(--color-surface-hover) / <alpha-value>)',
         primary: {
-          DEFAULT: '#E23B2E',
-          hover: '#C7301F',
+          DEFAULT: 'rgb(var(--color-primary) / <alpha-value>)',
+          hover: 'rgb(var(--color-primary-hover) / <alpha-value>)',
         },
         secondary: 'rgb(var(--color-secondary) / <alpha-value>)',
         foreground: 'rgb(var(--color-foreground) / <alpha-value>)',

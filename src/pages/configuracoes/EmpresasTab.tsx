@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Building2, Check, Loader2, Pencil, Plus, Power, Search, Trash2, X } from 'lucide-react'
+import { Building2, Camera, Check, Loader2, Pencil, Plus, Power, Search, Trash2, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { useCompanies, criarEmpresa, atualizarEmpresa, excluirEmpresa } from '@/hooks/useCompanies'
+import { useCompanies, criarEmpresa, atualizarEmpresa, excluirEmpresa, uploadLogoEmpresa } from '@/hooks/useCompanies'
 import type { Company } from '@/lib/types'
 import { buscarCnpj, formatCnpj } from '@/lib/cnpj'
 import { useAuth } from '@/contexts/AuthContext'
@@ -44,6 +44,9 @@ export function EmpresasTab() {
   const [buscandoCnpj, setBuscandoCnpj] = useState(false)
   const [cnpjInfo, setCnpjInfo] = useState<string | null>(null)
   const [alterandoStatusId, setAlterandoStatusId] = useState<string | null>(null)
+  const [logoUrl, setLogoUrl] = useState('')
+  const [enviandoLogo, setEnviandoLogo] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -67,6 +70,7 @@ export function EmpresasTab() {
     setEditandoId(empresa.id)
     setMostrarForm(true)
     setCnpjInfo(null)
+    setLogoUrl(empresa.logo ?? '')
     reset({
       name: empresa.name,
       sistema_label: empresa.sistema_label,
@@ -79,6 +83,7 @@ export function EmpresasTab() {
   function abrirNovaEmpresa() {
     setEditandoId(null)
     setCnpjInfo(null)
+    setLogoUrl('')
     const proximaCor = CORES_PRESETS[empresas.length % CORES_PRESETS.length]?.value ?? '#1E3A5F'
     reset({
       name: '',
@@ -94,7 +99,24 @@ export function EmpresasTab() {
     setMostrarForm(false)
     setEditandoId(null)
     setCnpjInfo(null)
+    setLogoUrl('')
     reset({ name: '', sistema_label: 'CENTER TRUCK', primary_color: '#E23B2E', cnpj: '', observacoes: '' })
+  }
+
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !editandoId) return
+    setEnviandoLogo(true)
+    setErro(null)
+    try {
+      const url = await uploadLogoEmpresa(file, editandoId)
+      setLogoUrl(url)
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível enviar a logo.')
+    } finally {
+      setEnviandoLogo(false)
+    }
   }
 
   async function handleBuscarCnpj(cnpjVal?: string) {
@@ -136,6 +158,9 @@ export function EmpresasTab() {
     const dadosFormatados = {
       ...values,
       cnpj: values.cnpj ? formatCnpj(values.cnpj) : '',
+      // Sem `|| undefined` de propósito: precisa poder mandar string vazia
+      // pra realmente limpar a logo no banco (botão "remover logo").
+      logo: logoUrl,
     }
     try {
       if (editandoId) {
@@ -358,22 +383,55 @@ export function EmpresasTab() {
                 />
               </div>
 
-              {/* Preview */}
+              {/* Preview + Logo */}
               <div className="rounded-xl border border-border/30 bg-overlay/5 p-3 flex items-center gap-3">
-                <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white font-black text-sm shadow-md"
+                <button
+                  type="button"
+                  onClick={() => editandoId && logoInputRef.current?.click()}
+                  disabled={!editandoId || enviandoLogo}
+                  title={editandoId ? 'Clique para trocar a logo' : 'Salve a empresa antes de adicionar a logo'}
+                  className="group relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl text-white font-black text-sm shadow-md disabled:cursor-not-allowed"
                   style={{ backgroundColor: corAtual }}
                 >
-                  <Building2 className="h-4 w-4" />
-                </div>
-                <div>
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Building2 className="h-4 w-4" />
+                  )}
+                  {editandoId && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Camera className={`h-3.5 w-3.5 text-white ${enviandoLogo ? 'animate-pulse' : ''}`} />
+                    </span>
+                  )}
+                </button>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoChange}
+                />
+                <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-foreground uppercase tracking-wider">
                     {watch('sistema_label') || 'SISTEMA'}
                   </p>
                   <p className="text-[11px] text-secondary uppercase tracking-wide">
                     {watch('name') || 'Nome da Empresa'}
                   </p>
+                  <p className="text-[10px] text-secondary/60 mt-0.5">
+                    {editandoId ? 'Clique no ícone para trocar a logo' : 'Salve a empresa para poder adicionar uma logo'}
+                  </p>
                 </div>
+                {logoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setLogoUrl('')}
+                    title="Remover logo (volta pro símbolo padrão)"
+                    className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-secondary hover:bg-status-error/10 hover:text-status-error transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
 
               <div className="flex gap-2 justify-end">
@@ -401,12 +459,16 @@ export function EmpresasTab() {
             <Card key={empresa.id}>
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  {/* Ícone colorido */}
+                  {/* Ícone / Logo */}
                   <div
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-md"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl text-white shadow-md"
                     style={{ backgroundColor: empresa.primary_color, opacity: isInativa ? 0.5 : 1 }}
                   >
-                    <Building2 className="h-5 w-5" />
+                    {empresa.logo ? (
+                      <img src={empresa.logo} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Building2 className="h-5 w-5" />
+                    )}
                   </div>
 
                   {/* Info */}

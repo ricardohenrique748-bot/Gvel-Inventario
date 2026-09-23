@@ -31,6 +31,10 @@ export interface Company {
   secondary_color: string | null
   observacoes: string | null
   status: CompanyStatus
+  /** `null` = sem restrição, todos os módulos liberados (padrão). Preenchido = só esses módulos aparecem no menu da empresa. */
+  modulos_habilitados: string[] | null
+  /** Mostra os campos extras (cliente, veículo, vencimento, forma/status de pagamento) no lançamento do Fluxo de Caixa. */
+  financeiro_campos_estendidos: boolean
   created_at: string
   updated_at: string
 }
@@ -415,6 +419,9 @@ export interface RegistroViagem {
   createdAt: string
 }
 
+/** Livre — cada empresa usa os status que fizer sentido (Pago, Pendente, Cancelado, Isento, etc). */
+export type StatusPagamentoLancamento = string
+
 export interface LancamentoFluxoCaixa {
   id: string
   data: string
@@ -424,6 +431,15 @@ export interface LancamentoFluxoCaixa {
   observacao?: string
   usuarioNome?: string
   createdAt: string
+  /** Campos estendidos (ver companies.financeiro_campos_estendidos) — opcionais, nem toda empresa usa. */
+  clienteId?: string
+  clienteNome?: string
+  veiculoId?: string
+  veiculoPlaca?: string
+  quantidadeVeiculos?: number
+  dataVencimento?: string
+  formaPagamento?: string
+  statusPagamento?: StatusPagamentoLancamento
 }
 
 export interface Fornecedor {

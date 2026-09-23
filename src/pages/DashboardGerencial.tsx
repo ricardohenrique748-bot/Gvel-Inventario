@@ -29,9 +29,11 @@ import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useClientes } from '@/hooks/useClientes'
 import { useUsuarios } from '@/hooks/useUsuarios'
 import { isDashboardGerencialAuthorized, isEstoqueAuthorized } from '@/components/layout/nav'
+import { temAcessoModuloEmpresa } from '@/lib/permissoes'
 
 export function DashboardGerencial() {
-  const { perfil, user, perfilLoading } = useAuth()
+  const { perfil, user, perfilLoading, empresa } = useAuth()
+  const temPatio = temAcessoModuloEmpresa(empresa, 'inventario_caminhoes')
   const { movimentacoes, loading: loadingMovs } = useMovimentacoes()
   const { clientes, loading: loadingClientes } = useClientes()
   const { usuarios, loading: loadingUsuarios } = useUsuarios()
@@ -202,14 +204,30 @@ export function DashboardGerencial() {
     },
   ]
 
+  const MODULO_POR_ATALHO: Record<string, string> = {
+    '/controle-horas': 'dashboard_controle_horas',
+    '/inventario-caminhoes': 'inventario_caminhoes',
+    '/frotas': 'frotas',
+    '/movimentacoes': 'inventario_caminhoes',
+    '/inventario-ferramentas': 'estoque',
+    '/financeiro': 'financeiro',
+    '/kanban': 'kanban',
+    '/kanban-vamos': 'kanban',
+    '/rh': 'rh',
+    '/manutencao': 'manutencao',
+    '/relatorios': 'relatorios',
+  }
+
   const atalhosExibidos = useMemo(() => {
     return atalhos.filter((item) => {
+      const moduloId = MODULO_POR_ATALHO[item.to]
+      if (moduloId && !temAcessoModuloEmpresa(empresa, moduloId)) return false
       if (item.to === '/inventario-ferramentas') {
         return isEstoqueAuthorized(perfil || { email: user?.email })
       }
       return true
     })
-  }, [atalhos, perfil, user?.email])
+  }, [atalhos, perfil, user?.email, empresa])
 
   return (
     <div className="space-y-6 animate-fade-in uppercase">
@@ -264,31 +282,35 @@ export function DashboardGerencial() {
 
       {/* Cards de Métricas Principais */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 uppercase">
-        <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-secondary">NO PÁTIO</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
-              <Truck className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
-            {loadingMovs ? '—' : metricas.noPatio}
-          </p>
-          <p className="mt-1 text-xs text-secondary uppercase font-medium">VEÍCULOS EM ATENDIMENTO</p>
-        </Card>
+        {temPatio && (
+          <>
+            <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-secondary">NO PÁTIO</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+                  <Truck className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
+                {loadingMovs ? '—' : metricas.noPatio}
+              </p>
+              <p className="mt-1 text-xs text-secondary uppercase font-medium">VEÍCULOS EM ATENDIMENTO</p>
+            </Card>
 
-        <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-secondary">MOVIMENTAÇÕES</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
-              <Activity className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
-            {loadingMovs ? '—' : metricas.totalMovimentacoes}
-          </p>
-          <p className="mt-1 text-xs text-secondary uppercase font-medium">REGISTROS NO HISTÓRICO</p>
-        </Card>
+            <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-secondary">MOVIMENTAÇÕES</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                  <Activity className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
+                {loadingMovs ? '—' : metricas.totalMovimentacoes}
+              </p>
+              <p className="mt-1 text-xs text-secondary uppercase font-medium">REGISTROS NO HISTÓRICO</p>
+            </Card>
+          </>
+        )}
 
         <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
           <div className="flex items-center justify-between">

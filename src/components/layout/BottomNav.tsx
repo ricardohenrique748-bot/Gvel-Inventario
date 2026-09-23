@@ -3,21 +3,22 @@ import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck 
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
+import { temAcessoModuloEmpresa } from '@/lib/permissoes'
 
 import { isEstoqueAuthorized, isModuloAuthorized } from './nav'
 
 export function BottomNav() {
-  const { signOut, user, perfil, perfilLoading } = useAuth()
+  const { signOut, user, perfil, perfilLoading, empresa } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const native = isNativeApp()
   const isAdmin = !perfilLoading && perfil?.nivel === 'admin'
   const userRef = perfil || { email: user?.email }
 
-  const canAccessEstoque = isEstoqueAuthorized(userRef, native)
-  const canAccessFrotas = isModuloAuthorized(userRef, 'frotas')
-  const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao')
-  const canAccessPatio = isModuloAuthorized(userRef, 'inventario_caminhoes')
+  const canAccessEstoque = isEstoqueAuthorized(userRef, native) && temAcessoModuloEmpresa(empresa, 'estoque')
+  const canAccessFrotas = isModuloAuthorized(userRef, 'frotas') && temAcessoModuloEmpresa(empresa, 'frotas')
+  const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao') && temAcessoModuloEmpresa(empresa, 'manutencao')
+  const canAccessPatio = isModuloAuthorized(userRef, 'inventario_caminhoes') && temAcessoModuloEmpresa(empresa, 'inventario_caminhoes')
   const canAccessConfiguracoes =
     isAdmin ||
     isModuloAuthorized(userRef, 'configuracoes') ||

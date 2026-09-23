@@ -13,7 +13,6 @@ import {
   Scale,
   RotateCcw,
   List,
-  RefreshCw,
   X,
   CheckCircle2,
   ShieldAlert,
@@ -27,6 +26,9 @@ import {
   Trash2,
   Loader2,
   AlertTriangle,
+  Users,
+  Truck,
+  CreditCard,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -45,6 +47,7 @@ import { Badge } from '@/components/ui/Badge'
 import { GlassButton } from '@/components/ui/glass-button'
 import { useAuth } from '@/contexts/AuthContext'
 import { isFinanceiroAuthorized, isModuloAuthorized } from '@/components/layout/nav'
+import { useClientes } from '@/hooks/useClientes'
 import {
   useFluxoCaixaLancamentos,
   criarLancamentoFluxoCaixa,
@@ -358,11 +361,24 @@ const MESES_OPCOES = [
   { id: 'janeiro', label: 'Janeiro' },
 ]
 
+// Painel "Visão Geral" abaixo é conteúdo fixo (planilha importada uma vez,
+// não vem do banco) com o histórico financeiro real das divisões internas
+// da própria GVEL — não faz sentido pra nenhuma outra empresa da plataforma,
+// então fica restrito a essa empresa mesmo com permissão de módulo liberada.
+const GVEL_COMPANY_ID = '0923c894-85ca-45c1-ba1b-3124d19b4d65'
+
+const FORMAS_PAGAMENTO_OPCOES = [
+  'PIX', 'BOLETO', 'BOLETO ITAU', 'NF E BOLETO', 'MENSAL', 'ANUAL', 'CORTESIA', 'DESC PAGAMENTO',
+]
+const STATUS_PAGAMENTO_OPCOES = [
+  'PENDENTE', 'PAGO', 'COBRADO', 'CANCELADO', 'ISENTO', 'ABATER', 'RETIRAR', 'SOMANDO', 'TROCAR AP', 'ZEROU',
+]
+
 export function Financeiro() {
-  const { user, perfil, perfilLoading } = useAuth()
+  const { user, perfil, perfilLoading, empresa } = useAuth()
   const userRef = perfil || { email: user?.email }
   const autorizado = isFinanceiroAuthorized(userRef)
-  const podeVisaoGeral = isModuloAuthorized(userRef, 'financeiro_visao_geral')
+  const podeVisaoGeral = isModuloAuthorized(userRef, 'financeiro_visao_geral') && empresa?.id === GVEL_COMPANY_ID
   const podeFluxoCaixa = isModuloAuthorized(userRef, 'financeiro_fluxo_caixa')
   const permissaoPorAba: Record<AbaFinanceiro, boolean> = {
     'visao-geral': podeVisaoGeral,
@@ -420,17 +436,6 @@ export function Financeiro() {
   // Modais e Estados de Ação
   const [showHistoricoModal, setShowHistoricoModal] = useState(false)
   const [showListaModal, setShowListaModal] = useState(false)
-  const [sincronizando, setSincronizando] = useState(false)
-  const [msgSucesso, setMsgSucesso] = useState<string | null>(null)
-
-  function handleSincronizarPlanilha() {
-    setSincronizando(true)
-    setTimeout(() => {
-      setSincronizando(false)
-      setMsgSucesso('Planilha gerencial sincronizada com sucesso!')
-      setTimeout(() => setMsgSucesso(null), 4000)
-    }, 1200)
-  }
 
   // Mês Ativo da base de dados (ou consolidação de todos os meses)
   const dadosMesAtivo = useMemo(() => {
@@ -605,13 +610,27 @@ export function Financeiro() {
   // Fluxo de Caixa: lançamentos reais (entradas e saídas) persistidos no Supabase
   const { lancamentos, loading: carregandoLancamentos, error: erroLancamentos } = useFluxoCaixaLancamentos()
 
+  // Campos extras (cliente, veículo, vencimento, forma/status de pagamento) —
+  // só aparecem pras empresas com esse flag marcado (ver companies.financeiro_campos_estendidos).
+  // A GVEL fica com o formulário exatamente como sempre foi.
+  const camposEstendidos = empresa?.financeiro_campos_estendidos ?? false
+  const { clientes } = useClientes()
+
   const [novoLancamento, setNovoLancamento] = useState({
     data: new Date().toISOString().slice(0, 10),
     movimentacao: 'entrada' as 'entrada' | 'saida',
     descricao: '',
     valor: '',
     observacao: '',
+    clienteId: '',
+    quantidadeVeiculos: '',
+    dataVencimento: '',
+    formaPagamento: '',
+    statusPagamento: 'PENDENTE',
   })
+  const [formaPagamentoOutro, setFormaPagamentoOutro] = useState(false)
+  const [statusPagamentoOutro, setStatusPagamentoOutro] = useState(false)
+  const [visaoGraficoFluxoCaixa, setVisaoGraficoFluxoCaixa] = useState<'diario' | 'mensal'>('diario')
   const [salvandoLancamento, setSalvandoLancamento] = useState(false)
   const [erroFormLancamento, setErroFormLancamento] = useState<string | null>(null)
   const [excluindoLancamentoId, setExcluindoLancamentoId] = useState<string | null>(null)
@@ -635,8 +654,25 @@ export function Financeiro() {
         valor: valorNumerico,
         observacao: novoLancamento.observacao.trim() || undefined,
         usuarioNome: user?.email,
+        clienteId: camposEstendidos ? novoLancamento.clienteId || undefined : undefined,
+        quantidadeVeiculos: camposEstendidos && novoLancamento.quantidadeVeiculos
+          ? Number(novoLancamento.quantidadeVeiculos)
+          : undefined,
+        dataVencimento: camposEstendidos ? novoLancamento.dataVencimento || undefined : undefined,
+        formaPagamento: camposEstendidos ? novoLancamento.formaPagamento || undefined : undefined,
+        statusPagamento: camposEstendidos ? novoLancamento.statusPagamento : undefined,
       })
-      setNovoLancamento((prev) => ({ ...prev, descricao: '', valor: '', observacao: '' }))
+      setNovoLancamento((prev) => ({
+        ...prev,
+        descricao: '',
+        valor: '',
+        observacao: '',
+        clienteId: '',
+        quantidadeVeiculos: '',
+        dataVencimento: '',
+        formaPagamento: '',
+        statusPagamento: 'PENDENTE',
+      }))
     } catch (err) {
       setErroFormLancamento(err instanceof Error ? err.message : 'Erro ao salvar lançamento.')
     } finally {
@@ -716,6 +752,51 @@ export function Financeiro() {
       })
   }, [lancamentosOrdenadosCronologicamente])
 
+  // Agrupamento diário — usado só pelas empresas com campos estendidos
+  // (Pedrão), onde a linha de saldo acumulado precisa subir aos poucos
+  // conforme os lançamentos do mês vão entrando, em vez de "pular" de uma
+  // vez no fechamento mensal.
+  const dadosFluxoCaixaDiario = useMemo(() => {
+    const porDia = new Map<string, { label: string; Entradas: number; Saidas: number }>()
+
+    for (const l of lancamentosOrdenadosCronologicamente) {
+      const key = l.data
+      if (!porDia.has(key)) {
+        const [, mes, dia] = key.split('-')
+        porDia.set(key, { label: `${dia}/${mes}`, Entradas: 0, Saidas: 0 })
+      }
+      const bucket = porDia.get(key)!
+      if (l.movimentacao === 'entrada') bucket.Entradas += l.valor
+      else bucket.Saidas += l.valor
+    }
+
+    let acumulado = 0
+    return [...porDia.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, v]) => {
+        const saldoMes = v.Entradas - v.Saidas
+        acumulado += saldoMes
+        return {
+          id: key,
+          mes: v.label,
+          periodo: v.label,
+          Entradas: v.Entradas,
+          Saidas: v.Saidas,
+          saldoMes,
+          saldoAcumulado: acumulado,
+        }
+      })
+  }, [lancamentosOrdenadosCronologicamente])
+
+  const dadosGraficoFluxoCaixa =
+    camposEstendidos && visaoGraficoFluxoCaixa === 'diario' ? dadosFluxoCaixaDiario : dadosFluxoCaixaMensal
+
+  // Pra Pedrão a linha acompanha o saldo de cada ponto (sobe/desce junto com
+  // a barra daquele dia/mês). A GVEL mantém a linha acumulada de sempre
+  // (soma total desde o início, tipo saldo bancário).
+  const campoLinha = camposEstendidos ? 'saldoMes' : 'saldoAcumulado'
+  const campoLinhaLabel = camposEstendidos ? 'SALDO DO PERÍODO' : 'SALDO ACUMULADO'
+
   // Extrato: um lançamento por linha, na ordem da planilha, com saldo acumulado
   const dadosFluxoCaixaDetalhado = useMemo(() => {
     let acumulado = 0
@@ -783,52 +864,9 @@ export function Financeiro() {
     <div className="space-y-6 animate-fade-in uppercase pb-28">
       {/* Cabeçalho com Botões Glass */}
       <PageHeader
-        title="PAINEL GERENCIAL - GRUPO VEL"
+        title="PAINEL GERENCIAL - PEDRÃO TACÓGRAFOS"
         subtitle="RECEITAS E DESPESAS EM REGIME DE CAIXA · FATURAMENTO EM REGIME DE COMPETÊNCIA"
-        actions={
-          <div className="flex flex-wrap items-center gap-2.5">
-            <GlassButton
-              type="button"
-              size="sm"
-              onClick={() => setShowHistoricoModal(true)}
-              contentClassName="flex items-center gap-2 text-xs font-bold"
-            >
-              <RotateCcw className="h-3.5 w-3.5 text-primary" />
-              <span>HISTÓRICO</span>
-            </GlassButton>
-
-            <GlassButton
-              type="button"
-              size="sm"
-              onClick={() => setShowListaModal(true)}
-              contentClassName="flex items-center gap-2 text-xs font-bold"
-            >
-              <List className="h-3.5 w-3.5 text-foreground" />
-              <span>VER EM LISTA</span>
-            </GlassButton>
-
-            <GlassButton
-              type="button"
-              size="sm"
-              variant="primary"
-              onClick={handleSincronizarPlanilha}
-              disabled={sincronizando}
-              contentClassName="flex items-center gap-2 text-xs font-bold text-white"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${sincronizando ? 'animate-spin' : ''}`} />
-              <span>{sincronizando ? 'ATUALIZANDO...' : 'ATUALIZAR PLANILHA'}</span>
-            </GlassButton>
-          </div>
-        }
       />
-
-      {/* Alerta de Sincronização */}
-      {msgSucesso && (
-        <div className="flex items-center gap-2 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold animate-fade-in">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>{msgSucesso}</span>
-        </div>
-      )}
 
       {/* Barra de Abas */}
       {[podeVisaoGeral, podeFluxoCaixa].filter(Boolean).length > 1 && (
@@ -1798,8 +1836,8 @@ export function Financeiro() {
                     : 'border-red-500/40 bg-red-500/10 text-red-400 focus:ring-red-500'
                 }`}
               >
-                <option value="entrada">ENTRADA</option>
-                <option value="saida">SAÍDA</option>
+                <option value="entrada" className="bg-white text-black">ENTRADA</option>
+                <option value="saida" className="bg-white text-black">SAÍDA</option>
               </select>
             </div>
 
@@ -1832,6 +1870,132 @@ export function Financeiro() {
               />
             </div>
           </div>
+
+          {camposEstendidos && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div>
+                <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                  <Users className="h-3.5 w-3.5 text-primary" />
+                  CLIENTE
+                </label>
+                <select
+                  value={novoLancamento.clienteId}
+                  onChange={(e) => setNovoLancamento((prev) => ({ ...prev, clienteId: e.target.value }))}
+                  className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                >
+                  <option value="">SEM CLIENTE</option>
+                  {clientes.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nome}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-primary" />
+                  VENCIMENTO
+                </label>
+                <input
+                  type="date"
+                  value={novoLancamento.dataVencimento}
+                  onChange={(e) => setNovoLancamento((prev) => ({ ...prev, dataVencimento: e.target.value }))}
+                  className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                  <Truck className="h-3.5 w-3.5 text-primary" />
+                  QTD. VEÍCULOS
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={novoLancamento.quantidadeVeiculos}
+                  onChange={(e) => setNovoLancamento((prev) => ({ ...prev, quantidadeVeiculos: e.target.value }))}
+                  placeholder="0"
+                  className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-mono font-bold text-foreground placeholder:text-secondary/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                  <CreditCard className="h-3.5 w-3.5 text-primary" />
+                  BOLETO/PIX
+                </label>
+                {formaPagamentoOutro ? (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={novoLancamento.formaPagamento}
+                    onChange={(e) => setNovoLancamento((prev) => ({ ...prev, formaPagamento: e.target.value }))}
+                    onBlur={() => { if (!novoLancamento.formaPagamento.trim()) setFormaPagamentoOutro(false) }}
+                    placeholder="DIGITE A FORMA DE PAGAMENTO"
+                    className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground placeholder:text-secondary/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors"
+                  />
+                ) : (
+                  <select
+                    value={novoLancamento.formaPagamento}
+                    onChange={(e) => {
+                      if (e.target.value === '__outro__') {
+                        setFormaPagamentoOutro(true)
+                        setNovoLancamento((prev) => ({ ...prev, formaPagamento: '' }))
+                      } else {
+                        setNovoLancamento((prev) => ({ ...prev, formaPagamento: e.target.value }))
+                      }
+                    }}
+                    className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors"
+                  >
+                    <option value="" className="bg-white text-black">NÃO INFORMADO</option>
+                    {FORMAS_PAGAMENTO_OPCOES.map((opt) => (
+                      <option key={opt} value={opt} className="bg-white text-black">{opt}</option>
+                    ))}
+                    <option value="__outro__" className="bg-white text-black">OUTRO...</option>
+                  </select>
+                )}
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                  PGT
+                </label>
+                {statusPagamentoOutro ? (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={novoLancamento.statusPagamento}
+                    onChange={(e) => setNovoLancamento((prev) => ({ ...prev, statusPagamento: e.target.value }))}
+                    onBlur={() => { if (!novoLancamento.statusPagamento.trim()) setStatusPagamentoOutro(false) }}
+                    placeholder="DIGITE O STATUS"
+                    className="h-10 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 text-xs font-black text-amber-400 placeholder:text-secondary/50 focus:outline-none focus:ring-1 focus:ring-amber-500 uppercase transition-colors"
+                  />
+                ) : (
+                  <select
+                    value={novoLancamento.statusPagamento}
+                    onChange={(e) => {
+                      if (e.target.value === '__outro__') {
+                        setStatusPagamentoOutro(true)
+                        setNovoLancamento((prev) => ({ ...prev, statusPagamento: '' }))
+                      } else {
+                        setNovoLancamento((prev) => ({ ...prev, statusPagamento: e.target.value }))
+                      }
+                    }}
+                    className={`h-10 w-full rounded-xl border px-3 text-xs font-black uppercase focus:outline-none focus:ring-1 transition-colors ${
+                      novoLancamento.statusPagamento.toUpperCase() === 'PAGO'
+                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 focus:ring-emerald-500'
+                        : 'border-amber-500/40 bg-amber-500/10 text-amber-400 focus:ring-amber-500'
+                    }`}
+                  >
+                    {STATUS_PAGAMENTO_OPCOES.map((opt) => (
+                      <option key={opt} value={opt} className="bg-white text-black">{opt}</option>
+                    ))}
+                    <option value="__outro__" className="bg-white text-black">OUTRO...</option>
+                  </select>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
             <div className="flex-1">
@@ -1883,6 +2047,7 @@ export function Financeiro() {
       {/* ──────────────────────────────────────────────────────────────────────────
           CARDS DE KPIS DO FLUXO DE CAIXA
          ────────────────────────────────────────────────────────────────────────── */}
+      {!camposEstendidos ? (
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <Card className="p-3 sm:p-4 border-emerald-500/20 bg-emerald-500/5 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-secondary mb-1.5">
@@ -1976,6 +2141,81 @@ export function Financeiro() {
           <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Saldo acumulado dos lançamentos</span>
         </Card>
       </div>
+      ) : (
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <Card className="p-3 sm:p-4 border-emerald-500/20 bg-emerald-500/5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span className="text-[10px] font-black tracking-wider text-emerald-400 uppercase">ENTRADAS</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+              <ArrowUpCircle className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black text-emerald-400 whitespace-nowrap tracking-tight leading-tight my-1">
+            {fmtBRL(totaisFluxoCaixa.totalEntradas)}
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">{periodoLancamentosLabel}</span>
+        </Card>
+
+        <Card className="p-3 sm:p-4 border-red-500/20 bg-red-500/5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span className="text-[10px] font-black tracking-wider text-red-400 uppercase">SAÍDAS DESPESAS</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
+              <ArrowDownCircle className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black text-red-400 whitespace-nowrap tracking-tight leading-tight my-1">
+            {fmtBRL(totaisFluxoCaixa.totalSaidas)}
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">{periodoLancamentosLabel}</span>
+        </Card>
+
+        <Card className="p-3 sm:p-4 border-amber-500/20 bg-amber-500/5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span className="text-[10px] font-black tracking-wider text-amber-400 uppercase">INADIMPLENTES MENSALIDADE</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black text-amber-400 whitespace-nowrap tracking-tight leading-tight my-1">
+            —
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Em breve</span>
+        </Card>
+
+        <Card
+          className={`p-3 sm:p-4 shadow-sm border flex flex-col justify-between ${
+            totaisFluxoCaixa.saldoPeriodo >= 0
+              ? 'border-emerald-500/20 bg-emerald-500/5'
+              : 'border-red-500/30 bg-red-500/10'
+          }`}
+        >
+          <div className="flex items-center justify-between text-secondary mb-1.5">
+            <span
+              className={`text-[10px] font-black tracking-wider uppercase ${
+                totaisFluxoCaixa.saldoPeriodo >= 0 ? 'text-emerald-400' : 'text-red-400'
+              }`}
+            >
+              TOTAL
+            </span>
+            <div
+              className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                totaisFluxoCaixa.saldoPeriodo >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+              }`}
+            >
+              <Activity className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p
+            className={`text-sm sm:text-base lg:text-[15px] xl:text-[16px] 2xl:text-xl font-mono font-black whitespace-nowrap tracking-tight leading-tight my-1 ${
+              totaisFluxoCaixa.saldoPeriodo >= 0 ? 'text-emerald-400' : 'text-red-400'
+            }`}
+          >
+            {fmtBRL(totaisFluxoCaixa.saldoPeriodo)}
+          </p>
+          <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Entradas - Saídas</span>
+        </Card>
+      </div>
+      )}
 
       {/* ──────────────────────────────────────────────────────────────────────────
           GRÁFICO: EVOLUÇÃO DO SALDO DE CAIXA ACUMULADO
@@ -1992,9 +2232,32 @@ export function Financeiro() {
               </h3>
             </div>
             <p className="text-xs text-secondary font-medium mt-1">
-              Movimentação de caixa mês a mês, com base nos lançamentos registrados
+              Movimentação de caixa {camposEstendidos && visaoGraficoFluxoCaixa === 'diario' ? 'dia a dia' : 'mês a mês'}, com base nos lançamentos registrados
             </p>
           </div>
+
+          {camposEstendidos && (
+            <div className="flex items-center gap-1 bg-background/60 border border-border/20 p-1 rounded-xl text-xs font-black uppercase">
+              <button
+                type="button"
+                onClick={() => setVisaoGraficoFluxoCaixa('diario')}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  visaoGraficoFluxoCaixa === 'diario' ? 'bg-primary text-white' : 'text-secondary hover:text-foreground'
+                }`}
+              >
+                DIÁRIO
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisaoGraficoFluxoCaixa('mensal')}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  visaoGraficoFluxoCaixa === 'mensal' ? 'bg-primary text-white' : 'text-secondary hover:text-foreground'
+                }`}
+              >
+                MENSAL
+              </button>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2 bg-background/60 border border-border/20 px-3 py-1.5 rounded-xl text-xs font-bold">
             <span className="flex items-center gap-1.5 text-emerald-400">
@@ -2006,14 +2269,14 @@ export function Financeiro() {
             </span>
             <span className="text-border/40">•</span>
             <span className="flex items-center gap-1.5 text-amber-400">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-sm" /> SALDO ACUMULADO
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-sm" /> {campoLinhaLabel}
             </span>
           </div>
         </div>
 
         <div className="h-80 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={dadosFluxoCaixaMensal} margin={{ top: 36, right: 20, left: 10, bottom: 24 }} barGap={8}>
+            <ComposedChart data={dadosGraficoFluxoCaixa} margin={{ top: 36, right: 20, left: 10, bottom: 24 }} barGap={8}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border) / 0.1)" vertical={false} />
               <XAxis
                 dataKey="mes"
@@ -2087,8 +2350,8 @@ export function Financeiro() {
               <Bar dataKey="Saidas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={56} />
               <Line
                 type="monotone"
-                dataKey="saldoAcumulado"
-                name="Saldo Acumulado"
+                dataKey={campoLinha}
+                name={campoLinhaLabel}
                 stroke="#fbbf24"
                 strokeWidth={3}
                 dot={{ r: 6, fill: '#f59e0b', stroke: '#ffffff', strokeWidth: 2 }}
@@ -2131,6 +2394,11 @@ export function Financeiro() {
                 <th className="py-3 px-4">MOVIMENTAÇÃO</th>
                 <th className="py-3 px-4">DESCRIÇÃO</th>
                 <th className="py-3 px-4 text-right">VALOR</th>
+                {camposEstendidos && <th className="py-3 px-4">CLIENTE</th>}
+                {camposEstendidos && <th className="py-3 px-4">VENCIMENTO</th>}
+                {camposEstendidos && <th className="py-3 px-4 text-center">QTD. VEÍCULOS</th>}
+                {camposEstendidos && <th className="py-3 px-4">BOLETO/PIX</th>}
+                {camposEstendidos && <th className="py-3 px-4">PGT</th>}
                 <th className="py-3 px-4">OBSERVAÇÃO</th>
                 <th className="py-3 px-4 text-center">AÇÕES</th>
               </tr>
@@ -2139,6 +2407,7 @@ export function Financeiro() {
               {lancamentos.map((l) => {
                 const isEntrada = l.movimentacao === 'entrada'
                 const [ano, mes, dia] = l.data.split('-')
+                const [anoVenc, mesVenc, diaVenc] = l.dataVencimento ? l.dataVencimento.split('-') : []
 
                 return (
                   <tr
@@ -2155,6 +2424,27 @@ export function Financeiro() {
                     <td className={`py-2.5 px-4 text-right font-black ${isEntrada ? 'text-emerald-400' : 'text-red-400'}`}>
                       {fmtBRL(l.valor)}
                     </td>
+                    {camposEstendidos && (
+                      <td className="py-2.5 px-4 font-sans text-secondary">{l.clienteNome || '—'}</td>
+                    )}
+                    {camposEstendidos && (
+                      <td className="py-2.5 px-4 text-secondary whitespace-nowrap">
+                        {diaVenc ? `${diaVenc}/${mesVenc}/${anoVenc}` : '—'}
+                      </td>
+                    )}
+                    {camposEstendidos && (
+                      <td className="py-2.5 px-4 font-sans text-secondary text-center">{l.quantidadeVeiculos ?? '—'}</td>
+                    )}
+                    {camposEstendidos && (
+                      <td className="py-2.5 px-4 font-sans text-secondary uppercase">{l.formaPagamento || '—'}</td>
+                    )}
+                    {camposEstendidos && (
+                      <td className="py-2.5 px-4">
+                        <Badge tone={l.statusPagamento?.toUpperCase() === 'PAGO' ? 'success' : 'warning'} className="text-[9px] font-bold">
+                          {l.statusPagamento?.toUpperCase() || 'PENDENTE'}
+                        </Badge>
+                      </td>
+                    )}
                     <td className="py-2.5 px-4 font-sans text-secondary lowercase">{l.observacao || '—'}</td>
                     <td className="py-2.5 px-4 text-center">
                       <button

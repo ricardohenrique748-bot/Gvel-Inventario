@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { LancamentoFluxoCaixa } from '@/lib/types'
 
+const SELECT_COM_RELACOES = '*, cliente:clientes(nome), veiculo:veiculos(placa)'
+
 function mapRowParaLancamento(row: any): LancamentoFluxoCaixa {
   return {
     id: row.id,
@@ -12,13 +14,21 @@ function mapRowParaLancamento(row: any): LancamentoFluxoCaixa {
     observacao: row.observacao || undefined,
     usuarioNome: row.usuario_nome || undefined,
     createdAt: row.created_at,
+    clienteId: row.cliente_id || undefined,
+    clienteNome: row.cliente?.nome || undefined,
+    veiculoId: row.veiculo_id || undefined,
+    veiculoPlaca: row.veiculo?.placa || undefined,
+    quantidadeVeiculos: row.quantidade_veiculos ?? undefined,
+    dataVencimento: row.data_vencimento || undefined,
+    formaPagamento: row.forma_pagamento || undefined,
+    statusPagamento: row.status_pagamento || undefined,
   }
 }
 
 export async function fetchFluxoCaixaLancamentosSupabase(limit = 1000): Promise<LancamentoFluxoCaixa[]> {
   const { data, error } = await supabase
     .from('fluxo_caixa_lancamentos')
-    .select('*')
+    .select(SELECT_COM_RELACOES)
     .order('data', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit)
@@ -37,6 +47,12 @@ export interface CriarLancamentoFluxoCaixaInput {
   valor: number
   observacao?: string
   usuarioNome?: string
+  clienteId?: string
+  veiculoId?: string
+  quantidadeVeiculos?: number
+  dataVencimento?: string
+  formaPagamento?: string
+  statusPagamento?: string
 }
 
 export async function criarLancamentoFluxoCaixa(input: CriarLancamentoFluxoCaixaInput): Promise<void> {
@@ -47,6 +63,12 @@ export async function criarLancamentoFluxoCaixa(input: CriarLancamentoFluxoCaixa
     valor: input.valor,
     observacao: input.observacao || null,
     usuario_nome: input.usuarioNome || null,
+    cliente_id: input.clienteId || null,
+    veiculo_id: input.veiculoId || null,
+    quantidade_veiculos: input.quantidadeVeiculos ?? null,
+    data_vencimento: input.dataVencimento || null,
+    forma_pagamento: input.formaPagamento || null,
+    status_pagamento: input.statusPagamento || 'pendente',
   })
   if (error) throw error
 
