@@ -16,12 +16,16 @@ export function useUsuarios() {
   const refetch = useCallback(async () => {
     if (!companyId) return
     setLoading(true)
-    // O RLS já restringe usuário comum à própria empresa. Master admin tem
-    // acesso de escrita a todas via RLS (necessário pra mover usuário entre
-    // empresas e pro próprio switcher de empresa) — mas a listagem sempre
-    // filtra explicitamente pela empresa ativa no momento, senão master
-    // admin veria todo mundo de todas as empresas misturado.
-    const { data, error } = await supabase.from('usuarios').select('*').eq('company_id', companyId).order('nome')
+    // Sempre a empresa ativa no momento, mais qualquer admin master (que
+    // administra todas as empresas, então aparece em todas as listas) — o
+    // RLS quem decide de verdade o que cada um enxerga: pra um usuário
+    // comum, essa segunda condição não devolve nada de outra empresa mesmo
+    // assim, só quem é master admin de fato consegue ver além da própria.
+    const { data, error } = await supabase
+      .from('usuarios')
+      .select('*')
+      .or(`company_id.eq.${companyId},is_master_admin.eq.true`)
+      .order('nome')
     if (error) {
       setError(error.message)
     } else {
