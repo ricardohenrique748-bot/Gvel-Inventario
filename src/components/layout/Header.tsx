@@ -8,6 +8,7 @@ import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa } from '@/contexts/EmpresaContext'
+import { useEmpresasVisiveis } from '@/hooks/useCompanies'
 import { cn } from '@/lib/cn'
 
 interface PageHeaderProps {
@@ -47,7 +48,8 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
 }
 
 function MobileCompanySwitcher() {
-  const { empresas, empresaAtiva, setEmpresaAtiva } = useEmpresa()
+  const { empresaAtiva, setEmpresaAtiva } = useEmpresa()
+  const empresas = useEmpresasVisiveis()
   const { user, perfil, perfilLoading } = useAuth()
   const isAdmin = !perfilLoading && (perfil?.nivel === 'admin' || user?.email === 'ricardo_h.16@hotmail.com' || user?.email === 'victor@gveldiesel.com')
   const [open, setOpen] = useState(false)

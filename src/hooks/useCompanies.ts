@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
+import { useEmpresa, type Empresa } from '@/contexts/EmpresaContext'
 import type { Company, CompanyStatus } from '@/lib/types'
 
 // CRUD de empresas (tabela `companies`). O RLS decide o que cada chamada
@@ -27,6 +29,31 @@ export function useCompanies() {
   }, [refetch])
 
   return { empresas, loading, error, refetch }
+}
+
+function empresaFromCompany(c: Company): Empresa {
+  return {
+    id: c.id,
+    nome: c.name,
+    sistemaLabel: c.sistema_label,
+    cor: c.primary_color,
+    cnpj: c.cnpj ?? undefined,
+    observacoes: c.observacoes ?? undefined,
+  }
+}
+
+/**
+ * Lista de empresas pra exibição em seletores. Usuário comum e admin de
+ * empresa só enxergam a própria (igual useEmpresa()); master admin vê todas
+ * as cadastradas na plataforma — só pra referência/exibição, não muda qual
+ * empresa está de fato filtrando os dados da tela (isso continua sendo
+ * sempre a empresa do usuário logado, resolvida pelo banco).
+ */
+export function useEmpresasVisiveis(): Empresa[] {
+  const { isMasterAdmin } = useAuth()
+  const { empresas: minhaEmpresa } = useEmpresa()
+  const { empresas: todasEmpresas } = useCompanies()
+  return isMasterAdmin ? todasEmpresas.map(empresaFromCompany) : minhaEmpresa
 }
 
 export interface CriarEmpresaInput {

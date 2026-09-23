@@ -37,7 +37,7 @@ import { Badge } from '@/components/ui/Badge'
 import { useUsuarios, criarUsuario, excluirUsuario, atualizarUsuario, resetarSenha, uploadFotoUsuario } from '@/hooks/useUsuarios'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa, type Empresa } from '@/contexts/EmpresaContext'
-import { useCompanies } from '@/hooks/useCompanies'
+import { useEmpresasVisiveis } from '@/hooks/useCompanies'
 import { RecortarFotoModal } from '@/components/RecortarFotoModal'
 import { formatDate } from '@/lib/format'
 import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, getModulosUsuario, type ModuloSistema } from '@/lib/permissoes'
@@ -313,22 +313,11 @@ function ModulosSelector({ nivel, selected, onChange }: ModulosSelectorProps) {
 }
 
 export function UsuariosTab() {
-  const { perfil, user, isMasterAdmin } = useAuth()
-  const { empresas: minhaEmpresa, empresaAtiva } = useEmpresa()
-  const { empresas: todasEmpresas } = useCompanies()
-  // Admin comum só vincula usuários à própria empresa (é o que useEmpresa()
-  // já devolve). Master admin pode escolher entre todas as empresas
-  // cadastradas na plataforma — daí a lista vir de useCompanies() nesse caso.
-  const empresas: Empresa[] = isMasterAdmin
-    ? todasEmpresas.map((c) => ({
-        id: c.id,
-        nome: c.name,
-        sistemaLabel: c.sistema_label,
-        cor: c.primary_color,
-        cnpj: c.cnpj ?? undefined,
-        observacoes: c.observacoes ?? undefined,
-      }))
-    : minhaEmpresa
+  const { perfil, user } = useAuth()
+  const { empresaAtiva } = useEmpresa()
+  // Admin comum só vincula usuários à própria empresa; master admin escolhe
+  // entre todas as empresas cadastradas na plataforma (ver useEmpresasVisiveis).
+  const empresas = useEmpresasVisiveis()
   const isAdmin = perfil?.nivel === 'admin' || user?.email === 'ricardo_h.16@hotmail.com' || user?.email === 'victor@gveldiesel.com'
   const { usuarios, loading, refetch } = useUsuarios()
   const [filtroEmpresa, setFiltroEmpresa] = useState<string>('TODAS')
