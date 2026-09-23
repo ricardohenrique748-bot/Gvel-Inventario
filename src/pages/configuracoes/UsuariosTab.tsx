@@ -40,7 +40,7 @@ import { useEmpresa, type Empresa } from '@/contexts/EmpresaContext'
 import { useEmpresasVisiveis } from '@/hooks/useCompanies'
 import { RecortarFotoModal } from '@/components/RecortarFotoModal'
 import { formatDate } from '@/lib/format'
-import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, getModulosUsuario, type ModuloSistema } from '@/lib/permissoes'
+import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, getModulosUsuario, temAcessoModuloEmpresa, type ModuloSistema } from '@/lib/permissoes'
 import type { Usuario } from '@/lib/types'
 
 const ICONES_MODULOS: Record<string, React.ElementType> = {
@@ -92,6 +92,23 @@ interface ModulosSelectorProps {
 
 function ModulosSelector({ nivel, selected, onChange }: ModulosSelectorProps) {
   const isAdmin = nivel === 'admin'
+  const { empresa } = useAuth()
+
+  // Só oferece pra seleção os módulos/sub-abas que a empresa realmente tem
+  // habilitados (mesma regra do menu lateral) — sem isso, o admin via
+  // seletor conseguia liberar pro usuário telas que nem aparecem pra
+  // ninguém daquela empresa.
+  const modulosDisponiveis = useMemo(() => {
+    return MODULOS_SISTEMA.filter((m) => temAcessoModuloEmpresa(empresa, m.id)).map((m) => ({
+      ...m,
+      subModulos: m.subModulos?.filter((s) => temAcessoModuloEmpresa(empresa, s.id)),
+    }))
+  }, [empresa])
+
+  const todosDisponiveisIds = useMemo(
+    () => modulosDisponiveis.flatMap((m) => [m.id, ...(m.subModulos ? m.subModulos.map((s) => s.id) : [])]),
+    [modulosDisponiveis],
+  )
 
   const toggleModulo = (id: string, subIds?: string[]) => {
     if (isAdmin) return
@@ -129,8 +146,9 @@ function ModulosSelector({ nivel, selected, onChange }: ModulosSelectorProps) {
     onChange(updated)
   }
 
-  const selecionarTodos = () => onChange(TODOS_MODULOS_IDS)
-  const selecionarPadrao = () => onChange(MODULOS_PADRAO_USUARIO)
+  const selecionarTodos = () => onChange(todosDisponiveisIds)
+  const selecionarPadrao = () =>
+    onChange(MODULOS_PADRAO_USUARIO.filter((id) => todosDisponiveisIds.includes(id)))
   const limparTodos = () => onChange([])
 
   const renderCardModulo = (modulo: ModuloSistema) => {
@@ -308,7 +326,7 @@ function ModulosSelector({ nivel, selected, onChange }: ModulosSelectorProps) {
 
       {/* Grid Clean em 2 Colunas */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {MODULOS_SISTEMA.map(renderCardModulo)}
+        {modulosDisponiveis.map(renderCardModulo)}
       </div>
     </div>
   )
