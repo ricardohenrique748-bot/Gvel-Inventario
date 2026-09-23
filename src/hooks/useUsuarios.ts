@@ -2,34 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import { up } from '@/lib/text'
 import { salvarPermissoesUsuario, getModulosUsuario } from '@/lib/permissoes'
+import { comPrefixoEmpresa } from '@/lib/tenant'
 import type { NivelUsuario, Usuario } from '@/lib/types'
-
-const STORAGE_EMPRESA_USUARIO_PREFIX = 'gvel_user_empresa_'
-
-export function salvarEmpresaUsuario(key: string, empresaId: string) {
-  if (!key) return
-  try {
-    localStorage.setItem(`${STORAGE_EMPRESA_USUARIO_PREFIX}${key.toLowerCase().trim()}`, empresaId)
-  } catch {}
-}
-
-export function getEmpresaUsuario(user: Partial<Usuario>): string {
-  if (user.empresa_id) return user.empresa_id
-  const email = (user.email || '').toLowerCase().trim()
-  if (email) {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_EMPRESA_USUARIO_PREFIX}${email}`)
-      if (saved) return saved
-    } catch {}
-  }
-  if (user.id) {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_EMPRESA_USUARIO_PREFIX}${user.id}`)
-      if (saved) return saved
-    } catch {}
-  }
-  return 'gvel_diesel'
-}
 
 export function useUsuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
@@ -38,14 +12,16 @@ export function useUsuarios() {
 
   const refetch = useCallback(async () => {
     setLoading(true)
+    // O RLS já filtra pela empresa do usuário autenticado (ver migration
+    // 0072_multiempresa_companies.sql) — este select nunca traz usuário de
+    // outra empresa, então não há mais necessidade de filtrar no cliente.
     const { data, error } = await supabase.from('usuarios').select('*').order('nome')
     if (error) {
       setError(error.message)
     } else {
-      // Injeta os módulos recuperados e a empresa vinculada
+      // Injeta os módulos recuperados (ver src/lib/permissoes.ts)
       const listaTratada = (data ?? []).map((u) => ({
         ...u,
-        empresa_id: getEmpresaUsuario(u),
         modulos: getModulosUsuario(u),
       }))
       setUsuarios(listaTratada)
@@ -63,7 +39,7 @@ export function useUsuarios() {
 export async function uploadFotoUsuario(file: File, userId: string): Promise<string> {
   try {
     const ext = file.name.split('.').pop() || 'jpg'
-    const path = `usuarios/${userId}-${Date.now()}.${ext}`
+    const path = comPrefixoEmpresa(`usuarios/${userId}-${Date.now()}.${ext}`)
     const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
       cacheControl: '3600',
       upsert: false,
@@ -89,7 +65,7 @@ interface CriarUsuarioInput {
   senha: string
   telefone?: string
   nivel?: NivelUsuario
-  empresa_id?: string
+  company_id?: string
   modulos?: string[]
 }
 
@@ -111,13 +87,6 @@ export async function criarUsuario(input: CriarUsuarioInput) {
   })
   if (error) {
     throw new Error(await mensagemErroFuncao(error, 'Não foi possível criar o usuário.'))
-  }
-  
-  if (input.empresa_id) {
-    salvarEmpresaUsuario(input.email, input.empresa_id)
-    if (data?.id) {
-      salvarEmpresaUsuario(data.id, input.empresa_id)
-    }
   }
 
   if (input.modulos && input.email) {
@@ -146,7 +115,7 @@ interface AtualizarUsuarioInput {
   nome: string
   telefone?: string
   nivel: NivelUsuario
-  empresa_id?: string
+  company_id?: string
   modulos?: string[]
   email?: string
   foto_url?: string | null
@@ -154,7 +123,7 @@ interface AtualizarUsuarioInput {
 
 const ROTULOS_CAMPOS_USUARIO: Record<string, string> = {
   modulos: 'permissões de acesso',
-  empresa_id: 'empresa vinculada',
+  company_id: 'empresa vinculada',
   foto_url: 'foto de perfil',
 }
 
@@ -170,14 +139,6 @@ function extrairColunaFaltante(mensagem: string): string | null {
 }
 
 export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput) {
-  // Salva empresa vinculada
-  if (input.empresa_id) {
-    salvarEmpresaUsuario(id, input.empresa_id)
-    if (input.email) {
-      salvarEmpresaUsuario(input.email, input.empresa_id)
-    }
-  }
-
   // Salva permissões localmente de forma imediata e garantida
   if (input.modulos) {
     salvarPermissoesUsuario(id, input.modulos)
@@ -186,14 +147,16 @@ export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput)
     }
   }
 
-  // Tenta atualizar no Supabase com modulos e empresa_id
+  // Tenta atualizar no Supabase com modulos e company_id. O RLS garante que
+  // ninguém consegue mover um usuário pra outra empresa a não ser o master
+  // admin (ver policy "usuarios_isolamento_empresa").
   let updatePayload: Record<string, any> = {
     nome: up(input.nome),
     telefone: input.telefone || null,
     nivel: input.nivel,
   }
-  if (input.empresa_id) {
-    updatePayload.empresa_id = input.empresa_id
+  if (input.company_id) {
+    updatePayload.company_id = input.company_id
   }
   if (input.modulos) {
     updatePayload.modulos = input.modulos

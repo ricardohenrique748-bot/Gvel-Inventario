@@ -1,6 +1,18 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 import type { ReactNode } from 'react'
+import { useAuth } from './AuthContext'
 
+// Fase 1 do multi-empresa: a "empresa ativa" deixou de ser uma lista local
+// (localStorage) que qualquer usuário podia trocar livremente — ela agora
+// vem sempre do banco, resolvida a partir do usuário autenticado
+// (AuthContext → tabela `companies` via `usuarios.company_id`). Um usuário
+// só enxerga a própria empresa; não existe mais troca manual de empresa.
+//
+// A interface pública do hook (`empresas`, `empresaAtiva`, `setEmpresaAtiva`)
+// foi mantida por compatibilidade com o Sidebar/Header/Logo existentes, que
+// exibem a marca (logo/cor/nome) da empresa atual — só que agora a lista
+// sempre tem no máximo 1 item (a própria empresa) e `setEmpresaAtiva` é um
+// no-op, já que não há mais nada para trocar.
 export interface Empresa {
   id: string
   nome: string
@@ -10,136 +22,38 @@ export interface Empresa {
   observacoes?: string
 }
 
-const STORAGE_EMPRESAS_KEY = 'gvel_empresas'
-const STORAGE_EMPRESA_ATIVA_KEY = 'gvel_empresa_ativa_id'
-
-const EMPRESAS_PADRAO: Empresa[] = [
-  {
-    id: 'gvel_diesel',
-    nome: 'G VEL DIESEL & TRANSPORTES LTDA',
-    sistemaLabel: 'CENTER TRUCK',
-    cor: '#E23B2E',
-    cnpj: '09.521.849/0001-90',
-    observacoes: 'Empresa Principal',
-  },
-]
-
-function loadEmpresas(): Empresa[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_EMPRESAS_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed
-      }
-    }
-  } catch {}
-  return EMPRESAS_PADRAO
-}
-
-function loadEmpresaAtivaId(empresas: Empresa[]): string {
-  try {
-    const saved = localStorage.getItem(STORAGE_EMPRESA_ATIVA_KEY)
-    if (saved && empresas.some((e) => e.id === saved)) return saved
-  } catch {}
-  return empresas[0]?.id ?? ''
-}
-
 interface EmpresaContextValue {
   empresas: Empresa[]
   empresaAtiva: Empresa | undefined
   setEmpresaAtiva: (id: string) => void
-  adicionarEmpresa: (empresa: Omit<Empresa, 'id'>) => void
-  atualizarEmpresa: (id: string, dados: Partial<Omit<Empresa, 'id'>>) => void
-  excluirEmpresa: (id: string) => void
 }
 
 const EmpresaContext = createContext<EmpresaContextValue | null>(null)
 
 export function EmpresaProvider({ children }: { children: ReactNode }) {
-  const [empresas, setEmpresas] = useState<Empresa[]>(() => loadEmpresas())
-  const [empresaAtivaId, setEmpresaAtivaId] = useState<string>(() =>
-    loadEmpresaAtivaId(loadEmpresas()),
-  )
+  const { empresa } = useAuth()
 
-  useEffect(() => {
-    function handleStorage(e: StorageEvent) {
-      if (e.key === STORAGE_EMPRESAS_KEY && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue)
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setEmpresas(parsed)
-          }
-        } catch {}
-      }
-      if (e.key === STORAGE_EMPRESA_ATIVA_KEY && e.newValue) {
-        setEmpresaAtivaId(e.newValue)
-      }
+  const empresaAtiva: Empresa | undefined = useMemo(() => {
+    if (!empresa) return undefined
+    return {
+      id: empresa.id,
+      nome: empresa.name,
+      sistemaLabel: empresa.sistema_label,
+      cor: empresa.primary_color,
+      cnpj: empresa.cnpj ?? undefined,
+      observacoes: empresa.observacoes ?? undefined,
     }
-    window.addEventListener('storage', handleStorage)
-    return () => window.removeEventListener('storage', handleStorage)
-  }, [])
+  }, [empresa])
 
-  const empresaAtiva = empresas.find((e) => e.id === empresaAtivaId) ?? empresas[0]
+  const empresas = useMemo(() => (empresaAtiva ? [empresaAtiva] : []), [empresaAtiva])
 
-  const persistEmpresas = useCallback((updater: (prev: Empresa[]) => Empresa[]) => {
-    setEmpresas((prev) => {
-      const novas = updater(prev)
-      try {
-        localStorage.setItem(STORAGE_EMPRESAS_KEY, JSON.stringify(novas))
-      } catch {}
-      return novas
-    })
-  }, [])
-
-  const setEmpresaAtiva = useCallback((id: string) => {
-    setEmpresaAtivaId(id)
-    try {
-      localStorage.setItem(STORAGE_EMPRESA_ATIVA_KEY, id)
-    } catch {}
-  }, [])
-
-  const adicionarEmpresa = useCallback(
-    (dados: Omit<Empresa, 'id'>) => {
-      const id = `empresa_${Date.now()}`
-      const nova: Empresa = { id, ...dados }
-      persistEmpresas((prev) => [...prev, nova])
-    },
-    [persistEmpresas],
-  )
-
-  const atualizarEmpresa = useCallback(
-    (id: string, dados: Partial<Omit<Empresa, 'id'>>) => {
-      persistEmpresas((prev) => prev.map((e) => (e.id === id ? { ...e, ...dados } : e)))
-    },
-    [persistEmpresas],
-  )
-
-  const excluirEmpresa = useCallback(
-    (id: string) => {
-      persistEmpresas((prev) => {
-        if (prev.length <= 1) return prev
-        const novas = prev.filter((e) => e.id !== id)
-        if (empresaAtivaId === id && novas.length > 0) {
-          setEmpresaAtiva(novas[0].id)
-        }
-        return novas
-      })
-    },
-    [empresaAtivaId, persistEmpresas, setEmpresaAtiva],
-  )
+  function setEmpresaAtiva() {
+    // Não há mais troca manual de empresa — a empresa do usuário vem do
+    // banco (usuarios.company_id), nunca de uma escolha no frontend.
+  }
 
   return (
-    <EmpresaContext.Provider
-      value={{
-        empresas,
-        empresaAtiva,
-        setEmpresaAtiva,
-        adicionarEmpresa,
-        atualizarEmpresa,
-        excluirEmpresa,
-      }}
-    >
+    <EmpresaContext.Provider value={{ empresas, empresaAtiva, setEmpresaAtiva }}>
       {children}
     </EmpresaContext.Provider>
   )

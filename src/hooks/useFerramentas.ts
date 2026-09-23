@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FOTOS_BUCKET, supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
+import { comPrefixoEmpresa } from '@/lib/tenant'
 import type { Ferramenta, FerramentaRetirada, StatusRetiradaFerramenta } from '@/lib/types'
 
 export const STORAGE_FERRAMENTAS_KEY = 'gvel_inventario_ferramentas_v1'
@@ -414,7 +415,7 @@ export function useRetiradasFerramentas(filtros: RetiradasFiltros = {}) {
 export async function uploadFotoFerramenta(file: File): Promise<string> {
   try {
     const ext = file.name.split('.').pop() || 'jpg'
-    const path = `ferramentas/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const path = comPrefixoEmpresa(`ferramentas/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`)
     const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
       cacheControl: '3600',
       upsert: false,

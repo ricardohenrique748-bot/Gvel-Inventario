@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import { dataUrlParaBlob } from '@/lib/imagem'
+import { comPrefixoEmpresa } from '@/lib/tenant'
 import type { RegistroChecklist, ItemChecagem, FotosVistoria, StatusPreventivaChecklist } from '@/lib/types'
 
 // Checklist da Frota Leve (vistoria de veículo). Antes ficava só no
@@ -109,7 +110,7 @@ export async function criarChecklistFrota(
       if (!base64) return
       try {
         const blob = dataUrlParaBlob(base64)
-        const path = `checklist-frota/${checklistId}/${campo}.jpg`
+        const path = comPrefixoEmpresa(`checklist-frota/${checklistId}/${campo}.jpg`)
         const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, blob, {
           contentType: blob.type || 'image/jpeg',
           upsert: true,

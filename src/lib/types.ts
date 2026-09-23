@@ -9,11 +9,30 @@ export interface Usuario {
   email: string
   telefone: string | null
   nivel: NivelUsuario
+  /** @deprecated Substituído por `company_id` (FK real para `companies`). */
   empresa_id?: string
+  company_id: string
+  is_master_admin: boolean
   modulos?: string[]
   foto_url?: string | null
   deve_trocar_senha: boolean
   created_at: string
+}
+
+export type CompanyStatus = 'active' | 'inactive'
+
+export interface Company {
+  id: string
+  name: string
+  cnpj: string | null
+  logo: string | null
+  sistema_label: string
+  primary_color: string
+  secondary_color: string | null
+  observacoes: string | null
+  status: CompanyStatus
+  created_at: string
+  updated_at: string
 }
 
 export interface Cliente {

@@ -60,12 +60,26 @@ Deno.serve(async (req) => {
 
   const { data: callerPerfil, error: perfilError } = await adminClient
     .from('usuarios')
-    .select('nivel')
+    .select('nivel, company_id, is_master_admin')
     .eq('id', callerData.user.id)
     .single()
 
   if (perfilError || callerPerfil?.nivel !== 'admin') {
     return jsonResponse({ error: 'Apenas administradores podem fazer isso.' }, 403)
+  }
+
+  // Nunca confia no company_id vindo do cliente: confere no banco que o
+  // usuário alvo é da mesma empresa de quem está chamando, a menos que
+  // quem chama seja master admin.
+  if (!callerPerfil.is_master_admin) {
+    const { data: alvoPerfil, error: alvoError } = await adminClient
+      .from('usuarios')
+      .select('company_id')
+      .eq('id', id)
+      .single()
+    if (alvoError || !alvoPerfil || alvoPerfil.company_id !== callerPerfil.company_id) {
+      return jsonResponse({ error: 'Usuário não encontrado nesta empresa.' }, 404)
+    }
   }
 
   const { error: deleteError } = await adminClient.auth.admin.deleteUser(id)

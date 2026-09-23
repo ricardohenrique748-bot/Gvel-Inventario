@@ -18,6 +18,7 @@ interface CreateUsuarioBody {
   telefone?: string
   nivel?: 'admin' | 'usuario'
   modulos?: string[]
+  company_id?: string
 }
 
 function jsonResponse(body: unknown, status: number) {
@@ -54,7 +55,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: callerPerfil, error: perfilError } = await adminClient
     .from('usuarios')
-    .select('nivel')
+    .select('nivel, company_id, is_master_admin')
     .eq('id', callerData.user.id)
     .single()
 
@@ -83,6 +84,22 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'A senha precisa ter no mínimo 6 caracteres.' }, 400)
   }
 
+  // Um admin comum só pode criar usuários na própria empresa, mesmo que
+  // tente informar outra no corpo da requisição — nunca confiamos no
+  // company_id vindo do cliente. Só o master admin pode escolher a empresa.
+  let companyId = callerPerfil.company_id as string
+  if (callerPerfil.is_master_admin && body.company_id) {
+    const { data: empresaAlvo } = await adminClient
+      .from('companies')
+      .select('id')
+      .eq('id', body.company_id)
+      .maybeSingle()
+    if (!empresaAlvo) {
+      return jsonResponse({ error: 'Empresa informada não existe.' }, 400)
+    }
+    companyId = body.company_id
+  }
+
   // Tenta criar o usuário no Auth. Se o e-mail já existir (ex.: cadastro anterior
   // que falhou no meio), buscamos o usuário existente pelo e-mail em vez de falhar.
   let authUserId: string
@@ -91,7 +108,7 @@ Deno.serve(async (req: Request) => {
     email,
     password: senha,
     email_confirm: true,
-    user_metadata: { nome },
+    user_metadata: { nome, company_id: companyId },
   })
 
   if (createError) {
@@ -113,6 +130,20 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Usuário não encontrado.' }, 404)
     }
 
+    // Se esse e-mail já tem perfil vinculado a outra empresa, um admin comum
+    // não pode "recriar" o usuário pra puxá-lo pra própria empresa — só o
+    // master admin pode mover um usuário entre empresas.
+    if (!callerPerfil.is_master_admin) {
+      const { data: perfilExistente } = await adminClient
+        .from('usuarios')
+        .select('company_id')
+        .eq('id', existing.id)
+        .maybeSingle()
+      if (perfilExistente && perfilExistente.company_id !== companyId) {
+        return jsonResponse({ error: 'Este e-mail já pertence a um usuário de outra empresa.' }, 403)
+      }
+    }
+
     // Atualiza a senha para garantir que a senha padrão está correta.
     await adminClient.auth.admin.updateUserById(existing.id, {
       password: senha,
@@ -131,7 +162,7 @@ Deno.serve(async (req: Request) => {
   // então tentamos UPDATE primeiro; se não houver linha, fazemos INSERT.
   const { data: updatedUsuario, error: updateError } = await adminClient
     .from('usuarios')
-    .update({ nome, email, telefone, nivel, modulos, deve_trocar_senha: true })
+    .update({ nome, email, telefone, nivel, modulos, company_id: companyId, deve_trocar_senha: true })
     .eq('id', authUserId)
     .select()
     .maybeSingle()
@@ -142,7 +173,7 @@ Deno.serve(async (req: Request) => {
     // Linha ainda não existe — insere normalmente.
     const { data: insertedUsuario, error: insertError } = await adminClient
       .from('usuarios')
-      .insert({ id: authUserId, nome, email, telefone, nivel, modulos, deve_trocar_senha: true })
+      .insert({ id: authUserId, nome, email, telefone, nivel, modulos, company_id: companyId, deve_trocar_senha: true })
       .select()
       .single()
 

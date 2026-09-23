@@ -2,21 +2,20 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Building2, Check, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Building2, Check, Loader2, Pencil, Plus, Power, Search, Trash2, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Label, FieldError } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { useEmpresa } from '@/contexts/EmpresaContext'
-import type { Empresa } from '@/contexts/EmpresaContext'
+import { useCompanies, criarEmpresa, atualizarEmpresa, excluirEmpresa } from '@/hooks/useCompanies'
+import type { Company } from '@/lib/types'
 import { buscarCnpj, formatCnpj } from '@/lib/cnpj'
 import { useAuth } from '@/contexts/AuthContext'
-import { isAdminUsuario } from '@/lib/permissoes'
 
 const schema = z.object({
-  nome: z.string().trim().min(1, 'Informe o nome da empresa'),
-  sistemaLabel: z.string().trim().min(1, 'Informe o rótulo do sistema'),
-  cor: z.string().min(4, 'Selecione uma cor'),
+  name: z.string().trim().min(1, 'Informe o nome da empresa'),
+  sistema_label: z.string().trim().min(1, 'Informe o rótulo do sistema'),
+  primary_color: z.string().min(4, 'Selecione uma cor'),
   cnpj: z.string().optional(),
   observacoes: z.string().optional(),
 })
@@ -35,16 +34,16 @@ const CORES_PRESETS = [
 ]
 
 export function EmpresasTab() {
-  const { perfil, user } = useAuth()
-  const isAdmin = isAdminUsuario(perfil, user?.email)
-  const { empresas, empresaAtiva, setEmpresaAtiva, adicionarEmpresa, atualizarEmpresa, excluirEmpresa } =
-    useEmpresa()
+  const { perfil, empresa: minhaEmpresa, isMasterAdmin } = useAuth()
+  const { empresas, loading, refetch } = useCompanies()
   const [mostrarForm, setMostrarForm] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [sucesso, setSucesso] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
   const [buscandoCnpj, setBuscandoCnpj] = useState(false)
   const [cnpjInfo, setCnpjInfo] = useState<string | null>(null)
+  const [alterandoStatusId, setAlterandoStatusId] = useState<string | null>(null)
 
   const {
     register,
@@ -55,19 +54,23 @@ export function EmpresasTab() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { nome: '', sistemaLabel: 'CENTER TRUCK', cor: '#E23B2E', cnpj: '', observacoes: '' },
+    defaultValues: { name: '', sistema_label: 'CENTER TRUCK', primary_color: '#E23B2E', cnpj: '', observacoes: '' },
   })
 
-  const corAtual = watch('cor')
+  const corAtual = watch('primary_color')
 
-  function iniciarEdicao(empresa: Empresa) {
+  function podeEditar(empresa: Company) {
+    return isMasterAdmin || (empresa.id === minhaEmpresa?.id && perfil?.nivel === 'admin')
+  }
+
+  function iniciarEdicao(empresa: Company) {
     setEditandoId(empresa.id)
     setMostrarForm(true)
     setCnpjInfo(null)
     reset({
-      nome: empresa.nome,
-      sistemaLabel: empresa.sistemaLabel,
-      cor: empresa.cor,
+      name: empresa.name,
+      sistema_label: empresa.sistema_label,
+      primary_color: empresa.primary_color,
       cnpj: empresa.cnpj ? formatCnpj(empresa.cnpj) : '',
       observacoes: empresa.observacoes ?? '',
     })
@@ -78,9 +81,9 @@ export function EmpresasTab() {
     setCnpjInfo(null)
     const proximaCor = CORES_PRESETS[empresas.length % CORES_PRESETS.length]?.value ?? '#1E3A5F'
     reset({
-      nome: '',
-      sistemaLabel: 'CENTER TRUCK',
-      cor: proximaCor,
+      name: '',
+      sistema_label: 'CENTER TRUCK',
+      primary_color: proximaCor,
       cnpj: '',
       observacoes: '',
     })
@@ -91,7 +94,7 @@ export function EmpresasTab() {
     setMostrarForm(false)
     setEditandoId(null)
     setCnpjInfo(null)
-    reset({ nome: '', sistemaLabel: 'CENTER TRUCK', cor: '#E23B2E', cnpj: '', observacoes: '' })
+    reset({ name: '', sistema_label: 'CENTER TRUCK', primary_color: '#E23B2E', cnpj: '', observacoes: '' })
   }
 
   async function handleBuscarCnpj(cnpjVal?: string) {
@@ -107,10 +110,10 @@ export function EmpresasTab() {
     try {
       const info = await buscarCnpj(digits)
       if (info.nome) {
-        setValue('nome', info.nome)
-        const currentSistema = watch('sistemaLabel')
+        setValue('name', info.nome)
+        const currentSistema = watch('sistema_label')
         if (!currentSistema || currentSistema === 'CENTER TRUCK') {
-          setValue('sistemaLabel', info.nome.split(' ').slice(0, 3).join(' ').toUpperCase())
+          setValue('sistema_label', info.nome.split(' ').slice(0, 3).join(' ').toUpperCase())
         }
       }
       if (info.endereco) {
@@ -128,28 +131,55 @@ export function EmpresasTab() {
     }
   }
 
-  function onSubmit(values: FormValues) {
+  async function onSubmit(values: FormValues) {
+    setErro(null)
     const dadosFormatados = {
       ...values,
       cnpj: values.cnpj ? formatCnpj(values.cnpj) : '',
     }
-    if (editandoId) {
-      atualizarEmpresa(editandoId, dadosFormatados)
-      setSucesso('Empresa atualizada com sucesso!')
-    } else {
-      adicionarEmpresa(dadosFormatados)
-      setSucesso('Empresa cadastrada com sucesso!')
+    try {
+      if (editandoId) {
+        await atualizarEmpresa(editandoId, dadosFormatados)
+        setSucesso('Empresa atualizada com sucesso!')
+      } else {
+        await criarEmpresa(dadosFormatados)
+        setSucesso('Empresa cadastrada com sucesso!')
+      }
+      await refetch()
+      cancelar()
+      setTimeout(() => setSucesso(null), 3000)
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível salvar a empresa.')
     }
-    cancelar()
-    setTimeout(() => setSucesso(null), 3000)
   }
 
-  function confirmarExclusao(id: string) {
-    if (!isAdmin) return
-    excluirEmpresa(id)
-    setExcluindoId(null)
-    setSucesso('Empresa removida.')
-    setTimeout(() => setSucesso(null), 3000)
+  async function confirmarExclusao(id: string) {
+    if (!isMasterAdmin) return
+    setErro(null)
+    try {
+      await excluirEmpresa(id)
+      await refetch()
+      setSucesso('Empresa removida.')
+      setTimeout(() => setSucesso(null), 3000)
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível excluir a empresa.')
+    } finally {
+      setExcluindoId(null)
+    }
+  }
+
+  async function alternarStatus(empresa: Company) {
+    if (!isMasterAdmin) return
+    setAlterandoStatusId(empresa.id)
+    setErro(null)
+    try {
+      await atualizarEmpresa(empresa.id, { status: empresa.status === 'active' ? 'inactive' : 'active' })
+      await refetch()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível alterar o status da empresa.')
+    } finally {
+      setAlterandoStatusId(null)
+    }
   }
 
   return (
@@ -158,13 +188,15 @@ export function EmpresasTab() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">
-            Empresas do Grupo GVEL
+            {isMasterAdmin ? 'Empresas da Plataforma' : 'Minha Empresa'}
           </h2>
           <p className="text-xs text-secondary mt-0.5">
-            Gerencie as empresas do grupo. Clique no logo do sistema para trocar de empresa.
+            {isMasterAdmin
+              ? 'Gerencie as empresas que utilizam o sistema.'
+              : 'Dados da empresa vinculada à sua conta.'}
           </p>
         </div>
-        {!mostrarForm && (
+        {!mostrarForm && isMasterAdmin && (
           <Button
             size="md"
             onClick={abrirNovaEmpresa}
@@ -176,11 +208,17 @@ export function EmpresasTab() {
         )}
       </div>
 
-      {/* Mensagem de Sucesso */}
+      {/* Mensagens */}
       {sucesso && (
         <div className="flex items-center gap-2 rounded-xl border border-status-success/30 bg-status-success/10 px-4 py-3 text-sm text-status-success font-medium">
           <Check className="h-4 w-4 shrink-0" />
           {sucesso}
+        </div>
+      )}
+      {erro && (
+        <div className="flex items-center gap-2 rounded-xl border border-status-error/30 bg-status-error/10 px-4 py-3 text-sm text-status-error font-medium">
+          <X className="h-4 w-4 shrink-0" />
+          {erro}
         </div>
       )}
 
@@ -204,10 +242,10 @@ export function EmpresasTab() {
                   <Label htmlFor="emp_nome">Nome da Empresa *</Label>
                   <Input
                     id="emp_nome"
-                    placeholder="Ex: GVel Leves"
-                    {...register('nome')}
+                    placeholder="Ex: VelContracker Rastreamento Veicular"
+                    {...register('name')}
                   />
-                  <FieldError message={errors.nome?.message} />
+                  <FieldError message={errors.name?.message} />
                 </div>
 
                 {/* Rótulo do Sistema */}
@@ -216,9 +254,9 @@ export function EmpresasTab() {
                   <Input
                     id="emp_sistema"
                     placeholder="Ex: CENTER TRUCK"
-                    {...register('sistemaLabel')}
+                    {...register('sistema_label')}
                   />
-                  <FieldError message={errors.sistemaLabel?.message} />
+                  <FieldError message={errors.sistema_label?.message} />
                   <p className="mt-1 text-[11px] text-secondary">
                     Aparece no cabeçalho do sistema
                   </p>
@@ -286,7 +324,7 @@ export function EmpresasTab() {
                         key={c.value}
                         type="button"
                         title={c.label}
-                        onClick={() => setValue('cor', c.value)}
+                        onClick={() => setValue('primary_color', c.value)}
                         className="h-7 w-7 rounded-full border-2 transition-all shrink-0"
                         style={{
                           backgroundColor: c.value,
@@ -299,14 +337,14 @@ export function EmpresasTab() {
                       <input
                         type="color"
                         value={corAtual}
-                        onChange={(e) => setValue('cor', e.target.value)}
+                        onChange={(e) => setValue('primary_color', e.target.value)}
                         className="h-7 w-7 cursor-pointer rounded-full border-0 bg-transparent p-0"
                         title="Cor personalizada"
                       />
                       <span className="text-xs text-secondary font-mono">{corAtual}</span>
                     </div>
                   </div>
-                  <FieldError message={errors.cor?.message} />
+                  <FieldError message={errors.primary_color?.message} />
                 </div>
               </div>
 
@@ -330,10 +368,10 @@ export function EmpresasTab() {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-foreground uppercase tracking-wider">
-                    {watch('sistemaLabel') || 'SISTEMA'}
+                    {watch('sistema_label') || 'SISTEMA'}
                   </p>
                   <p className="text-[11px] text-secondary uppercase tracking-wide">
-                    {watch('nome') || 'Nome da Empresa'}
+                    {watch('name') || 'Nome da Empresa'}
                   </p>
                 </div>
               </div>
@@ -353,9 +391,11 @@ export function EmpresasTab() {
 
       {/* Lista de Empresas */}
       <div className="space-y-3">
-        {empresas.map((empresa) => {
-          const isAtiva = empresa.id === empresaAtiva?.id
+        {loading && <p className="text-xs text-secondary">Carregando...</p>}
+        {!loading && empresas.map((empresa) => {
+          const isMinha = empresa.id === minhaEmpresa?.id
           const isExcluindo = excluindoId === empresa.id
+          const isInativa = empresa.status === 'inactive'
 
           return (
             <Card key={empresa.id}>
@@ -364,7 +404,7 @@ export function EmpresasTab() {
                   {/* Ícone colorido */}
                   <div
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-md"
-                    style={{ backgroundColor: empresa.cor }}
+                    style={{ backgroundColor: empresa.primary_color, opacity: isInativa ? 0.5 : 1 }}
                   >
                     <Building2 className="h-5 w-5" />
                   </div>
@@ -372,15 +412,20 @@ export function EmpresasTab() {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-foreground">{empresa.nome}</p>
-                      {isAtiva && (
+                      <p className="text-sm font-bold text-foreground">{empresa.name}</p>
+                      {isMinha && (
                         <Badge className="text-[10px] px-1.5 py-0.5 bg-primary/15 text-primary border-primary/25">
-                          ATIVA
+                          SUA EMPRESA
+                        </Badge>
+                      )}
+                      {isInativa && (
+                        <Badge className="text-[10px] px-1.5 py-0.5 bg-status-error/15 text-status-error border-status-error/25">
+                          INATIVA
                         </Badge>
                       )}
                     </div>
                     <p className="text-xs text-secondary uppercase tracking-wide">
-                      {empresa.sistemaLabel}
+                      {empresa.sistema_label}
                     </p>
                     {empresa.cnpj && (
                       <p className="text-[11px] text-secondary/70 mt-0.5 font-mono">
@@ -391,24 +436,30 @@ export function EmpresasTab() {
 
                   {/* Ações */}
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {!isAtiva && (
-                      <Button
-                        size="md"
-                        variant="ghost"
-                        onClick={() => setEmpresaAtiva(empresa.id)}
-                        className="text-xs h-8 px-3"
+                    {isMasterAdmin && (
+                      <button
+                        onClick={() => alternarStatus(empresa)}
+                        disabled={alterandoStatusId === empresa.id}
+                        className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                          isInativa
+                            ? 'text-status-success hover:bg-status-success/10'
+                            : 'text-secondary hover:bg-overlay/10 hover:text-foreground'
+                        }`}
+                        title={isInativa ? 'Ativar empresa' : 'Desativar empresa'}
                       >
-                        Ativar
-                      </Button>
+                        <Power className="h-3.5 w-3.5" />
+                      </button>
                     )}
-                    <button
-                      onClick={() => iniciarEdicao(empresa)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors"
-                      title="Editar"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    {isAdmin && empresas.length > 1 && (
+                    {podeEditar(empresa) && (
+                      <button
+                        onClick={() => iniciarEdicao(empresa)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors"
+                        title="Editar"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {isMasterAdmin && (
                       <>
                         {isExcluindo ? (
                           <div className="flex items-center gap-1.5 rounded-lg border border-status-error/30 bg-status-error/10 px-2.5 py-1">

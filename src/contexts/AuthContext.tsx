@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { withTimeout } from '@/lib/withTimeout'
-import type { Usuario } from '@/lib/types'
+import { setCurrentCompanyId } from '@/lib/tenant'
+import type { Company, Usuario } from '@/lib/types'
 
 const NETWORK_TIMEOUT_MS = 15000
 
@@ -10,6 +11,8 @@ interface AuthContextValue {
   session: Session | null
   user: User | null
   perfil: Usuario | null
+  empresa: Company | null
+  isMasterAdmin: boolean
   loading: boolean
   perfilLoading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
@@ -31,6 +34,7 @@ const LOCAL_SESSION = { user: LOCAL_USER } as Session
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [perfil, setPerfil] = useState<Usuario | null>(null)
+  const [empresa, setEmpresa] = useState<Company | null>(null)
   const [loading, setLoading] = useState(true)
   const [perfilLoading, setPerfilLoading] = useState(true)
 
@@ -63,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userId = session?.user?.id
     if (!isSupabaseConfigured || !userId) {
       setPerfil(null)
+      setEmpresa(null)
+      setCurrentCompanyId(null)
       setPerfilLoading(false)
       return
     }
@@ -73,8 +79,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         NETWORK_TIMEOUT_MS,
       )
       setPerfil(data ?? null)
+      setCurrentCompanyId(data?.company_id ?? null)
+
+      if (data?.company_id) {
+        const { data: empresaData } = await withTimeout(
+          supabase.from('companies').select('*').eq('id', data.company_id).maybeSingle(),
+          NETWORK_TIMEOUT_MS,
+        )
+        setEmpresa(empresaData ?? null)
+      } else {
+        setEmpresa(null)
+      }
     } catch {
       setPerfil(null)
+      setEmpresa(null)
+      setCurrentCompanyId(null)
     } finally {
       setPerfilLoading(false)
     }
@@ -119,6 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user: session?.user ?? null,
         perfil,
+        empresa,
+        isMasterAdmin: perfil?.is_master_admin ?? false,
         loading,
         perfilLoading,
         signIn,

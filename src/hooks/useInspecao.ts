@@ -4,6 +4,7 @@ import { getChecklistParaTipo } from '@/data/checklistSchema'
 import { itemKey, type InspecaoWizardState } from '@/pages/inspecao/types'
 import { up } from '@/lib/text'
 import { dataUrlParaBlob } from '@/lib/imagem'
+import { comPrefixoEmpresa } from '@/lib/tenant'
 import type { StatusChecklist } from '@/lib/types'
 
 export async function salvarInspecao(state: InspecaoWizardState) {
@@ -18,7 +19,7 @@ export async function salvarInspecao(state: InspecaoWizardState) {
   let assinaturaUrl: string | null = null
   if (state.assinaturaDataUrl) {
     const blob = dataUrlParaBlob(state.assinaturaDataUrl)
-    const path = `${state.id}.png`
+    const path = comPrefixoEmpresa(`${state.id}.png`)
     const { error } = await supabase.storage.from(ASSINATURAS_BUCKET).upload(path, blob, {
       contentType: 'image/png',
       upsert: true,
@@ -44,7 +45,7 @@ export async function salvarInspecao(state: InspecaoWizardState) {
       if (itemState!.fotoFile) {
         try {
           const ext = itemState!.fotoFile.type === 'image/png' ? 'png' : 'jpg'
-          const path = `${state.id}/${itemKey(secao.id, item.id)}.${ext}`
+          const path = comPrefixoEmpresa(`${state.id}/${itemKey(secao.id, item.id)}.${ext}`)
           const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, itemState!.fotoFile, {
             contentType: itemState!.fotoFile.type,
             upsert: true,

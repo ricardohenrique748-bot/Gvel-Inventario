@@ -65,7 +65,7 @@ const schema = z.object({
   senha: z.string().min(6, 'Mínimo de 6 caracteres'),
   telefone: z.string().optional(),
   nivel: z.enum(['admin', 'usuario']),
-  empresa_id: z.string().optional(),
+  company_id: z.string().optional(),
   modulos: z.array(z.string()).optional(),
 })
 
@@ -75,7 +75,7 @@ const editSchema = z.object({
   nome: z.string().trim().min(1, 'Informe o nome'),
   telefone: z.string().optional(),
   nivel: z.enum(['admin', 'usuario']),
-  empresa_id: z.string().optional(),
+  company_id: z.string().optional(),
   modulos: z.array(z.string()).optional(),
 })
 
@@ -337,7 +337,7 @@ export function UsuariosTab() {
     resolver: zodResolver(schema),
     defaultValues: {
       nivel: 'usuario',
-      empresa_id: empresaAtiva?.id || empresas[0]?.id || 'gvel_diesel',
+      company_id: empresaAtiva?.id || empresas[0]?.id || '',
       modulos: [],
     },
   })
@@ -346,7 +346,7 @@ export function UsuariosTab() {
 
   const usuariosFiltrados = useMemo(() => {
     if (filtroEmpresa === 'TODAS') return usuarios
-    return usuarios.filter((u) => (u.empresa_id || 'gvel_diesel') === filtroEmpresa)
+    return usuarios.filter((u) => u.company_id === filtroEmpresa)
   }, [usuarios, filtroEmpresa])
 
   // Regra fundamental: Apenas administradores podem gerenciar usuários
@@ -370,13 +370,13 @@ export function UsuariosTab() {
     try {
       await criarUsuario({
         ...values,
-        empresa_id: values.empresa_id || empresaAtiva?.id || 'gvel_diesel',
+        company_id: values.company_id || empresaAtiva?.id || '',
         modulos: values.nivel === 'admin' ? TODOS_MODULOS_IDS : values.modulos || MODULOS_PADRAO_USUARIO,
       })
       await refetch()
       reset({
         nivel: 'usuario',
-        empresa_id: empresaAtiva?.id || empresas[0]?.id || 'gvel_diesel',
+        company_id: empresaAtiva?.id || empresas[0]?.id || '',
         modulos: [],
       })
       setMostrarForm(false)
@@ -454,7 +454,7 @@ export function UsuariosTab() {
               >
                 <option value="TODAS">Todas as Empresas ({usuarios.length})</option>
                 {empresas.map((emp) => {
-                  const count = usuarios.filter((u) => (u.empresa_id || 'gvel_diesel') === emp.id).length
+                  const count = usuarios.filter((u) => u.company_id === emp.id).length
                   return (
                     <option key={emp.id} value={emp.id}>
                       {emp.nome} ({count})
@@ -470,7 +470,7 @@ export function UsuariosTab() {
                 onClick={() => {
                   reset({
                     nivel: 'usuario',
-                    empresa_id: filtroEmpresa !== 'TODAS' ? filtroEmpresa : (empresaAtiva?.id || 'gvel_diesel'),
+                    company_id: filtroEmpresa !== 'TODAS' ? filtroEmpresa : (empresaAtiva?.id || ''),
                     modulos: [],
                   })
                   setMostrarForm(true)
@@ -530,8 +530,8 @@ export function UsuariosTab() {
                   </div>
 
                   <div>
-                    <Label htmlFor="empresa_id">Empresa Vinculada *</Label>
-                    <Select id="empresa_id" {...register('empresa_id')}>
+                    <Label htmlFor="company_id">Empresa Vinculada *</Label>
+                    <Select id="company_id" {...register('company_id')}>
                       {empresas.map((emp) => (
                         <option key={emp.id} value={emp.id}>
                           {emp.nome} ({emp.sistemaLabel})
@@ -594,7 +594,7 @@ export function UsuariosTab() {
               <div className="space-y-3">
                 {usuariosFiltrados.map((u: Usuario) => {
                   const modulosPermitidos = getModulosUsuario(u)
-                  const empresaVinculada = empresas.find((e) => e.id === u.empresa_id) || empresas[0]
+                  const empresaVinculada = empresas.find((e) => e.id === u.company_id) || empresas[0]
 
                   return editandoId === u.id ? (
                     <EditarUsuarioForm
@@ -803,7 +803,7 @@ function EditarUsuarioForm({
     defaultValues: {
       nome: usuario.nome,
       telefone: usuario.telefone ?? '',
-      empresa_id: usuario.empresa_id || 'gvel_diesel',
+      company_id: usuario.company_id,
       nivel: usuario.nivel,
       modulos: getModulosUsuario(usuario),
     },
@@ -848,7 +848,7 @@ function EditarUsuarioForm({
       await atualizarUsuario(usuario.id, {
         ...values,
         email: usuario.email,
-        empresa_id: values.empresa_id || 'gvel_diesel',
+        company_id: values.company_id || usuario.company_id,
         modulos: values.nivel === 'admin' ? TODOS_MODULOS_IDS : values.modulos || [],
         foto_url: fotoUrl || null,
       })
@@ -917,7 +917,7 @@ function EditarUsuarioForm({
         </div>
         <div>
           <Label htmlFor={`empresa-${usuario.id}`}>Empresa</Label>
-          <Select id={`empresa-${usuario.id}`} {...register('empresa_id')}>
+          <Select id={`empresa-${usuario.id}`} {...register('company_id')}>
             {empresas.map((emp) => (
               <option key={emp.id} value={emp.id}>
                 {emp.nome} ({emp.sistemaLabel})

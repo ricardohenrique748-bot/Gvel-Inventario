@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import { MOVIMENTACAO_COM_VEICULO } from '@/lib/queries'
 import { up } from '@/lib/text'
+import { comPrefixoEmpresa } from '@/lib/tenant'
 import type { MovimentacaoComVeiculo, StatusMovimentacao, TipoVeiculo } from '@/lib/types'
 import { upsertVeiculo } from './useVeiculos'
 
@@ -200,7 +201,7 @@ const TIMEOUT_POR_TENTATIVA_MS = 15000
 
 export async function uploadFotoEntrada(movimentacaoId: string, campo: string, file: File): Promise<string> {
   const ext = file.type === 'image/png' ? 'png' : 'jpg'
-  const path = `entrada/${movimentacaoId}/${campo}.${ext}`
+  const path = comPrefixoEmpresa(`entrada/${movimentacaoId}/${campo}.${ext}`)
 
   let ultimoErro: unknown = null
   for (let tentativa = 1; tentativa <= TENTATIVAS_UPLOAD_FOTO; tentativa++) {

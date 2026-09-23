@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
   // Apenas admins podem resetar senhas
   const { data: callerPerfil, error: perfilError } = await adminClient
     .from('usuarios')
-    .select('nivel')
+    .select('nivel, company_id, is_master_admin')
     .eq('id', callerData.user.id)
     .single()
 
@@ -64,6 +64,20 @@ Deno.serve(async (req: Request) => {
   const { id } = body
   if (!id) {
     return jsonResponse({ error: 'ID do usuário é obrigatório.' }, 400)
+  }
+
+  // Nunca confia no company_id vindo do cliente: confere no banco que o
+  // usuário alvo é da mesma empresa de quem está chamando, a menos que
+  // quem chama seja master admin.
+  if (!callerPerfil.is_master_admin) {
+    const { data: alvoPerfil, error: alvoError } = await adminClient
+      .from('usuarios')
+      .select('company_id')
+      .eq('id', id)
+      .single()
+    if (alvoError || !alvoPerfil || alvoPerfil.company_id !== callerPerfil.company_id) {
+      return jsonResponse({ error: 'Usuário não encontrado nesta empresa.' }, 404)
+    }
   }
 
   // Senha definida ou padrão 123456
