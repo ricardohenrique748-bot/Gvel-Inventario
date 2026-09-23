@@ -19,6 +19,7 @@ interface CreateUsuarioBody {
   nivel?: 'admin' | 'usuario'
   modulos?: string[]
   company_id?: string
+  is_master_admin?: boolean
 }
 
 function jsonResponse(body: unknown, status: number) {
@@ -100,6 +101,15 @@ Deno.serve(async (req: Request) => {
     companyId = body.company_id
   }
 
+  // Só um admin master já existente pode alterar essa flag em outra conta —
+  // nunca confiamos nesse campo vindo do cliente sozinho. Quem não é master
+  // admin nem consegue enviar isso (undefined), então o valor atual do
+  // usuário-alvo (se já existir) permanece intocado.
+  const masterAdminPayload: { is_master_admin?: boolean } =
+    callerPerfil.is_master_admin === true && body.is_master_admin !== undefined
+      ? { is_master_admin: body.is_master_admin === true }
+      : {}
+
   // Tenta criar o usuário no Auth. Se o e-mail já existir (ex.: cadastro anterior
   // que falhou no meio), buscamos o usuário existente pelo e-mail em vez de falhar.
   let authUserId: string
@@ -162,7 +172,7 @@ Deno.serve(async (req: Request) => {
   // então tentamos UPDATE primeiro; se não houver linha, fazemos INSERT.
   const { data: updatedUsuario, error: updateError } = await adminClient
     .from('usuarios')
-    .update({ nome, email, telefone, nivel, modulos, company_id: companyId, deve_trocar_senha: true })
+    .update({ nome, email, telefone, nivel, modulos, company_id: companyId, ...masterAdminPayload, deve_trocar_senha: true })
     .eq('id', authUserId)
     .select()
     .maybeSingle()
@@ -173,7 +183,7 @@ Deno.serve(async (req: Request) => {
     // Linha ainda não existe — insere normalmente.
     const { data: insertedUsuario, error: insertError } = await adminClient
       .from('usuarios')
-      .insert({ id: authUserId, nome, email, telefone, nivel, modulos, company_id: companyId, deve_trocar_senha: true })
+      .insert({ id: authUserId, nome, email, telefone, nivel, modulos, company_id: companyId, ...masterAdminPayload, deve_trocar_senha: true })
       .select()
       .single()
 

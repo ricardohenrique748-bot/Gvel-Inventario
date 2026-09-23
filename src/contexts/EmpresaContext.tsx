@@ -1,18 +1,17 @@
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { supabase } from '@/lib/supabase'
 import { useAuth } from './AuthContext'
 
-// Fase 1 do multi-empresa: a "empresa ativa" deixou de ser uma lista local
-// (localStorage) que qualquer usuário podia trocar livremente — ela agora
-// vem sempre do banco, resolvida a partir do usuário autenticado
-// (AuthContext → tabela `companies` via `usuarios.company_id`). Um usuário
-// só enxerga a própria empresa; não existe mais troca manual de empresa.
-//
-// A interface pública do hook (`empresas`, `empresaAtiva`, `setEmpresaAtiva`)
-// foi mantida por compatibilidade com o Sidebar/Header/Logo existentes, que
-// exibem a marca (logo/cor/nome) da empresa atual — só que agora a lista
-// sempre tem no máximo 1 item (a própria empresa) e `setEmpresaAtiva` é um
-// no-op, já que não há mais nada para trocar.
+// Fase 1 do multi-empresa: a "empresa ativa" vem sempre do banco, resolvida
+// a partir do usuário autenticado (AuthContext → tabela `companies` via
+// `usuarios.company_id`). Um usuário comum só enxerga a própria empresa e
+// não tem como trocar. A única exceção é o master admin: `setEmpresaAtiva`
+// permite "entrar" em outra empresa cadastrada — o que na prática move o
+// `company_id` do próprio usuário master admin, então precisa ser usado com
+// cuidado (afeta o próprio login, não é uma visualização paralela). Para
+// qualquer outro usuário, `setEmpresaAtiva` não faz nada — o próprio RLS do
+// banco bloquearia a tentativa mesmo que o frontend não checasse.
 export interface Empresa {
   id: string
   nome: string
@@ -25,13 +24,15 @@ export interface Empresa {
 interface EmpresaContextValue {
   empresas: Empresa[]
   empresaAtiva: Empresa | undefined
-  setEmpresaAtiva: (id: string) => void
+  trocandoEmpresa: boolean
+  setEmpresaAtiva: (id: string) => Promise<void>
 }
 
 const EmpresaContext = createContext<EmpresaContextValue | null>(null)
 
 export function EmpresaProvider({ children }: { children: ReactNode }) {
-  const { empresa } = useAuth()
+  const { empresa, isMasterAdmin, user } = useAuth()
+  const [trocandoEmpresa, setTrocandoEmpresa] = useState(false)
 
   const empresaAtiva: Empresa | undefined = useMemo(() => {
     if (!empresa) return undefined
@@ -47,13 +48,31 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
 
   const empresas = useMemo(() => (empresaAtiva ? [empresaAtiva] : []), [empresaAtiva])
 
-  function setEmpresaAtiva() {
-    // Não há mais troca manual de empresa — a empresa do usuário vem do
-    // banco (usuarios.company_id), nunca de uma escolha no frontend.
-  }
+  const setEmpresaAtiva = useCallback(
+    async (id: string) => {
+      if (!isMasterAdmin || !user?.id || id === empresaAtiva?.id) return
+      if (!confirm('Entrar nesta empresa? Sua conta vai passar a pertencer a ela até você trocar de novo.')) {
+        return
+      }
+      setTrocandoEmpresa(true)
+      try {
+        const { error } = await supabase.from('usuarios').update({ company_id: id }).eq('id', user.id)
+        if (error) throw error
+        // Recarrega a página inteira em vez de só atualizar o estado local:
+        // garante que os ~32 hooks que buscam dados do sistema (veículos,
+        // financeiro, etc.) façam a busca de novo já filtrados pela nova
+        // empresa, sem precisar fazer cada um reagir a essa troca.
+        window.location.href = '/'
+      } catch (err) {
+        setTrocandoEmpresa(false)
+        alert(err instanceof Error ? err.message : 'Não foi possível trocar de empresa.')
+      }
+    },
+    [isMasterAdmin, user?.id, empresaAtiva?.id],
+  )
 
   return (
-    <EmpresaContext.Provider value={{ empresas, empresaAtiva, setEmpresaAtiva }}>
+    <EmpresaContext.Provider value={{ empresas, empresaAtiva, trocandoEmpresa, setEmpresaAtiva }}>
       {children}
     </EmpresaContext.Provider>
   )

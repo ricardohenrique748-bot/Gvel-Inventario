@@ -15,7 +15,7 @@ import { uploadFotoUsuario, atualizarUsuario } from '@/hooks/useUsuarios'
 import { RecortarFotoModal } from '@/components/RecortarFotoModal'
 
 function CompanySwitcher() {
-  const { empresaAtiva, setEmpresaAtiva } = useEmpresa()
+  const { empresaAtiva, setEmpresaAtiva, trocandoEmpresa } = useEmpresa()
   const empresas = useEmpresasVisiveis()
   const { user, perfil, perfilLoading } = useAuth()
   const isAdmin = !perfilLoading && (perfil?.nivel === 'admin' || user?.email === 'ricardo_h.16@hotmail.com' || user?.email === 'victor@gveldiesel.com')
@@ -77,7 +77,7 @@ function CompanySwitcher() {
           >
             <div className="px-3 py-2 border-b border-border/10 bg-black/40 flex items-center justify-between">
               <p className="text-[10px] font-bold uppercase tracking-wider text-secondary/80">
-                Trocar de Empresa
+                {trocandoEmpresa ? 'Trocando de empresa…' : 'Trocar de Empresa'}
               </p>
               <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold tracking-wider">
                 ADMIN
@@ -92,13 +92,14 @@ function CompanySwitcher() {
                     type="button"
                     role="option"
                     aria-selected={isActive}
+                    disabled={trocandoEmpresa}
                     onClick={() => {
                       setEmpresaAtiva(empresa.id)
                       setOpen(false)
                     }}
                     style={isActive ? { borderLeftColor: empresa.cor } : undefined}
                     className={cn(
-                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer border-l-2',
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer border-l-2 disabled:opacity-50 disabled:cursor-wait',
                       isActive
                         ? 'bg-white/[0.06] text-foreground font-semibold'
                         : 'border-l-transparent text-secondary hover:bg-white/5 hover:text-foreground',

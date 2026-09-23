@@ -67,6 +67,7 @@ interface CriarUsuarioInput {
   nivel?: NivelUsuario
   company_id?: string
   modulos?: string[]
+  is_master_admin?: boolean
 }
 
 async function mensagemErroFuncao(error: unknown, fallback: string): Promise<string> {
@@ -119,12 +120,14 @@ interface AtualizarUsuarioInput {
   modulos?: string[]
   email?: string
   foto_url?: string | null
+  is_master_admin?: boolean
 }
 
 const ROTULOS_CAMPOS_USUARIO: Record<string, string> = {
   modulos: 'permissões de acesso',
   company_id: 'empresa vinculada',
   foto_url: 'foto de perfil',
+  is_master_admin: 'permissão de admin master',
 }
 
 /** Extrai o nome da coluna que o Postgres/PostgREST reclamou não existir,
@@ -163,6 +166,9 @@ export async function atualizarUsuario(id: string, input: AtualizarUsuarioInput)
   }
   if (input.foto_url !== undefined) {
     updatePayload.foto_url = input.foto_url
+  }
+  if (input.is_master_admin !== undefined) {
+    updatePayload.is_master_admin = input.is_master_admin
   }
 
   let { data, error } = await supabase.from('usuarios').update(updatePayload).eq('id', id).select().single()

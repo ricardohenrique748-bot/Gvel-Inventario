@@ -48,7 +48,7 @@ export function PageHeader({ title, subtitle, back, actions }: PageHeaderProps) 
 }
 
 function MobileCompanySwitcher() {
-  const { empresaAtiva, setEmpresaAtiva } = useEmpresa()
+  const { empresaAtiva, setEmpresaAtiva, trocandoEmpresa } = useEmpresa()
   const empresas = useEmpresasVisiveis()
   const { user, perfil, perfilLoading } = useAuth()
   const isAdmin = !perfilLoading && (perfil?.nivel === 'admin' || user?.email === 'ricardo_h.16@hotmail.com' || user?.email === 'victor@gveldiesel.com')
@@ -111,7 +111,7 @@ function MobileCompanySwitcher() {
           >
             <div className="px-3 py-2 border-b border-border/10 bg-black/40 flex items-center justify-between">
               <p className="text-[10px] font-bold uppercase tracking-wider text-secondary/80">
-                Trocar de Empresa
+                {trocandoEmpresa ? 'Trocando de empresa…' : 'Trocar de Empresa'}
               </p>
               <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold tracking-wider">
                 ADMIN
@@ -126,12 +126,13 @@ function MobileCompanySwitcher() {
                     type="button"
                     role="option"
                     aria-selected={isActive}
+                    disabled={trocandoEmpresa}
                     onClick={() => {
                       setEmpresaAtiva(empresa.id)
                       setOpen(false)
                     }}
                     className={cn(
-                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer',
+                      'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait',
                       isActive
                         ? 'bg-primary/15 text-foreground font-semibold'
                         : 'text-secondary hover:bg-white/5 hover:text-foreground',

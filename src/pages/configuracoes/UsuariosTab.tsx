@@ -68,6 +68,7 @@ const schema = z.object({
   nivel: z.enum(['admin', 'usuario']),
   company_id: z.string().optional(),
   modulos: z.array(z.string()).optional(),
+  is_master_admin: z.boolean().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -78,6 +79,7 @@ const editSchema = z.object({
   nivel: z.enum(['admin', 'usuario']),
   company_id: z.string().optional(),
   modulos: z.array(z.string()).optional(),
+  is_master_admin: z.boolean().optional(),
 })
 
 type EditFormValues = z.infer<typeof editSchema>
@@ -313,7 +315,7 @@ function ModulosSelector({ nivel, selected, onChange }: ModulosSelectorProps) {
 }
 
 export function UsuariosTab() {
-  const { perfil, user } = useAuth()
+  const { perfil, user, isMasterAdmin } = useAuth()
   const { empresaAtiva } = useEmpresa()
   // Admin comum só vincula usuários à própria empresa; master admin escolhe
   // entre todas as empresas cadastradas na plataforma (ver useEmpresasVisiveis).
@@ -552,6 +554,18 @@ export function UsuariosTab() {
                     </Select>
                   </div>
                 </div>
+
+                {isMasterAdmin && (
+                  <label className="flex items-center gap-2.5 rounded-xl border border-status-warning/30 bg-status-warning/5 px-3.5 py-2.5 cursor-pointer">
+                    <input type="checkbox" className="h-4 w-4 accent-primary" {...register('is_master_admin')} />
+                    <span className="text-xs font-semibold text-foreground">
+                      Admin Master da Plataforma
+                      <span className="block text-[11px] font-normal text-secondary">
+                        Consegue administrar todas as empresas cadastradas, não só esta.
+                      </span>
+                    </span>
+                  </label>
+                )}
 
                 {/* Seletor Clean de Permissões */}
                 <Controller
@@ -798,6 +812,7 @@ function EditarUsuarioForm({
   onSalvo: () => void | Promise<void>
   onErro: (message: string) => void
 }) {
+  const { isMasterAdmin } = useAuth()
   const {
     register,
     handleSubmit,
@@ -812,6 +827,7 @@ function EditarUsuarioForm({
       company_id: usuario.company_id,
       nivel: usuario.nivel,
       modulos: getModulosUsuario(usuario),
+      is_master_admin: usuario.is_master_admin,
     },
   })
 
@@ -939,6 +955,18 @@ function EditarUsuarioForm({
           </Select>
         </div>
       </div>
+
+      {isMasterAdmin && (
+        <label className="flex items-center gap-2.5 rounded-xl border border-status-warning/30 bg-status-warning/5 px-3.5 py-2.5 cursor-pointer">
+          <input type="checkbox" className="h-4 w-4 accent-primary" {...register('is_master_admin')} />
+          <span className="text-xs font-semibold text-foreground">
+            Admin Master da Plataforma
+            <span className="block text-[11px] font-normal text-secondary">
+              Consegue administrar todas as empresas cadastradas, não só esta.
+            </span>
+          </span>
+        </label>
+      )}
 
       {/* Seletor Clean de Permissões com Sub-Abas */}
       <Controller
