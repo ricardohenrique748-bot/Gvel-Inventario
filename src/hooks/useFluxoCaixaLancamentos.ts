@@ -77,6 +77,32 @@ export async function criarLancamentoFluxoCaixa(input: CriarLancamentoFluxoCaixa
   }
 }
 
+/** Importação em massa (botão "Importar Excel") — sempre insere como novos lançamentos, sem tentar detectar duplicado. */
+export async function criarLancamentosFluxoCaixaEmLote(inputs: CriarLancamentoFluxoCaixaInput[]): Promise<void> {
+  if (inputs.length === 0) return
+  const { error } = await supabase.from('fluxo_caixa_lancamentos').insert(
+    inputs.map((input) => ({
+      data: input.data,
+      movimentacao: input.movimentacao,
+      descricao: input.descricao,
+      valor: input.valor,
+      observacao: input.observacao || null,
+      usuario_nome: input.usuarioNome || null,
+      cliente_id: input.clienteId || null,
+      veiculo_id: input.veiculoId || null,
+      quantidade_veiculos: input.quantidadeVeiculos ?? null,
+      data_vencimento: input.dataVencimento || null,
+      forma_pagamento: input.formaPagamento || null,
+      status_pagamento: input.statusPagamento || 'pendente',
+    })),
+  )
+  if (error) throw error
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('fluxo_caixa_lancamento_updated'))
+  }
+}
+
 export async function excluirLancamentoFluxoCaixa(id: string): Promise<void> {
   const { error } = await supabase.from('fluxo_caixa_lancamentos').delete().eq('id', id)
   if (error) throw error

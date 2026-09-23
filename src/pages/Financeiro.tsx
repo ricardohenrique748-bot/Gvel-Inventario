@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp,
@@ -29,6 +29,7 @@ import {
   Users,
   Truck,
   CreditCard,
+  Upload,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -53,6 +54,8 @@ import {
   criarLancamentoFluxoCaixa,
   excluirLancamentoFluxoCaixa,
 } from '@/hooks/useFluxoCaixaLancamentos'
+import { useEmpresasDivisoesOverrides, importarDivisoesVariosMeses } from '@/hooks/usePainelGerencialDivisoes'
+import { importarPainelGerencialExcel } from '@/lib/importarPainelGerencialExcel'
 
 // ─── Helpers de Formatação ──────────────────────────────────────────────────
 function fmtBRL(val: number) {
@@ -94,6 +97,7 @@ const SALDO_CAIXA_BASE_JUNHO = -350000.0
 function calcularSaldoCaixa(
   mesFiltroAtual: string,
   empresaFiltroAtual: string,
+  dadosMeses: Record<string, MesFinanceiroData>,
   empresasExcluidas?: Set<string>,
 ): number {
   const mesAlvo = mesFiltroAtual === 'todos' ? 'agosto' : mesFiltroAtual
@@ -103,7 +107,7 @@ function calcularSaldoCaixa(
 
   let saldo = SALDO_CAIXA_BASE_JUNHO
   for (let i = idxJulho; i <= idxMes; i++) {
-    const dataMes = DADOS_MESES[ORDEM_MESES[i]]
+    const dataMes = dadosMeses[ORDEM_MESES[i]]
     if (!dataMes) continue
     let empresas =
       empresaFiltroAtual === 'TODAS'
@@ -433,6 +437,55 @@ export function Financeiro() {
   const [planoContaFiltro, setPlanoContaFiltro] = useState<string>('TODOS')
   const [empresasOcultasTabela, setEmpresasOcultasTabela] = useState<Set<string>>(new Set())
 
+  // Dados das divisões (faturamento/receitas/despesas) importados do Excel,
+  // por mês — sobrescrevem DADOS_MESES quando existirem pra aquele mês. Ver
+  // src/hooks/usePainelGerencialDivisoes.ts.
+  const { overrides: divisoesOverrides, refetch: refetchDivisoesOverrides } = useEmpresasDivisoesOverrides()
+  const dadosMesesComOverrides = useMemo(() => {
+    const merged: Record<string, MesFinanceiroData> = {}
+    for (const mes of Object.keys(DADOS_MESES)) {
+      merged[mes] = {
+        ...DADOS_MESES[mes],
+        empresas: divisoesOverrides[mes] ?? DADOS_MESES[mes].empresas,
+      }
+    }
+    return merged
+  }, [divisoesOverrides])
+
+  const [importandoPainel, setImportandoPainel] = useState(false)
+  const [avisosImportacaoPainel, setAvisosImportacaoPainel] = useState<string[]>([])
+  const [sucessoImportacaoPainel, setSucessoImportacaoPainel] = useState<string | null>(null)
+  const importPainelInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleImportarPainelExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setImportandoPainel(true)
+    setAvisosImportacaoPainel([])
+    setSucessoImportacaoPainel(null)
+    try {
+      const { porMes, avisos } = await importarPainelGerencialExcel(file)
+      const meses = Object.keys(porMes)
+      if (meses.length === 0) {
+        setAvisosImportacaoPainel(avisos.length ? avisos : ['Nenhuma linha reconhecida na planilha.'])
+        return
+      }
+      await importarDivisoesVariosMeses(porMes)
+      await refetchDivisoesOverrides()
+      setAvisosImportacaoPainel(avisos)
+      const totalDivisoes = meses.reduce((acc, m) => acc + porMes[m].length, 0)
+      const rotulosMeses = meses
+        .map((m) => MESES_OPCOES.find((opt) => opt.id === m)?.label ?? m)
+        .join(', ')
+      setSucessoImportacaoPainel(`${totalDivisoes} divisõe(s) atualizada(s) — ${rotulosMeses}.`)
+    } catch (err) {
+      setAvisosImportacaoPainel([err instanceof Error ? err.message : 'Não foi possível importar o arquivo.'])
+    } finally {
+      setImportandoPainel(false)
+    }
+  }
+
   // Modais e Estados de Ação
   const [showHistoricoModal, setShowHistoricoModal] = useState(false)
   const [showListaModal, setShowListaModal] = useState(false)
@@ -455,17 +508,17 @@ export function Financeiro() {
             : 'Investimento'
 
         const faturamento = listaMeses.reduce((acc, m) => {
-          const emp = DADOS_MESES[m]?.empresas.find((e) => e.id === id)
+          const emp = dadosMesesComOverrides[m]?.empresas.find((e) => e.id === id)
           return acc + (emp?.faturamento || 0)
         }, 0)
 
         const receitas = listaMeses.reduce((acc, m) => {
-          const emp = DADOS_MESES[m]?.empresas.find((e) => e.id === id)
+          const emp = dadosMesesComOverrides[m]?.empresas.find((e) => e.id === id)
           return acc + (emp?.receitas || 0)
         }, 0)
 
         const despesas = listaMeses.reduce((acc, m) => {
-          const emp = DADOS_MESES[m]?.empresas.find((e) => e.id === id)
+          const emp = dadosMesesComOverrides[m]?.empresas.find((e) => e.id === id)
           return acc + (emp?.despesas || 0)
         }, 0)
 
@@ -499,8 +552,8 @@ export function Financeiro() {
       return { empresas, topClientes, topPlanosConta }
     }
 
-    return DADOS_MESES[mesFiltro] || DADOS_MESES.agosto
-  }, [mesFiltro])
+    return dadosMesesComOverrides[mesFiltro] || dadosMesesComOverrides.agosto
+  }, [mesFiltro, dadosMesesComOverrides])
 
   // Empresas filtradas
   const empresasExibidas = useMemo(() => {
@@ -534,7 +587,7 @@ export function Financeiro() {
     const faturamento = empresasTabela.reduce((acc, e) => acc + e.faturamento, 0)
     const receitas = empresasTabela.reduce((acc, e) => acc + e.receitas, 0)
     const despesas = empresasTabela.reduce((acc, e) => acc + e.despesas, 0)
-    const saldoCaixa = calcularSaldoCaixa(mesFiltro, empresaFiltro, empresasOcultasTabela)
+    const saldoCaixa = calcularSaldoCaixa(mesFiltro, empresaFiltro, dadosMesesComOverrides, empresasOcultasTabela)
     const resultadoFaturamento = faturamento - despesas
 
     return {
@@ -544,7 +597,7 @@ export function Financeiro() {
       saldoCaixa,
       resultadoFaturamento,
     }
-  }, [empresasTabela, mesFiltro, empresaFiltro, empresasOcultasTabela])
+  }, [empresasTabela, mesFiltro, empresaFiltro, empresasOcultasTabela, dadosMesesComOverrides])
 
   // Dados para o Gráfico Recharts
   const chartData = useMemo(() => {
@@ -583,7 +636,7 @@ export function Financeiro() {
     ]
 
     return meses.map((m) => {
-      const dataMes = DADOS_MESES[m.id] || DADOS_MESES.agosto
+      const dataMes = dadosMesesComOverrides[m.id] || dadosMesesComOverrides.agosto
       const empresas =
         empresaFiltro === 'TODAS'
           ? dataMes.empresas
@@ -605,7 +658,7 @@ export function Financeiro() {
         resFat,
       }
     })
-  }, [empresaFiltro])
+  }, [empresaFiltro, dadosMesesComOverrides])
 
   // Fluxo de Caixa: lançamentos reais (entradas e saídas) persistidos no Supabase
   const { lancamentos, loading: carregandoLancamentos, error: erroLancamentos } = useFluxoCaixaLancamentos()
@@ -864,7 +917,7 @@ export function Financeiro() {
     <div className="space-y-6 animate-fade-in uppercase pb-28">
       {/* Cabeçalho com Botões Glass */}
       <PageHeader
-        title="PAINEL GERENCIAL - PEDRÃO TACÓGRAFOS"
+        title="PAINEL GERENCIAL - GRUPO VEL"
         subtitle="RECEITAS E DESPESAS EM REGIME DE CAIXA · FATURAMENTO EM REGIME DE COMPETÊNCIA"
       />
 
@@ -968,6 +1021,59 @@ export function Financeiro() {
             </select>
           </div>
         </div>
+      </Card>
+
+      {/* ──────────────────────────────────────────────────────────────────────────
+          IMPORTAR EXCEL — atualiza os dados das divisões de um mês
+         ────────────────────────────────────────────────────────────────────────── */}
+      <Card className="p-4 border-border/30 bg-surface/60 shadow-md">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="flex-1">
+            <label className="flex items-center gap-1.5 text-xs font-black text-foreground mb-1.5">
+              <Upload className="h-4 w-4 text-primary" />
+              ATUALIZAR DADOS DAS DIVISÕES (IMPORTAR EXCEL)
+            </label>
+            <p className="text-[11px] text-secondary normal-case mb-2">
+              Planilha com colunas MÊS, EMPRESA, FATURAMENTO, RECEITAS, DESPESAS — uma linha por divisão
+              (GVel Diesel, GVel Leves, GV Distribuidora, GV Transportes, Investimento). Substitui os dados do(s) mês(es) que vierem na planilha.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <GlassButton
+                type="button"
+                size="sm"
+                variant="primary"
+                disabled={importandoPainel}
+                onClick={() => importPainelInputRef.current?.click()}
+                className="whitespace-nowrap"
+              >
+                {importandoPainel ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                {importandoPainel ? 'IMPORTANDO...' : 'IMPORTAR EXCEL'}
+              </GlassButton>
+              <input
+                ref={importPainelInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleImportarPainelExcel}
+              />
+            </div>
+          </div>
+        </div>
+
+        {sucessoImportacaoPainel && (
+          <p className="mt-3 text-xs font-bold text-emerald-400 normal-case">{sucessoImportacaoPainel}</p>
+        )}
+        {avisosImportacaoPainel.length > 0 && (
+          <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-1">
+            {avisosImportacaoPainel.map((a, i) => (
+              <p key={i} className="text-[11px] text-amber-400 normal-case">{a}</p>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* ──────────────────────────────────────────────────────────────────────────
