@@ -31,6 +31,9 @@ import {
   UserPlus,
   UserMinus,
   Percent,
+  Plus,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from 'recharts'
 import { PageHeader } from '@/components/layout/Header'
@@ -48,7 +51,14 @@ import { useRhSheet, type ColaboradorRH } from '@/hooks/useRhSheet'
 import { useAtestadosSheet, type RegistroAtestado, type TipoAtestado } from '@/hooks/useAtestadosSheet'
 import { useFaltas, useLotesImportacaoFaltas, importarFaltasPdf, type RegistroFalta } from '@/hooks/useFaltas'
 import { useHoraExtraSheet, type RegistroHoraExtra } from '@/hooks/useHoraExtraSheet'
-import { useTurnoverSheet, type MovimentacaoTurnover } from '@/hooks/useTurnoverSheet'
+import {
+  useTurnover,
+  salvarMovimentacaoTurnover,
+  excluirMovimentacaoTurnover,
+  EMPRESAS_TURNOVER,
+  type MovimentacaoTurnover,
+  type DadosMovimentacaoTurnover,
+} from '@/hooks/useTurnover'
 import { CHART_CATEGORICAL, CHART_OTHER, CHART_ENTRADA, CHART_SAIDA } from '@/lib/chartColors'
 import { cn } from '@/lib/cn'
 import { getErrorMessage } from '@/lib/erros'
@@ -1046,6 +1056,9 @@ interface TabelaTurnoverProps {
   meses: string[]
   filtroMes: string
   onFiltroMesChange: (valor: string) => void
+  onNovo: () => void
+  onEditar: (item: MovimentacaoTurnover) => void
+  onExcluir: (item: MovimentacaoTurnover) => void
 }
 
 function formatDataIso(iso: string) {
@@ -1065,19 +1078,28 @@ function TabelaTurnover({
   meses,
   filtroMes,
   onFiltroMesChange,
+  onNovo,
+  onEditar,
+  onExcluir,
 }: TabelaTurnoverProps) {
   return (
     <Card>
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <CardTitle>Admissões e Desligamentos</CardTitle>
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
-          <Input
-            value={busca}
-            onChange={(e) => onBuscaChange(e.target.value)}
-            placeholder="BUSCAR POR NOME OU CARGO"
-            className="h-10 pl-9"
-          />
+        <div className="flex w-full sm:w-auto items-center gap-2">
+          <div className="relative flex-1 sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+            <Input
+              value={busca}
+              onChange={(e) => onBuscaChange(e.target.value)}
+              placeholder="BUSCAR POR NOME OU CARGO"
+              className="h-10 pl-9"
+            />
+          </div>
+          <Button variant="primary" size="md" onClick={onNovo} className="gap-2 font-bold shrink-0">
+            <Plus className="h-4 w-4" />
+            <span>NOVO LANÇAMENTO</span>
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -1125,14 +1147,15 @@ function TabelaTurnover({
           </div>
         ) : (
           <DragScrollArea>
-            <table className="w-full text-[11px] table-fixed min-w-[640px]">
+            <table className="w-full text-[11px] table-fixed min-w-[720px]">
               <colgroup>
-                <col className="w-[28%]" />
-                <col className="w-[20%]" />
-                <col className="w-[18%]" />
-                <col className="w-[11%]" />
-                <col className="w-[11%]" />
+                <col className="w-[26%]" />
+                <col className="w-[16%]" />
+                <col className="w-[17%]" />
+                <col className="w-[10%]" />
+                <col className="w-[10%]" />
                 <col className="w-[12%]" />
+                <col className="w-[9%]" />
               </colgroup>
               <thead>
                 <tr className="border-b border-border/10 text-left text-foreground font-bold">
@@ -1142,6 +1165,7 @@ function TabelaTurnover({
                   <th className="px-1.5 py-2 font-bold whitespace-nowrap text-right">Admissão</th>
                   <th className="px-1.5 py-2 font-bold whitespace-nowrap text-right">Demissão</th>
                   <th className="px-1.5 py-2 font-bold text-center">Situação</th>
+                  <th className="px-1.5 py-2 font-bold text-center">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -1167,6 +1191,26 @@ function TabelaTurnover({
                         {t.rescindindo ? 'Desligado' : 'Admitido'}
                       </Badge>
                     </td>
+                    <td className="px-1.5 py-1.5">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onEditar(t)}
+                          title="Editar"
+                          className="rounded-lg p-1.5 text-secondary hover:text-foreground hover:bg-surface-hover/60 transition-colors cursor-pointer"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onExcluir(t)}
+                          title="Excluir"
+                          className="rounded-lg p-1.5 text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1177,6 +1221,146 @@ function TabelaTurnover({
     </Card>
   )
 }
+
+interface ModalLancamentoTurnoverProps {
+  registro: MovimentacaoTurnover | null
+  onFechar: () => void
+}
+
+const CLASSE_CAMPO_TURNOVER =
+  'h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors'
+
+function ModalLancamentoTurnover({ registro, onFechar }: ModalLancamentoTurnoverProps) {
+  const [dados, setDados] = useState<DadosMovimentacaoTurnover>(() => ({
+    nome: registro?.nome ?? '',
+    cargo: registro?.cargo ?? '',
+    empresa: registro?.empresa ?? EMPRESAS_TURNOVER[0],
+    admissao: registro?.admissao ?? '',
+    demissao: registro?.demissao ?? '',
+  }))
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  // Mantém no select uma empresa antiga que não esteja mais na lista fixa.
+  const opcoesEmpresa = EMPRESAS_TURNOVER.includes(dados.empresa) ? EMPRESAS_TURNOVER : [dados.empresa, ...EMPRESAS_TURNOVER]
+
+  function alterar<K extends keyof DadosMovimentacaoTurnover>(campo: K, valor: DadosMovimentacaoTurnover[K]) {
+    setDados((prev) => ({ ...prev, [campo]: valor }))
+  }
+
+  async function handleSalvar(e: React.FormEvent) {
+    e.preventDefault()
+    if (!dados.nome.trim()) return setErro('Informe o nome do colaborador.')
+    if (!dados.admissao) return setErro('Informe a data de admissão.')
+    if (dados.demissao && dados.demissao < dados.admissao) return setErro('A demissão não pode ser antes da admissão.')
+    setSalvando(true)
+    setErro(null)
+    try {
+      await salvarMovimentacaoTurnover(dados, registro?.id)
+      onFechar()
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Não foi possível salvar o lançamento.'))
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={onFechar}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in cursor-pointer"
+    >
+      <form
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSalvar}
+        className="w-full max-w-lg rounded-3xl border border-border/30 bg-surface p-6 shadow-2xl animate-scale-in space-y-4 cursor-default"
+      >
+        <div className="flex items-center justify-between border-b border-border/20 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
+              <Repeat className="h-4 w-4" />
+            </div>
+            <h3 className="font-black text-sm text-foreground">{registro ? 'EDITAR LANÇAMENTO' : 'NOVO LANÇAMENTO'}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onFechar}
+            className="shrink-0 text-secondary hover:text-foreground transition-colors cursor-pointer p-1"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2">
+            <label className="block text-[10px] font-black text-secondary mb-1.5">NOME</label>
+            <input
+              value={dados.nome}
+              onChange={(e) => alterar('nome', e.target.value.toUpperCase())}
+              className={CLASSE_CAMPO_TURNOVER}
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-secondary mb-1.5">CARGO</label>
+            <input
+              value={dados.cargo}
+              onChange={(e) => alterar('cargo', e.target.value.toUpperCase())}
+              className={CLASSE_CAMPO_TURNOVER}
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-secondary mb-1.5">EMPRESA</label>
+            <select value={dados.empresa} onChange={(e) => alterar('empresa', e.target.value)} className={CLASSE_CAMPO_TURNOVER}>
+              {opcoesEmpresa.map((emp) => (
+                <option key={emp} value={emp}>
+                  {emp}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-secondary mb-1.5">DATA DE ADMISSÃO</label>
+            <input
+              type="date"
+              value={dados.admissao}
+              onChange={(e) => alterar('admissao', e.target.value)}
+              className={CLASSE_CAMPO_TURNOVER}
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-secondary mb-1.5">DATA DE DEMISSÃO (SE SAIU)</label>
+            <input
+              type="date"
+              value={dados.demissao}
+              onChange={(e) => alterar('demissao', e.target.value)}
+              className={CLASSE_CAMPO_TURNOVER}
+            />
+          </div>
+        </div>
+
+        {erro && (
+          <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-400">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="normal-case font-medium">{erro}</span>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="secondary" size="md" onClick={onFechar} disabled={salvando}>
+            CANCELAR
+          </Button>
+          <Button type="submit" variant="primary" size="md" disabled={salvando} className="font-bold">
+            {salvando ? 'SALVANDO...' : 'SALVAR'}
+          </Button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+// Turnover é controle interno do RH da GVEL — fica restrito a essa empresa
+// mesmo pra quem tem acesso ao RH em outra empresa da plataforma.
+const GVEL_COMPANY_ID = '0923c894-85ca-45c1-ba1b-3124d19b4d65'
 
 type AbaRH = 'dashboard' | 'planilha' | 'atestado' | 'faltas' | 'horaExtra' | 'turnover'
 const ABAS_VALIDAS: AbaRH[] = ['dashboard', 'planilha', 'atestado', 'faltas', 'horaExtra', 'turnover']
@@ -1198,7 +1382,7 @@ function empresaFolhaCorrespondente(empresaTurnover: string, empresasFolha: stri
 }
 
 export function RH() {
-  const { user, perfil, perfilLoading } = useAuth()
+  const { user, perfil, perfilLoading, empresa } = useAuth()
   const usuarioOuEmail = perfil || { email: user?.email }
   const autorizado = isRhAuthorized(usuarioOuEmail)
   const podeDashboard = isModuloAuthorized(usuarioOuEmail, 'rh_dashboard')
@@ -1210,6 +1394,7 @@ export function RH() {
   // salarial sensível que não deve ficar liberável pra qualquer usuário via
   // checkbox.
   const podeHoraExtra = isAdminUsuario(perfil, user?.email) || (user?.email || '').toLowerCase().trim() === 'rh@gveldiesel.com'
+  const podeTurnover = podeHoraExtra && empresa?.id === GVEL_COMPANY_ID
   const { theme } = useTheme()
   const isDark = theme === 'dark'
   const textColor = isDark ? '#ffffff' : '#18181b'
@@ -1240,12 +1425,20 @@ export function RH() {
     error: erroHoraExtra,
     fetchSheet: fetchHoraExtra,
   } = useHoraExtraSheet()
-  const {
-    items: turnover,
-    loading: loadingTurnover,
-    error: erroTurnover,
-    fetchSheet: fetchTurnover,
-  } = useTurnoverSheet()
+  const { items: turnover, loading: loadingTurnover, error: erroTurnover } = useTurnover()
+  // undefined = modal fechado; null = novo lançamento; registro = edição.
+  const [lancamentoTurnover, setLancamentoTurnover] = useState<MovimentacaoTurnover | null | undefined>(undefined)
+  const [erroExclusaoTurnover, setErroExclusaoTurnover] = useState<string | null>(null)
+
+  async function handleExcluirTurnover(item: MovimentacaoTurnover) {
+    if (!window.confirm(`Excluir o lançamento de ${item.nome}?`)) return
+    setErroExclusaoTurnover(null)
+    try {
+      await excluirMovimentacaoTurnover(item.id)
+    } catch (err) {
+      setErroExclusaoTurnover(getErrorMessage(err, 'Não foi possível excluir o lançamento.'))
+    }
+  }
   const [buscaTurnover, setBuscaTurnover] = useState('')
   const [filtroEmpresaTurnover, setFiltroEmpresaTurnover] = useState('TODOS')
   const [filtroMesTurnover, setFiltroMesTurnover] = useState('TODOS')
@@ -1299,9 +1492,9 @@ export function RH() {
     if (podeAtestado) abas.push('atestado')
     if (podeFaltas) abas.push('faltas')
     if (podeHoraExtra) abas.push('horaExtra')
-    if (podeHoraExtra) abas.push('turnover')
+    if (podeTurnover) abas.push('turnover')
     return abas
-  }, [podeDashboard, podePlanilha, podeAtestado, podeFaltas, podeHoraExtra])
+  }, [podeDashboard, podePlanilha, podeAtestado, podeFaltas, podeHoraExtra, podeTurnover])
 
   // Corrige a aba ativa se ela não estiver entre as liberadas pra esse
   // usuário — cobre tanto o caso de alguém digitar ?aba=faltas na mão sem
@@ -1672,21 +1865,23 @@ export function RH() {
         title="RECURSOS HUMANOS (RH)"
         subtitle="FOLHA DE PAGAMENTO E QUADRO DE COLABORADORES"
         actions={
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => {
-              fetchSheet()
-              fetchAtestados()
-              fetchHoraExtra()
-              fetchTurnover()
-            }}
-            disabled={loading || loadingAtestados || loadingHoraExtra || loadingTurnover}
-            className="gap-2 font-bold shadow-lg shadow-primary/20"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading || loadingAtestados || loadingHoraExtra || loadingTurnover ? 'animate-spin' : ''}`} />
-            <span>{loading || loadingAtestados || loadingHoraExtra || loadingTurnover ? 'SINCRONIZANDO...' : 'ATUALIZAR'}</span>
-          </Button>
+          // Só no Dashboard e na Planilha — as demais abas já se atualizam sozinhas.
+          (abaAtiva === 'dashboard' || abaAtiva === 'planilha') && (
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => {
+                fetchSheet()
+                fetchAtestados()
+                fetchHoraExtra()
+              }}
+              disabled={loading || loadingAtestados || loadingHoraExtra}
+              className="gap-2 font-bold shadow-lg shadow-primary/20"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading || loadingAtestados || loadingHoraExtra ? 'animate-spin' : ''}`} />
+              <span>{loading || loadingAtestados || loadingHoraExtra ? 'SINCRONIZANDO...' : 'ATUALIZAR'}</span>
+            </Button>
+          )
         }
       />
 
@@ -1729,6 +1924,13 @@ export function RH() {
         <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span className="lowercase font-medium">{erroTurnover}</span>
+        </div>
+      )}
+
+      {erroExclusaoTurnover && (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="lowercase font-medium">{erroExclusaoTurnover}</span>
         </div>
       )}
 
@@ -1824,7 +2026,7 @@ export function RH() {
             </span>
           </button>
         )}
-        {podeHoraExtra && (
+        {podeTurnover && (
           <button
             type="button"
             onClick={() => setAbaAtiva('turnover')}
@@ -2220,8 +2422,15 @@ export function RH() {
             meses={mesesTurnover}
             filtroMes={filtroMesTurnover}
             onFiltroMesChange={setFiltroMesTurnover}
+            onNovo={() => setLancamentoTurnover(null)}
+            onEditar={(item) => setLancamentoTurnover(item)}
+            onExcluir={handleExcluirTurnover}
           />
         </>
+      )}
+
+      {lancamentoTurnover !== undefined && (
+        <ModalLancamentoTurnover registro={lancamentoTurnover} onFechar={() => setLancamentoTurnover(undefined)} />
       )}
 
       {colaboradorHoraExtraModal && (
