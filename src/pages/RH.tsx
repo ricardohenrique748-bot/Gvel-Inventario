@@ -10,7 +10,6 @@ import {
   TrendingUp,
   RefreshCw,
   Search,
-  Lock,
   AlertTriangle,
   PieChart as PieChartIcon,
   LayoutDashboard,
@@ -1060,7 +1059,7 @@ export function RH() {
     boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
   }
 
-  const { items, loading, isAutoSyncing, error, lastSync, fetchSheet } = useRhSheet()
+  const { items, loading, error, fetchSheet } = useRhSheet()
   const {
     items: atestados,
     loading: loadingAtestados,
@@ -1439,23 +1438,6 @@ export function RH() {
           </Button>
         }
       />
-
-      {/* Aviso de Confidencialidade */}
-      <div className="flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-400">
-        <Lock className="h-4 w-4 shrink-0" />
-        <span className="lowercase font-medium">
-          Dados confidenciais de folha de pagamento — visível somente para administradores. Não compartilhe esta tela.
-        </span>
-      </div>
-
-      {/* Banner de Sincronização */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/10 bg-surface/80 px-4 py-3 text-xs font-medium text-secondary backdrop-blur-md">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className={`flex h-2.5 w-2.5 rounded-full ${isAutoSyncing ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'}`} />
-          <span className="font-bold text-foreground">GOOGLE SHEETS:</span>
-          <span>{lastSync ? `ÚLTIMA SINCRONIZAÇÃO EM ${lastSync}` : 'PLANILHA CONECTADA'}</span>
-        </div>
-      </div>
 
       {error && (
         <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
