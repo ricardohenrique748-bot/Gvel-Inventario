@@ -27,6 +27,10 @@ import {
   HandCoins,
   ChevronDown,
   X,
+  Repeat,
+  UserPlus,
+  UserMinus,
+  Percent,
 } from 'lucide-react'
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from 'recharts'
 import { PageHeader } from '@/components/layout/Header'
@@ -44,6 +48,7 @@ import { useRhSheet, type ColaboradorRH } from '@/hooks/useRhSheet'
 import { useAtestadosSheet, type RegistroAtestado, type TipoAtestado } from '@/hooks/useAtestadosSheet'
 import { useFaltas, useLotesImportacaoFaltas, importarFaltasPdf, type RegistroFalta } from '@/hooks/useFaltas'
 import { useHoraExtraSheet, type RegistroHoraExtra } from '@/hooks/useHoraExtraSheet'
+import { useTurnoverSheet, type MovimentacaoTurnover } from '@/hooks/useTurnoverSheet'
 import { CHART_CATEGORICAL, CHART_OTHER, CHART_ENTRADA, CHART_SAIDA } from '@/lib/chartColors'
 import { cn } from '@/lib/cn'
 import { getErrorMessage } from '@/lib/erros'
@@ -1029,8 +1034,168 @@ function TabelaHoraExtra({
   )
 }
 
-type AbaRH = 'dashboard' | 'planilha' | 'atestado' | 'faltas' | 'horaExtra'
-const ABAS_VALIDAS: AbaRH[] = ['dashboard', 'planilha', 'atestado', 'faltas', 'horaExtra']
+interface TabelaTurnoverProps {
+  itens: MovimentacaoTurnover[]
+  loading: boolean
+  temItensOriginais: boolean
+  busca: string
+  onBuscaChange: (valor: string) => void
+  empresas: string[]
+  filtroEmpresa: string
+  onFiltroEmpresaChange: (valor: string) => void
+  meses: string[]
+  filtroMes: string
+  onFiltroMesChange: (valor: string) => void
+}
+
+function formatDataIso(iso: string) {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '—'
+}
+
+function TabelaTurnover({
+  itens,
+  loading,
+  temItensOriginais,
+  busca,
+  onBuscaChange,
+  empresas,
+  filtroEmpresa,
+  onFiltroEmpresaChange,
+  meses,
+  filtroMes,
+  onFiltroMesChange,
+}: TabelaTurnoverProps) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <CardTitle>Admissões e Desligamentos</CardTitle>
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+          <Input
+            value={busca}
+            onChange={(e) => onBuscaChange(e.target.value)}
+            placeholder="BUSCAR POR NOME OU CARGO"
+            className="h-10 pl-9"
+          />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap items-center gap-1.5 mb-4">
+          {empresas.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => onFiltroEmpresaChange('TODOS')}
+                className={`rounded-xl px-3.5 py-2 text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+                  filtroEmpresa === 'TODOS'
+                    ? 'bg-primary text-white shadow-md shadow-primary/20'
+                    : 'border border-border/25 bg-surface/60 text-secondary hover:text-foreground hover:bg-surface-hover/50'
+                }`}
+              >
+                TODOS
+              </button>
+              {empresas.map((emp) => (
+                <button
+                  key={emp}
+                  type="button"
+                  onClick={() => onFiltroEmpresaChange(emp)}
+                  className={`rounded-xl px-3.5 py-2 text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+                    filtroEmpresa === emp
+                      ? 'bg-primary text-white shadow-md shadow-primary/20'
+                      : 'border border-border/25 bg-surface/60 text-secondary hover:text-foreground hover:bg-surface-hover/50'
+                  }`}
+                >
+                  {emp}
+                </button>
+              ))}
+            </>
+          )}
+          {meses.length > 0 && <FiltroMesDropdown meses={meses} valor={filtroMes} onChange={onFiltroMesChange} />}
+        </div>
+
+        {loading && !temItensOriginais ? (
+          <div className="flex items-center justify-center py-16 text-secondary text-sm">
+            <RefreshCw className="h-5 w-5 animate-spin mr-2" />
+            CARREGANDO DADOS DA PLANILHA...
+          </div>
+        ) : itens.length === 0 ? (
+          <div className="flex items-center justify-center py-16 text-secondary text-sm">
+            NENHUMA MOVIMENTAÇÃO ENCONTRADA
+          </div>
+        ) : (
+          <DragScrollArea>
+            <table className="w-full text-[11px] table-fixed min-w-[640px]">
+              <colgroup>
+                <col className="w-[28%]" />
+                <col className="w-[20%]" />
+                <col className="w-[18%]" />
+                <col className="w-[11%]" />
+                <col className="w-[11%]" />
+                <col className="w-[12%]" />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-border/10 text-left text-foreground font-bold">
+                  <th className="px-1.5 py-2 font-bold">Nome</th>
+                  <th className="px-1.5 py-2 font-bold">Empresa</th>
+                  <th className="px-1.5 py-2 font-bold">Cargo</th>
+                  <th className="px-1.5 py-2 font-bold whitespace-nowrap text-right">Admissão</th>
+                  <th className="px-1.5 py-2 font-bold whitespace-nowrap text-right">Demissão</th>
+                  <th className="px-1.5 py-2 font-bold text-center">Situação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itens.map((t) => (
+                  <tr key={t.id} className="border-b border-border/5 last:border-0 hover:bg-overlay/[0.03]">
+                    <td className="px-1.5 py-1.5 font-medium text-foreground truncate" title={t.nome}>
+                      {t.nome}
+                    </td>
+                    <td className="px-1.5 py-1.5 text-secondary truncate" title={t.empresa}>
+                      {t.empresa}
+                    </td>
+                    <td className="px-1.5 py-1.5 text-secondary truncate" title={t.cargo}>
+                      {t.cargo}
+                    </td>
+                    <td className="px-1.5 py-1.5 text-secondary whitespace-nowrap text-right tabular-nums">
+                      {formatDataIso(t.admissao)}
+                    </td>
+                    <td className="px-1.5 py-1.5 text-secondary whitespace-nowrap text-right tabular-nums">
+                      {formatDataIso(t.demissao)}
+                    </td>
+                    <td className="px-1.5 py-1.5 text-center">
+                      <Badge tone={t.rescindindo ? 'danger' : 'success'} className="text-[10px] px-2 py-0.5">
+                        {t.rescindindo ? 'Desligado' : 'Admitido'}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DragScrollArea>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+type AbaRH = 'dashboard' | 'planilha' | 'atestado' | 'faltas' | 'horaExtra' | 'turnover'
+const ABAS_VALIDAS: AbaRH[] = ['dashboard', 'planilha', 'atestado', 'faltas', 'horaExtra', 'turnover']
+
+/**
+ * A planilha de turnover usa a razão social ("GV TRANSPORTES E SERVICOS LTDA")
+ * e a da folha usa o nome curto ("GV TRANSPORTES"). Casa pelo maior prefixo
+ * pra achar o quadro ativo de cada empresa.
+ */
+function empresaFolhaCorrespondente(empresaTurnover: string, empresasFolha: string[]): string | null {
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase()
+  const alvo = norm(empresaTurnover)
+  let melhor: string | null = null
+  for (const emp of empresasFolha) {
+    const e = norm(emp)
+    if (alvo.startsWith(e) && (!melhor || e.length > norm(melhor).length)) melhor = emp
+  }
+  return melhor
+}
 
 export function RH() {
   const { user, perfil, perfilLoading } = useAuth()
@@ -1075,6 +1240,15 @@ export function RH() {
     error: erroHoraExtra,
     fetchSheet: fetchHoraExtra,
   } = useHoraExtraSheet()
+  const {
+    items: turnover,
+    loading: loadingTurnover,
+    error: erroTurnover,
+    fetchSheet: fetchTurnover,
+  } = useTurnoverSheet()
+  const [buscaTurnover, setBuscaTurnover] = useState('')
+  const [filtroEmpresaTurnover, setFiltroEmpresaTurnover] = useState('TODOS')
+  const [filtroMesTurnover, setFiltroMesTurnover] = useState('TODOS')
   const [busca, setBusca] = useState('')
   const [buscaAtestado, setBuscaAtestado] = useState('')
   const [filtroTipoAtestado, setFiltroTipoAtestado] = useState<TipoAtestado | 'TODOS'>('TODOS')
@@ -1125,6 +1299,7 @@ export function RH() {
     if (podeAtestado) abas.push('atestado')
     if (podeFaltas) abas.push('faltas')
     if (podeHoraExtra) abas.push('horaExtra')
+    if (podeHoraExtra) abas.push('turnover')
     return abas
   }, [podeDashboard, podePlanilha, podeAtestado, podeFaltas, podeHoraExtra])
 
@@ -1374,6 +1549,81 @@ export function RH() {
       .map((h) => ({ name: h.colaborador, value: h.horasExtrasMes, valorPago: h.valorTotalHE }))
   }, [horasExtras])
 
+  const empresasTurnover = useMemo(() => {
+    const ordem: string[] = []
+    for (const t of turnover) {
+      if (t.empresa && !ordem.includes(t.empresa)) ordem.push(t.empresa)
+    }
+    return ordem
+  }, [turnover])
+
+  const mesesTurnover = useMemo(() => {
+    const unicos = new Set<string>()
+    for (const t of turnover) {
+      if (t.admissao) unicos.add(mesAnoFromIso(t.admissao))
+      if (t.demissao) unicos.add(mesAnoFromIso(t.demissao))
+    }
+    unicos.delete('')
+    return ordenarMesesAno([...unicos])
+  }, [turnover])
+
+  const turnoverDaEmpresa = useMemo(() => {
+    if (filtroEmpresaTurnover === 'TODOS') return turnover
+    return turnover.filter((t) => t.empresa === filtroEmpresaTurnover)
+  }, [turnover, filtroEmpresaTurnover])
+
+  const turnoverFiltrado = useMemo(() => {
+    let result = turnoverDaEmpresa
+    if (filtroMesTurnover !== 'TODOS') {
+      result = result.filter(
+        (t) => mesAnoFromIso(t.admissao) === filtroMesTurnover || mesAnoFromIso(t.demissao) === filtroMesTurnover,
+      )
+    }
+    const termo = buscaTurnover.trim().toUpperCase()
+    if (termo) {
+      result = result.filter((t) => t.nome.includes(termo) || t.cargo.includes(termo))
+    }
+    return result
+  }, [turnoverDaEmpresa, filtroMesTurnover, buscaTurnover])
+
+  const indicadoresTurnover = useMemo(() => {
+    const noPeriodo = (iso: string) => Boolean(iso) && (filtroMesTurnover === 'TODOS' || mesAnoFromIso(iso) === filtroMesTurnover)
+    const admissoes = turnoverDaEmpresa.filter((t) => noPeriodo(t.admissao)).length
+    const desligamentos = turnoverDaEmpresa.filter((t) => noPeriodo(t.demissao)).length
+
+    // Quadro ativo vem da planilha da folha (terceiros não entram no turnover).
+    const empresasFolha = [...new Set(items.map((c) => c.empresa))]
+    let quadroAtivo: number
+    if (filtroEmpresaTurnover === 'TODOS') {
+      quadroAtivo = items.filter((c) => c.empresa !== 'TERCEIROS').length
+    } else {
+      const correspondente = empresaFolhaCorrespondente(filtroEmpresaTurnover, empresasFolha)
+      quadroAtivo = correspondente ? items.filter((c) => c.empresa === correspondente).length : 0
+    }
+
+    const taxa = quadroAtivo > 0 ? ((admissoes + desligamentos) / 2 / quadroAtivo) * 100 : 0
+    return { admissoes, desligamentos, quadroAtivo, taxa }
+  }, [turnoverDaEmpresa, filtroMesTurnover, filtroEmpresaTurnover, items])
+
+  const movimentacaoMensalTurnover = useMemo(() => {
+    const porMes = new Map<string, { admissoes: number; desligamentos: number }>()
+    const somar = (iso: string, campo: 'admissoes' | 'desligamentos') => {
+      const mes = mesAnoFromIso(iso)
+      if (!mes) return
+      const atual = porMes.get(mes) || { admissoes: 0, desligamentos: 0 }
+      atual[campo] += 1
+      porMes.set(mes, atual)
+    }
+    for (const t of turnoverDaEmpresa) {
+      somar(t.admissao, 'admissoes')
+      somar(t.demissao, 'desligamentos')
+    }
+    return ordenarMesesAno([...porMes.keys()]).map((mes) => ({
+      mes: `${mes.split('/')[0].slice(0, 3)}/${mes.split('/')[1].slice(2)}`,
+      ...porMes.get(mes)!,
+    }))
+  }, [turnoverDaEmpresa])
+
   if (!perfilLoading && !autorizado) {
     return (
       <div className="flex min-h-[65vh] flex-col items-center justify-center p-6 text-center animate-fade-in uppercase">
@@ -1429,12 +1679,13 @@ export function RH() {
               fetchSheet()
               fetchAtestados()
               fetchHoraExtra()
+              fetchTurnover()
             }}
-            disabled={loading || loadingAtestados || loadingHoraExtra}
+            disabled={loading || loadingAtestados || loadingHoraExtra || loadingTurnover}
             className="gap-2 font-bold shadow-lg shadow-primary/20"
           >
-            <RefreshCw className={`h-4 w-4 ${loading || loadingAtestados || loadingHoraExtra ? 'animate-spin' : ''}`} />
-            <span>{loading || loadingAtestados || loadingHoraExtra ? 'SINCRONIZANDO...' : 'ATUALIZAR'}</span>
+            <RefreshCw className={`h-4 w-4 ${loading || loadingAtestados || loadingHoraExtra || loadingTurnover ? 'animate-spin' : ''}`} />
+            <span>{loading || loadingAtestados || loadingHoraExtra || loadingTurnover ? 'SINCRONIZANDO...' : 'ATUALIZAR'}</span>
           </Button>
         }
       />
@@ -1471,6 +1722,13 @@ export function RH() {
         <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span className="lowercase font-medium">{erroHoraExtra}</span>
+        </div>
+      )}
+
+      {erroTurnover && (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="lowercase font-medium">{erroTurnover}</span>
         </div>
       )}
 
@@ -1566,6 +1824,25 @@ export function RH() {
             </span>
           </button>
         )}
+        {podeHoraExtra && (
+          <button
+            type="button"
+            onClick={() => setAbaAtiva('turnover')}
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-none ${
+              abaAtiva === 'turnover'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+            }`}
+          >
+            <Repeat className="h-4 w-4" />
+            TURNOVER
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+              abaAtiva === 'turnover' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+            }`}>
+              {turnover.length}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Importação do Relatório de Ausências (PDF) — só na aba Faltas */}
@@ -1610,7 +1887,7 @@ export function RH() {
       )}
 
       {/* Filtro por Empresa do Grupo */}
-      {abaAtiva !== 'atestado' && abaAtiva !== 'faltas' && abaAtiva !== 'horaExtra' && empresasComContagem.length > 0 && (
+      {abaAtiva !== 'atestado' && abaAtiva !== 'faltas' && abaAtiva !== 'horaExtra' && abaAtiva !== 'turnover' && empresasComContagem.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
@@ -1871,6 +2148,78 @@ export function RH() {
             empresas={empresasHoraExtra}
             filtroEmpresa={filtroEmpresaHoraExtra}
             onFiltroEmpresaChange={setFiltroEmpresaHoraExtra}
+          />
+        </>
+      )}
+
+      {abaAtiva === 'turnover' && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard align="center" valueClassName="text-2xl" icon={UserPlus} label="Admissões" value={String(indicadoresTurnover.admissoes)} />
+            <StatCard align="center" valueClassName="text-2xl" icon={UserMinus} label="Desligamentos" value={String(indicadoresTurnover.desligamentos)} />
+            <StatCard align="center" valueClassName="text-2xl" icon={Users} label="Quadro Ativo" value={String(indicadoresTurnover.quadroAtivo)} />
+            <StatCard
+              align="center"
+              valueClassName="text-2xl"
+              icon={Percent}
+              label={filtroMesTurnover === 'TODOS' ? 'Turnover (Acumulado)' : `Turnover ${filtroMesTurnover}`}
+              value={`${indicadoresTurnover.taxa.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
+            />
+          </div>
+
+          <Card className="overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <Repeat className="h-4 w-4 text-primary" />
+                Admissões x Desligamentos por Mês
+              </CardTitle>
+              <div className="flex items-center gap-3 text-[11px] font-bold text-secondary">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: CHART_ENTRADA }} />
+                  ADMISSÕES
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: CHART_SAIDA }} />
+                  DESLIGAMENTOS
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {movimentacaoMensalTurnover.length === 0 ? (
+                <div className="flex h-56 items-center justify-center text-sm text-secondary">Sem dados</div>
+              ) : (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={movimentacaoMensalTurnover} margin={{ left: -16, right: 8, top: 20, bottom: 0 }}>
+                      <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 3" />
+                      <XAxis dataKey="mes" tick={{ fill: textColor, fontSize: 11 }} axisLine={{ stroke: axisLineColor }} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fill: textColor, fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
+                      <Bar dataKey="admissoes" name="Admissões" fill={CHART_ENTRADA} radius={[6, 6, 0, 0]} maxBarSize={36}>
+                        <LabelList dataKey="admissoes" position="top" style={{ fill: textColor, fontSize: 11, fontWeight: 700 }} />
+                      </Bar>
+                      <Bar dataKey="desligamentos" name="Desligamentos" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={36}>
+                        <LabelList dataKey="desligamentos" position="top" style={{ fill: textColor, fontSize: 11, fontWeight: 700 }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <TabelaTurnover
+            itens={turnoverFiltrado}
+            loading={loadingTurnover}
+            temItensOriginais={turnover.length > 0}
+            busca={buscaTurnover}
+            onBuscaChange={setBuscaTurnover}
+            empresas={empresasTurnover}
+            filtroEmpresa={filtroEmpresaTurnover}
+            onFiltroEmpresaChange={setFiltroEmpresaTurnover}
+            meses={mesesTurnover}
+            filtroMes={filtroMesTurnover}
+            onFiltroMesChange={setFiltroMesTurnover}
           />
         </>
       )}
