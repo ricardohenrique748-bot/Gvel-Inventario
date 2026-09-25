@@ -209,6 +209,53 @@ function renderMedalhaNaBarra(props: any) {
   )
 }
 
+// Largura do eixo de nomes no ranking. O tick padrão do Recharts quebra o
+// texto sozinho mas não respeita a largura, cortando nomes longos à esquerda —
+// então quebramos manualmente em até 2 linhas (com reticências se sobrar).
+const LARGURA_EIXO_NOMES = 200
+const MAX_CHARS_LINHA = Math.floor((LARGURA_EIXO_NOMES - 12) / 7)
+
+function quebrarNome(nome: string): string[] {
+  const palavras = nome.split(/\s+/).filter(Boolean)
+  const linhas: string[] = []
+  let atual = ''
+  for (const palavra of palavras) {
+    const tentativa = atual ? `${atual} ${palavra}` : palavra
+    if (tentativa.length <= MAX_CHARS_LINHA || !atual) {
+      atual = tentativa
+    } else {
+      linhas.push(atual)
+      atual = palavra
+    }
+  }
+  if (atual) linhas.push(atual)
+  if (linhas.length <= 2) return linhas.map((l) => (l.length > MAX_CHARS_LINHA ? `${l.slice(0, MAX_CHARS_LINHA - 1)}…` : l))
+  const segunda = linhas.slice(1).join(' ')
+  return [linhas[0], segunda.length > MAX_CHARS_LINHA ? `${segunda.slice(0, MAX_CHARS_LINHA - 1)}…` : segunda]
+}
+
+function renderTickNome(fill: string) {
+  return function TickNome(props: any) {
+    const { x, y, payload } = props
+    const nome = String(payload?.value ?? '')
+    const linhas = quebrarNome(nome)
+    const alturaLinha = 12
+    const inicioY = -((linhas.length - 1) * alturaLinha) / 2
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <title>{nome}</title>
+        <text x={-6} y={0} textAnchor="end" dominantBaseline="central" fill={fill} fontSize={11} fontWeight={700}>
+          {linhas.map((linha, i) => (
+            <tspan key={i} x={-6} dy={i === 0 ? inicioY : alturaLinha}>
+              {linha}
+            </tspan>
+          ))}
+        </text>
+      </g>
+    )
+  }
+}
+
 interface BarRankingCardProps {
   titulo: string
   icone: React.ElementType
@@ -271,11 +318,11 @@ function BarRankingCard({
                   type="category"
                   dataKey="name"
                   stroke={textColor}
-                  tick={{ fill: textColor, fontSize: 11, fontWeight: 700 }}
+                  tick={renderTickNome(textColor)}
                   tickLine={false}
                   axisLine={false}
                   interval={0}
-                  width={150}
+                  width={LARGURA_EIXO_NOMES}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
