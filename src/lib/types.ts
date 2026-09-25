@@ -273,6 +273,21 @@ export interface RegistroBaixaConsumo {
   data_hora: string
 }
 
+export interface RegistroEntradaConsumo {
+  id: string
+  item_id: string | null
+  item_nome: string
+  unidade: string
+  quantidade: number
+  /** 'quantidade' = somou no item; 'tambor' = entrou um tambor cheio na reserva. */
+  tipo: 'quantidade' | 'tambor'
+  numero_nf?: string | null
+  nf_url?: string | null
+  nf_nome?: string | null
+  responsavel?: string | null
+  data_hora: string
+}
+
 export interface ItemChecagem {
   id: string
   categoria: string

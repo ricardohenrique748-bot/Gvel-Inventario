@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import type { ItemConsumo, RegistroBaixaConsumo } from '@/lib/types'
+import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
+import type { ItemConsumo, RegistroBaixaConsumo, RegistroEntradaConsumo } from '@/lib/types'
+import { comPrefixoEmpresa } from '@/lib/tenant'
 
 export const STORAGE_CONSUMO_KEY = 'gvel_inventario_consumo_v1'
 export const STORAGE_BAIXAS_CONSUMO_KEY = 'gvel_inventario_baixas_consumo_v1'
@@ -623,4 +624,86 @@ export async function registrarEntradaConsumo(item: ItemConsumo, quantidadeAdici
   salvarInsumosLocais(locais)
 
   return itemAtualizado
+}
+
+// ----------------------------------------------------
+// Entradas de estoque com nota fiscal (tabela consumo_entradas)
+// ----------------------------------------------------
+function normalizarEntradaConsumo(entrada: RegistroEntradaConsumo): RegistroEntradaConsumo {
+  return { ...entrada, quantidade: Number(entrada.quantidade) || 0 }
+}
+
+export async function fetchEntradasConsumoSupabase(): Promise<RegistroEntradaConsumo[]> {
+  const { data, error } = await supabase
+    .from('consumo_entradas')
+    .select('*')
+    .order('data_hora', { ascending: false })
+    .limit(2000)
+  if (error) {
+    console.warn('Erro ao buscar entradas de consumo do Supabase:', error)
+    return []
+  }
+  return (data as RegistroEntradaConsumo[]).map(normalizarEntradaConsumo)
+}
+
+export function useEntradasConsumo() {
+  const [entradasConsumo, setEntradasConsumo] = useState<RegistroEntradaConsumo[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const refetch = useCallback(async () => {
+    setLoading(true)
+    try {
+      setEntradasConsumo(await fetchEntradasConsumoSupabase())
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    refetch()
+  }, [refetch])
+
+  return { entradasConsumo, loading, refetch }
+}
+
+// Diferente da foto de ferramenta, a NF não cai pra dataURL se o storage
+// falhar — um PDF em base64 dentro da linha do banco ficaria enorme; melhor
+// avisar o erro e deixar a pessoa tentar de novo.
+export async function uploadNotaFiscalInsumo(file: File): Promise<string> {
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf'
+  const path = comPrefixoEmpresa(`notas-fiscais/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`)
+  const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: file.type || undefined,
+  })
+  if (error) throw new Error(`Não foi possível enviar a nota fiscal: ${error.message}`)
+  return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
+export interface DadosEntradaConsumo {
+  quantidade: number
+  tipo: 'quantidade' | 'tambor'
+  numeroNf?: string
+  nfArquivo?: File | null
+  responsavel?: string
+}
+
+/** Grava o lançamento da entrada (com a NF, se anexada). Chamar depois de já
+ * ter atualizado o estoque do item. */
+export async function registrarLancamentoEntradaConsumo(item: ItemConsumo, dados: DadosEntradaConsumo): Promise<void> {
+  const nfUrl = dados.nfArquivo ? await uploadNotaFiscalInsumo(dados.nfArquivo) : null
+  const { error } = await supabase.from('consumo_entradas').insert({
+    item_id: REGEX_UUID.test(item.id) ? item.id : null,
+    item_nome: item.nome,
+    unidade: item.unidade,
+    quantidade: dados.quantidade,
+    tipo: dados.tipo,
+    numero_nf: dados.numeroNf?.trim() || null,
+    nf_url: nfUrl,
+    nf_nome: dados.nfArquivo?.name ?? null,
+    responsavel: dados.responsavel?.trim() || null,
+    data_hora: new Date().toISOString(),
+  })
+  if (error) throw new Error(`Estoque atualizado, mas não foi possível registrar a entrada/NF: ${error.message}`)
 }

@@ -35,6 +35,8 @@ import {
   FolderOpen,
   ArrowLeft,
   Warehouse,
+  FileText,
+  Paperclip,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { isEstoqueAuthorized } from '@/components/layout/nav'
@@ -70,7 +72,7 @@ import {
 import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
 import { getPlacasFrotaCadastrada } from '@/lib/frotasStorage'
-import type { Ferramenta, FerramentaRetirada, ItemConsumo, RegistroBaixaConsumo } from '@/lib/types'
+import type { Ferramenta, FerramentaRetirada, ItemConsumo, RegistroBaixaConsumo, RegistroEntradaConsumo } from '@/lib/types'
 import {
   useInsumos,
   useBaixasConsumo,
@@ -79,6 +81,9 @@ import {
   excluirInsumo,
   registrarBaixaConsumo,
   registrarEntradaConsumo,
+  useEntradasConsumo,
+  registrarLancamentoEntradaConsumo,
+  type DadosEntradaConsumo,
   atualizarBaixaConsumo,
   excluirBaixaConsumo,
 } from '@/hooks/useInsumos'
@@ -392,6 +397,7 @@ export function InventarioFerramentas() {
   // com cache local só para uso offline/otimista. Ver src/hooks/useInsumos.ts.
   const { itensConsumo, refetch: refetchInsumos } = useInsumos()
   const { baixasConsumo, refetch: refetchBaixasConsumo } = useBaixasConsumo()
+  const { entradasConsumo, refetch: refetchEntradasConsumo } = useEntradasConsumo()
 
   // Carregar dados do localStorage de forma assíncrona para não bloquear o primeiro render
   useEffect(() => {
@@ -446,6 +452,8 @@ export function InventarioFerramentas() {
   const [itemConsumoParaBaixa, setItemConsumoParaBaixa] = useState<ItemConsumo | null>(null)
   const [modalEntradaConsumoAberto, setModalEntradaConsumoAberto] = useState(false)
   const [itemConsumoParaEntrada, setItemConsumoParaEntrada] = useState<ItemConsumo | null>(null)
+  // 'tambor' = veio do botão "+" (entra um tambor cheio na reserva); 'quantidade' = repor litros/unidades.
+  const [tipoEntradaConsumo, setTipoEntradaConsumo] = useState<'quantidade' | 'tambor'>('quantidade')
 
   const itensConsumoFiltrados = useMemo(() => {
     const termo = deferredBuscaConsumo.trim().toLowerCase()
@@ -2583,6 +2591,7 @@ export function InventarioFerramentas() {
                             size="md"
                             onClick={() => {
                               setItemConsumoParaEntrada(item)
+                              setTipoEntradaConsumo('quantidade')
                               setModalEntradaConsumoAberto(true)
                             }}
                             className="!h-8 px-2.5 text-[11px] uppercase font-bold gap-1 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
@@ -3139,13 +3148,31 @@ export function InventarioFerramentas() {
         <ModalEntradaConsumo
           item={itemConsumoParaEntrada}
           onClose={() => setModalEntradaConsumoAberto(false)}
-          onSucesso={async (qtdAdicionada) => {
-            setModalEntradaConsumoAberto(false)
+          tipo={tipoEntradaConsumo}
+          onSucesso={async (dados) => {
+            const it = itemConsumoParaEntrada
             try {
-              await registrarEntradaConsumo(itemConsumoParaEntrada, qtdAdicionada)
+              if (dados.tipo === 'tambor') {
+                await atualizarInsumo(it.id, { ...it, quantidade_tambores: (it.quantidade_tambores || 0) + 1 })
+              } else {
+                await registrarEntradaConsumo(it, dados.quantidade)
+              }
               await refetchInsumos()
             } catch (err) {
               setMensagemErro(err instanceof Error ? err.message : 'Erro ao repor estoque.')
+              setModalEntradaConsumoAberto(false)
+              return
+            }
+            try {
+              await registrarLancamentoEntradaConsumo(it, {
+                ...dados,
+                responsavel: perfil?.nome || user?.email || '',
+              })
+              await refetchEntradasConsumo()
+            } catch (err) {
+              setMensagemErro(err instanceof Error ? err.message : 'Erro ao registrar a nota fiscal da entrada.')
+            } finally {
+              setModalEntradaConsumoAberto(false)
             }
           }}
         />
@@ -3299,6 +3326,7 @@ export function InventarioFerramentas() {
         <ModalHistoricoConsumo
           item={itensConsumo.find((it) => it.id === itemConsumoHistorico.id) ?? itemConsumoHistorico}
           baixas={baixasConsumo}
+          entradas={entradasConsumo}
           podeGerenciar={podeExcluir}
           onClose={() => setItemConsumoHistorico(null)}
           onBaixar={(it) => {
@@ -3329,15 +3357,13 @@ export function InventarioFerramentas() {
           }}
           onRepor={(it) => {
             setItemConsumoParaEntrada(it)
+            setTipoEntradaConsumo('quantidade')
             setModalEntradaConsumoAberto(true)
           }}
-          onAdicionarTambor={async (it) => {
-            try {
-              await atualizarInsumo(it.id, { ...it, quantidade_tambores: (it.quantidade_tambores || 0) + 1 })
-              await refetchInsumos()
-            } catch (err) {
-              setMensagemErro(err instanceof Error ? err.message : 'Erro ao adicionar tambor ao estoque.')
-            }
+          onAdicionarTambor={(it) => {
+            setItemConsumoParaEntrada(it)
+            setTipoEntradaConsumo('tambor')
+            setModalEntradaConsumoAberto(true)
           }}
           podeEditarItem={podeExcluir || !REGEX_UUID_INSUMO.test(itemConsumoHistorico.id) || canAccess}
           onEditarItem={(it) => {
@@ -3612,6 +3638,7 @@ function ModalHistoricoFerramenta({
 function ModalHistoricoConsumo({
   item,
   baixas,
+  entradas,
   podeGerenciar,
   onClose,
   onBaixar,
@@ -3626,6 +3653,7 @@ function ModalHistoricoConsumo({
 }: {
   item: ItemConsumo
   baixas: RegistroBaixaConsumo[]
+  entradas: RegistroEntradaConsumo[]
   podeGerenciar: boolean
   podeEditarItem: boolean
   onClose: () => void
@@ -3642,7 +3670,7 @@ function ModalHistoricoConsumo({
   onExcluirItem: (item: ItemConsumo) => void
   onRemoverTambor: (item: ItemConsumo) => void
 }) {
-  const [abaModal, setAbaModal] = useState<'estoque' | 'historico'>('estoque')
+  const [abaModal, setAbaModal] = useState<'estoque' | 'historico' | 'entradas'>('estoque')
   const [busca, setBusca] = useState('')
   const [editandoBaixaId, setEditandoBaixaId] = useState<string | null>(null)
   const [formEdicao, setFormEdicao] = useState({ quantidade: '', responsavel: '', placa: '', motivo: '' })
@@ -3652,6 +3680,10 @@ function ModalHistoricoConsumo({
   const historico = useMemo(() => {
     return baixas.filter((b) => b.item_id === item.id)
   }, [baixas, item.id])
+
+  const entradasDoItem = useMemo(() => {
+    return entradas.filter((e) => e.item_id === item.id)
+  }, [entradas, item.id])
 
   // Baixa mais recente do item — só nela é seguro ajustar a quantidade
   // automaticamente no estoque atual (editar/excluir uma baixa mais antiga
@@ -3790,6 +3822,18 @@ function ModalHistoricoConsumo({
           >
             Histórico de Baixas
             <span className="text-[10px] font-bold opacity-70">({historico.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAbaModal('entradas')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-colors ${
+              abaModal === 'entradas'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-secondary hover:text-foreground'
+            }`}
+          >
+            Entradas / NF
+            <span className="text-[10px] font-bold opacity-70">({entradasDoItem.length})</span>
           </button>
         </div>
 
@@ -4137,6 +4181,63 @@ function ModalHistoricoConsumo({
             </div>
           )}
         </div>
+        )}
+
+        {/* Entradas de estoque com a nota fiscal anexada */}
+        {abaModal === 'entradas' && (
+          <div className="flex-1 overflow-y-auto p-5 space-y-3">
+            {entradasDoItem.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border/30 p-8 text-center bg-overlay/5">
+                <FileText className="mx-auto h-8 w-8 text-secondary/40 mb-2" />
+                <p className="text-xs font-black uppercase text-foreground">Nenhuma entrada registrada</p>
+                <p className="text-[11px] text-secondary mt-0.5">
+                  As próximas entradas (repor estoque ou adicionar tambor) aparecem aqui com a NF.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border/15 bg-surface divide-y divide-border/10 overflow-hidden">
+                {entradasDoItem.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-overlay/5 transition-colors">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-black font-mono text-emerald-500 text-xs">
+                          +{e.quantidade.toLocaleString('pt-BR')} {e.unidade}
+                        </span>
+                        {e.tipo === 'tambor' && (
+                          <span className="text-[11px] font-bold text-primary before:content-['·'] before:text-border/50 before:mr-1">
+                            🛢️ 1 tambor
+                          </span>
+                        )}
+                        {e.numero_nf && (
+                          <span className="rounded-md bg-background border border-border/30 px-1.5 py-0.5 text-[11px] font-black font-mono text-foreground">
+                            NF {e.numero_nf}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-secondary">
+                        {format(new Date(e.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        {e.responsavel && <span className="uppercase"> · {e.responsavel}</span>}
+                      </p>
+                    </div>
+                    {e.nf_url ? (
+                      <a
+                        href={e.nf_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={e.nf_nome || 'Abrir nota fiscal'}
+                        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-500/30 px-2.5 py-1.5 text-[11px] font-bold uppercase text-emerald-500 transition-colors hover:bg-emerald-500/10"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        Ver NF
+                      </a>
+                    ) : (
+                      <span className="shrink-0 text-[10px] font-semibold uppercase text-secondary/60">Sem NF</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Rodapé */}
@@ -7777,37 +7878,69 @@ function ModalBaixaConsumo({
 // ----------------------------------------------------------------------------------
 // Subcomponente: Modal de Entrada / Reposição de Estoque de Insumo
 // ----------------------------------------------------------------------------------
+// Arquivos aceitos como nota fiscal: PDF (DANFE), XML da NF-e ou foto.
+const ACCEPT_NOTA_FISCAL = 'application/pdf,.pdf,text/xml,application/xml,.xml,image/*'
+const TAMANHO_MAX_NF_MB = 10
+
 function ModalEntradaConsumo({
   item,
+  tipo,
   onClose,
   onSucesso,
 }: {
   item: ItemConsumo
+  tipo: 'quantidade' | 'tambor'
   onClose: () => void
-  onSucesso: (qtd: number) => void
+  onSucesso: (dados: DadosEntradaConsumo) => Promise<void>
 }) {
+  const ehTambor = tipo === 'tambor'
+  const capacidadeTambor = item.capacidade_maxima || 0
   const [quantidadeAdicionar, setQuantidadeAdicionar] = useState(10)
+  const [numeroNf, setNumeroNf] = useState('')
+  const [nfArquivo, setNfArquivo] = useState<File | null>(null)
+  const [erroNf, setErroNf] = useState<string | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  const nfInputRef = useRef<HTMLInputElement>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const quantidadeFinal = ehTambor ? capacidadeTambor : quantidadeAdicionar
+
+  function selecionarNf(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (file.size > TAMANHO_MAX_NF_MB * 1024 * 1024) {
+      setErroNf(`Arquivo muito grande (máx. ${TAMANHO_MAX_NF_MB} MB).`)
+      return
+    }
+    setErroNf(null)
+    setNfArquivo(file)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (quantidadeAdicionar <= 0) return
-    onSucesso(quantidadeAdicionar)
+    if (!ehTambor && quantidadeAdicionar <= 0) return
+    setSalvando(true)
+    try {
+      await onSucesso({ quantidade: quantidadeFinal, tipo, numeroNf, nfArquivo })
+    } finally {
+      setSalvando(false)
+    }
   }
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="w-full max-w-sm rounded-2xl border border-border/20 bg-surface shadow-2xl p-6 space-y-4">
+      <div className="w-full max-w-sm max-h-[95vh] overflow-y-auto rounded-2xl border border-border/20 bg-surface shadow-2xl p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-border/10 pb-3">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
               <PackagePlus className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-foreground uppercase">REPOR ESTOQUE</h2>
-              <p className="text-[10px] text-secondary">Adicionar novas unidades</p>
+              <h2 className="text-sm font-black text-foreground uppercase">{ehTambor ? 'ENTRADA DE TAMBOR' : 'REPOR ESTOQUE'}</h2>
+              <p className="text-[10px] text-secondary">{ehTambor ? 'Adicionar um tambor cheio à reserva' : 'Adicionar novas unidades'}</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-xl p-1 text-secondary hover:text-foreground">
+          <button onClick={onClose} disabled={salvando} className="rounded-xl p-1 text-secondary hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -7817,54 +7950,116 @@ function ModalEntradaConsumo({
             <span className="text-[10px] font-bold text-secondary uppercase block">ITEM</span>
             <p className="font-bold text-xs text-foreground uppercase">{item.nome}</p>
             <p className="text-[11px] text-secondary font-mono">
-              Estoque Atual: <span className="font-bold text-foreground">{item.quantidade_atual} {item.unidade}</span>
+              {ehTambor ? (
+                <>
+                  Tambores na reserva: <span className="font-bold text-foreground">{item.quantidade_tambores || 0}</span>
+                </>
+              ) : (
+                <>
+                  Estoque Atual: <span className="font-bold text-foreground">{item.quantidade_atual} {item.unidade}</span>
+                </>
+              )}
             </p>
           </div>
 
-          <div>
-            <label htmlFor="qtdAdd" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1.5">
-              Quantidade a Adicionar ({item.unidade}) *
-            </label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="qtdAdd"
-                type="text"
-                inputMode="numeric"
-                min="1"
-                value={quantidadeAdicionar}
-                onChange={(e) => setQuantidadeAdicionar(Math.max(1, Number(e.target.value.replace(/[.,]/g, '')) || 0))}
-                required
-                autoFocus
-                className="font-mono text-xl font-black text-center"
-              />
+          {!ehTambor && (
+            <div>
+              <label htmlFor="qtdAdd" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1.5">
+                Quantidade a Adicionar ({item.unidade}) *
+              </label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="qtdAdd"
+                  type="text"
+                  inputMode="numeric"
+                  min="1"
+                  value={quantidadeAdicionar}
+                  onChange={(e) => setQuantidadeAdicionar(Math.max(1, Number(e.target.value.replace(/[.,]/g, '')) || 0))}
+                  required
+                  autoFocus
+                  className="font-mono text-xl font-black text-center"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 mt-2">
+                <span className="text-[10px] uppercase font-bold text-secondary mr-1">Rápido:</span>
+                {[5, 10, 20, 50].map((v) => (
+                  <button
+                    type="button"
+                    key={v}
+                    onClick={() => setQuantidadeAdicionar(v)}
+                    className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-background border border-border/30 hover:border-emerald-500 hover:text-emerald-500 transition-all"
+                  >
+                    +{v}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 mt-2">
-              <span className="text-[10px] uppercase font-bold text-secondary mr-1">Rápido:</span>
-              {[5, 10, 20, 50].map((v) => (
+          )}
+
+          {/* Nota fiscal da compra */}
+          <div className="space-y-2">
+            <label htmlFor="numNf" className="block text-[11px] font-black text-secondary uppercase tracking-widest">
+              Nota Fiscal
+            </label>
+            <Input
+              id="numNf"
+              value={numeroNf}
+              onChange={(e) => setNumeroNf(e.target.value)}
+              placeholder="Nº da NF (opcional)"
+              autoFocus={ehTambor}
+              className="text-xs"
+            />
+            <input ref={nfInputRef} type="file" accept={ACCEPT_NOTA_FISCAL} onChange={selecionarNf} className="hidden" />
+            {nfArquivo ? (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2">
+                <FileText className="h-4 w-4 shrink-0 text-emerald-500" />
+                <span className="flex-1 min-w-0 truncate text-xs font-semibold text-foreground" title={nfArquivo.name}>
+                  {nfArquivo.name}
+                </span>
                 <button
                   type="button"
-                  key={v}
-                  onClick={() => setQuantidadeAdicionar(v)}
-                  className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-background border border-border/30 hover:border-emerald-500 hover:text-emerald-500 transition-all"
+                  onClick={() => setNfArquivo(null)}
+                  className="rounded-lg p-1 text-secondary hover:text-red-400"
+                  title="Remover arquivo"
                 >
-                  +{v}
+                  <X className="h-3.5 w-3.5" />
                 </button>
-              ))}
-            </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => nfInputRef.current?.click()}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border/40 px-3 py-3 text-xs font-bold uppercase text-secondary transition-colors hover:border-emerald-500 hover:text-emerald-500"
+              >
+                <Paperclip className="h-4 w-4" />
+                Importar NF (PDF, XML ou foto)
+              </button>
+            )}
+            {erroNf && <p className="text-[11px] font-semibold text-red-400">{erroNf}</p>}
           </div>
 
           <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-2.5 text-center">
             <p className="text-xs text-emerald-500 font-bold">
-              Novo Estoque: <span className="font-mono text-sm">{item.quantidade_atual + quantidadeAdicionar} {item.unidade}</span>
+              {ehTambor ? (
+                <>
+                  Reserva: <span className="font-mono text-sm">{(item.quantidade_tambores || 0) + 1} tambores</span>
+                  {capacidadeTambor > 0 && ` (+${capacidadeTambor.toLocaleString('pt-BR')} ${item.unidade})`}
+                </>
+              ) : (
+                <>
+                  Novo Estoque: <span className="font-mono text-sm">{item.quantidade_atual + quantidadeAdicionar} {item.unidade}</span>
+                </>
+              )}
             </p>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border/10">
-            <Button type="button" variant="secondary" onClick={onClose} className="!h-9 px-4 text-xs font-semibold">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={salvando} className="!h-9 px-4 text-xs font-semibold">
               Cancelar
             </Button>
-            <Button type="submit" className="!h-9 px-5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white">
-              Confirmar Entrada
+            <Button type="submit" disabled={salvando} className="!h-9 px-5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white gap-1.5">
+              {salvando && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {salvando ? 'Salvando…' : 'Confirmar Entrada'}
             </Button>
           </div>
         </form>
