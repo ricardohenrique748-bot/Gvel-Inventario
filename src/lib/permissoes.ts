@@ -332,12 +332,13 @@ export function temPermissaoModulo(
 /**
  * Módulos que nunca são escondidos pela restrição por empresa — mesmo numa
  * empresa com menu reduzido, o admin/usuário precisa continuar conseguindo
- * chegar em Configurações pra gerenciar a própria conta/empresa. As abas de
- * Configurações abaixo (exceto Notificações) são cadastros básicos que toda
- * empresa precisa; só Notificações é realmente opcional/desligável.
+ * chegar em Configurações pra gerenciar a própria conta/empresa. Frota e
+ * Pátios ficam de fora: só fazem sentido pra quem usa o controle de
+ * entrada/saída de veículos (ex.: VelContracker/Pedrão não usa) — numa
+ * empresa com menu reduzido, só aparecem se estiverem na lista dela.
  */
 const MODULOS_SEMPRE_LIBERADOS_EMPRESA = [
-  'configuracoes', 'config_empresas', 'config_clientes', 'config_frota', 'config_patios', 'config_usuarios',
+  'configuracoes', 'config_empresas', 'config_clientes', 'config_usuarios',
 ]
 
 /**
