@@ -18,6 +18,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refetchPerfil: () => Promise<void>
+  refetchEmpresa: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -103,6 +104,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchPerfil()
   }, [fetchPerfil])
 
+  // Recarrega só a empresa, sem ligar perfilLoading (que faria o
+  // ProtectedRoute desmontar a tela atual). Usado após editar a empresa em
+  // Configurações pra atualizar o cabeçalho na hora.
+  const refetchEmpresa = useCallback(async () => {
+    const companyId = perfil?.company_id
+    if (!isSupabaseConfigured || !companyId) return
+    const { data } = await withTimeout(
+      supabase.from('companies').select('*').eq('id', companyId).maybeSingle(),
+      NETWORK_TIMEOUT_MS,
+    )
+    if (data) setEmpresa(data)
+  }, [perfil?.company_id])
+
   async function signIn(email: string, password: string) {
     if (!isSupabaseConfigured) {
       if (email === LOCAL_EMAIL && password === LOCAL_PASSWORD) {
@@ -145,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signOut,
         refetchPerfil: fetchPerfil,
+        refetchEmpresa,
       }}
     >
       {children}

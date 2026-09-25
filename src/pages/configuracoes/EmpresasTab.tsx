@@ -34,7 +34,7 @@ const CORES_PRESETS = [
 ]
 
 export function EmpresasTab() {
-  const { perfil, empresa: minhaEmpresa, isMasterAdmin } = useAuth()
+  const { perfil, empresa: minhaEmpresa, isMasterAdmin, refetchEmpresa } = useAuth()
   const { empresas, loading, refetch } = useCompanies()
   const [mostrarForm, setMostrarForm] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
@@ -171,6 +171,9 @@ export function EmpresasTab() {
         setSucesso('Empresa cadastrada com sucesso!')
       }
       await refetch()
+      // O cabeçalho (Logo) lê a empresa do AuthContext, que só é buscada no
+      // login — recarrega pra refletir nome/rótulo/cor/logo novos na hora.
+      if (editandoId === minhaEmpresa?.id) await refetchEmpresa()
       cancelar()
       setTimeout(() => setSucesso(null), 3000)
     } catch (err) {
@@ -200,6 +203,7 @@ export function EmpresasTab() {
     try {
       await atualizarEmpresa(empresa.id, { status: empresa.status === 'active' ? 'inactive' : 'active' })
       await refetch()
+      if (empresa.id === minhaEmpresa?.id) await refetchEmpresa()
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível alterar o status da empresa.')
     } finally {
@@ -283,7 +287,7 @@ export function EmpresasTab() {
                   />
                   <FieldError message={errors.sistema_label?.message} />
                   <p className="mt-1 text-[11px] text-secondary">
-                    Aparece no cabeçalho do sistema
+                    Aparece abaixo do nome no cabeçalho
                   </p>
                 </div>
 
@@ -413,10 +417,10 @@ export function EmpresasTab() {
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-foreground uppercase tracking-wider">
-                    {watch('sistema_label') || 'SISTEMA'}
+                    {watch('name') || 'Nome da Empresa'}
                   </p>
                   <p className="text-[11px] text-secondary uppercase tracking-wide">
-                    {watch('name') || 'Nome da Empresa'}
+                    {watch('sistema_label') || 'SISTEMA'}
                   </p>
                   <p className="text-[10px] text-secondary/60 mt-0.5">
                     {editandoId ? 'Clique no ícone para trocar a logo' : 'Salve a empresa para poder adicionar uma logo'}

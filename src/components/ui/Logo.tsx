@@ -47,13 +47,13 @@ export function Logo({ className, showText = true, size = 'md', stacked = false 
           className={cn(s.icon, s.badgeText, 'shrink-0 flex items-center justify-center rounded-lg font-black text-white shadow-md')}
           style={{ backgroundColor: empresaAtiva.cor }}
         >
-          {iniciaisEmpresa(sistemaLabel || nomeEmpresa)}
+          {iniciaisEmpresa(nomeEmpresa || sistemaLabel)}
         </div>
       )}
       {showText && (
         <div className={cn('flex flex-col leading-tight min-w-0 flex-1 overflow-hidden max-w-full', stacked ? 'items-center text-center' : 'justify-center text-left')}>
           <p className={cn('font-bold tracking-wide text-foreground truncate block max-w-full', s.title)}>
-            {sistemaLabel}
+            {nomeEmpresa}
           </p>
           <p
             className={cn(
@@ -61,7 +61,7 @@ export function Logo({ className, showText = true, size = 'md', stacked = false 
               s.subtitle,
             )}
           >
-            {nomeEmpresa}
+            {sistemaLabel}
           </p>
         </div>
       )}
