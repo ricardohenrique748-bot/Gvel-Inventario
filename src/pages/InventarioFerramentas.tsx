@@ -2842,7 +2842,7 @@ export function InventarioFerramentas() {
                           </div>
 
                           {/* Ações do Insumo */}
-                          <div className="pt-2 border-t border-border/10 flex items-center justify-between gap-1.5">
+                          <div className="pt-2 border-t border-border/10 flex flex-wrap items-center justify-between gap-1.5">
                             {acoes}
                             {acoesSecundarias}
                           </div>
