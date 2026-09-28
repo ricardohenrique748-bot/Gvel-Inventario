@@ -194,8 +194,11 @@ function mesclarInsumosRemotosComLocais(remotos: ItemConsumo[], locais: ItemCons
   const excluidos = getIdsExcluidosConsumo()
   const mapa = new Map<string, ItemConsumo>()
 
+  // Item local com UUID já foi sincronizado: se não veio do banco, foi
+  // apagado lá e não pode continuar aparecendo só pelo cache.
   locais.forEach((loc) => {
-    if (!excluidos.includes(loc.id)) mapa.set(loc.id, loc)
+    if (excluidos.includes(loc.id) || REGEX_UUID.test(loc.id)) return
+    mapa.set(loc.id, loc)
   })
 
   remotos.forEach((rem) => {
@@ -607,14 +610,22 @@ export async function registrarEntradaConsumo(item: ItemConsumo, quantidadeAdici
     : { quantidade_atual: arredondar3(item.quantidade_atual + quantidadeAdicionar) }
 
   let itemAtualizado: ItemConsumo = { ...item, ...camposItem }
+  let itemSumiuDoBanco = false
 
   try {
     if (REGEX_UUID.test(item.id)) {
       const { data, error } = await supabase.from('itens_consumo').update(camposItem).eq('id', item.id).select().single()
       if (!error && data) itemAtualizado = normalizarItemConsumo(data as ItemConsumo)
+      // PGRST116 = nenhuma linha atualizada: o item foi apagado no banco.
+      else if (error?.code === 'PGRST116') itemSumiuDoBanco = true
     }
   } catch (err) {
     console.warn('Erro ao repor estoque do insumo no Supabase:', err)
+  }
+
+  if (itemSumiuDoBanco) {
+    salvarInsumosLocais(getInsumosLocais().filter((it) => it.id !== item.id))
+    throw new Error('ESTE INSUMO NÃO EXISTE MAIS NO BANCO (FOI EXCLUÍDO). CADASTRE-O NOVAMENTE ANTES DE LANÇAR A ENTRADA.')
   }
 
   const locais = getInsumosLocais()
@@ -683,7 +694,7 @@ export async function uploadNotaFiscalInsumo(file: File): Promise<string> {
 
 export interface DadosEntradaConsumo {
   quantidade: number
-  tipo: 'quantidade' | 'tambor'
+  tipo: 'quantidade' | 'tambor' | 'nf'
   numeroNf?: string
   nfArquivo?: File | null
   responsavel?: string

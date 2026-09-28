@@ -279,8 +279,9 @@ export interface RegistroEntradaConsumo {
   item_nome: string
   unidade: string
   quantidade: number
-  /** 'quantidade' = somou no item; 'tambor' = entrou um tambor cheio na reserva. */
-  tipo: 'quantidade' | 'tambor'
+  /** 'quantidade' = somou no item; 'tambor' = entrou um tambor cheio na reserva;
+   *  'nf' = só a nota fiscal anexada, sem mexer no estoque. */
+  tipo: 'quantidade' | 'tambor' | 'nf'
   numero_nf?: string | null
   nf_url?: string | null
   nf_nome?: string | null

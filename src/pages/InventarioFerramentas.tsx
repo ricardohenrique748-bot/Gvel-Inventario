@@ -453,7 +453,7 @@ export function InventarioFerramentas() {
   const [modalEntradaConsumoAberto, setModalEntradaConsumoAberto] = useState(false)
   const [itemConsumoParaEntrada, setItemConsumoParaEntrada] = useState<ItemConsumo | null>(null)
   // 'tambor' = veio do botão "+" (entra um tambor cheio na reserva); 'quantidade' = repor litros/unidades.
-  const [tipoEntradaConsumo, setTipoEntradaConsumo] = useState<'quantidade' | 'tambor'>('quantidade')
+  const [tipoEntradaConsumo, setTipoEntradaConsumo] = useState<'quantidade' | 'tambor' | 'nf'>('quantidade')
 
   const itensConsumoFiltrados = useMemo(() => {
     const termo = deferredBuscaConsumo.trim().toLowerCase()
@@ -3154,7 +3154,7 @@ export function InventarioFerramentas() {
             try {
               if (dados.tipo === 'tambor') {
                 await atualizarInsumo(it.id, { ...it, quantidade_tambores: (it.quantidade_tambores || 0) + 1 })
-              } else {
+              } else if (dados.tipo === 'quantidade') {
                 await registrarEntradaConsumo(it, dados.quantidade)
               }
               await refetchInsumos()
@@ -3363,6 +3363,11 @@ export function InventarioFerramentas() {
           onAdicionarTambor={(it) => {
             setItemConsumoParaEntrada(it)
             setTipoEntradaConsumo('tambor')
+            setModalEntradaConsumoAberto(true)
+          }}
+          onImportarNf={(it) => {
+            setItemConsumoParaEntrada(it)
+            setTipoEntradaConsumo('nf')
             setModalEntradaConsumoAberto(true)
           }}
           podeEditarItem={podeExcluir || !REGEX_UUID_INSUMO.test(itemConsumoHistorico.id) || canAccess}
@@ -3646,6 +3651,7 @@ function ModalHistoricoConsumo({
   onExcluirBaixa,
   onRepor,
   onAdicionarTambor,
+  onImportarNf,
   onEditarItem,
   onExcluirItem,
   onRemoverTambor,
@@ -3666,6 +3672,7 @@ function ModalHistoricoConsumo({
   onExcluirBaixa: (baixa: RegistroBaixaConsumo, podeAjustarQuantidade: boolean) => Promise<void>
   onRepor: (item: ItemConsumo) => void
   onAdicionarTambor: (item: ItemConsumo) => void
+  onImportarNf: (item: ItemConsumo) => void
   onEditarItem: (item: ItemConsumo) => void
   onExcluirItem: (item: ItemConsumo) => void
   onRemoverTambor: (item: ItemConsumo) => void
@@ -4186,12 +4193,20 @@ function ModalHistoricoConsumo({
         {/* Entradas de estoque com a nota fiscal anexada */}
         {abaModal === 'entradas' && (
           <div className="flex-1 overflow-y-auto p-5 space-y-3">
+            <button
+              type="button"
+              onClick={() => onImportarNf(item)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-500/40 px-3 py-3 text-xs font-bold uppercase text-emerald-500 transition-colors hover:border-emerald-500 hover:bg-emerald-500/10"
+            >
+              <Paperclip className="h-4 w-4" />
+              Importar NF (PDF, XML ou foto)
+            </button>
             {entradasDoItem.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-border/30 p-8 text-center bg-overlay/5">
                 <FileText className="mx-auto h-8 w-8 text-secondary/40 mb-2" />
                 <p className="text-xs font-black uppercase text-foreground">Nenhuma entrada registrada</p>
                 <p className="text-[11px] text-secondary mt-0.5">
-                  As próximas entradas (repor estoque ou adicionar tambor) aparecem aqui com a NF.
+                  Importe uma NF acima, ou use repor estoque / adicionar tambor para lançar a entrada com a nota.
                 </p>
               </div>
             ) : (
@@ -4200,9 +4215,15 @@ function ModalHistoricoConsumo({
                   <div key={e.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-overlay/5 transition-colors">
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-black font-mono text-emerald-500 text-xs">
-                          +{e.quantidade.toLocaleString('pt-BR')} {e.unidade}
-                        </span>
+                        {e.tipo === 'nf' ? (
+                          <span className="font-black uppercase text-secondary text-xs">
+                            Só NF{e.quantidade > 0 && ` · ${e.quantidade.toLocaleString('pt-BR')} ${e.unidade}`}
+                          </span>
+                        ) : (
+                          <span className="font-black font-mono text-emerald-500 text-xs">
+                            +{e.quantidade.toLocaleString('pt-BR')} {e.unidade}
+                          </span>
+                        )}
                         {e.tipo === 'tambor' && (
                           <span className="text-[11px] font-bold text-primary before:content-['·'] before:text-border/50 before:mr-1">
                             🛢️ 1 tambor
@@ -7889,13 +7910,15 @@ function ModalEntradaConsumo({
   onSucesso,
 }: {
   item: ItemConsumo
-  tipo: 'quantidade' | 'tambor'
+  tipo: 'quantidade' | 'tambor' | 'nf'
   onClose: () => void
   onSucesso: (dados: DadosEntradaConsumo) => Promise<void>
 }) {
   const ehTambor = tipo === 'tambor'
+  // 'nf' = só anexa a nota ao item; a quantidade é informativa e o estoque não muda.
+  const soNf = tipo === 'nf'
   const capacidadeTambor = item.capacidade_maxima || 0
-  const [quantidadeAdicionar, setQuantidadeAdicionar] = useState(10)
+  const [quantidadeAdicionar, setQuantidadeAdicionar] = useState(soNf ? 0 : 10)
   const [numeroNf, setNumeroNf] = useState('')
   const [nfArquivo, setNfArquivo] = useState<File | null>(null)
   const [erroNf, setErroNf] = useState<string | null>(null)
@@ -7918,7 +7941,11 @@ function ModalEntradaConsumo({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!ehTambor && quantidadeAdicionar <= 0) return
+    if (soNf && !nfArquivo && !numeroNf.trim()) {
+      setErroNf('Anexe o arquivo da NF ou informe o número.')
+      return
+    }
+    if (!ehTambor && !soNf && quantidadeAdicionar <= 0) return
     setSalvando(true)
     try {
       await onSucesso({ quantidade: quantidadeFinal, tipo, numeroNf, nfArquivo })
@@ -7936,8 +7963,12 @@ function ModalEntradaConsumo({
               <PackagePlus className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-foreground uppercase">{ehTambor ? 'ENTRADA DE TAMBOR' : 'REPOR ESTOQUE'}</h2>
-              <p className="text-[10px] text-secondary">{ehTambor ? 'Adicionar um tambor cheio à reserva' : 'Adicionar novas unidades'}</p>
+              <h2 className="text-sm font-black text-foreground uppercase">
+                {soNf ? 'IMPORTAR NOTA FISCAL' : ehTambor ? 'ENTRADA DE TAMBOR' : 'REPOR ESTOQUE'}
+              </h2>
+              <p className="text-[10px] text-secondary">
+                {soNf ? 'Anexar a NF sem alterar o estoque' : ehTambor ? 'Adicionar um tambor cheio à reserva' : 'Adicionar novas unidades'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} disabled={salvando} className="rounded-xl p-1 text-secondary hover:text-foreground">
@@ -7965,7 +7996,7 @@ function ModalEntradaConsumo({
           {!ehTambor && (
             <div>
               <label htmlFor="qtdAdd" className="block text-[11px] font-black text-secondary uppercase tracking-widest mb-1.5">
-                Quantidade a Adicionar ({item.unidade}) *
+                {soNf ? `Quantidade da Nota (${item.unidade}) — opcional` : `Quantidade a Adicionar (${item.unidade}) *`}
               </label>
               <div className="flex items-center gap-2">
                 <Input
@@ -7974,13 +8005,13 @@ function ModalEntradaConsumo({
                   inputMode="numeric"
                   min="1"
                   value={quantidadeAdicionar}
-                  onChange={(e) => setQuantidadeAdicionar(Math.max(1, Number(e.target.value.replace(/[.,]/g, '')) || 0))}
-                  required
-                  autoFocus
+                  onChange={(e) => setQuantidadeAdicionar(Math.max(soNf ? 0 : 1, Number(e.target.value.replace(/[.,]/g, '')) || 0))}
+                  required={!soNf}
+                  autoFocus={!soNf}
                   className="font-mono text-xl font-black text-center"
                 />
               </div>
-              <div className="flex items-center gap-1.5 mt-2">
+              {!soNf && <div className="flex items-center gap-1.5 mt-2">
                 <span className="text-[10px] uppercase font-bold text-secondary mr-1">Rápido:</span>
                 {[5, 10, 20, 50].map((v) => (
                   <button
@@ -7992,7 +8023,7 @@ function ModalEntradaConsumo({
                     +{v}
                   </button>
                 ))}
-              </div>
+              </div>}
             </div>
           )}
 
@@ -8006,7 +8037,7 @@ function ModalEntradaConsumo({
               value={numeroNf}
               onChange={(e) => setNumeroNf(e.target.value)}
               placeholder="Nº da NF (opcional)"
-              autoFocus={ehTambor}
+              autoFocus={ehTambor || soNf}
               className="text-xs"
             />
             <input ref={nfInputRef} type="file" accept={ACCEPT_NOTA_FISCAL} onChange={selecionarNf} className="hidden" />
@@ -8040,7 +8071,9 @@ function ModalEntradaConsumo({
 
           <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-2.5 text-center">
             <p className="text-xs text-emerald-500 font-bold">
-              {ehTambor ? (
+              {soNf ? (
+                <>O estoque não será alterado — a NF fica registrada na aba Entradas / NF.</>
+              ) : ehTambor ? (
                 <>
                   Reserva: <span className="font-mono text-sm">{(item.quantidade_tambores || 0) + 1} tambores</span>
                   {capacidadeTambor > 0 && ` (+${capacidadeTambor.toLocaleString('pt-BR')} ${item.unidade})`}
@@ -8059,7 +8092,7 @@ function ModalEntradaConsumo({
             </Button>
             <Button type="submit" disabled={salvando} className="!h-9 px-5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white gap-1.5">
               {salvando && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {salvando ? 'Salvando…' : 'Confirmar Entrada'}
+              {salvando ? 'Salvando…' : soNf ? 'Salvar NF' : 'Confirmar Entrada'}
             </Button>
           </div>
         </form>
