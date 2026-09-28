@@ -194,11 +194,10 @@ function mesclarInsumosRemotosComLocais(remotos: ItemConsumo[], locais: ItemCons
   const excluidos = getIdsExcluidosConsumo()
   const mapa = new Map<string, ItemConsumo>()
 
-  // Item local com UUID já foi sincronizado: se não veio do banco, foi
-  // apagado lá e não pode continuar aparecendo só pelo cache.
+  // Itens que só existem no cache continuam na tela — o refetch tenta
+  // subir os de UUID pro banco (ver enviarInsumosSoLocais).
   locais.forEach((loc) => {
-    if (excluidos.includes(loc.id) || REGEX_UUID.test(loc.id)) return
-    mapa.set(loc.id, loc)
+    if (!excluidos.includes(loc.id)) mapa.set(loc.id, loc)
   })
 
   remotos.forEach((rem) => {
@@ -244,6 +243,7 @@ export function useInsumos() {
         setItensConsumo(mesclados)
         localStorage.setItem(STORAGE_CONSUMO_KEY, JSON.stringify(mesclados))
         setError(null)
+        if (await enviarInsumosSoLocais(remotos, mesclados)) setItensConsumo(getInsumosLocais())
       } else if (locais.length > 0) {
         setItensConsumo(locais)
       }
@@ -271,6 +271,27 @@ export function useInsumos() {
   return { itensConsumo, loading, error, refetch }
 }
 
+/** Sobe pro banco as baixas que ficaram só no cache (id "baixa_...") porque o
+ * item ainda não existia lá. Devolve a lista com os ids reais do banco; as que
+ * o banco recusar (item ainda só local) continuam no cache pra próxima vez. */
+async function enviarBaixasSoLocais(baixas: RegistroBaixaConsumo[]): Promise<RegistroBaixaConsumo[]> {
+  const resultado: RegistroBaixaConsumo[] = []
+  for (const b of baixas) {
+    if (REGEX_UUID.test(b.id) || !REGEX_UUID.test(b.item_id)) {
+      resultado.push(b)
+      continue
+    }
+    const { id: _id, ...payload } = b
+    try {
+      const { data, error } = await supabase.from('consumo_baixas').insert(payload).select().single()
+      resultado.push(!error && data ? normalizarBaixaConsumo(data as RegistroBaixaConsumo) : b)
+    } catch {
+      resultado.push(b)
+    }
+  }
+  return resultado
+}
+
 export function useBaixasConsumo() {
   const [baixasConsumo, setBaixasConsumo] = useState<RegistroBaixaConsumo[]>(() => getBaixasConsumoLocais())
   const [loading, setLoading] = useState(false)
@@ -283,7 +304,7 @@ export function useBaixasConsumo() {
 
       if (remotas && remotas.length > 0) {
         const idsRemotos = new Set(remotas.map((r) => r.id))
-        const locaisSoOffline = getBaixasConsumoLocais().filter((b) => !idsRemotos.has(b.id))
+        const locaisSoOffline = await enviarBaixasSoLocais(getBaixasConsumoLocais().filter((b) => !idsRemotos.has(b.id)))
         const mescladas = [...locaisSoOffline, ...remotas]
         setBaixasConsumo(mescladas)
         localStorage.setItem(STORAGE_BAIXAS_CONSUMO_KEY, JSON.stringify(mescladas))
@@ -326,6 +347,45 @@ function removerColunaInexistente<T extends Record<string, any>>(payload: T, men
   const { [coluna]: _removido, ...resto } = payload
   console.warn(`Coluna "${coluna}" ainda não existe no banco (rode a migração pendente) — salvando sem ela por enquanto.`)
   return resto as T
+}
+
+/** Grava no banco um insumo que só existia no cache, mantendo o mesmo id
+ * (as baixas locais apontam pra ele). Retorna null se o banco recusar. */
+async function inserirInsumoComId(item: ItemConsumo): Promise<ItemConsumo | null> {
+  const { created_at: _createdAt, ...payload } = item
+  try {
+    let { data, error } = await supabase.from('itens_consumo').insert(payload).select().single()
+    if (error?.message) {
+      const payloadSemColuna = removerColunaInexistente(payload, error.message)
+      if (payloadSemColuna) {
+        ;({ data, error } = await supabase.from('itens_consumo').insert(payloadSemColuna).select().single())
+      }
+    }
+    if (error || !data) {
+      console.warn(`Não foi possível enviar o insumo "${item.nome}" ao banco:`, error)
+      return null
+    }
+    const enviado = normalizarItemConsumo(data as ItemConsumo)
+    const locais = getInsumosLocais()
+    const idx = locais.findIndex((it) => it.id === item.id)
+    if (idx >= 0) locais[idx] = enviado
+    else locais.unshift(enviado)
+    salvarInsumosLocais(locais)
+    return enviado
+  } catch (err) {
+    console.warn(`Erro ao enviar o insumo "${item.nome}" ao banco:`, err)
+    return null
+  }
+}
+
+async function enviarInsumosSoLocais(remotos: ItemConsumo[], locais: ItemConsumo[]): Promise<boolean> {
+  const idsRemotos = new Set(remotos.map((r) => r.id))
+  const soLocais = locais.filter((loc) => REGEX_UUID.test(loc.id) && !idsRemotos.has(loc.id))
+  let algumEnviado = false
+  for (const item of soLocais) {
+    if (await inserirInsumoComId(item)) algumEnviado = true
+  }
+  return algumEnviado
 }
 
 export async function criarInsumo(dados: ItemConsumo): Promise<ItemConsumo> {
@@ -623,9 +683,14 @@ export async function registrarEntradaConsumo(item: ItemConsumo, quantidadeAdici
     console.warn('Erro ao repor estoque do insumo no Supabase:', err)
   }
 
+  // Item só existia no cache deste navegador: grava ele no banco com o mesmo
+  // id, pra entrada/NF e baixas conseguirem apontar pra ele.
   if (itemSumiuDoBanco) {
-    salvarInsumosLocais(getInsumosLocais().filter((it) => it.id !== item.id))
-    throw new Error('ESTE INSUMO NÃO EXISTE MAIS NO BANCO (FOI EXCLUÍDO). CADASTRE-O NOVAMENTE ANTES DE LANÇAR A ENTRADA.')
+    const enviado = await inserirInsumoComId(itemAtualizado)
+    if (!enviado) {
+      throw new Error('ESTE INSUMO SÓ EXISTE NESTE NAVEGADOR E NÃO FOI POSSÍVEL ENVIÁ-LO AO BANCO. O ESTOQUE NÃO FOI ALTERADO.')
+    }
+    itemAtualizado = enviado
   }
 
   const locais = getInsumosLocais()
