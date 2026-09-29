@@ -1,5 +1,6 @@
-import { jsPDF } from 'jspdf'
-import html2canvas from 'html2canvas'
+// jspdf + html2canvas (~600 KB) só são baixados na hora de gerar o PDF: as telas
+// que importam só o cabeçalho/rodapé do relatório não carregam isso ao abrir.
+import type { jsPDF } from 'jspdf'
 import logoIcon from '@/assets/logo-icon.png'
 
 const A4_WIDTH_MM = 210
@@ -31,6 +32,8 @@ async function aguardarImagens(element: HTMLElement): Promise<void> {
  */
 export async function elementToPdf(element: HTMLElement): Promise<jsPDF> {
   await aguardarImagens(element)
+
+  const [{ jsPDF }, { default: html2canvas }] = await Promise.all([import('jspdf'), import('html2canvas')])
 
   const canvas = await html2canvas(element, {
     scale: 2,

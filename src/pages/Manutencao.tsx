@@ -1,7 +1,9 @@
-import { useMemo, useState, useEffect } from 'react'
+import { lazy, Suspense, useMemo, useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/cn'
-import { NovaInspecao } from '@/pages/inspecao/NovaInspecao'
+
+// Aba Liberação só carrega quando é aberta — a Controle de O.S abre sem esse peso.
+const NovaInspecao = lazy(() => import('@/pages/inspecao/NovaInspecao').then((m) => ({ default: m.NovaInspecao })))
 import {
   Truck,
   ExternalLink,
@@ -74,7 +76,19 @@ export function Manutencao() {
         ))}
       </div>
 
-      {aba === 'controle_os' ? <ControleOS /> : <NovaInspecao embutido />}
+      {aba === 'controle_os' ? (
+        <ControleOS />
+      ) : (
+        <Suspense
+          fallback={
+            <div className="flex min-h-[30vh] items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-secondary/30 border-t-primary" />
+            </div>
+          }
+        >
+          <NovaInspecao embutido />
+        </Suspense>
+      )}
     </div>
   )
 }

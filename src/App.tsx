@@ -44,6 +44,56 @@ const VeiculoPublico = lazy(() =>
 import { NotificacoesProvider } from '@/contexts/NotificacoesContext'
 import { EmpresaProvider } from '@/contexts/EmpresaContext'
 
+/**
+ * Telas do menu, na ordem de uso mais comum. Depois que o app abre, elas são
+ * baixadas uma a uma quando o navegador está ocioso — assim o primeiro clique
+ * no menu não fica esperando o download do pacote da tela.
+ */
+const PRE_CARREGAR_TELAS: (() => Promise<unknown>)[] = [
+  () => import('@/pages/Manutencao'),
+  () => import('@/pages/Dashboard'),
+  () => import('@/pages/DashboardGerencial'),
+  () => import('@/pages/Movimentacoes'),
+  () => import('@/pages/Frotas'),
+  () => import('@/pages/InventarioFerramentas'),
+  () => import('@/pages/InventarioCaminhoes'),
+  () => import('@/pages/ControleDeHoras'),
+  () => import('@/pages/Configuracoes'),
+  () => import('@/pages/Financeiro'),
+  () => import('@/pages/RH'),
+  () => import('@/pages/Kanban'),
+  () => import('@/pages/KanbanVamos'),
+  () => import('@/pages/Relatorios'),
+  () => import('@/pages/inspecao/NovaInspecao'),
+]
+
+function quandoOcioso(fn: () => void) {
+  const w = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }
+  if (w.requestIdleCallback) w.requestIdleCallback(fn, { timeout: 3000 })
+  else setTimeout(fn, 300)
+}
+
+function usePreCarregarTelas(ativo: boolean) {
+  useEffect(() => {
+    if (!ativo) return
+    let cancelado = false
+    let i = 0
+    const proxima = () => {
+      if (cancelado || i >= PRE_CARREGAR_TELAS.length) return
+      const carregar = PRE_CARREGAR_TELAS[i++]
+      carregar()
+        .catch(() => {}) // falhou (offline etc.): a tela carrega normal no clique
+        .finally(() => quandoOcioso(proxima))
+    }
+    // Dá um respiro pra primeira tela terminar de montar antes de começar.
+    const t = setTimeout(() => quandoOcioso(proxima), 2000)
+    return () => {
+      cancelado = true
+      clearTimeout(t)
+    }
+  }, [ativo])
+}
+
 function PaginaCarregando() {
   return (
     <div className="flex min-h-[50vh] items-center justify-center">
@@ -61,6 +111,8 @@ export default function App() {
     const timer = setTimeout(() => setBooting(false), ORBIT_SPLASH_MS)
     return () => clearTimeout(timer)
   }, [])
+
+  usePreCarregarTelas(!booting)
 
   if (booting) {
     return <OrbitSplash />
