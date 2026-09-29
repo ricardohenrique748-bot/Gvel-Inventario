@@ -8,10 +8,13 @@ import { DadosVeiculoStep } from './DadosVeiculoStep'
 import { ChecklistStep } from './ChecklistStep'
 import { AssinaturaStep } from './AssinaturaStep'
 import { ResumoStep } from './ResumoStep'
+import { LiberacoesFinalizadas } from './LiberacoesFinalizadas'
 
 export function NovaInspecao() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const modeloInicial: ModeloInspecao = searchParams.get('modelo') === 'liberacao' ? 'liberacao' : 'vistoria'
+  // Aba "Finalizadas" só existe na liberação. O rascunho em andamento fica guardado ao trocar de aba.
+  const verFinalizadas = modeloInicial === 'liberacao' && searchParams.get('aba') === 'finalizadas'
 
   const [step, setStep] = useState(0)
   const [state, setState] = useState<InspecaoWizardState>(() => criarEstadoInicial(modeloInicial))
@@ -42,43 +45,77 @@ export function NovaInspecao() {
         back
       />
 
-
-      <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-1">
-        {steps.map((label, i) => (
-          <div key={label} className="flex items-center gap-2 shrink-0">
-            <div
+      {liberacao && (
+        <div className="mb-4 inline-flex rounded-xl bg-surface p-1">
+          {(
+            [
+              ['nova', 'Nova liberação'],
+              ['finalizadas', 'Finalizadas'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() =>
+                setSearchParams(id === 'finalizadas' ? { modelo: 'liberacao', aba: id } : { modelo: 'liberacao' }, {
+                  replace: true,
+                })
+              }
               className={cn(
-                'flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold',
-                i === step
+                'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                (id === 'finalizadas') === verFinalizadas
                   ? 'bg-primary text-white'
-                  : i < step
-                    ? 'bg-status-success text-white'
-                    : 'bg-surface text-secondary',
+                  : 'text-secondary hover:text-foreground',
               )}
             >
-              {i + 1}
-            </div>
-            <span className={cn('text-xs', i === step ? 'text-foreground' : 'text-secondary')}>{label}</span>
-            {i < steps.length - 1 && <div className="h-px w-6 bg-overlay/10" />}
-          </div>
-        ))}
-      </div>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {step === 0 && (
-        <DadosVeiculoStep key={state.modelo} state={state} onPatch={patch} onNext={() => setStep(1)} />
+      {verFinalizadas ? (
+        <LiberacoesFinalizadas />
+      ) : (
+        <>
+          <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-1">
+            {steps.map((label, i) => (
+              <div key={label} className="flex items-center gap-2 shrink-0">
+                <div
+                  className={cn(
+                    'flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold',
+                    i === step
+                      ? 'bg-primary text-white'
+                      : i < step
+                        ? 'bg-status-success text-white'
+                        : 'bg-surface text-secondary',
+                  )}
+                >
+                  {i + 1}
+                </div>
+                <span className={cn('text-xs', i === step ? 'text-foreground' : 'text-secondary')}>{label}</span>
+                {i < steps.length - 1 && <div className="h-px w-6 bg-overlay/10" />}
+              </div>
+            ))}
+          </div>
+
+          {step === 0 && (
+            <DadosVeiculoStep key={state.modelo} state={state} onPatch={patch} onNext={() => setStep(1)} />
+          )}
+          {step === 1 && (
+            <ChecklistStep
+              state={state}
+              onPatch={patch}
+              onNext={() => setStep(2)}
+              onBack={() => setStep(0)}
+            />
+          )}
+          {step === 2 && (
+            <AssinaturaStep state={state} onPatch={patch} onNext={() => setStep(3)} onBack={() => setStep(1)} />
+          )}
+          {step === 3 && <ResumoStep state={state} onBack={() => setStep(2)} onFinalizado={reset} />}
+        </>
       )}
-      {step === 1 && (
-        <ChecklistStep
-          state={state}
-          onPatch={patch}
-          onNext={() => setStep(2)}
-          onBack={() => setStep(0)}
-        />
-      )}
-      {step === 2 && (
-        <AssinaturaStep state={state} onPatch={patch} onNext={() => setStep(3)} onBack={() => setStep(1)} />
-      )}
-      {step === 3 && <ResumoStep state={state} onBack={() => setStep(2)} onFinalizado={reset} />}
     </div>
   )
 }

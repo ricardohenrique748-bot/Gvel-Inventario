@@ -93,7 +93,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
       const doc = await ensurePdf()
       doc.save(filename)
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Não foi possível gerar o PDF.')
+      setErro(mensagemErro(err, 'Não foi possível gerar o PDF.'))
     }
   }
 
@@ -104,7 +104,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
       const doc = await ensurePdf()
       await sharePdf(doc, filename, `${liberacao ? 'Liberação' : 'Vistoria'} ${state.placa}`)
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Não foi possível compartilhar o PDF.')
+      setErro(mensagemErro(err, 'Não foi possível compartilhar o PDF.'))
     }
   }
 
@@ -232,4 +232,14 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <span className="text-foreground font-medium">{value}</span>
     </div>
   )
+}
+
+// Erro do Supabase (PostgrestError) é objeto comum, não `Error` — sem isso a
+// mensagem real (ex.: coluna faltando) sumia atrás do texto genérico.
+function mensagemErro(err: unknown, padrao: string) {
+  if (err instanceof Error) return err.message
+  if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
+    return `${padrao} (${err.message})`
+  }
+  return padrao
 }
