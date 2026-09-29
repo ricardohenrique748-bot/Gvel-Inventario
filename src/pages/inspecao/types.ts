@@ -11,13 +11,14 @@ export interface ChecklistItemState {
 }
 
 export interface FotoAnexada {
-  file: File
+  /** Ausente quando a foto veio de uma liberação já salva (só tem a URL). */
+  file?: File
   previewUrl: string
 }
 
 /** Todas as fotos do item, na ordem: a principal e depois as extras. */
 export function fotosDoItem(state: ChecklistItemState | undefined): FotoAnexada[] {
-  if (!state?.fotoFile || !state.fotoPreviewUrl) return []
+  if (!state?.fotoPreviewUrl) return []
   return [{ file: state.fotoFile, previewUrl: state.fotoPreviewUrl }, ...(state.fotosExtras ?? [])]
 }
 

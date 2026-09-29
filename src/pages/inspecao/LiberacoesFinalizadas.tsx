@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, RefreshCw, Search } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
+import { ChevronDown, FileDown, RefreshCw, Search, Share2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { sharePdf } from '@/lib/share'
+import { gerarPdfLiberacaoSalva, nomeArquivoLiberacao } from './pdfLiberacaoSalva'
 import { Input } from '@/components/ui/Input'
 import { cn } from '@/lib/cn'
 import { formatDateTime } from '@/lib/format'
@@ -138,8 +142,62 @@ function LiberacaoCard({
         </div>
       </button>
 
+      <AcoesPdf liberacao={l} />
+
       {aberta && <LiberacaoDetalhe liberacao={l} />}
     </Card>
+  )
+}
+
+function AcoesPdf({ liberacao: l }: { liberacao: LiberacaoComVeiculo }) {
+  const [gerando, setGerando] = useState<'compartilhar' | 'baixar' | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const nativo = Capacitor.isNativePlatform()
+
+  async function executar(acao: 'compartilhar' | 'baixar') {
+    setGerando(acao)
+    setErro(null)
+    try {
+      const doc = await gerarPdfLiberacaoSalva(l)
+      const nome = nomeArquivoLiberacao(l)
+      if (acao === 'baixar') doc.save(nome)
+      else await sharePdf(doc, nome, `Liberação ${l.veiculo?.placa ?? ''}`.trim())
+    } catch (err) {
+      console.error('[AcoesPdf]', err)
+      setErro(err instanceof Error ? err.message : 'Não foi possível gerar o PDF.')
+    } finally {
+      setGerando(null)
+    }
+  }
+
+  return (
+    <div className="px-4 pb-4">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-medium text-white transition-colors hover:bg-[#1ebe5b] disabled:opacity-50"
+          onClick={() => executar('compartilhar')}
+          disabled={gerando !== null}
+        >
+          <Share2 className="h-4 w-4" />
+          {gerando === 'compartilhar' ? 'Gerando PDF…' : 'Compartilhar no WhatsApp'}
+        </button>
+        {!nativo && (
+          <Button
+            type="button"
+            size="md"
+            variant="secondary"
+            onClick={() => executar('baixar')}
+            disabled={gerando !== null}
+            title="Baixar PDF"
+          >
+            <FileDown className="h-4 w-4" />
+            <span className="hidden sm:inline">{gerando === 'baixar' ? 'Gerando…' : 'Baixar PDF'}</span>
+          </Button>
+        )}
+      </div>
+      {erro && <p className="mt-2 text-xs text-status-danger">{erro}</p>}
+    </div>
   )
 }
 

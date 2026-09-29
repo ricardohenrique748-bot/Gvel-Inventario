@@ -212,7 +212,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
           </Button>
           <Button type="button" onClick={handleCompartilhar} disabled={salvando}>
             <Share2 className="h-4 w-4" />
-            Compartilhar
+            {liberacao ? 'Compartilhar no WhatsApp' : 'Compartilhar'}
           </Button>
           {salvo && (
             <Button type="button" variant="success" onClick={onFinalizado}>
