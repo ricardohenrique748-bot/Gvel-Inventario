@@ -44,18 +44,20 @@ export function ChecklistStep({ state, onPatch, onNext, onBack }: Props) {
 
   return (
     <div className="max-w-3xl">
-      <Card className="p-4 mb-4 sticky top-0 z-10 md:static">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-medium text-foreground">
-            Progresso: {respondidos}/{totalItens}
+      {/* Não é sticky: no celular ficava escondido atrás do cabeçalho fixo do app. */}
+      <Card className="p-4 mb-4">
+        <div className="mb-2 flex items-baseline justify-between">
+          <p className="text-sm font-medium text-foreground">Progresso</p>
+          <p className="text-sm font-semibold text-foreground">
+            {respondidos}/{totalItens}
           </p>
-          <div className="flex gap-2">
-            <Badge tone="success">{contadores.conforme} conforme</Badge>
-            <Badge tone="danger">{contadores.nao_conforme} não conf.</Badge>
-            <Badge tone="warning">{contadores.pendente} pendente</Badge>
-          </div>
         </div>
         <ProgressBar value={respondidos} max={totalItens} />
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <Badge tone="success" className="justify-center px-1.5">{contadores.conforme} conforme</Badge>
+          <Badge tone="danger" className="justify-center px-1.5">{contadores.nao_conforme} não conf.</Badge>
+          <Badge tone="warning" className="justify-center px-1.5">{contadores.pendente} pendente</Badge>
+        </div>
       </Card>
 
       <div className="space-y-3">

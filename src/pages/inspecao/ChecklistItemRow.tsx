@@ -16,10 +16,11 @@ interface Props {
   onChange: (next: ChecklistItemState) => void
 }
 
-const statusOptions: { value: StatusChecklist; label: string; icon: typeof Check; activeClass: string }[] = [
-  { value: 'conforme', label: 'Conforme', icon: Check, activeClass: 'bg-status-success text-white' },
-  { value: 'nao_conforme', label: 'Não Conforme', icon: X, activeClass: 'bg-status-danger text-white' },
-  { value: 'pendente', label: 'Pendente', icon: Clock, activeClass: 'bg-status-warning text-white' },
+// `curto` é o texto no celular, onde "Não Conforme" não cabe no botão.
+const statusOptions: { value: StatusChecklist; label: string; curto: string; icon: typeof Check; activeClass: string }[] = [
+  { value: 'conforme', label: 'Conforme', curto: 'Conforme', icon: Check, activeClass: 'bg-status-success text-white' },
+  { value: 'nao_conforme', label: 'Não Conforme', curto: 'Não conf.', icon: X, activeClass: 'bg-status-danger text-white' },
+  { value: 'pendente', label: 'Pendente', curto: 'Pendente', icon: Clock, activeClass: 'bg-status-warning text-white' },
 ]
 
 export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value, onChange }: Props) {
@@ -95,9 +96,10 @@ export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value
           {faltaFoto && <p className="text-[11px] text-status-danger">Não conforme: anexe uma foto do problema</p>}
         </div>
 
-        <div className="flex items-center gap-1.5">
+        {/* Tudo com a mesma altura (h-11) pra ficar alinhado; status ocupa a largura que sobrar. */}
+        <div className={cn('flex items-center gap-2', !foto && 'w-full')}>
           {!foto && (
-            <div className="flex rounded-lg border border-secondary/20 p-0.5">
+            <div className="grid h-11 flex-1 grid-cols-3 gap-1 rounded-xl border border-secondary/20 p-1">
               {statusOptions.map((opt) => {
                 const Icon = opt.icon
                 const ativo = value?.status === opt.value
@@ -107,15 +109,15 @@ export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value
                     type="button"
                     onClick={() => setStatus(opt.value)}
                     title={opt.label}
-                    aria-label={opt.label}
                     aria-pressed={ativo}
                     className={cn(
-                      'flex h-8 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-colors',
+                      'flex h-full min-w-0 items-center justify-center gap-1 rounded-lg text-xs font-semibold transition-colors',
                       ativo ? opt.activeClass : 'text-secondary hover:text-foreground',
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">{opt.label}</span>
+                    <Icon className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
+                    <span className="truncate sm:hidden">{opt.curto}</span>
+                    <span className="hidden truncate sm:inline">{opt.label}</span>
                   </button>
                 )
               })}
@@ -129,8 +131,10 @@ export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value
               title="Observação"
               aria-label="Observação"
               className={cn(
-                'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-                mostrarObs ? 'text-foreground' : 'text-secondary hover:text-foreground',
+                'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors',
+                mostrarObs
+                  ? 'border-primary/40 text-foreground'
+                  : 'border-secondary/20 text-secondary hover:text-foreground',
               )}
             >
               <MessageSquare className="h-4 w-4" />
@@ -144,12 +148,12 @@ export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value
             title="Anexar foto"
             aria-label="Anexar foto"
             className={cn(
-              'relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors disabled:opacity-50',
+              'relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors disabled:opacity-50',
               faltaFoto
-                ? 'bg-status-danger text-white animate-pulse'
+                ? 'border-status-danger bg-status-danger text-white animate-pulse'
                 : fotos.length > 0
-                  ? 'text-status-success'
-                  : 'text-secondary hover:text-foreground',
+                  ? 'border-status-success/40 text-status-success'
+                  : 'border-secondary/20 text-secondary hover:text-foreground',
             )}
           >
             <Camera className="h-4 w-4" />
