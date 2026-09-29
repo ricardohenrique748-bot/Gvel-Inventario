@@ -4,9 +4,9 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { getChecklistParaTipo } from '@/data/checklistSchema'
+import { getChecklist } from '@/data/checklistSchema'
 import { ChecklistItemRow } from './ChecklistItemRow'
-import { itemKey, type InspecaoWizardState, type ChecklistItemState } from './types'
+import { itemKey, itemRespondido, faltaFotoNaoConforme, type InspecaoWizardState, type ChecklistItemState } from './types'
 
 interface Props {
   state: InspecaoWizardState
@@ -16,11 +16,14 @@ interface Props {
 }
 
 export function ChecklistStep({ state, onPatch, onNext, onBack }: Props) {
-  const secoes = useMemo(() => getChecklistParaTipo(state.tipo), [state.tipo])
+  const secoes = useMemo(() => getChecklist(state.modelo, state.tipo), [state.modelo, state.tipo])
   const [tentouAvancar, setTentouAvancar] = useState(false)
 
   const totalItens = secoes.reduce((acc, s) => acc + s.itens.length, 0)
-  const respondidos = Object.values(state.itens).filter((i) => i?.status).length
+  const respondidos = secoes.reduce(
+    (acc, s) => acc + s.itens.filter((i) => itemRespondido(state.modelo, i, state.itens[itemKey(s.id, i.id)])).length,
+    0,
+  )
   const contadores = {
     conforme: Object.values(state.itens).filter((i) => i?.status === 'conforme').length,
     nao_conforme: Object.values(state.itens).filter((i) => i?.status === 'nao_conforme').length,
@@ -57,7 +60,7 @@ export function ChecklistStep({ state, onPatch, onNext, onBack }: Props) {
 
       <div className="space-y-3">
         {secoes.map((secao) => {
-          const respondidosSecao = secao.itens.filter((i) => state.itens[itemKey(secao.id, i.id)]?.status).length
+          const respondidosSecao = secao.itens.filter((i) => itemRespondido(state.modelo, i, state.itens[itemKey(secao.id, i.id)])).length
           return (
             <AccordionItem
               key={secao.id}
@@ -69,17 +72,22 @@ export function ChecklistStep({ state, onPatch, onNext, onBack }: Props) {
                 </p>
               }
             >
-              {secao.itens.map((item) => {
-                const key = itemKey(secao.id, item.id)
-                return (
-                  <ChecklistItemRow
-                    key={key}
-                    label={item.label}
-                    value={state.itens[key]}
-                    onChange={(next) => updateItem(key, next)}
-                  />
-                )
-              })}
+              <div className="-mt-2 divide-y divide-border/10">
+                {secao.itens.map((item) => {
+                  const key = itemKey(secao.id, item.id)
+                  return (
+                    <ChecklistItemRow
+                      key={key}
+                      label={item.label}
+                      foto={item.foto}
+                      multiplasFotos={item.multiplasFotos}
+                      faltaFoto={faltaFotoNaoConforme(state.modelo, state.itens[key])}
+                      value={state.itens[key]}
+                      onChange={(next) => updateItem(key, next)}
+                    />
+                  )
+                })}
+              </div>
             </AccordionItem>
           )
         })}
@@ -87,7 +95,9 @@ export function ChecklistStep({ state, onPatch, onNext, onBack }: Props) {
 
       {tentouAvancar && respondidos < totalItens && (
         <p className="mt-3 text-xs text-status-danger">
-          Preencha o status de todos os itens antes de continuar ({totalItens - respondidos} restando).
+          Preencha o status de todos os itens e tire as fotos obrigatórias
+          {state.modelo === 'liberacao' ? ' (inclusive dos itens Não Conforme)' : ''} antes de continuar (
+          {totalItens - respondidos} restando).
         </p>
       )}
 

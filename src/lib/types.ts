@@ -1,6 +1,8 @@
 export type TipoVeiculo = 'pesado' | 'leve' | 'trator' | 'carreta'
 export type StatusMovimentacao = 'no_patio' | 'saiu'
 export type StatusChecklist = 'conforme' | 'nao_conforme' | 'pendente'
+export type ModeloInspecao = 'vistoria' | 'liberacao'
+export type StatusLiberacao = 'liberado' | 'liberado_restricao' | 'nao_liberado'
 export type NivelUsuario = 'admin' | 'usuario'
 
 export interface Usuario {
@@ -159,6 +161,11 @@ export interface Inspecao {
   responsavel_nome: string | null
   responsavel_cargo: string | null
   status_geral: StatusChecklist
+  modelo: ModeloInspecao
+  numero_os: string | null
+  horimetro: number | null
+  status_liberacao: StatusLiberacao | null
+  observacoes: string | null
   created_at: string
 }
 

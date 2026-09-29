@@ -1,8 +1,8 @@
 import { reportHeaderHtml, reportFooterHtml } from '@/lib/pdf'
 import { formatDateTime } from '@/lib/format'
-import { getChecklistParaTipo } from '@/data/checklistSchema'
+import { getChecklist } from '@/data/checklistSchema'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
-import { itemKey, type InspecaoWizardState } from './types'
+import { fotosDoItem, itemKey, STATUS_LIBERACAO_COR, STATUS_LIBERACAO_LABEL, type InspecaoWizardState } from './types'
 import type { VeiculoComRelacoes, Cliente } from '@/lib/types'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -25,7 +25,9 @@ interface BuildParams {
 }
 
 export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: BuildParams) {
-  const secoes = getChecklistParaTipo(state.tipo)
+  const secoes = getChecklist(state.modelo, state.tipo)
+  const liberacao = state.modelo === 'liberacao'
+  const statusLib = liberacao ? state.statusLiberacao : undefined
 
   const linhasItens = secoes
     .flatMap((secao) =>
@@ -66,15 +68,19 @@ export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: Bui
 
   const fotos = secoes
     .flatMap((secao) =>
-      secao.itens
-        .map((item) => ({ item, state: state.itens[itemKey(secao.id, item.id)] }))
-        .filter((x) => x.state?.fotoPreviewUrl),
+      secao.itens.flatMap((item) => {
+        const lista = fotosDoItem(state.itens[itemKey(secao.id, item.id)])
+        return lista.map((f, i) => ({
+          url: f.previewUrl,
+          label: lista.length > 1 ? `${item.label} — ${i + 1}` : item.label,
+        }))
+      }),
     )
     .map(
       (x) => `
         <div style="display:inline-block;width:120px;margin:4px;text-align:center;vertical-align:top;">
-          <img src="${x.state?.fotoPreviewUrl}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #ddd;" />
-          <div style="font-size:9px;color:#777;margin-top:2px;">${x.item.label}</div>
+          <img src="${x.url}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #ddd;" />
+          <div style="font-size:9px;color:#777;margin-top:2px;">${x.label}</div>
         </div>
       `,
     )
@@ -82,7 +88,7 @@ export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: Bui
 
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:16px;">
-      ${reportHeaderHtml('Relatório de Vistoria', numero)}
+      ${reportHeaderHtml(liberacao ? 'Checklist de Liberação do Veículo' : 'Relatório de Vistoria', numero)}
 
       <table style="width:100%;font-size:11px;margin-bottom:14px;border-collapse:collapse;">
         <tr>
@@ -98,18 +104,44 @@ export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: Bui
           <td style="padding:3px 0;">${veiculo.cor || '—'}</td>
         </tr>
         <tr>
-          <td style="padding:3px 0;color:#777;">Motorista</td>
-          <td style="padding:3px 0;">${state.motorista || '—'}</td>
+          <td style="padding:3px 0;color:#777;">${liberacao ? 'Nº da OS' : 'Motorista'}</td>
+          <td style="padding:3px 0;">${(liberacao ? state.numeroOS : state.motorista) || '—'}</td>
           <td style="padding:3px 0;color:#777;">KM</td>
           <td style="padding:3px 0;">${state.km ?? '—'}</td>
         </tr>
+        ${
+          liberacao
+            ? `<tr>
+                <td style="padding:3px 0;"></td>
+                <td style="padding:3px 0;"></td>
+                <td style="padding:3px 0;color:#777;">Horímetro</td>
+                <td style="padding:3px 0;">${state.horimetro ?? '—'}</td>
+              </tr>`
+            : ''
+        }
         <tr>
-          <td style="padding:3px 0;color:#777;">Inspetor</td>
+          <td style="padding:3px 0;color:#777;">${liberacao ? 'Resp. manutenção' : 'Inspetor'}</td>
           <td style="padding:3px 0;">${state.inspetor}</td>
           <td style="padding:3px 0;color:#777;">Data/hora</td>
           <td style="padding:3px 0;">${formatDateTime(state.dataHora)}</td>
         </tr>
       </table>
+
+      ${
+        statusLib
+          ? `<div style="border:1px solid ${STATUS_LIBERACAO_COR[statusLib]}55;background:${STATUS_LIBERACAO_COR[statusLib]}12;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+              <div style="font-size:11px;color:#777;margin-bottom:4px;">Resultado da liberação</div>
+              <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:12px;font-weight:bold;color:#fff;background:${STATUS_LIBERACAO_COR[statusLib]};">
+                ${STATUS_LIBERACAO_LABEL[statusLib].toUpperCase()}
+              </span>
+              ${
+                state.observacoes
+                  ? `<div style="font-size:11px;margin-top:8px;white-space:pre-wrap;"><strong>Observações / Pendências:</strong> ${state.observacoes}</div>`
+                  : ''
+              }
+            </div>`
+          : ''
+      }
 
       ${
         naoConformes
@@ -143,11 +175,11 @@ export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: Bui
                 : ''
             }
             <div style="border-top:1px solid #999;padding-top:4px;margin-top:4px;">
-              ${state.responsavelNome ?? ''}${state.responsavelCargo ? ` — ${state.responsavelCargo}` : ''}
+              ${liberacao ? 'Resp. liberação: ' : ''}${state.responsavelNome ?? ''}${state.responsavelCargo ? ` — ${state.responsavelCargo}` : ''}
             </div>
           </td>
           <td style="width:50%;vertical-align:bottom;text-align:right;color:#777;">
-            Inspetor: ${state.inspetor}<br />
+            ${liberacao ? 'Resp. manutenção' : 'Inspetor'}: ${state.inspetor}<br />
             ${formatDateTime(state.dataHora)}
           </td>
         </tr>

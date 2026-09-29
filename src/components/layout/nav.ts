@@ -29,6 +29,7 @@ export const navItems = [
     ],
   },
   { to: '/manutencao', label: 'Manutenção', icon: Wrench },
+  { to: '/inspecoes/nova?modelo=liberacao', label: 'Liberação do Veículo', icon: ClipboardCheck },
   {
     to: '/inventario-caminhoes',
     label: 'Inventário de Caminhões',

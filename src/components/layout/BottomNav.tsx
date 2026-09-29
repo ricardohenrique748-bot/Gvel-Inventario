@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck } from 'lucide-react'
+import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
@@ -32,6 +32,9 @@ export function BottomNav() {
     { to: '/', label: 'INÍCIO', icon: Home, end: true },
     ...(canAccessFrotas ? [{ to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck }] : []),
     ...(canAccessManutencao ? [{ to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench }] : []),
+    ...(canAccessManutencao
+      ? [{ to: '/inspecoes/nova?modelo=liberacao', label: 'LIBERAÇÃO', icon: ShieldCheck }]
+      : []),
     ...(canAccessPatio ? [{ to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight }] : []),
     ...(canAccessConfiguracoes ? [{ to: '/configuracoes', label: 'CONFIGURAÇÃO', icon: Settings }] : []),
     ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'ESTOQUE', icon: Hammer }] : []),
@@ -41,9 +44,11 @@ export function BottomNav() {
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border/15 bg-surface/95 backdrop-blur-xl shadow-2xl pb-[calc(env(safe-area-inset-bottom,0px)+0.25rem)] pt-1 px-1">
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {items.map((item) => {
+          // Item com query (ex.: liberação) compara só o caminho.
+          const caminho = item.to.split('?')[0]
           const isActive = item.end
-            ? location.pathname === item.to
-            : location.pathname.startsWith(item.to)
+            ? location.pathname === caminho
+            : location.pathname.startsWith(caminho)
           const Icon = item.icon
 
           return (

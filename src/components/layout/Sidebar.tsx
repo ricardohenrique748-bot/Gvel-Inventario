@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench, Check, Building2, Camera } from 'lucide-react'
+import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench, Check, Building2, Camera, ClipboardCheck } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
@@ -206,6 +206,9 @@ export function Sidebar() {
           { to: '/', label: 'Home', icon: Home, end: true },
           ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'Estoque', icon: Wrench }] : []),
           ...(canAccessManutencao ? [{ to: '/manutencao', label: 'Manutenção', icon: Wrench }] : []),
+          ...(canAccessManutencao
+            ? [{ to: '/inspecoes/nova?modelo=liberacao', label: 'Liberação do Veículo', icon: ClipboardCheck }]
+            : []),
           ...(canAccessInventarioCaminhoes ? [{ to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight }] : []),
           ...(canAccessConfiguracoes ? [{ to: '/configuracoes', label: 'Configurações', icon: Settings }] : []),
         ]
@@ -215,6 +218,7 @@ export function Sidebar() {
       .filter((item) => {
         if (item.to === '/dashboard-gerencial') return canAccessDashboardGerencial
         if (item.to === '/manutencao') return canAccessManutencao
+        if (item.to.startsWith('/inspecoes/')) return canAccessManutencao
         if (item.to === '/inventario-caminhoes') return canAccessInventarioCaminhoes
         if (item.to === '/frotas') return canAccessFrotas
         if (item.to === '/inventario-ferramentas') return canAccessEstoque

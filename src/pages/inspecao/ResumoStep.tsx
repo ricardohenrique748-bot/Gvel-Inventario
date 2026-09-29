@@ -7,13 +7,13 @@ import { Button } from '@/components/ui/Button'
 import { useMarcas, useModelos } from '@/hooks/useMarcasModelos'
 import { useClientes } from '@/hooks/useClientes'
 import { salvarInspecao } from '@/hooks/useInspecao'
-import { getChecklistParaTipo } from '@/data/checklistSchema'
+import { getChecklist } from '@/data/checklistSchema'
 import { generatePdfFromHtml } from '@/lib/pdf'
 import { sharePdf } from '@/lib/share'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { formatDateTime } from '@/lib/format'
 import { buildInspecaoReportHtml } from './reportHtml'
-import { itemKey, type InspecaoWizardState } from './types'
+import { itemKey, STATUS_LIBERACAO_COR, STATUS_LIBERACAO_LABEL, type InspecaoWizardState } from './types'
 import type { VeiculoComRelacoes } from '@/lib/types'
 
 interface Props {
@@ -36,9 +36,10 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
   const modelo = modelos.find((m) => m.id === state.modeloId)
   const cliente = clientes.find((c) => c.id === state.clienteId)
   const numero = state.id.slice(0, 8).toUpperCase()
-  const filename = `vistoria-${state.placa || 'veiculo'}-${numero}.pdf`
+  const liberacao = state.modelo === 'liberacao'
+  const filename = `${liberacao ? 'liberacao' : 'vistoria'}-${state.placa || 'veiculo'}-${numero}.pdf`
 
-  const secoes = useMemo(() => getChecklistParaTipo(state.tipo), [state.tipo])
+  const secoes = useMemo(() => getChecklist(state.modelo, state.tipo), [state.modelo, state.tipo])
   const itensRespondidos = secoes.flatMap((secao) =>
     secao.itens.map((item) => ({ secao, item, itemState: state.itens[itemKey(secao.id, item.id)] })),
   )
@@ -101,7 +102,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
     try {
       await ensureSalvo()
       const doc = await ensurePdf()
-      await sharePdf(doc, filename, `Vistoria ${state.placa}`)
+      await sharePdf(doc, filename, `${liberacao ? 'Liberação' : 'Vistoria'} ${state.placa}`)
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível compartilhar o PDF.')
     }
@@ -111,19 +112,46 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
     <div className="max-w-3xl space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Resumo da inspeção</CardTitle>
+          <CardTitle>{liberacao ? 'Resumo da liberação' : 'Resumo da inspeção'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <SummaryRow label="Veículo" value={`${state.placa} — ${marca?.nome ?? ''} ${modelo?.nome ?? ''}`} />
           <SummaryRow label="Tipo" value={tipoVeiculoLabel(state.tipo)} />
           <SummaryRow label="Cliente" value={cliente?.nome ?? '—'} />
-          <SummaryRow label="Motorista" value={state.motorista || '—'} />
+          {liberacao && <SummaryRow label="Nº da OS" value={state.numeroOS || '—'} />}
+          {!liberacao && <SummaryRow label="Motorista" value={state.motorista || '—'} />}
           <SummaryRow label="KM" value={state.km ? String(state.km) : '—'} />
-          <SummaryRow label="Inspetor" value={state.inspetor} />
+          {liberacao && <SummaryRow label="Horímetro" value={state.horimetro != null ? String(state.horimetro) : '—'} />}
+          <SummaryRow label={liberacao ? 'Resp. manutenção' : 'Inspetor'} value={state.inspetor} />
           <SummaryRow label="Data/hora" value={formatDateTime(state.dataHora)} />
-          <SummaryRow label="Responsável" value={`${state.responsavelNome ?? ''} ${state.responsavelCargo ? `(${state.responsavelCargo})` : ''}`} />
+          <SummaryRow
+            label={liberacao ? 'Resp. liberação' : 'Responsável'}
+            value={`${state.responsavelNome ?? ''} ${state.responsavelCargo ? `(${state.responsavelCargo})` : ''}`}
+          />
         </CardContent>
       </Card>
+
+      {liberacao && state.statusLiberacao && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Resultado da liberação</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <span
+              className="inline-block rounded-full px-3 py-1 text-sm font-bold text-white"
+              style={{ background: STATUS_LIBERACAO_COR[state.statusLiberacao] }}
+            >
+              {STATUS_LIBERACAO_LABEL[state.statusLiberacao].toUpperCase()}
+            </span>
+            {state.observacoes && (
+              <p className="whitespace-pre-wrap text-foreground">
+                <span className="text-secondary">Observações / Pendências: </span>
+                {state.observacoes}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -167,7 +195,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
       {salvo && (
         <div className="flex items-center gap-2 rounded-xl border border-status-success/30 bg-status-success/10 px-4 py-3 text-sm text-status-success">
           <CheckCircle2 className="h-4 w-4" />
-          Inspeção salva com sucesso.
+          {liberacao ? 'Liberação salva com sucesso.' : 'Inspeção salva com sucesso.'}
         </div>
       )}
 
@@ -188,7 +216,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
           </Button>
           {salvo && (
             <Button type="button" variant="success" onClick={onFinalizado}>
-              Nova inspeção
+              {liberacao ? 'Nova liberação' : 'Nova inspeção'}
             </Button>
           )}
         </div>

@@ -1,7 +1,7 @@
 import { supabase, FOTOS_BUCKET, ASSINATURAS_BUCKET } from '@/lib/supabase'
 import { upsertVeiculo } from './useVeiculos'
-import { getChecklistParaTipo } from '@/data/checklistSchema'
-import { itemKey, type InspecaoWizardState } from '@/pages/inspecao/types'
+import { getChecklist } from '@/data/checklistSchema'
+import { calcularStatusLiberacao, fotosDoItem, itemKey, type InspecaoWizardState } from '@/pages/inspecao/types'
 import { up } from '@/lib/text'
 import { dataUrlParaBlob } from '@/lib/imagem'
 import { comPrefixoEmpresa } from '@/lib/tenant'
@@ -29,40 +29,58 @@ export async function salvarInspecao(state: InspecaoWizardState) {
     }
   }
 
-  const secoes = getChecklistParaTipo(state.tipo)
+  const secoes = getChecklist(state.modelo, state.tipo)
+  // Itens de registro fotográfico não têm status: entram como 'conforme' quando têm foto.
+  // Item com várias fotos (ex.: "Demais pneus") vira uma linha por foto, já que
+  // inspecao_itens guarda uma foto por linha.
   const itensComStatus = secoes.flatMap((secao) =>
-    secao.itens
-      .map((item) => ({ secao, item, itemState: state.itens[itemKey(secao.id, item.id)] }))
-      .filter((x) => x.itemState?.status),
+    secao.itens.flatMap((item) => {
+      const itemState = state.itens[itemKey(secao.id, item.id)]
+      const status = item.foto && itemState?.fotoFile ? ('conforme' as const) : itemState?.status
+      if (!status) return []
+      const fotos = fotosDoItem(itemState)
+      if (!item.multiplasFotos || fotos.length <= 1) {
+        return [{ secao, item, label: item.label, status, observacao: itemState?.observacao, foto: itemState?.fotoFile, sufixo: '' }]
+      }
+      return fotos.map((f, i) => ({
+        secao,
+        item,
+        label: `${item.label} — foto ${i + 1}`,
+        status,
+        observacao: i === 0 ? itemState?.observacao : undefined,
+        foto: f.file,
+        sufixo: `-${i + 1}`,
+      }))
+    }),
   )
 
   // Sobe todas as fotos dos itens em paralelo (antes ia uma de cada vez, o que
   // deixava salvar uma inspeção com vários itens fotografados bem lento). A foto
   // é só evidência opcional do item — se uma falhar, não trava o resto da inspeção.
   const itensParaSalvar = await Promise.all(
-    itensComStatus.map(async ({ secao, item, itemState }) => {
+    itensComStatus.map(async ({ secao, item, label, status, observacao, foto, sufixo }) => {
       let fotoUrl: string | null = null
-      if (itemState!.fotoFile) {
+      if (foto) {
         try {
-          const ext = itemState!.fotoFile.type === 'image/png' ? 'png' : 'jpg'
-          const path = comPrefixoEmpresa(`${state.id}/${itemKey(secao.id, item.id)}.${ext}`)
-          const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, itemState!.fotoFile, {
-            contentType: itemState!.fotoFile.type,
+          const ext = foto.type === 'image/png' ? 'png' : 'jpg'
+          const path = comPrefixoEmpresa(`${state.id}/${itemKey(secao.id, item.id)}${sufixo}.${ext}`)
+          const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, foto, {
+            contentType: foto.type,
             upsert: true,
           })
           if (!error) {
             fotoUrl = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
           }
         } catch (err) {
-          console.warn(`Falha ao enviar foto do item "${item.label}":`, err)
+          console.warn(`Falha ao enviar foto do item "${label}":`, err)
         }
       }
 
       return {
         secao: secao.nome,
-        item: item.label,
-        status: itemState!.status!,
-        observacao: up(itemState!.observacao),
+        item: label,
+        status,
+        observacao: up(observacao),
         foto_url: fotoUrl,
       }
     }),
@@ -85,6 +103,17 @@ export async function salvarInspecao(state: InspecaoWizardState) {
     responsavel_nome: up(state.responsavelNome),
     responsavel_cargo: up(state.responsavelCargo),
     status_geral: statusGeral,
+    // Colunas da migration 0085 — só enviadas na liberação, pra vistoria seguir
+    // funcionando mesmo antes da migration rodar.
+    ...(state.modelo === 'liberacao'
+      ? {
+          modelo: state.modelo,
+          numero_os: up(state.numeroOS),
+          horimetro: state.horimetro ?? null,
+          status_liberacao: calcularStatusLiberacao(state),
+          observacoes: up(state.observacoes),
+        }
+      : {}),
   })
   if (inspecaoError) throw inspecaoError
 

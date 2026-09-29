@@ -26,7 +26,9 @@ const schema = z
     modeloId: z.string().optional(),
     motorista: z.string().optional(),
     km: z.string().optional(),
-    inspetor: z.string().trim().min(1, 'Informe o nome do inspetor'),
+    numeroOS: z.string().optional(),
+    horimetro: z.string().optional(),
+    inspetor: z.string().trim().min(1, 'Informe o nome do responsável'),
   })
   .superRefine((values, ctx) => {
     if (values.veiculoId !== NOVO_VEICULO) return
@@ -67,9 +69,13 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
       veiculoId: '',
       motorista: state.motorista,
       km: state.km ? String(state.km) : undefined,
+      numeroOS: state.numeroOS,
+      horimetro: state.horimetro != null ? String(state.horimetro) : undefined,
       inspetor: state.inspetor,
     },
   })
+
+  const liberacao = state.modelo === 'liberacao'
 
   const clienteId = watch('clienteId')
   const veiculoId = watch('veiculoId')
@@ -104,8 +110,10 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
     onPatch({
       ...dados,
       clienteId: values.clienteId,
-      motorista: values.motorista,
+      motorista: liberacao ? undefined : values.motorista,
       km: values.km ? Number(values.km) : undefined,
+      numeroOS: liberacao ? values.numeroOS?.trim() || undefined : undefined,
+      horimetro: liberacao && values.horimetro ? Number(values.horimetro) : undefined,
       inspetor: values.inspetor,
       dataHora: new Date().toISOString(),
     })
@@ -146,9 +154,13 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
                     {v.placa} — {v.marca?.nome} {v.modelo?.nome}
                   </option>
                 ))}
-                <option value={NOVO_VEICULO}>+ Cadastrar veículo novo</option>
+                {/* Liberação é sempre de veículo que já passou pela manutenção: não cadastra placa nova aqui. */}
+                {!liberacao && <option value={NOVO_VEICULO}>+ Cadastrar veículo novo</option>}
               </Select>
               <FieldError message={errors.veiculoId?.message} />
+              {liberacao && !loadingFrota && frotaCliente.length === 0 && (
+                <p className="mt-1 text-xs text-secondary">Nenhum veículo cadastrado para este cliente.</p>
+              )}
             </div>
           )}
 
@@ -213,24 +225,50 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
             </>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="motorista">Motorista</Label>
-              <Input id="motorista" placeholder="Opcional" {...register('motorista')} />
-            </div>
+          <div className={liberacao ? 'grid grid-cols-1 gap-4 sm:grid-cols-3' : 'grid grid-cols-2 gap-4'}>
+            {liberacao ? (
+              <div>
+                <Label htmlFor="numeroOS">Nº da OS</Label>
+                <Input id="numeroOS" placeholder="Opcional" {...register('numeroOS')} />
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="motorista">Motorista</Label>
+                <Input id="motorista" placeholder="Opcional" {...register('motorista')} />
+              </div>
+            )}
             <div>
               <Label htmlFor="km">KM</Label>
               <Input id="km" type="number" inputMode="numeric" placeholder="Opcional" {...register('km')} />
             </div>
+            {liberacao && (
+              <div>
+                <Label htmlFor="horimetro">Horímetro</Label>
+                <Input
+                  id="horimetro"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  placeholder="Opcional"
+                  {...register('horimetro')}
+                />
+              </div>
+            )}
           </div>
 
           <div>
-            <Label htmlFor="inspetor">Inspetor</Label>
-            <Input id="inspetor" placeholder="Nome de quem está fazendo a vistoria" {...register('inspetor')} />
+            <Label htmlFor="inspetor">{liberacao ? 'Responsável pela manutenção' : 'Inspetor'}</Label>
+            <Input
+              id="inspetor"
+              placeholder={liberacao ? 'Nome de quem fez a manutenção' : 'Nome de quem está fazendo a vistoria'}
+              {...register('inspetor')}
+            />
             <FieldError message={errors.inspetor?.message} />
           </div>
 
-          <p className="text-xs text-secondary">Data/hora da inspeção: {formatDateTime(new Date().toISOString())}</p>
+          <p className="text-xs text-secondary">
+            Data/hora da {liberacao ? 'liberação' : 'inspeção'}: {formatDateTime(new Date().toISOString())}
+          </p>
 
           <div className="flex justify-end pt-2">
             <Button type="submit">Continuar</Button>
