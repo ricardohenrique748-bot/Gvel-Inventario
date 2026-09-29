@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { jsPDF } from 'jspdf'
-import { FileDown, Share2, CheckCircle2 } from 'lucide-react'
+import { FileDown, Share2, CheckCircle2, Send } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -13,7 +13,7 @@ import { sharePdf } from '@/lib/share'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { formatDateTime } from '@/lib/format'
 import { buildInspecaoReportHtml } from './reportHtml'
-import { itemKey, STATUS_LIBERACAO_COR, STATUS_LIBERACAO_LABEL, type InspecaoWizardState } from './types'
+import { fotosDoItem, itemKey, STATUS_LIBERACAO_COR, STATUS_LIBERACAO_LABEL, type InspecaoWizardState } from './types'
 import type { VeiculoComRelacoes } from '@/lib/types'
 
 interface Props {
@@ -37,6 +37,8 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
   const cliente = clientes.find((c) => c.id === state.clienteId)
   const numero = state.id.slice(0, 8).toUpperCase()
   const liberacao = state.modelo === 'liberacao'
+  // Liberação enviada por quem não é o aprovador: sem status ainda.
+  const aguardandoAprovacao = liberacao && !state.statusLiberacao
   const filename = `${liberacao ? 'liberacao' : 'vistoria'}-${state.placa || 'veiculo'}-${numero}.pdf`
 
   const secoes = useMemo(() => getChecklist(state.modelo, state.tipo), [state.modelo, state.tipo])
@@ -49,6 +51,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
     pendente: itensRespondidos.filter((i) => i.itemState?.status === 'pendente').length,
   }
   const naoConformes = itensRespondidos.filter((i) => i.itemState?.status === 'nao_conforme')
+  const totalFotos = itensRespondidos.reduce((acc, i) => acc + fotosDoItem(i.itemState).length, 0)
 
   async function ensureSalvo() {
     if (salvo) return
@@ -84,6 +87,15 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
     const doc = await generatePdfFromHtml(html)
     setPdfDoc(doc)
     return doc
+  }
+
+  async function handleEnviar() {
+    setErro(null)
+    try {
+      await ensureSalvo()
+    } catch (err) {
+      setErro(mensagemErro(err, 'Não foi possível enviar para aprovação.'))
+    }
   }
 
   async function handleGerarPdf() {
@@ -126,10 +138,23 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
           <SummaryRow label="Data/hora" value={formatDateTime(state.dataHora)} />
           <SummaryRow
             label={liberacao ? 'Resp. liberação' : 'Responsável'}
-            value={`${state.responsavelNome ?? ''} ${state.responsavelCargo ? `(${state.responsavelCargo})` : ''}`}
+            value={
+              aguardandoAprovacao
+                ? 'Aguardando aprovação'
+                : `${state.responsavelNome ?? ''} ${state.responsavelCargo ? `(${state.responsavelCargo})` : ''}`
+            }
           />
         </CardContent>
       </Card>
+
+      {aguardandoAprovacao && state.observacoes && (
+        <Card>
+          <CardContent className="pt-6 text-sm">
+            <span className="text-secondary">Observações para a aprovação: </span>
+            <span className="whitespace-pre-wrap text-foreground">{state.observacoes}</span>
+          </CardContent>
+        </Card>
+      )}
 
       {liberacao && state.statusLiberacao && (
         <Card>
@@ -153,33 +178,41 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Resultado do checklist</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2 mb-4">
-            <Badge tone="success">{contadores.conforme} conforme</Badge>
-            <Badge tone="danger">{contadores.nao_conforme} não conforme</Badge>
-            <Badge tone="warning">{contadores.pendente} pendente</Badge>
-          </div>
-
-          {naoConformes.length > 0 && (
-            <div className="rounded-xl border border-status-danger/30 bg-status-danger/10 p-4">
-              <p className="text-sm font-semibold text-status-danger mb-2">Itens não conformes</p>
-              <ul className="space-y-1 text-sm text-foreground">
-                {naoConformes.map((i) => (
-                  <li key={itemKey(i.secao.id, i.item.id)}>
-                    <span className="font-medium">{i.item.label}</span>
-                    <span className="text-secondary"> ({i.secao.nome})</span>
-                    {i.itemState?.observacao && <span className="text-secondary"> — {i.itemState.observacao}</span>}
-                  </li>
-                ))}
-              </ul>
+      {liberacao ? (
+        <Card>
+          <CardContent className="pt-6 text-sm text-secondary">
+            {totalFotos} foto{totalFotos === 1 ? '' : 's'} anexada{totalFotos === 1 ? '' : 's'} no checklist.
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Resultado do checklist</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2 mb-4">
+              <Badge tone="success">{contadores.conforme} conforme</Badge>
+              <Badge tone="danger">{contadores.nao_conforme} não conforme</Badge>
+              <Badge tone="warning">{contadores.pendente} pendente</Badge>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {naoConformes.length > 0 && (
+              <div className="rounded-xl border border-status-danger/30 bg-status-danger/10 p-4">
+                <p className="text-sm font-semibold text-status-danger mb-2">Itens não conformes</p>
+                <ul className="space-y-1 text-sm text-foreground">
+                  {naoConformes.map((i) => (
+                    <li key={itemKey(i.secao.id, i.item.id)}>
+                      <span className="font-medium">{i.item.label}</span>
+                      <span className="text-secondary"> ({i.secao.nome})</span>
+                      {i.itemState?.observacao && <span className="text-secondary"> — {i.itemState.observacao}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {state.assinaturaDataUrl && (
         <Card>
@@ -195,16 +228,36 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
       {salvo && (
         <div className="flex items-center gap-2 rounded-xl border border-status-success/30 bg-status-success/10 px-4 py-3 text-sm text-status-success">
           <CheckCircle2 className="h-4 w-4" />
-          {liberacao ? 'Liberação salva com sucesso.' : 'Inspeção salva com sucesso.'}
+          {aguardandoAprovacao
+            ? 'Enviado! Aguardando aprovação da Maria Clara.'
+            : liberacao
+              ? 'Liberação salva com sucesso.'
+              : 'Inspeção salva com sucesso.'}
         </div>
       )}
 
       {erro && <p className="text-sm text-status-danger">{erro}</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-        <Button type="button" variant="secondary" onClick={onBack}>
+        <Button type="button" variant="secondary" onClick={onBack} disabled={salvo}>
           Voltar
         </Button>
+        {aguardandoAprovacao ? (
+          // Sem aprovação ainda não tem PDF: só envia. O PDF sai depois, na aba Finalizadas.
+          <div className="flex flex-wrap gap-3">
+            {!salvo && (
+              <Button type="button" onClick={handleEnviar} disabled={salvando}>
+                <Send className="h-4 w-4" />
+                {salvando ? 'Enviando…' : 'Enviar para aprovação'}
+              </Button>
+            )}
+            {salvo && (
+              <Button type="button" variant="success" onClick={onFinalizado}>
+                Nova liberação
+              </Button>
+            )}
+          </div>
+        ) : (
         <div className="flex flex-wrap gap-3">
           <Button type="button" variant="secondary" onClick={handleGerarPdf} disabled={salvando}>
             <FileDown className="h-4 w-4" />
@@ -220,6 +273,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
             </Button>
           )}
         </div>
+        )}
       </div>
     </div>
   )

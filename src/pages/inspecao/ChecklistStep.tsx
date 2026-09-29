@@ -24,6 +24,8 @@ export function ChecklistStep({ state, onPatch, onNext, onBack }: Props) {
     (acc, s) => acc + s.itens.filter((i) => itemRespondido(state.modelo, i, state.itens[itemKey(s.id, i.id)])).length,
     0,
   )
+  // Checklist só de fotos (liberação) não tem Conforme/Não conforme pra contar.
+  const temStatus = secoes.some((s) => s.itens.some((i) => !i.foto))
   const contadores = {
     conforme: Object.values(state.itens).filter((i) => i?.status === 'conforme').length,
     nao_conforme: Object.values(state.itens).filter((i) => i?.status === 'nao_conforme').length,
@@ -53,11 +55,13 @@ export function ChecklistStep({ state, onPatch, onNext, onBack }: Props) {
           </p>
         </div>
         <ProgressBar value={respondidos} max={totalItens} />
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <Badge tone="success" className="justify-center px-1.5">{contadores.conforme} conforme</Badge>
-          <Badge tone="danger" className="justify-center px-1.5">{contadores.nao_conforme} não conf.</Badge>
-          <Badge tone="warning" className="justify-center px-1.5">{contadores.pendente} pendente</Badge>
-        </div>
+        {temStatus && (
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <Badge tone="success" className="justify-center px-1.5">{contadores.conforme} conforme</Badge>
+            <Badge tone="danger" className="justify-center px-1.5">{contadores.nao_conforme} não conf.</Badge>
+            <Badge tone="warning" className="justify-center px-1.5">{contadores.pendente} pendente</Badge>
+          </div>
+        )}
       </Card>
 
       <div className="space-y-3">
@@ -83,6 +87,9 @@ export function ChecklistStep({ state, onPatch, onNext, onBack }: Props) {
                       label={item.label}
                       foto={item.foto}
                       multiplasFotos={item.multiplasFotos}
+                      minFotos={item.minFotos}
+                      maxFotos={item.maxFotos}
+                      dicaFotos={item.dicaFotos}
                       faltaFoto={faltaFotoNaoConforme(state.modelo, state.itens[key])}
                       value={state.itens[key]}
                       onChange={(next) => updateItem(key, next)}
@@ -97,9 +104,10 @@ export function ChecklistStep({ state, onPatch, onNext, onBack }: Props) {
 
       {tentouAvancar && respondidos < totalItens && (
         <p className="mt-3 text-xs text-status-danger">
-          Preencha o status de todos os itens e tire as fotos obrigatórias
-          {state.modelo === 'liberacao' ? ' (inclusive dos itens Não Conforme)' : ''} antes de continuar (
-          {totalItens - respondidos} restando).
+          {temStatus
+            ? 'Preencha o status de todos os itens e tire as fotos obrigatórias antes de continuar'
+            : 'Tire todas as fotos obrigatórias antes de continuar'}{' '}
+          ({totalItens - respondidos} restando).
         </p>
       )}
 

@@ -24,7 +24,50 @@ interface BuildParams {
   numero: string
 }
 
-export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: BuildParams) {
+function esc(v: string | null | undefined): string {
+  return (v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function escOpt(v: string | null | undefined) {
+  return v == null ? v : esc(v)
+}
+
+// Texto digitado por usuário vai escapado: o HTML é injetado no DOM (PDF e prévia "Ver PDF").
+function escaparDados({ state, veiculo, cliente, numero }: BuildParams): BuildParams {
+  const itens = Object.fromEntries(
+    Object.entries(state.itens).map(([k, v]) => [k, v ? { ...v, observacao: escOpt(v.observacao) ?? undefined } : v]),
+  )
+  return {
+    numero: esc(numero),
+    state: {
+      ...state,
+      placa: esc(state.placa),
+      motorista: escOpt(state.motorista) ?? undefined,
+      inspetor: esc(state.inspetor),
+      numeroOS: escOpt(state.numeroOS) ?? undefined,
+      observacoes: escOpt(state.observacoes) ?? undefined,
+      responsavelNome: escOpt(state.responsavelNome) ?? undefined,
+      responsavelCargo: escOpt(state.responsavelCargo) ?? undefined,
+      itens,
+    },
+    veiculo: {
+      ...veiculo,
+      placa: esc(veiculo.placa),
+      cor: escOpt(veiculo.cor) ?? null,
+      marca: veiculo.marca ? { ...veiculo.marca, nome: esc(veiculo.marca.nome) } : veiculo.marca,
+      modelo: veiculo.modelo ? { ...veiculo.modelo, nome: esc(veiculo.modelo.nome) } : veiculo.modelo,
+    },
+    cliente: cliente ? { ...cliente, nome: esc(cliente.nome) } : cliente,
+  }
+}
+
+export function buildInspecaoReportHtml(params: BuildParams) {
+  const { state, veiculo, cliente, numero } = escaparDados(params)
   const secoes = getChecklist(state.modelo, state.tipo)
   const liberacao = state.modelo === 'liberacao'
   const statusLib = liberacao ? state.statusLiberacao : undefined
@@ -140,7 +183,19 @@ export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: Bui
                   : ''
               }
             </div>`
-          : ''
+          : liberacao
+            ? `<div style="border:1px solid #6B728055;background:#6B728012;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+              <div style="font-size:11px;color:#777;margin-bottom:4px;">Resultado da liberação</div>
+              <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:12px;font-weight:bold;color:#fff;background:#6B7280;">
+                AGUARDANDO APROVAÇÃO
+              </span>
+              ${
+                state.observacoes
+                  ? `<div style="font-size:11px;margin-top:8px;white-space:pre-wrap;"><strong>Observações do encarregado:</strong> ${state.observacoes}</div>`
+                  : ''
+              }
+            </div>`
+            : ''
       }
 
       ${
@@ -152,7 +207,10 @@ export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: Bui
           : ''
       }
 
-      <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:14px;">
+      ${
+        // Checklist só de fotos (liberação) não tem linhas de status — sem tabela vazia no PDF.
+        linhasItens.trim()
+          ? `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:14px;">
         <thead>
           <tr style="background:#2B2B2B;color:#fff;text-align:left;">
             <th style="padding:6px 8px;">Seção</th>
@@ -162,7 +220,9 @@ export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: Bui
           </tr>
         </thead>
         <tbody>${linhasItens}</tbody>
-      </table>
+      </table>`
+          : ''
+      }
 
       ${fotos ? `<div style="margin-bottom:14px;"><div style="font-weight:bold;font-size:12px;margin-bottom:6px;">Fotos</div>${fotos}</div>` : ''}
 
@@ -178,10 +238,20 @@ export function buildInspecaoReportHtml({ state, veiculo, cliente, numero }: Bui
               ${liberacao ? 'Resp. liberação: ' : ''}${state.responsavelNome ?? ''}${state.responsavelCargo ? ` — ${state.responsavelCargo}` : ''}
             </div>
           </td>
-          <td style="width:50%;vertical-align:bottom;text-align:right;color:#777;">
-            ${liberacao ? 'Resp. manutenção' : 'Inspetor'}: ${state.inspetor}<br />
+          ${
+            liberacao
+              ? `<td style="width:50%;vertical-align:bottom;padding-left:24px;">
+            ${state.assinaturaEncarregadoUrl ? `<img src="${state.assinaturaEncarregadoUrl}" style="height:60px;" />` : ''}
+            <div style="border-top:1px solid #999;padding-top:4px;margin-top:4px;">
+              Encarregado: ${state.inspetor}<br />
+              <span style="color:#777;">${formatDateTime(state.dataHora)}</span>
+            </div>
+          </td>`
+              : `<td style="width:50%;vertical-align:bottom;text-align:right;color:#777;">
+            Inspetor: ${state.inspetor}<br />
             ${formatDateTime(state.dataHora)}
-          </td>
+          </td>`
+          }
         </tr>
       </table>
 

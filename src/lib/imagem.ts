@@ -32,6 +32,21 @@ export async function comprimirImagem(file: File): Promise<File> {
   }
 }
 
+/**
+ * Confere se o navegador consegue abrir a imagem. `accept="image/*"` deixa passar
+ * formatos que ele não decodifica (ex.: HEIC do iPhone no Chrome/Windows) — a
+ * miniatura sairia quebrada e o PDF sem a foto.
+ */
+export async function imagemExibivel(file: File): Promise<boolean> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    bitmap.close()
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Converte uma dataURL (ex: "data:image/jpeg;base64,...") em Blob para upload. */
 export function dataUrlParaBlob(dataUrl: string): Blob {
   const [meta, base64] = dataUrl.split(',')

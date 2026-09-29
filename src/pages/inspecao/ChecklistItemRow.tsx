@@ -3,7 +3,7 @@ import { Camera, Check, Clock, MessageSquare, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import type { StatusChecklist } from '@/lib/types'
 import { fotosDoItem, type ChecklistItemState, type FotoAnexada } from './types'
-import { comprimirImagem } from '@/lib/imagem'
+import { comprimirImagem, imagemExibivel } from '@/lib/imagem'
 
 interface Props {
   label: string
@@ -12,6 +12,9 @@ interface Props {
   /** Marcado como Não Conforme e a regra exige foto, mas ainda não tem. */
   faltaFoto?: boolean
   multiplasFotos?: boolean
+  minFotos?: number
+  maxFotos?: number
+  dicaFotos?: string
   value: ChecklistItemState | undefined
   onChange: (next: ChecklistItemState) => void
 }
@@ -23,16 +26,30 @@ const statusOptions: { value: StatusChecklist; label: string; curto: string; ico
   { value: 'pendente', label: 'Pendente', curto: 'Pendente', icon: Clock, activeClass: 'bg-status-warning text-white' },
 ]
 
-export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value, onChange }: Props) {
+export function ChecklistItemRow({
+  label,
+  foto,
+  faltaFoto,
+  multiplasFotos,
+  minFotos = 1,
+  maxFotos,
+  dicaFotos,
+  value,
+  onChange,
+}: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [comprimindo, setComprimindo] = useState(false)
   const [obsAberta, setObsAberta] = useState(false)
+  const [erroFoto, setErroFoto] = useState<string | null>(null)
 
   function setStatus(status: StatusChecklist) {
     onChange({ ...value, status })
   }
 
   const fotos = fotosDoItem(value)
+  // Item de foto única troca a foto ao tirar outra; item de várias fotos para de aceitar no limite.
+  const limite = multiplasFotos ? (maxFotos ?? Infinity) : 1
+  const noLimite = multiplasFotos && fotos.length >= limite
 
   // A primeira foto fica em fotoFile/fotoPreviewUrl (como nos itens de foto única); o resto em fotosExtras.
   function setFotos(lista: FotoAnexada[]) {
@@ -50,14 +67,23 @@ export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value
     e.target.value = ''
     if (files.length === 0) return
     setComprimindo(true)
+    setErroFoto(null)
     try {
-      const novas = await Promise.all(
-        (multiplasFotos ? files : files.slice(0, 1)).map(async (file) => {
+      const vagas = multiplasFotos ? limite - fotos.length : 1
+      const processadas = await Promise.all(
+        files.slice(0, Math.max(vagas, 0)).map(async (file) => {
           const comprimida = await comprimirImagem(file)
+          if (!(await imagemExibivel(comprimida))) return null
           return { file: comprimida, previewUrl: URL.createObjectURL(comprimida) }
         }),
       )
-      setFotos(multiplasFotos ? [...fotos, ...novas] : novas)
+      const novas = processadas.filter((f): f is { file: File; previewUrl: string } => f !== null)
+      if (novas.length < processadas.length) {
+        setErroFoto(
+          'Formato de foto não suportado (ex.: HEIC do iPhone). Use JPG ou PNG, ou tire a foto pela câmera do app.',
+        )
+      }
+      if (novas.length > 0) setFotos(multiplasFotos ? [...fotos, ...novas] : novas)
     } finally {
       setComprimindo(false)
     }
@@ -71,11 +97,17 @@ export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value
   const mostrarObs =
     obsAberta || Boolean(value?.observacao) || value?.status === 'nao_conforme' || value?.status === 'pendente'
 
-  const dica = foto
-    ? `${foto === 'obrigatoria' ? 'Foto obrigatória' : 'Foto opcional'}${
-        multiplasFotos ? ` · uma de cada pneu${fotos.length ? ` (${fotos.length})` : ''}` : ''
-      }`
-    : null
+  const faltamFotos = foto === 'obrigatoria' && fotos.length < minFotos
+  const dica = !foto ? null : textoDicaFotos()
+
+  function textoDicaFotos() {
+    if (!multiplasFotos) return foto === 'obrigatoria' ? 'Foto obrigatória' : 'Foto opcional'
+    const extra = dicaFotos ? ` · ${dicaFotos}` : ''
+    if (foto === 'opcional') return `Foto opcional${extra} (${fotos.length})`
+    if (maxFotos === minFotos) return `${minFotos} fotos obrigatórias${extra} (${fotos.length}/${minFotos})`
+    if (maxFotos) return `Mínimo ${minFotos}, até ${maxFotos} fotos${extra} (${fotos.length}/${maxFotos})`
+    return `Mínimo ${minFotos} fotos${extra} (${fotos.length}/${minFotos})`
+  }
 
   return (
     <div className="py-3">
@@ -87,13 +119,14 @@ export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value
             <p
               className={cn(
                 'text-[11px]',
-                foto === 'obrigatoria' && fotos.length === 0 ? 'text-status-danger' : 'text-secondary',
+                faltamFotos ? 'text-status-danger' : foto === 'obrigatoria' ? 'text-status-success' : 'text-secondary',
               )}
             >
               {dica}
             </p>
           )}
           {faltaFoto && <p className="text-[11px] text-status-danger">Não conforme: anexe uma foto do problema</p>}
+          {erroFoto && <p className="text-[11px] text-status-danger">{erroFoto}</p>}
         </div>
 
         {/* Tudo com a mesma altura (h-11) pra ficar alinhado; status ocupa a largura que sobrar. */}
@@ -144,14 +177,14 @@ export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={comprimindo}
-            title="Anexar foto"
+            disabled={comprimindo || noLimite}
+            title={noLimite ? `Limite de ${limite} fotos` : 'Anexar foto'}
             aria-label="Anexar foto"
             className={cn(
               'relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors disabled:opacity-50',
               faltaFoto
                 ? 'border-status-danger bg-status-danger text-white animate-pulse'
-                : fotos.length > 0
+                : fotos.length > 0 && !faltamFotos
                   ? 'border-status-success/40 text-status-success'
                   : 'border-secondary/20 text-secondary hover:text-foreground',
             )}
@@ -185,7 +218,7 @@ export function ChecklistItemRow({ label, foto, faltaFoto, multiplasFotos, value
               </button>
             </div>
           ))}
-          {multiplasFotos && (
+          {multiplasFotos && !noLimite && (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}

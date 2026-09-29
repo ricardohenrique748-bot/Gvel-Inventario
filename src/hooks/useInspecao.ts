@@ -1,7 +1,7 @@
 import { supabase, FOTOS_BUCKET, ASSINATURAS_BUCKET } from '@/lib/supabase'
 import { upsertVeiculo } from './useVeiculos'
 import { getChecklist } from '@/data/checklistSchema'
-import { calcularStatusLiberacao, fotosDoItem, itemKey, type InspecaoWizardState } from '@/pages/inspecao/types'
+import { fotosDoItem, itemKey, type InspecaoWizardState } from '@/pages/inspecao/types'
 import { up } from '@/lib/text'
 import { dataUrlParaBlob } from '@/lib/imagem'
 import { comPrefixoEmpresa } from '@/lib/tenant'
@@ -27,6 +27,19 @@ export async function salvarInspecao(state: InspecaoWizardState) {
     if (!error) {
       assinaturaUrl = supabase.storage.from(ASSINATURAS_BUCKET).getPublicUrl(path).data.publicUrl
     }
+  }
+
+  // Liberação: assinatura do encarregado no envio (a de cima é a do aprovador).
+  let assinaturaEncarregadoUrl: string | null = null
+  if (state.assinaturaEncarregadoUrl) {
+    const blob = dataUrlParaBlob(state.assinaturaEncarregadoUrl)
+    const path = comPrefixoEmpresa(`${state.id}-encarregado.png`)
+    const { error } = await supabase.storage.from(ASSINATURAS_BUCKET).upload(path, blob, {
+      contentType: 'image/png',
+      upsert: true,
+    })
+    if (error) throw error
+    assinaturaEncarregadoUrl = supabase.storage.from(ASSINATURAS_BUCKET).getPublicUrl(path).data.publicUrl
   }
 
   const secoes = getChecklist(state.modelo, state.tipo)
@@ -110,8 +123,9 @@ export async function salvarInspecao(state: InspecaoWizardState) {
           modelo: state.modelo,
           numero_os: up(state.numeroOS),
           horimetro: state.horimetro ?? null,
-          status_liberacao: calcularStatusLiberacao(state),
+          status_liberacao: state.statusLiberacao ?? null,
           observacoes: up(state.observacoes),
+          ...(assinaturaEncarregadoUrl ? { assinatura_encarregado_url: assinaturaEncarregadoUrl } : {}),
         }
       : {}),
   })

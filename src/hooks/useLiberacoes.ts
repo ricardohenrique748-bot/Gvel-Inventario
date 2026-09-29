@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, ASSINATURAS_BUCKET } from '@/lib/supabase'
+import { dataUrlParaBlob } from '@/lib/imagem'
+import { comPrefixoEmpresa } from '@/lib/tenant'
+import { up } from '@/lib/text'
+import type { DadosAssinatura } from '@/pages/inspecao/AssinaturaForm'
 import { VEICULO_COM_RELACOES } from '@/lib/queries'
 import type { Inspecao, InspecaoItem, VeiculoComRelacoes } from '@/lib/types'
 
@@ -38,6 +42,33 @@ export function useLiberacoes() {
   }, [refetch])
 
   return { liberacoes, loading, erro, refetch }
+}
+
+/**
+ * OK final da liberação (só o aprovador — o banco recusa os demais, migration 0086):
+ * grava status, observações, responsável e assinatura.
+ */
+export async function aprovarLiberacao(inspecaoId: string, dados: DadosAssinatura) {
+  const blob = dataUrlParaBlob(dados.assinaturaDataUrl)
+  const path = comPrefixoEmpresa(`${inspecaoId}.png`)
+  const { error: uploadError } = await supabase.storage.from(ASSINATURAS_BUCKET).upload(path, blob, {
+    contentType: 'image/png',
+    upsert: true,
+  })
+  if (uploadError) throw uploadError
+  const assinaturaUrl = supabase.storage.from(ASSINATURAS_BUCKET).getPublicUrl(path).data.publicUrl
+
+  const { error } = await supabase
+    .from('inspecoes')
+    .update({
+      status_liberacao: dados.statusLiberacao,
+      observacoes: up(dados.observacoes),
+      responsavel_nome: up(dados.nome),
+      responsavel_cargo: up(dados.cargo),
+      assinatura_url: assinaturaUrl,
+    })
+    .eq('id', inspecaoId)
+  if (error) throw error
 }
 
 export async function carregarItensInspecao(inspecaoId: string): Promise<InspecaoItem[]> {

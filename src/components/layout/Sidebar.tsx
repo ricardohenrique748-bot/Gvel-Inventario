@@ -218,7 +218,6 @@ export function Sidebar() {
       .filter((item) => {
         if (item.to === '/dashboard-gerencial') return canAccessDashboardGerencial
         if (item.to === '/manutencao') return canAccessManutencao
-        if (item.to.startsWith('/inspecoes/')) return canAccessManutencao
         if (item.to === '/inventario-caminhoes') return canAccessInventarioCaminhoes
         if (item.to === '/frotas') return canAccessFrotas
         if (item.to === '/inventario-ferramentas') return canAccessEstoque

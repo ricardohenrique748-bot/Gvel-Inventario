@@ -45,6 +45,18 @@ export interface InspecaoWizardState {
   horimetro?: number
   statusLiberacao?: StatusLiberacao
   observacoes?: string
+  /** Assinatura do encarregado ao enviar (dataURL no wizard, URL quando vem do banco). */
+  assinaturaEncarregadoUrl?: string
+}
+
+/**
+ * Único usuário que dá o OK final da liberação (define o status e assina).
+ * A mesma regra está no banco (trigger da migration 0086) — mudar nos dois lugares.
+ */
+export const APROVADOR_LIBERACAO_EMAIL = 'mariaclara@gveldiesel.com'
+
+export function podeAprovarLiberacao(email: string | null | undefined) {
+  return (email ?? '').trim().toLowerCase() === APROVADOR_LIBERACAO_EMAIL
 }
 
 export const STATUS_LIBERACAO_LABEL: Record<StatusLiberacao, string> = {
@@ -74,20 +86,8 @@ export function faltaFotoNaoConforme(modelo: ModeloInspecao, state: ChecklistIte
 
 /** Item de foto conta como respondido com a foto (ou sempre, se opcional); os demais, com o status. */
 export function itemRespondido(modelo: ModeloInspecao, def: ChecklistItemDef, state: ChecklistItemState | undefined) {
-  if (def.foto) return def.foto === 'opcional' || Boolean(state?.fotoFile)
+  if (def.foto) return def.foto === 'opcional' || fotosDoItem(state).length >= (def.minFotos ?? 1)
   return Boolean(state?.status) && !faltaFotoNaoConforme(modelo, state)
-}
-
-/**
- * Status da liberação, calculado pelo checklist (não é escolhido à mão):
- * algum Não Conforme → Não liberado; algum Pendente → Liberado com restrição;
- * tudo Conforme → Liberado.
- */
-export function calcularStatusLiberacao(state: InspecaoWizardState): StatusLiberacao {
-  const status = Object.values(state.itens).map((i) => i?.status)
-  if (status.includes('nao_conforme')) return 'nao_liberado'
-  if (status.includes('pendente')) return 'liberado_restricao'
-  return 'liberado'
 }
 
 export function criarEstadoInicial(modelo: ModeloInspecao = 'vistoria'): InspecaoWizardState {

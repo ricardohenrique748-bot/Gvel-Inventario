@@ -11,6 +11,12 @@ export interface ChecklistItemDef {
   foto?: 'obrigatoria' | 'opcional'
   /** Aceita várias fotos no mesmo item (ex.: uma por pneu). */
   multiplasFotos?: boolean
+  /** Quantidade mínima de fotos para o item contar como respondido (padrão 1). */
+  minFotos?: number
+  /** Limite de fotos no item (sem limite quando ausente). */
+  maxFotos?: number
+  /** Texto de ajuda junto da contagem de fotos (ex.: "uma de cada pneu"). */
+  dicaFotos?: string
 }
 
 export interface ChecklistSecaoDef {
@@ -101,68 +107,88 @@ export const CHECKLIST_SCHEMA: ChecklistSecaoDef[] = [
   },
 ]
 
+// Liberação é só registro fotográfico: todo item exige foto (sem Conforme/Não conforme).
 export const CHECKLIST_LIBERACAO: ChecklistSecaoDef[] = [
   {
-    id: 'inspecao_mecanica',
-    nome: 'Inspeção mecânica',
+    id: 'documentacao_seguranca',
+    nome: 'Documentação e segurança',
     itens: [
-      { id: 'motor', label: 'Motor funcionando corretamente' },
-      { id: 'nivel_oleo', label: 'Nível de óleo' },
-      { id: 'nivel_arrefecimento', label: 'Nível do líquido de arrefecimento' },
-      { id: 'vazamentos', label: 'Vazamentos' },
-      { id: 'correias', label: 'Correias' },
-      { id: 'mangueiras', label: 'Mangueiras' },
-      { id: 'freios', label: 'Freios' },
-      { id: 'suspensao', label: 'Suspensão' },
-      { id: 'direcao', label: 'Direção' },
-      { id: 'pneus', label: 'Pneus' },
-      { id: 'rodas_porcas', label: 'Rodas / porcas' },
-      { id: 'bateria', label: 'Bateria' },
-      { id: 'iluminacao', label: 'Iluminação' },
+      { id: 'extintor', label: 'Extintor de incêndio dentro da validade e em condições', foto: 'obrigatoria' },
+      { id: 'triangulo', label: 'Triângulo de sinalização disponível', foto: 'obrigatoria' },
+      { id: 'macaco_chave_roda', label: 'Macaco e chave de roda disponíveis', foto: 'obrigatoria' },
     ],
   },
   {
-    id: 'testes_funcionais',
-    nome: 'Testes funcionais',
+    id: 'externa_carroceria',
+    nome: 'Parte externa / carroceria',
     itens: [
-      { id: 'partida', label: 'Partida' },
-      { id: 'marcha_lenta', label: 'Marcha lenta' },
-      { id: 'aceleracao', label: 'Aceleração' },
-      { id: 'cambio', label: 'Câmbio' },
-      { id: 'freio', label: 'Freio' },
-      { id: 'direcao', label: 'Direção' },
-      { id: 'teste_rodagem', label: 'Teste de rodagem' },
-      { id: 'ruidos_anomalias', label: 'Verificação de ruídos / anomalias' },
-      { id: 'painel_sem_falhas', label: 'Painel sem falhas' },
-    ],
-  },
-  {
-    id: 'registro_fotografico',
-    nome: 'Registro fotográfico',
-    itens: [
-      { id: 'frente', label: 'Frente do veículo', foto: 'obrigatoria' },
-      { id: 'para_brisa', label: 'Para-brisa', foto: 'obrigatoria' },
+      { id: 'frente', label: 'Frente', foto: 'obrigatoria' },
       { id: 'lateral_esquerda', label: 'Lateral esquerda', foto: 'obrigatoria' },
       { id: 'lateral_direita', label: 'Lateral direita', foto: 'obrigatoria' },
-      { id: 'interna_cabine', label: 'Interna da cabine', foto: 'obrigatoria' },
-      { id: 'geladeira', label: 'Geladeira', foto: 'obrigatoria' },
-      { id: 'painel_ligado', label: 'Painel ligado', foto: 'obrigatoria' },
-      { id: 'console', label: 'Console', foto: 'obrigatoria' },
-      { id: 'assoalho', label: 'Assoalho', foto: 'obrigatoria' },
       { id: 'traseira', label: 'Traseira', foto: 'obrigatoria' },
-      { id: 'motor_funcionando', label: 'Veículo ligado / motor em funcionamento', foto: 'obrigatoria' },
       { id: 'chassi', label: 'Chassi', foto: 'obrigatoria' },
+      { id: 'para_brisa', label: 'Para-brisa', foto: 'obrigatoria' },
+      { id: 'retrovisores', label: 'Retrovisores', foto: 'obrigatoria', multiplasFotos: true, minFotos: 2, maxFotos: 2 },
+      {
+        id: 'portas',
+        label: 'Portas, fechaduras e dobradiças',
+        foto: 'obrigatoria',
+        multiplasFotos: true,
+        minFotos: 2,
+        maxFotos: 6,
+      },
+      {
+        id: 'degraus_alcas',
+        label: 'Degraus e alças de acesso',
+        foto: 'obrigatoria',
+        multiplasFotos: true,
+        minFotos: 2,
+        maxFotos: 2,
+      },
     ],
   },
   {
-    id: 'fotos_pneus',
-    nome: 'Fotos dos pneus',
+    id: 'parte_interna',
+    nome: 'Parte interna',
     itens: [
-      { id: 'dianteiro_esquerdo', label: 'Pneu dianteiro esquerdo', foto: 'obrigatoria' },
-      { id: 'dianteiro_direito', label: 'Pneu dianteiro direito', foto: 'obrigatoria' },
-      { id: 'traseiro_esquerdo', label: 'Pneu traseiro esquerdo', foto: 'obrigatoria' },
-      { id: 'traseiro_direito', label: 'Pneu traseiro direito', foto: 'obrigatoria' },
-      { id: 'demais_pneus', label: 'Demais pneus (quando aplicável)', foto: 'opcional', multiplasFotos: true },
+      { id: 'assoalho', label: 'Assoalho todo', foto: 'obrigatoria', multiplasFotos: true, minFotos: 4, maxFotos: 4 },
+      { id: 'painel_ligado', label: 'Painel ligado', foto: 'obrigatoria' },
+      { id: 'console_interno', label: 'Console interno', foto: 'obrigatoria' },
+      { id: 'geladeira', label: 'Geladeira automotiva', foto: 'obrigatoria' },
+      { id: 'bancos', label: 'Bancos', foto: 'obrigatoria', multiplasFotos: true, minFotos: 2, maxFotos: 2 },
+    ],
+  },
+  {
+    id: 'rodagem',
+    nome: 'Rodagem',
+    itens: [
+      // Um item só com várias fotos: mínimo 4 (um carro); caminhão adiciona quantas precisar.
+      {
+        id: 'pneus',
+        label: 'Pneus',
+        foto: 'obrigatoria',
+        multiplasFotos: true,
+        minFotos: 4,
+        dicaFotos: 'uma de cada pneu',
+      },
+    ],
+  },
+  {
+    id: 'iluminacao_sinalizacao',
+    nome: 'Iluminação e sinalização',
+    itens: [
+      { id: 'farol_baixo', label: 'Farol baixo', foto: 'obrigatoria' },
+      { id: 'farol_alto', label: 'Farol alto', foto: 'obrigatoria' },
+      {
+        id: 'luzes_laterais',
+        label: 'Luzes laterais',
+        foto: 'obrigatoria',
+        multiplasFotos: true,
+        minFotos: 2,
+        maxFotos: 2,
+        dicaFotos: 'lado esquerdo e lado direito',
+      },
+      { id: 'lanternas_traseiras', label: 'Lanternas traseiras', foto: 'obrigatoria' },
     ],
   },
 ]

@@ -164,8 +164,13 @@ export interface Inspecao {
   modelo: ModeloInspecao
   numero_os: string | null
   horimetro: number | null
+  /** Nulo na liberação = aguardando aprovação. */
   status_liberacao: StatusLiberacao | null
   observacoes: string | null
+  aprovado_por: string | null
+  aprovado_em: string | null
+  /** Assinatura do encarregado (resp. manutenção) ao enviar a liberação. */
+  assinatura_encarregado_url: string | null
   created_at: string
 }
 

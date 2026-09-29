@@ -16,6 +16,11 @@ export function nomeArquivoLiberacao(l: LiberacaoComVeiculo) {
  * de inspecao_itens (fotos entram pela URL pública do storage).
  */
 export async function gerarPdfLiberacaoSalva(l: LiberacaoComVeiculo): Promise<jsPDF> {
+  return generatePdfFromHtml(await montarHtmlLiberacaoSalva(l))
+}
+
+/** HTML do relatório (o mesmo que vira PDF) — usado também na prévia "Ver PDF". */
+export async function montarHtmlLiberacaoSalva(l: LiberacaoComVeiculo): Promise<string> {
   const linhas = await carregarItensInspecao(l.id)
 
   const itens: Record<string, ChecklistItemState> = {}
@@ -23,7 +28,11 @@ export async function gerarPdfLiberacaoSalva(l: LiberacaoComVeiculo): Promise<js
     const secao = CHECKLIST_LIBERACAO.find((s) => s.nome === linha.secao)
     // Itens com várias fotos foram salvos como "Label — foto N".
     const labelBase = linha.item.split(' — foto ')[0]
-    const item = secao?.itens.find((i) => i.label.toUpperCase() === labelBase.toUpperCase())
+    // Fallback: liberações antigas tinham um item por pneu ("Pneu dianteiro esquerdo"…);
+    // hoje a seção tem só o item de várias fotos, então a foto entra nele.
+    const item =
+      secao?.itens.find((i) => i.label.toUpperCase() === labelBase.toUpperCase()) ??
+      (secao?.itens.length === 1 && secao.itens[0].multiplasFotos ? secao.itens[0] : undefined)
     if (!secao || !item) continue
 
     const key = itemKey(secao.id, item.id)
@@ -61,13 +70,13 @@ export async function gerarPdfLiberacaoSalva(l: LiberacaoComVeiculo): Promise<js
     horimetro: l.horimetro ?? undefined,
     statusLiberacao: l.status_liberacao ?? undefined,
     observacoes: l.observacoes ?? undefined,
+    assinaturaEncarregadoUrl: l.assinatura_encarregado_url ?? undefined,
   }
 
-  const html = buildInspecaoReportHtml({
+  return buildInspecaoReportHtml({
     state,
     veiculo: (veiculo ?? { placa: state.placa }) as VeiculoComRelacoes,
     cliente: veiculo?.cliente,
     numero: l.id.slice(0, 8).toUpperCase(),
   })
-  return generatePdfFromHtml(html)
 }

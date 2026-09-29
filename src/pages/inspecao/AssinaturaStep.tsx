@@ -1,34 +1,13 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import SignatureCanvas from 'react-signature-canvas'
-import { Eraser } from 'lucide-react'
+import { Eraser, Hourglass } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
-import { Input, Label, FieldError, Textarea } from '@/components/ui/Input'
+import { FieldError, Label, Textarea } from '@/components/ui/Input'
+import { formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
-import { cn } from '@/lib/cn'
-import type { StatusLiberacao } from '@/lib/types'
-import { getChecklist } from '@/data/checklistSchema'
-import { calcularStatusLiberacao, itemKey, STATUS_LIBERACAO_LABEL, type InspecaoWizardState } from './types'
-
-const OPCOES_LIBERACAO: { value: StatusLiberacao; emoji: string; activeClass: string; motivo: string }[] = [
-  {
-    value: 'liberado',
-    emoji: '🟢',
-    activeClass: 'bg-status-success text-white border-status-success',
-    motivo: 'Todos os itens do checklist estão conformes.',
-  },
-  {
-    value: 'liberado_restricao',
-    emoji: '🟡',
-    activeClass: 'bg-status-warning text-white border-status-warning',
-    motivo: 'Há itens pendentes no checklist.',
-  },
-  {
-    value: 'nao_liberado',
-    emoji: '🔴',
-    activeClass: 'bg-status-danger text-white border-status-danger',
-    motivo: 'Há itens não conformes no checklist.',
-  },
-]
+import { useAuth } from '@/contexts/AuthContext'
+import { AssinaturaForm } from './AssinaturaForm'
+import { podeAprovarLiberacao, type InspecaoWizardState } from './types'
 
 interface Props {
   state: InspecaoWizardState
@@ -38,62 +17,74 @@ interface Props {
 }
 
 export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
-  const sigRef = useRef<SignatureCanvas>(null)
-  const nomeRef = useRef<HTMLInputElement>(null)
-  const [nome, setNome] = useState(state.responsavelNome ?? '')
-  const [cargo, setCargo] = useState(state.responsavelCargo ?? '')
-  const [declarou, setDeclarou] = useState(Boolean(state.assinaturaDataUrl))
-  const [erro, setErro] = useState<string | null>(null)
+  const { user } = useAuth()
   const liberacao = state.modelo === 'liberacao'
-  const statusLiberacao = liberacao ? calcularStatusLiberacao(state) : undefined
-  const opcaoAtual = OPCOES_LIBERACAO.find((o) => o.value === statusLiberacao)
-  const [observacoes, setObservacoes] = useState(state.observacoes ?? '')
 
-  // Itens que impedem o "Liberado", pra mostrar o porquê do status.
-  const itensComProblema = useMemo(
-    () =>
-      getChecklist(state.modelo, state.tipo).flatMap((secao) =>
-        secao.itens
-          .map((item) => ({ item, s: state.itens[itemKey(secao.id, item.id)] }))
-          .filter((x) => x.s?.status === 'nao_conforme' || x.s?.status === 'pendente')
-          .map((x) => ({ label: x.item.label, status: x.s!.status!, obs: x.s?.observacao })),
-      ),
-    [state.modelo, state.tipo, state.itens],
-  )
-
-  function handleLimpar() {
-    sigRef.current?.clear()
-    setErro(null)
+  // Liberação feita por quem não é o aprovador: só envia (fica aguardando o OK da Maria Clara).
+  if (liberacao && !podeAprovarLiberacao(user?.email)) {
+    return <EnvioParaAprovacao state={state} onPatch={onPatch} onNext={onNext} onBack={onBack} />
   }
 
-  function handleConfirmar() {
-    // Alguns navegadores preenchem o campo via autofill sem disparar o onChange
-    // do React — lê o valor direto do input como reforço ao state.
-    const nomeValor = (nome || nomeRef.current?.value || '').trim()
+  return (
+    <Card className="max-w-2xl">
+      <CardContent className="pt-6">
+        <AssinaturaForm
+          comStatus={liberacao}
+          labelNome={liberacao ? 'Responsável pela liberação' : 'Nome do responsável'}
+          textoDeclaracao={`Declaro que as informações prestadas nesta ${liberacao ? 'liberação' : 'vistoria'} são verdadeiras e foram conferidas junto ao veículo.`}
+          inicial={{
+            statusLiberacao: state.statusLiberacao,
+            observacoes: state.observacoes,
+            nome: state.responsavelNome,
+            cargo: state.responsavelCargo,
+            declarou: Boolean(state.assinaturaDataUrl),
+          }}
+          onVoltar={onBack}
+          onConfirmar={(d) => {
+            onPatch({
+              assinaturaDataUrl: d.assinaturaDataUrl,
+              responsavelNome: d.nome,
+              responsavelCargo: d.cargo,
+              ...(liberacao ? { statusLiberacao: d.statusLiberacao, observacoes: d.observacoes } : {}),
+            })
+            onNext()
+          }}
+        />
+      </CardContent>
+    </Card>
+  )
+}
 
-    if (liberacao && statusLiberacao !== 'liberado' && !observacoes.trim()) {
-      setErro('Descreva as restrições/pendências nas observações.')
-      return
-    }
-    if (!nomeValor) {
-      setErro('Informe o nome do responsável.')
+function EnvioParaAprovacao({ state, onPatch, onNext, onBack }: Props) {
+  const [observacoes, setObservacoes] = useState(state.observacoes ?? '')
+  const sigRef = useRef<SignatureCanvas>(null)
+  const [declarou, setDeclarou] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  // Data/hora automática: mostra o relógio atual e grava o momento em que confirma.
+  const [agora, setAgora] = useState(() => new Date())
+  useEffect(() => {
+    const t = setInterval(() => setAgora(new Date()), 30_000)
+    return () => clearInterval(t)
+  }, [])
+
+  function handleContinuar() {
+    if (!sigRef.current || sigRef.current.isEmpty()) {
+      setErro('O encarregado precisa assinar antes de enviar.')
       return
     }
     if (!declarou) {
       setErro('É necessário confirmar a declaração para continuar.')
       return
     }
-    if (!sigRef.current || sigRef.current.isEmpty()) {
-      setErro('Colete a assinatura antes de continuar.')
-      return
-    }
-
-    const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL('image/png')
+    // Sem status/assinatura do aprovador: quem define é a Maria Clara.
     onPatch({
-      assinaturaDataUrl: dataUrl,
-      responsavelNome: nomeValor,
-      responsavelCargo: cargo.trim(),
-      ...(liberacao ? { statusLiberacao, observacoes: observacoes.trim() || undefined } : {}),
+      observacoes: observacoes.trim() || undefined,
+      assinaturaEncarregadoUrl: sigRef.current.getTrimmedCanvas().toDataURL('image/png'),
+      dataHora: new Date().toISOString(),
+      statusLiberacao: undefined,
+      assinaturaDataUrl: undefined,
+      responsavelNome: undefined,
+      responsavelCargo: undefined,
     })
     onNext()
   }
@@ -101,84 +92,38 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
   return (
     <Card className="max-w-2xl">
       <CardContent className="pt-6 space-y-5">
-        {liberacao && (
-          <>
-            <div>
-              <Label>Status do veículo</Label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {OPCOES_LIBERACAO.map((opt) => (
-                  <div
-                    key={opt.value}
-                    aria-current={statusLiberacao === opt.value}
-                    className={cn(
-                      'flex h-11 items-center justify-center rounded-lg border text-sm font-semibold',
-                      statusLiberacao === opt.value ? opt.activeClass : 'border-secondary/20 text-secondary/40',
-                    )}
-                  >
-                    {opt.emoji} {STATUS_LIBERACAO_LABEL[opt.value].toUpperCase()}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-secondary">
-                Definido automaticamente pelo checklist. {opcaoAtual?.motivo}
-              </p>
-              {itensComProblema.length > 0 && (
-                <ul className="mt-2 space-y-1 text-xs">
-                  {itensComProblema.map((i) => (
-                    <li key={i.label} className="text-foreground">
-                      <span className={i.status === 'nao_conforme' ? 'text-status-danger' : 'text-status-warning'}>
-                        {i.status === 'nao_conforme' ? '✕ Não conforme' : '⏱ Pendente'}
-                      </span>{' '}
-                      — {i.label}
-                      {i.obs && <span className="text-secondary"> ({i.obs})</span>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+        <div className="flex gap-3 rounded-xl border border-status-warning/30 bg-status-warning/10 p-4 text-sm">
+          <Hourglass className="h-5 w-5 shrink-0 text-status-warning" />
+          <p className="text-foreground">
+            A liberação final é feita pela <strong>Maria Clara</strong>. Ao enviar, o checklist fica{' '}
+            <strong>aguardando aprovação</strong> e aparece para ela na aba Finalizadas.
+          </p>
+        </div>
 
-            <div>
-              <Label htmlFor="observacoes">Observações / Pendências</Label>
-              <Textarea
-                id="observacoes"
-                rows={3}
-                value={observacoes}
-                onChange={(e) => {
-                  setObservacoes(e.target.value)
-                  setErro(null)
-                }}
-                placeholder={statusLiberacao && statusLiberacao !== 'liberado' ? 'Obrigatório: descreva a restrição/pendência' : 'Opcional'}
-              />
-            </div>
-          </>
-        )}
+        <div>
+          <Label htmlFor="observacoes">Observações para a aprovação</Label>
+          <Textarea
+            id="observacoes"
+            rows={3}
+            value={observacoes}
+            onChange={(e) => setObservacoes(e.target.value)}
+            placeholder="Opcional: algo que a Maria Clara precisa saber"
+          />
+        </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <Label htmlFor="responsavelNome">{liberacao ? 'Responsável pela liberação' : 'Nome do responsável'}</Label>
-            <Input
-              id="responsavelNome"
-              ref={nomeRef}
-              value={nome}
-              onChange={(e) => {
-                setNome(e.target.value)
-                setErro(null)
-              }}
-            />
+            <p className="text-xs uppercase text-secondary">Encarregado</p>
+            <p className="font-medium text-foreground">{state.inspetor || '—'}</p>
           </div>
           <div>
-            <Label htmlFor="responsavelCargo">Cargo</Label>
-            <Input
-              id="responsavelCargo"
-              value={cargo}
-              onChange={(e) => setCargo(e.target.value)}
-              placeholder="Opcional"
-            />
+            <p className="text-xs uppercase text-secondary">Data / hora</p>
+            <p className="font-medium text-foreground">{formatDateTime(agora.toISOString())}</p>
           </div>
         </div>
 
         <div>
-          <Label>Assinatura</Label>
+          <Label>Assinatura do encarregado</Label>
           <div className="rounded-xl bg-white overflow-hidden border border-secondary/30">
             <SignatureCanvas
               ref={sigRef}
@@ -189,7 +134,7 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
           </div>
           <button
             type="button"
-            onClick={handleLimpar}
+            onClick={() => sigRef.current?.clear()}
             className="mt-2 inline-flex items-center gap-1.5 text-xs text-secondary hover:text-foreground"
           >
             <Eraser className="h-3.5 w-3.5" />
@@ -207,8 +152,7 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
             }}
             className="mt-0.5 h-4 w-4 accent-primary"
           />
-          Declaro que as informações prestadas nesta {liberacao ? 'liberação' : 'vistoria'} são verdadeiras e foram
-          conferidas junto ao veículo.
+          Declaro que a manutenção foi realizada e que as fotos deste checklist foram tiradas do veículo.
         </label>
 
         <FieldError message={erro ?? undefined} />
@@ -217,8 +161,8 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
           <Button type="button" variant="secondary" onClick={onBack}>
             Voltar
           </Button>
-          <Button type="button" onClick={handleConfirmar}>
-            Confirmar
+          <Button type="button" onClick={handleContinuar}>
+            Continuar
           </Button>
         </div>
       </CardContent>

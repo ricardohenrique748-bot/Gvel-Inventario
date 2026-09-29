@@ -3,16 +3,22 @@ import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/Header'
 import { cn } from '@/lib/cn'
 import type { ModeloInspecao } from '@/lib/types'
-import { criarEstadoInicial, type InspecaoWizardState } from './types'
+import { useAuth } from '@/contexts/AuthContext'
+import { criarEstadoInicial, podeAprovarLiberacao, type InspecaoWizardState } from './types'
 import { DadosVeiculoStep } from './DadosVeiculoStep'
 import { ChecklistStep } from './ChecklistStep'
 import { AssinaturaStep } from './AssinaturaStep'
 import { ResumoStep } from './ResumoStep'
 import { LiberacoesFinalizadas } from './LiberacoesFinalizadas'
 
-export function NovaInspecao() {
+/**
+ * `embutido`: usado dentro da aba "Liberação do Veículo" da Manutenção — sempre no
+ * modelo liberação, sem cabeçalho próprio, e sem apagar os outros parâmetros da URL.
+ */
+export function NovaInspecao({ embutido = false }: { embutido?: boolean } = {}) {
   const [searchParams, setSearchParams] = useSearchParams()
-  const modeloInicial: ModeloInspecao = searchParams.get('modelo') === 'liberacao' ? 'liberacao' : 'vistoria'
+  const modeloInicial: ModeloInspecao =
+    embutido || searchParams.get('modelo') === 'liberacao' ? 'liberacao' : 'vistoria'
   // Aba "Finalizadas" só existe na liberação. O rascunho em andamento fica guardado ao trocar de aba.
   const verFinalizadas = modeloInicial === 'liberacao' && searchParams.get('aba') === 'finalizadas'
 
@@ -26,7 +32,9 @@ export function NovaInspecao() {
     setStep(0)
   }
 
-  const steps = ['Dados do veículo', 'Checklist', liberacao ? 'Liberação' : 'Assinatura', 'Resumo']
+  const { user } = useAuth()
+  const etapa3 = !liberacao ? 'Assinatura' : podeAprovarLiberacao(user?.email) ? 'Liberação' : 'Envio'
+  const steps = ['Dados do veículo', 'Checklist', etapa3, 'Resumo']
 
   function patch(next: Partial<InspecaoWizardState>) {
     setState((prev) => ({ ...prev, ...next }))
@@ -39,11 +47,13 @@ export function NovaInspecao() {
 
   return (
     <div>
-      <PageHeader
-        title={liberacao ? 'Liberação do veículo' : 'Nova inspeção'}
-        subtitle={liberacao ? 'Checklist de liberação pós-manutenção' : 'Checklist de vistoria'}
-        back
-      />
+      {!embutido && (
+        <PageHeader
+          title={liberacao ? 'Liberação do veículo' : 'Nova inspeção'}
+          subtitle={liberacao ? 'Checklist de liberação pós-manutenção' : 'Checklist de vistoria'}
+          back
+        />
+      )}
 
       {liberacao && (
         <div className="mb-4 inline-flex rounded-xl bg-surface p-1">
@@ -57,9 +67,16 @@ export function NovaInspecao() {
               key={id}
               type="button"
               onClick={() =>
-                setSearchParams(id === 'finalizadas' ? { modelo: 'liberacao', aba: id } : { modelo: 'liberacao' }, {
-                  replace: true,
-                })
+                setSearchParams(
+                  (atual) => {
+                    const p = new URLSearchParams(atual)
+                    if (!embutido) p.set('modelo', 'liberacao')
+                    if (id === 'finalizadas') p.set('aba', id)
+                    else p.delete('aba')
+                    return p
+                  },
+                  { replace: true },
+                )
               }
               className={cn(
                 'rounded-lg px-4 py-2 text-sm font-medium transition-colors',

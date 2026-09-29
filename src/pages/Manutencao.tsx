@@ -1,5 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { cn } from '@/lib/cn'
+import { NovaInspecao } from '@/pages/inspecao/NovaInspecao'
 import {
   Truck,
   ExternalLink,
@@ -8,6 +10,7 @@ import {
   ClipboardCheck,
   Clock,
   ShieldAlert,
+  ShieldCheck,
   Home,
 } from 'lucide-react'
 import { format, isSameDay, parseISO } from 'date-fns'
@@ -28,7 +31,55 @@ import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib
 import { useAuth } from '@/contexts/AuthContext'
 import { isManutencaoAuthorized } from '@/components/layout/nav'
 
+type AbaManutencao = 'controle_os' | 'liberacao'
+
+const ABAS_MANUTENCAO: { id: AbaManutencao; label: string; icon: typeof Truck }[] = [
+  { id: 'controle_os', label: 'CONTROLE DE O.S', icon: ClipboardCheck },
+  { id: 'liberacao', label: 'LIBERAÇÃO DO VEÍCULO', icon: ShieldCheck },
+]
+
+/** Manutenção com abas; a aba fica na URL (?secao=) pra voltar nela ao recarregar. */
 export function Manutencao() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const aba: AbaManutencao = searchParams.get('secao') === 'liberacao' ? 'liberacao' : 'controle_os'
+
+  function trocarAba(id: AbaManutencao) {
+    // Só a aba de Manutenção muda; a subaba da liberação (?aba=) recomeça.
+    setSearchParams(id === 'liberacao' ? { secao: id } : {}, { replace: true })
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="uppercase">
+        <PageHeader
+          title="MANUTENÇÃO"
+          subtitle="VEÍCULOS NO PÁTIO, OFICINA LEVE, OFICINA PESADA E INSPEÇÃO DE CHECKLIST"
+        />
+      </div>
+
+      <div className="flex gap-1 overflow-x-auto border-b border-border/10">
+        {ABAS_MANUTENCAO.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => trocarAba(id)}
+            className={cn(
+              '-mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold uppercase tracking-wide transition-colors',
+              aba === id ? 'border-primary text-primary' : 'border-transparent text-secondary hover:text-foreground',
+            )}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'controle_os' ? <ControleOS /> : <NovaInspecao embutido />}
+    </div>
+  )
+}
+
+function ControleOS() {
   const { user, perfil, perfilLoading } = useAuth()
   const autorizado = isManutencaoAuthorized(perfil || { email: user?.email })
 
@@ -198,11 +249,6 @@ export function Manutencao() {
 
   return (
     <div className="space-y-6 uppercase">
-      <PageHeader
-        title="MANUTENÇÃO"
-        subtitle="VEÍCULOS NO PÁTIO, OFICINA LEVE, OFICINA PESADA E INSPEÇÃO DE CHECKLIST"
-      />
-
       {/* Cards de Métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard

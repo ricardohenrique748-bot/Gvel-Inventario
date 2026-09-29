@@ -18,6 +18,7 @@ import {
   UserCheck,
   Columns3,
   ArrowUpRight,
+  ClipboardCheck,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -30,6 +31,9 @@ import { useClientes } from '@/hooks/useClientes'
 import { useUsuarios } from '@/hooks/useUsuarios'
 import { isDashboardGerencialAuthorized, isEstoqueAuthorized } from '@/components/layout/nav'
 import { temAcessoModuloEmpresa } from '@/lib/permissoes'
+import { useLiberacoes } from '@/hooks/useLiberacoes'
+
+const ROTA_LIBERACOES_FINALIZADAS = '/manutencao?secao=liberacao&aba=finalizadas'
 
 export function DashboardGerencial() {
   const { perfil, user, perfilLoading, empresa } = useAuth()
@@ -37,6 +41,8 @@ export function DashboardGerencial() {
   const { movimentacoes, loading: loadingMovs } = useMovimentacoes()
   const { clientes, loading: loadingClientes } = useClientes()
   const { usuarios, loading: loadingUsuarios } = useUsuarios()
+  const { liberacoes } = useLiberacoes()
+  const liberacoesAguardando = liberacoes.filter((l) => !l.status_liberacao).length
 
   // Saudação de acordo com o horário
   const saudacao = useMemo(() => {
@@ -187,6 +193,14 @@ export function DashboardGerencial() {
       badge: 'SERVIÇOS',
     },
     {
+      to: ROTA_LIBERACOES_FINALIZADAS,
+      title: 'LIBERAÇÃO DE VEÍCULOS',
+      desc: 'CHECKLISTS FINALIZADOS, APROVAÇÕES E PDFS',
+      icon: ClipboardCheck,
+      tone: 'from-lime-500/20 to-lime-500/5 text-lime-500 border-lime-500/20',
+      badge: liberacoesAguardando > 0 ? `${liberacoesAguardando} AGUARDANDO` : `${liberacoes.length} FINALIZADAS`,
+    },
+    {
       to: '/relatorios',
       title: 'RELATÓRIOS & EXPORTAÇÕES',
       desc: 'MÉTRICAS ANALÍTICAS, PDFS E PLANILHAS',
@@ -215,6 +229,7 @@ export function DashboardGerencial() {
     '/kanban-vamos': 'kanban',
     '/rh': 'rh',
     '/manutencao': 'manutencao',
+    [ROTA_LIBERACOES_FINALIZADAS]: 'manutencao',
     '/relatorios': 'relatorios',
   }
 
