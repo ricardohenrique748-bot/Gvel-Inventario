@@ -35,6 +35,17 @@
         </provider>
     </application>
 
+    <!-- Android 11+ só deixa o app "enxergar" a câmera se declarar aqui. Sem
+         isso, o <input capture> não acha app de câmera e cai direto na galeria. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.VIDEO_CAPTURE" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
