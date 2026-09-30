@@ -378,7 +378,8 @@ export function InventarioFerramentas() {
     })
   }
 
-  const [tipoFiltro, setTipoFiltro] = useState<'ferramentas' | 'especiais' | 'insumos' | 'estoque'>('ferramentas')
+  // A aba "Ferramentas Pátio" saiu da tela; abre direto em Ferramenta Estoque.
+  const [tipoFiltro, setTipoFiltro] = useState<'ferramentas' | 'especiais' | 'insumos' | 'estoque'>('estoque')
   const [busca, setBusca] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState('TODAS')
   const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'grid'>('lista')
@@ -1049,27 +1050,6 @@ export function InventarioFerramentas() {
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
               {/* 3 Abas de Tipos (Ferramentas, Ferramentas Especiais, Insumos) */}
               <ScrollContainer className="flex items-center gap-1.5 p-1 rounded-2xl bg-surface/80 border border-border/20 shadow-sm shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTipoFiltro('ferramentas')
-                    setCategoriaFiltro('TODAS')
-                  }}
-                  className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 uppercase ${
-                    tipoFiltro === 'ferramentas'
-                      ? 'bg-primary text-white shadow-sm shadow-primary/20'
-                      : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
-                  }`}
-                >
-                  <Hammer className="h-3.5 w-3.5" />
-                  FERRAMENTAS PÁTIO
-                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-                    tipoFiltro === 'ferramentas' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
-                  }`}>
-                    {ferramentasComuns.length}
-                  </span>
-                </button>
-
                 <button
                   type="button"
                   onClick={() => {
