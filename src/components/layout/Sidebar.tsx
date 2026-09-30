@@ -205,11 +205,15 @@ export function Sidebar() {
       ? [
           { to: '/', label: 'Home', icon: Home, end: true },
           ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'Estoque', icon: Wrench }] : []),
-          ...(canAccessManutencao ? [{ to: '/manutencao', label: 'Manutenção', icon: Wrench }] : []),
-          ...(canAccessManutencao
+          ...(canAccessManutencao && isModuloAuthorized(userRef, 'manutencao_os')
+            ? [{ to: '/manutencao', label: 'Manutenção', icon: Wrench }]
+            : []),
+          ...(canAccessManutencao && isModuloAuthorized(userRef, 'manutencao_liberacao')
             ? [{ to: '/inspecoes/nova?modelo=liberacao', label: 'Liberação do Veículo', icon: ClipboardCheck }]
             : []),
-          ...(canAccessInventarioCaminhoes ? [{ to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight }] : []),
+          ...(canAccessInventarioCaminhoes && isModuloAuthorized(userRef, 'caminhoes_movimentacoes')
+            ? [{ to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight }]
+            : []),
           ...(canAccessConfiguracoes ? [{ to: '/configuracoes', label: 'Configurações', icon: Settings }] : []),
         ]
       : navItems
@@ -267,6 +271,8 @@ export function Sidebar() {
     canAccessInventarioCaminhoes,
     canAccessFrotas,
     canAccessConfiguracoes,
+    perfil,
+    user?.email,
   ])
 
   // For search: flatten all items (including children) to find matches

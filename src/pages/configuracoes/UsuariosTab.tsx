@@ -40,7 +40,7 @@ import { useEmpresa, type Empresa } from '@/contexts/EmpresaContext'
 import { useEmpresasVisiveis } from '@/hooks/useCompanies'
 import { RecortarFotoModal } from '@/components/RecortarFotoModal'
 import { formatDate } from '@/lib/format'
-import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, getModulosUsuario, temAcessoModuloEmpresa, type ModuloSistema } from '@/lib/permissoes'
+import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, expandirModulosLegados, getModulosUsuario, temAcessoModuloEmpresa, type ModuloSistema } from '@/lib/permissoes'
 import type { Usuario } from '@/lib/types'
 
 const ICONES_MODULOS: Record<string, React.ElementType> = {
@@ -844,7 +844,7 @@ function EditarUsuarioForm({
       telefone: usuario.telefone ?? '',
       company_id: usuario.company_id,
       nivel: usuario.nivel,
-      modulos: getModulosUsuario(usuario),
+      modulos: expandirModulosLegados(getModulosUsuario(usuario)),
       is_master_admin: usuario.is_master_admin,
     },
   })

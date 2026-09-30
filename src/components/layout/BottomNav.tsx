@@ -16,9 +16,13 @@ export function BottomNav() {
   const userRef = perfil || { email: user?.email }
 
   const canAccessEstoque = isEstoqueAuthorized(userRef, native) && temAcessoModuloEmpresa(empresa, 'estoque')
-  const canAccessFrotas = isModuloAuthorized(userRef, 'frotas') && temAcessoModuloEmpresa(empresa, 'frotas')
-  const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao') && temAcessoModuloEmpresa(empresa, 'manutencao')
-  const canAccessPatio = isModuloAuthorized(userRef, 'inventario_caminhoes') && temAcessoModuloEmpresa(empresa, 'inventario_caminhoes')
+  // Cada botão do app segue a sub-aba que ele abre, não só o módulo inteiro.
+  const canAccessChecklist = isModuloAuthorized(userRef, 'frotas_checklist') && temAcessoModuloEmpresa(empresa, 'frotas')
+  const canAccessManutencao = temAcessoModuloEmpresa(empresa, 'manutencao')
+  const canAccessOS = canAccessManutencao && isModuloAuthorized(userRef, 'manutencao_os')
+  const canAccessLiberacao = canAccessManutencao && isModuloAuthorized(userRef, 'manutencao_liberacao')
+  const canAccessPatio =
+    isModuloAuthorized(userRef, 'caminhoes_movimentacoes') && temAcessoModuloEmpresa(empresa, 'inventario_caminhoes')
   const canAccessConfiguracoes =
     isAdmin ||
     isModuloAuthorized(userRef, 'configuracoes') ||
@@ -30,9 +34,9 @@ export function BottomNav() {
 
   const items = [
     { to: '/', label: 'INÍCIO', icon: Home, end: true },
-    ...(canAccessFrotas ? [{ to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck }] : []),
-    ...(canAccessManutencao ? [{ to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench }] : []),
-    ...(canAccessManutencao
+    ...(canAccessChecklist ? [{ to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck }] : []),
+    ...(canAccessOS ? [{ to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench }] : []),
+    ...(canAccessLiberacao
       ? [{ to: '/inspecoes/nova?modelo=liberacao', label: 'LIBERAÇÃO', icon: ShieldCheck }]
       : []),
     ...(canAccessPatio ? [{ to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight }] : []),

@@ -130,9 +130,9 @@ export function isRelatoriosAuthorized(userOrEmail?: string | Partial<Usuario> |
 export function isEstoqueAuthorized(userOrEmail?: string | Partial<Usuario> | null, isNative = false): boolean {
   if (!userOrEmail) return false
   const email = typeof userOrEmail === 'string' ? userOrEmail : userOrEmail.email
-  if (isNative) {
-    return (email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
-  }
+  // No app a conta do inventário continua sempre liberada; os demais seguem
+  // a permissão marcada em Usuários & Permissões, igual à web.
+  if (isNative && (email || '').toLowerCase().trim() === 'inventario@gveldiesel.com') return true
   if (typeof userOrEmail === 'object') return temPermissaoModulo(userOrEmail, 'estoque')
   return temPermissaoModulo({ email: userOrEmail }, 'estoque')
 }

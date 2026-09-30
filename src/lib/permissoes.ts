@@ -37,6 +37,10 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
     iconeNome: 'Wrench',
     rotaPadrao: '/manutencao',
     categoria: 'operacional',
+    subModulos: [
+      { id: 'manutencao_os', label: 'Controle de O.S', descricao: 'Veículos no pátio e checklist das ordens de serviço', rota: '/manutencao' },
+      { id: 'manutencao_liberacao', label: 'Liberação do Veículo', descricao: 'Checklist de liberação pós-manutenção e finalizadas', rota: '/manutencao?secao=liberacao' },
+    ],
   },
   {
     id: 'inventario_caminhoes',
@@ -154,6 +158,8 @@ export const MODULOS_PADRAO_USUARIO = [
   'caminhoes_dashboard',
   'caminhoes_movimentacoes',
   'manutencao',
+  'manutencao_os',
+  'manutencao_liberacao',
   'frotas',
   'frotas_dashboard',
   'frotas_veiculos',
@@ -284,6 +290,23 @@ const PREFIXO_PAI_MAP: Record<string, string> = {
   dashboard_: 'dashboard_gerencial',
   financeiro_: 'financeiro',
   rh_: 'rh',
+  manutencao_: 'manutencao',
+}
+
+/**
+ * Pra tela de edição: quem tem só o módulo pai salvo (permissão de antes do
+ * módulo ganhar sub-abas) na prática vê todas as abas (ver temPermissaoModulo),
+ * então os checkboxes precisam aparecer todos marcados — senão o card mostra
+ * "0/N abas" pra um usuário que acessa tudo.
+ */
+export function expandirModulosLegados(modulos: string[]): string[] {
+  const resultado = new Set(modulos)
+  for (const m of MODULOS_SISTEMA) {
+    if (!m.subModulos?.length || !modulos.includes(m.id)) continue
+    const temAlgumFilho = m.subModulos.some((s) => modulos.includes(s.id))
+    if (!temAlgumFilho) m.subModulos.forEach((s) => resultado.add(s.id))
+  }
+  return [...resultado]
 }
 
 /**

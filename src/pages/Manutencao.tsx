@@ -31,19 +31,24 @@ import { usePatios } from '@/hooks/usePatios'
 import { useOSStatusBatch } from '@/hooks/useOSStatusBatch'
 import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
 import { useAuth } from '@/contexts/AuthContext'
-import { isManutencaoAuthorized } from '@/components/layout/nav'
+import { isManutencaoAuthorized, isModuloAuthorized } from '@/components/layout/nav'
 
 type AbaManutencao = 'controle_os' | 'liberacao'
 
-const ABAS_MANUTENCAO: { id: AbaManutencao; label: string; icon: typeof Truck }[] = [
-  { id: 'controle_os', label: 'CONTROLE DE O.S', icon: ClipboardCheck },
-  { id: 'liberacao', label: 'LIBERAÇÃO DO VEÍCULO', icon: ShieldCheck },
+const ABAS_MANUTENCAO: { id: AbaManutencao; label: string; icon: typeof Truck; moduloId: string }[] = [
+  { id: 'controle_os', label: 'CONTROLE DE O.S', icon: ClipboardCheck, moduloId: 'manutencao_os' },
+  { id: 'liberacao', label: 'LIBERAÇÃO DO VEÍCULO', icon: ShieldCheck, moduloId: 'manutencao_liberacao' },
 ]
 
 /** Manutenção com abas; a aba fica na URL (?secao=) pra voltar nela ao recarregar. */
 export function Manutencao() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const aba: AbaManutencao = searchParams.get('secao') === 'liberacao' ? 'liberacao' : 'controle_os'
+  const { user, perfil } = useAuth()
+  const userRef = perfil || { email: user?.email }
+  // Só as abas marcadas em Usuários & Permissões.
+  const abas = ABAS_MANUTENCAO.filter((a) => isModuloAuthorized(userRef, a.moduloId))
+  const pedida: AbaManutencao = searchParams.get('secao') === 'liberacao' ? 'liberacao' : 'controle_os'
+  const aba: AbaManutencao = abas.some((a) => a.id === pedida) ? pedida : (abas[0]?.id ?? pedida)
 
   function trocarAba(id: AbaManutencao) {
     // Só a aba de Manutenção muda; a subaba da liberação (?aba=) recomeça.
@@ -60,7 +65,7 @@ export function Manutencao() {
       </div>
 
       <div className="flex gap-1 overflow-x-auto border-b border-border/10">
-        {ABAS_MANUTENCAO.map(({ id, label, icon: Icon }) => (
+        {abas.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             type="button"
