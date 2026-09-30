@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { createPortal } from 'react-dom'
-import { ChevronDown, Eye, FileDown, RefreshCw, Search, Share2, ShieldCheck, X } from 'lucide-react'
+import { ChevronDown, Eye, FileDown, RefreshCw, Search, Share2, ShieldCheck, Trash2, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { isAdminUsuario } from '@/lib/permissoes'
 import { AssinaturaForm } from './AssinaturaForm'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -12,7 +13,13 @@ import { Input } from '@/components/ui/Input'
 import { cn } from '@/lib/cn'
 import { formatDateTime } from '@/lib/format'
 import { CHECKLIST_LIBERACAO } from '@/data/checklistSchema'
-import { aprovarLiberacao, carregarItensInspecao, useLiberacoes, type LiberacaoComVeiculo } from '@/hooks/useLiberacoes'
+import {
+  aprovarLiberacao,
+  carregarItensInspecao,
+  excluirLiberacao,
+  useLiberacoes,
+  type LiberacaoComVeiculo,
+} from '@/hooks/useLiberacoes'
 import type { InspecaoItem, StatusLiberacao } from '@/lib/types'
 import { podeAprovarLiberacao, STATUS_LIBERACAO_COR, STATUS_LIBERACAO_LABEL } from './types'
 
@@ -28,8 +35,9 @@ const FILTROS: { value: Filtro; label: string }[] = [
 
 export function LiberacoesFinalizadas() {
   const { liberacoes, loading, erro, refetch } = useLiberacoes()
-  const { user } = useAuth()
+  const { user, perfil } = useAuth()
   const aprovador = podeAprovarLiberacao(user?.email)
+  const admin = isAdminUsuario(perfil, user?.email)
   const [busca, setBusca] = useState('')
   // A Maria Clara já abre direto no que falta ela aprovar.
   const [filtro, setFiltro] = useState<Filtro>(aprovador ? 'aguardando' : 'todos')
@@ -105,7 +113,9 @@ export function LiberacoesFinalizadas() {
             key={l.id}
             liberacao={l}
             aprovador={aprovador}
+            admin={admin}
             onAprovada={refetch}
+            onExcluida={refetch}
             aberta={abertaId === l.id}
             onToggle={() => setAbertaId((id) => (id === l.id ? null : l.id))}
           />
@@ -118,19 +128,41 @@ export function LiberacoesFinalizadas() {
 function LiberacaoCard({
   liberacao: l,
   aprovador,
+  admin,
   onAprovada,
+  onExcluida,
   aberta,
   onToggle,
 }: {
   liberacao: LiberacaoComVeiculo
   aprovador: boolean
+  admin: boolean
   onAprovada: () => void
+  onExcluida: () => void
   aberta: boolean
   onToggle: () => void
 }) {
   const status = l.status_liberacao
   const cor = status ? STATUS_LIBERACAO_COR[status] : COR_AGUARDANDO
   const [aprovando, setAprovando] = useState(false)
+  const [excluindo, setExcluindo] = useState(false)
+  const [erroExcluir, setErroExcluir] = useState<string | null>(null)
+
+  async function excluir() {
+    if (!admin) return
+    const placa = l.veiculo?.placa ?? ''
+    if (!confirm(`Excluir a liberação ${placa}${l.numero_os ? ` (OS ${l.numero_os})` : ''}? Essa ação não pode ser desfeita.`)) return
+    setExcluindo(true)
+    setErroExcluir(null)
+    try {
+      await excluirLiberacao(l.id)
+      onExcluida()
+    } catch (err) {
+      console.error('[excluirLiberacao]', err)
+      setErroExcluir(err instanceof Error ? err.message : 'Não foi possível excluir.')
+      setExcluindo(false)
+    }
+  }
 
   return (
     <Card className="overflow-hidden">
@@ -197,6 +229,21 @@ function LiberacaoCard({
             ⏳ Aguardando aprovação da <strong className="text-foreground">Maria Clara</strong>. Compartilhar fica disponível depois.
           </p>
           <BotaoVerPdf liberacao={l} className="w-full" />
+        </div>
+      )}
+
+      {admin && (
+        <div className="-mt-2 flex flex-col items-end px-4 pb-3">
+          <button
+            type="button"
+            onClick={excluir}
+            disabled={excluindo}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-status-danger hover:bg-status-danger/10 disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {excluindo ? 'Excluindo…' : 'Excluir liberação'}
+          </button>
+          {erroExcluir && <p className="mt-1 text-xs text-status-danger">{erroExcluir}</p>}
         </div>
       )}
 

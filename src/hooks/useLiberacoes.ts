@@ -71,6 +71,14 @@ export async function aprovarLiberacao(inspecaoId: string, dados: DadosAssinatur
   if (error) throw error
 }
 
+/** Exclui a liberação (só admin, travado na tela). Os itens caem junto por cascade. */
+export async function excluirLiberacao(inspecaoId: string) {
+  const { data, error } = await supabase.from('inspecoes').delete().eq('id', inspecaoId).select('id')
+  if (error) throw error
+  // RLS bloqueando o DELETE não dá erro, só volta vazio.
+  if (!data?.length) throw new Error('Sem permissão para excluir esta liberação.')
+}
+
 export async function carregarItensInspecao(inspecaoId: string): Promise<InspecaoItem[]> {
   const { data, error } = await supabase.from('inspecao_itens').select('*').eq('inspecao_id', inspecaoId)
   if (error) throw error
