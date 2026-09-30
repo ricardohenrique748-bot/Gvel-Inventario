@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench, Check, Building2, Camera, ClipboardCheck } from 'lucide-react'
+import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench, Check, Building2, Camera } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
@@ -205,12 +205,8 @@ export function Sidebar() {
       ? [
           { to: '/', label: 'Home', icon: Home, end: true },
           ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'Estoque', icon: Wrench }] : []),
-          ...(canAccessManutencao && isModuloAuthorized(userRef, 'manutencao_os')
-            ? [{ to: '/manutencao', label: 'Manutenção', icon: Wrench }]
-            : []),
-          ...(canAccessManutencao && isModuloAuthorized(userRef, 'manutencao_liberacao')
-            ? [{ to: '/inspecoes/nova?modelo=liberacao', label: 'Liberação do Veículo', icon: ClipboardCheck }]
-            : []),
+          // Liberação do Veículo fica como aba dentro da Manutenção.
+          ...(canAccessManutencao ? [{ to: '/manutencao', label: 'Manutenção', icon: Wrench }] : []),
           ...(canAccessInventarioCaminhoes && isModuloAuthorized(userRef, 'caminhoes_movimentacoes')
             ? [{ to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight }]
             : []),

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck, ShieldCheck } from 'lucide-react'
+import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
@@ -18,9 +18,8 @@ export function BottomNav() {
   const canAccessEstoque = isEstoqueAuthorized(userRef, native) && temAcessoModuloEmpresa(empresa, 'estoque')
   // Cada botão do app segue a sub-aba que ele abre, não só o módulo inteiro.
   const canAccessChecklist = isModuloAuthorized(userRef, 'frotas_checklist') && temAcessoModuloEmpresa(empresa, 'frotas')
-  const canAccessManutencao = temAcessoModuloEmpresa(empresa, 'manutencao')
-  const canAccessOS = canAccessManutencao && isModuloAuthorized(userRef, 'manutencao_os')
-  const canAccessLiberacao = canAccessManutencao && isModuloAuthorized(userRef, 'manutencao_liberacao')
+  // Liberação é uma aba dentro da Manutenção, então basta ter uma das duas sub-abas.
+  const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao') && temAcessoModuloEmpresa(empresa, 'manutencao')
   const canAccessPatio =
     isModuloAuthorized(userRef, 'caminhoes_movimentacoes') && temAcessoModuloEmpresa(empresa, 'inventario_caminhoes')
   const canAccessConfiguracoes =
@@ -35,13 +34,10 @@ export function BottomNav() {
   const items = [
     { to: '/', label: 'INÍCIO', icon: Home, end: true },
     ...(canAccessChecklist ? [{ to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck }] : []),
-    ...(canAccessOS ? [{ to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench }] : []),
-    ...(canAccessLiberacao
-      ? [{ to: '/inspecoes/nova?modelo=liberacao', label: 'LIBERAÇÃO', icon: ShieldCheck }]
-      : []),
+    ...(canAccessManutencao ? [{ to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench }] : []),
     ...(canAccessPatio ? [{ to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight }] : []),
-    ...(canAccessConfiguracoes ? [{ to: '/configuracoes', label: 'CONFIGURAÇÃO', icon: Settings }] : []),
     ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'ESTOQUE', icon: Hammer }] : []),
+    ...(canAccessConfiguracoes ? [{ to: '/configuracoes', label: 'CONFIGURAÇÃO', icon: Settings }] : []),
   ]
 
   return (
