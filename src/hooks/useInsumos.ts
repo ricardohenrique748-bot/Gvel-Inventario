@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import type { ItemConsumo, RegistroBaixaConsumo, RegistroEntradaConsumo } from '@/lib/types'
 import { comPrefixoEmpresa } from '@/lib/tenant'
+import { consumirDosTambores, tamborTravado } from '@/lib/tambores'
 
 export const STORAGE_CONSUMO_KEY = 'gvel_inventario_consumo_v1'
 export const STORAGE_BAIXAS_CONSUMO_KEY = 'gvel_inventario_baixas_consumo_v1'
@@ -244,6 +245,11 @@ export function useInsumos() {
         localStorage.setItem(STORAGE_CONSUMO_KEY, JSON.stringify(mesclados))
         setError(null)
         if (await enviarInsumosSoLocais(remotos, mesclados)) setItensConsumo(getInsumosLocais())
+        const travados = mesclados.filter((it) => tamborTravado(it) && REGEX_UUID.test(it.id))
+        if (travados.length > 0) {
+          await Promise.all(travados.map((it) => atualizarInsumo(it.id, it).catch(() => null)))
+          setItensConsumo(getInsumosLocais())
+        }
       } else if (locais.length > 0) {
         setItensConsumo(locais)
       }
@@ -413,7 +419,8 @@ export async function criarInsumo(dados: ItemConsumo): Promise<ItemConsumo> {
   return novoLocal
 }
 
-export async function atualizarInsumo(id: string, dados: ItemConsumo): Promise<ItemConsumo> {
+export async function atualizarInsumo(id: string, dadosInformados: ItemConsumo): Promise<ItemConsumo> {
+  const dados = tamborTravado(dadosInformados) ? { ...dadosInformados, ...consumirDosTambores(dadosInformados, 0) } : dadosInformados
   const { id: _id, created_at: _createdAt, ...payload } = dados
   const isUUID = REGEX_UUID.test(id)
 
@@ -490,16 +497,7 @@ export async function registrarBaixaConsumo(
   item: ItemConsumo,
   baixa: RegistroBaixaConsumo,
 ): Promise<{ item: ItemConsumo; baixa: RegistroBaixaConsumo }> {
-  const restante = Math.max(0, arredondar3(item.quantidade_atual - baixa.quantidade))
-  const temReserva = restante <= 0 && Boolean(item.capacidade_maxima) && (item.quantidade_tambores || 0) > 0
-
-  const camposItem = temReserva
-    ? {
-        quantidade_atual: item.capacidade_maxima!,
-        numero_tambor_atual: (item.numero_tambor_atual || 1) + 1,
-        quantidade_tambores: Math.max(0, (item.quantidade_tambores || 0) - 1),
-      }
-    : { quantidade_atual: restante }
+  const camposItem = consumirDosTambores(item, baixa.quantidade)
 
   const baixaPayload = {
     item_id: REGEX_UUID.test(item.id) ? item.id : null,
@@ -567,7 +565,10 @@ export async function atualizarBaixaConsumo(
   let itemAtualizado: ItemConsumo | null = item
 
   if (item && deltaQuantidade !== 0) {
-    const camposItem = { quantidade_atual: arredondar3(item.quantidade_atual - deltaQuantidade) }
+    const camposItem =
+      deltaQuantidade > 0
+        ? consumirDosTambores(item, deltaQuantidade)
+        : { quantidade_atual: arredondar3(item.quantidade_atual - deltaQuantidade) }
     itemAtualizado = { ...item, ...camposItem }
     try {
       if (REGEX_UUID.test(item.id)) {

@@ -43,6 +43,7 @@ import { isEstoqueAuthorized } from '@/components/layout/nav'
 import { EQUIPE_GVEL, obterNomeCompletoMembro } from '@/constants/equipe'
 import { useEquipeConhecida } from '@/hooks/useEquipeConhecida'
 import { percentualBarril } from '@/lib/barril'
+import { estoqueDisponivel } from '@/lib/tambores'
 import { BarrilOleoSVG } from '@/components/BarrilOleoSVG'
 import { CilindroGasSVG } from '@/components/CilindroGasSVG'
 import { isAdminUsuario } from '@/lib/permissoes'
@@ -3105,7 +3106,7 @@ export function InventarioFerramentas() {
       {modalBaixaConsumoAberto && (
         <ModalBaixaConsumo
           itemPreSelecionado={itemConsumoParaBaixa}
-          itensDisponiveis={itensConsumo.filter((it) => it.quantidade_atual > 0)}
+          itensDisponiveis={itensConsumo.filter((it) => estoqueDisponivel(it) > 0)}
           veiculos={veiculosLista}
           retiradas={retiradas}
           onClose={() => setModalBaixaConsumoAberto(false)}
@@ -7460,7 +7461,7 @@ function ModalBaixaConsumo({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const itemAtual = itensDisponiveis.find((it) => it.id === itemId) ?? itemPreSelecionado
-  const maxQtd = itemAtual?.quantidade_atual || 1
+  const maxQtd = (itemAtual && estoqueDisponivel(itemAtual)) || 1
   const subunidade = itemAtual ? SUBUNIDADE_CONSUMO[itemAtual.unidade] : undefined
   const unidadeExibida = usarSubunidade && subunidade ? subunidade.sigla : itemAtual?.unidade
   const maxQtdNaUnidade = usarSubunidade && subunidade ? maxQtd * subunidade.fator : maxQtd
@@ -7549,7 +7550,7 @@ function ModalBaixaConsumo({
       setErro('Informe o responsável.')
       return
     }
-    if (quantidadeNaUnidadeBase <= 0 || quantidadeNaUnidadeBase > itemAtual.quantidade_atual) {
+    if (quantidadeNaUnidadeBase <= 0 || quantidadeNaUnidadeBase > estoqueDisponivel(itemAtual)) {
       setErro(`Quantidade inválida (máx: ${maxQtdNaUnidade} ${unidadeExibida}).`)
       return
     }
@@ -7632,7 +7633,7 @@ function ModalBaixaConsumo({
             >
               {itensDisponiveis.map((it) => (
                 <option key={it.id} value={it.id}>
-                  {it.nome} ({it.quantidade_atual} {it.unidade} disp.)
+                  {it.nome} ({estoqueDisponivel(it)} {it.unidade} disp.)
                 </option>
               ))}
             </select>
@@ -7646,7 +7647,7 @@ function ModalBaixaConsumo({
                   Quantidade a Consumir
                 </span>
                 <span className="text-[10px] text-secondary">
-                  Disp: {itemAtual.quantidade_atual} {itemAtual.unidade}
+                  Disp: {estoqueDisponivel(itemAtual)} {itemAtual.unidade}
                 </span>
               </div>
               {subunidade && (
