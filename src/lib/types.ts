@@ -319,6 +319,12 @@ export interface FotosVistoria {
   ladoDireito?: string       // Foto do Lado Direito
 }
 
+/** Foto adicional livre do checklist da frota pesada (dataURL no formulário, URL depois de salvo). */
+export interface FotoExtraChecklist {
+  url: string
+  label?: string
+}
+
 export interface StatusPreventivaChecklist {
   status: 'em_dia' | 'proxima' | 'vencida' | 'sem_dados'
   kmUltima?: number
@@ -341,6 +347,7 @@ export interface RegistroChecklist {
   statusPreventiva?: StatusPreventivaChecklist
   itens: ItemChecagem[]
   fotos?: FotosVistoria
+  fotosExtras?: FotoExtraChecklist[]
   observacoesGerais?: string
   dataHora: string
   /** Só usado por placas que exigem checklist de ida E de volta (ex: veículos emprestados/rotativos). */

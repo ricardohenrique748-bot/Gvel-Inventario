@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import { dataUrlParaBlob } from '@/lib/imagem'
 import { comPrefixoEmpresa } from '@/lib/tenant'
-import type { RegistroChecklist, ItemChecagem, FotosVistoria, StatusPreventivaChecklist } from '@/lib/types'
+import type {
+  RegistroChecklist,
+  ItemChecagem,
+  FotosVistoria,
+  FotoExtraChecklist,
+  StatusPreventivaChecklist,
+} from '@/lib/types'
 
 // Checklist da Frota Leve (vistoria de veículo). Antes ficava só no
 // localStorage do navegador, incluindo as fotos em base64 — sem backup e
@@ -57,6 +63,7 @@ function mapRowParaRegistro(row: any): RegistroChecklist {
       observacao: it.observacao || undefined,
     })) as ItemChecagem[],
     fotos,
+    fotosExtras: Array.isArray(row.fotos_extras) && row.fotos_extras.length > 0 ? row.fotos_extras : undefined,
     observacoesGerais: row.observacoes_gerais || undefined,
     dataHora: row.data_hora,
     tipoChecklist: row.tipo_checklist || undefined,
@@ -90,6 +97,8 @@ export interface CriarChecklistFrotaInput {
   itens: ItemChecagem[]
   /** Fotos como dataURL base64 (é o que o formulário de checklist já produz). */
   fotos?: FotosVistoria
+  /** Fotos adicionais livres (frota pesada), também em dataURL base64. */
+  fotosExtras?: FotoExtraChecklist[]
   observacoesGerais?: string
   /** Só usado por placas que exigem checklist de ida E de volta. */
   tipoChecklist?: 'ida' | 'volta'
@@ -103,28 +112,40 @@ export async function criarChecklistFrota(
 
   // Sobe todas as fotos em paralelo. Cada foto é evidência opcional do
   // item — se uma falhar (ex: conexão fraca), não trava o registro inteiro.
+  async function enviarFoto(nome: string, base64: string): Promise<string | null> {
+    try {
+      const blob = dataUrlParaBlob(base64)
+      const path = comPrefixoEmpresa(`checklist-frota/${checklistId}/${nome}.jpg`)
+      const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, blob, {
+        contentType: blob.type || 'image/jpeg',
+        upsert: true,
+      })
+      if (!error) return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+      console.warn(`Falha ao enviar foto "${nome}" do checklist:`, error)
+    } catch (err) {
+      console.warn(`Falha ao enviar foto "${nome}" do checklist:`, err)
+    }
+    return null
+  }
+
   const fotoUrls: Partial<Record<keyof FotosVistoria, string>> = {}
-  await Promise.all(
-    CAMPOS_FOTO.map(async (campo) => {
-      const base64 = input.fotos?.[campo]
-      if (!base64) return
-      try {
-        const blob = dataUrlParaBlob(base64)
-        const path = comPrefixoEmpresa(`checklist-frota/${checklistId}/${campo}.jpg`)
-        const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, blob, {
-          contentType: blob.type || 'image/jpeg',
-          upsert: true,
-        })
-        if (!error) {
-          fotoUrls[campo] = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
-        } else {
-          console.warn(`Falha ao enviar foto "${campo}" do checklist:`, error)
-        }
-      } catch (err) {
-        console.warn(`Falha ao enviar foto "${campo}" do checklist:`, err)
-      }
-    }),
-  )
+  const [, extrasEnviadas] = await Promise.all([
+    Promise.all(
+      CAMPOS_FOTO.map(async (campo) => {
+        const base64 = input.fotos?.[campo]
+        if (!base64) return
+        const url = await enviarFoto(campo, base64)
+        if (url) fotoUrls[campo] = url
+      }),
+    ),
+    Promise.all(
+      (input.fotosExtras ?? []).map(async (extra, i) => {
+        const url = await enviarFoto(`extra-${i + 1}`, extra.url)
+        return url ? { url, ...(extra.label ? { label: extra.label } : {}) } : null
+      }),
+    ),
+  ])
+  const fotosExtras = extrasEnviadas.filter((f): f is FotoExtraChecklist => f !== null)
 
   const payload = {
     id: checklistId,
@@ -149,6 +170,9 @@ export async function criarChecklistFrota(
     foto_lado_esquerdo_url: fotoUrls.ladoEsquerdo || null,
     foto_traseira_url: fotoUrls.traseira || null,
     foto_lado_direito_url: fotoUrls.ladoDireito || null,
+    // Coluna da migration 0089 — só enviada quando há extras, pra frota leve
+    // seguir funcionando mesmo antes da migration rodar.
+    ...(fotosExtras.length > 0 ? { fotos_extras: fotosExtras } : {}),
     data_hora: dataHora,
   }
 
@@ -186,6 +210,7 @@ export async function criarChecklistFrota(
     statusPreventiva: input.statusPreventiva,
     itens: input.itens,
     fotos: { ...input.fotos, ...fotoUrls },
+    fotosExtras: fotosExtras.length > 0 ? fotosExtras : undefined,
     observacoesGerais: input.observacoesGerais,
     dataHora,
     tipoChecklist: input.tipoChecklist,

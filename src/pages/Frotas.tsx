@@ -104,6 +104,7 @@ import { STORAGE_FROTAS_KEY } from '@/lib/frotasStorage'
 import { useVeiculosFrotaOverrides, upsertVeiculoFrota, excluirVeiculoFrotaOverride } from '@/hooks/useVeiculosFrota'
 import type {
   FotosVistoria,
+  FotoExtraChecklist,
   StatusPreventivaChecklist,
   RegistroChecklist,
   RegistroViagem,
@@ -1020,6 +1021,8 @@ export function Frotas() {
   const [resultadoChecklist, setResultadoChecklist] = useState<'aprovado' | 'aprovado_com_ressalvas' | 'reprovado'>('aprovado')
   const [obsChecklist, setObsChecklist] = useState('')
   const [fotosChecklist, setFotosChecklist] = useState<FotosVistoria>({})
+  // Fotos adicionais livres — só na frota pesada.
+  const [fotosExtrasChecklist, setFotosExtrasChecklist] = useState<FotoExtraChecklist[]>([])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -1037,6 +1040,7 @@ export function Frotas() {
   const inputFotoLadoEsquerdoRef = useRef<HTMLInputElement>(null)
   const inputFotoTraseiraRef = useRef<HTMLInputElement>(null)
   const inputFotoLadoDireitoRef = useRef<HTMLInputElement>(null)
+  const inputFotoExtraRef = useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -2060,6 +2064,7 @@ export function Frotas() {
     setResultadoChecklist('aprovado')
     setObsChecklist('')
     setFotosChecklist({})
+    setFotosExtrasChecklist([])
     setTipoChecklistNovo('ida')
     setMostrarModalNovoChecklist(true)
   }
@@ -2077,6 +2082,7 @@ export function Frotas() {
     setResultadoChecklist('aprovado')
     setObsChecklist('')
     setFotosChecklist({})
+    setFotosExtrasChecklist([])
     setMostrarModalNovoChecklist(true)
   }
 
@@ -2105,6 +2111,19 @@ export function Frotas() {
     try {
       const base64 = await comprimirFoto(file)
       setFotosChecklist((prev) => ({ ...prev, [tipo]: base64 }))
+    } catch (err) {
+      console.error('Erro ao processar imagem:', err)
+      alert('Erro ao carregar a foto.')
+    }
+  }
+
+  async function handleAdicionarFotoExtra(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (files.length === 0) return
+    try {
+      const novas = await Promise.all(files.map((f) => comprimirFoto(f)))
+      setFotosExtrasChecklist((prev) => [...prev, ...novas.map((url) => ({ url }))])
     } catch (err) {
       console.error('Erro ao processar imagem:', err)
       alert('Erro ao carregar a foto.')
@@ -2146,6 +2165,9 @@ export function Frotas() {
         statusPreventiva: comparacaoPreventivaChecklist,
         itens: [],
         fotos: fotosChecklist,
+        fotosExtras: checklistFrotaPesada
+          ? fotosExtrasChecklist.map((f) => ({ url: f.url, label: f.label?.trim().toUpperCase() || undefined }))
+          : undefined,
         observacoesGerais: obsChecklist.trim() || undefined,
         tipoChecklist: veiculo && precisaChecklistIdaVolta(veiculo.placa) ? tipoChecklistNovo : undefined,
       })
@@ -2171,6 +2193,8 @@ export function Frotas() {
       alert(err instanceof Error ? `Não foi possível excluir: ${err.message}` : 'Não foi possível excluir o checklist.')
     }
   }
+
+  const checklistFrotaPesada = !!veiculoChecklistSelecionado && !isFrotaLeve(veiculoChecklistSelecionado)
 
   const totalFotosTiradas = [
     fotosChecklist.painel,
@@ -5853,6 +5877,62 @@ export function Frotas() {
                     </div>
                   </div>
                 </div>
+
+                {/* Fotos adicionais livres — só frota pesada */}
+                {checklistFrotaPesada && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-black text-secondary uppercase tracking-wider">
+                        FOTOS ADICIONAIS {fotosExtrasChecklist.length > 0 && `(${fotosExtrasChecklist.length})`}
+                      </span>
+                      <span className="text-[10px] text-secondary/70 normal-case">Avarias, pneus, detalhes…</span>
+                    </div>
+                    <input
+                      ref={inputFotoExtraRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleAdicionarFotoExtra}
+                    />
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                      {fotosExtrasChecklist.map((foto, i) => (
+                        <div key={i} className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-2.5 flex flex-col gap-1.5">
+                          <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30">
+                            <img src={foto.url} alt={`Foto adicional ${i + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setFotosExtrasChecklist((prev) => prev.filter((_, idx) => idx !== i))}
+                              className="absolute top-1 right-1 p-1 rounded bg-red-600 text-white"
+                              aria-label="Remover foto"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={foto.label ?? ''}
+                            onChange={(e) =>
+                              setFotosExtrasChecklist((prev) =>
+                                prev.map((f, idx) => (idx === i ? { ...f, label: e.target.value } : f)),
+                              )
+                            }
+                            placeholder="Descrição"
+                            className="w-full rounded-md border border-border/30 bg-background px-1.5 py-1 text-[10px] uppercase text-foreground placeholder:text-secondary/50 focus:border-primary/60 focus:outline-none"
+                          />
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => inputFotoExtraRef.current?.click()}
+                        className="rounded-xl border-2 border-dashed border-border/40 hover:border-primary/60 min-h-[8.5rem] flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span className="text-[9px] font-bold">ADICIONAR FOTO</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* SEÇÃO 3: OBSERVAÇÕES */}
@@ -6312,6 +6392,20 @@ export function Frotas() {
                         SEM LADO DIREITO
                       </div>
                     )}
+
+                    {/* Fotos adicionais (frota pesada) */}
+                    {checklistVisualizando.fotosExtras?.map((foto, i) => (
+                      <div
+                        key={foto.url}
+                        onClick={() => setFotoZoom({ url: foto.url, titulo: foto.label || `FOTO ADICIONAL ${i + 1}` })}
+                        className="relative h-24 rounded-xl border border-border/20 overflow-hidden cursor-pointer group bg-black"
+                      >
+                        <img src={foto.url} alt={foto.label || `Foto adicional ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <span className="absolute bottom-1 left-1 right-1 truncate px-1 text-center bg-black/70 rounded text-[8px] font-bold text-white py-0.5">
+                          {foto.label || `ADICIONAL ${i + 1}`}
+                        </span>
+                      </div>
+                    ))}
 
                   </div>
                 </div>
