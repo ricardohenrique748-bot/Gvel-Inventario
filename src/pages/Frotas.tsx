@@ -183,6 +183,7 @@ import {
 } from '@/hooks/usePatio'
 import { ManutencaoViagens } from '@/pages/frotas/ManutencaoViagens'
 import { ConciliacaoViagens } from '@/pages/frotas/ConciliacaoViagens'
+import { ConsumoCombustivel } from '@/pages/frotas/ConsumoCombustivel'
 import { formatarNomeSobrenome } from '@/constants/equipe'
 
 export function isFrotaEmbarcado(v: { placa?: string; tipo?: string }): boolean {
@@ -715,12 +716,14 @@ export function Frotas() {
   const abaParam = searchParams.get('aba')
   const categoriaParam = searchParams.get('categoria')
 
-  const abaPrincipal: 'dashboard' | 'veiculos' | 'checklist' | 'viagens' = isNative
+  const abaPrincipal: 'dashboard' | 'veiculos' | 'checklist' | 'viagens' | 'consumo' = isNative
     ? 'checklist'
     : abaParam === 'checklist'
     ? 'checklist'
     : abaParam === 'viagens'
     ? 'viagens'
+    : abaParam === 'consumo'
+    ? 'consumo'
     : abaParam === 'veiculos' || categoriaParam === 'leve' || categoriaParam === 'pesado' || categoriaParam === 'embarcado'
     ? 'veiculos'
     : 'dashboard'
@@ -737,6 +740,15 @@ export function Frotas() {
       localStorage.setItem(STORAGE_FROTAS_KEY, JSON.stringify(frotas))
     } catch {}
   }, [frotas])
+
+  // Caminhões com motor que entram no controle de consumo (carreta não abastece).
+  const veiculosConsumo = useMemo(
+    () =>
+      frotas
+        .filter((v) => !isFrotaLeve(v) && !isFrotaEmbarcado(v) && v.tipo !== 'carreta')
+        .map((v) => ({ id: v.id, placa: v.placa, nome: [v.marcaNome, v.modeloNome].filter(Boolean).join(' ') || v.tipoVeiculo || tipoVeiculoLabel(v.tipo as 'pesado') })),
+    [frotas],
+  )
 
   // Lista de Checklists realizados (Supabase — com migração automática dos
   // registros antigos que ficavam só no localStorage)
@@ -2215,6 +2227,8 @@ export function Frotas() {
             ? 'CHECKLIST DA FROTA'
             : abaPrincipal === 'viagens'
             ? 'CONTROLE DE VIAGENS'
+            : abaPrincipal === 'consumo'
+            ? 'CONSUMO DE COMBUSTÍVEL'
             : 'VEÍCULOS DA FROTA'
         }
         subtitle={
@@ -2224,6 +2238,8 @@ export function Frotas() {
             ? 'INSPEÇÕES VEICULARES, VISTORIAS OPERACIONAIS E LAUDOS DE CONFORMIDADE'
             : abaPrincipal === 'viagens'
             ? 'ORIGEM, DESTINO, MOTORISTA E KM RODADO DE CADA VIAGEM DA FROTA'
+            : abaPrincipal === 'consumo'
+            ? 'ABASTECIMENTOS, MÉDIA KM/L (TANQUE CHEIO → TANQUE CHEIO), ALERTAS E MOVETRUCK'
             : 'CONTROLE DE CAMINHÕES, PREVENTIVAS E VENCIMENTO DE DOCUMENTOS (CRLV)'
         }
         actions={
@@ -2299,7 +2315,7 @@ export function Frotas() {
       )}
 
       {/* ALERTA PISCANTE: checklists de IDA pendentes de VOLTA (placas de ida/volta) — não faz sentido dentro do Controle de Viagens, que é outro contexto */}
-      {abaPrincipal !== 'viagens' && checklistsIdaVoltaPendentes.length > 0 && (
+      {abaPrincipal !== 'viagens' && abaPrincipal !== 'consumo' && checklistsIdaVoltaPendentes.length > 0 && (
         <div className="animate-blink-alert rounded-2xl border-2 border-red-500/50 bg-red-500/15 p-4 flex flex-wrap items-center gap-3 shadow-lg shadow-red-500/10">
           <AlertOctagon className="h-5 w-5 text-red-400 shrink-0" />
           <div className="flex-1 min-w-0">
@@ -2327,7 +2343,7 @@ export function Frotas() {
       )}
 
       {/* SELETOR DE CATEGORIA DA FROTA: FROTA LEVE vs FROTA PESADA vs VISÃO CONSOLIDADA */}
-      {abaPrincipal !== 'checklist' && abaPrincipal !== 'viagens' && (
+      {abaPrincipal !== 'checklist' && abaPrincipal !== 'viagens' && abaPrincipal !== 'consumo' && (
       <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-surface/90 border border-border/30 rounded-2xl backdrop-blur-md shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -2435,6 +2451,15 @@ export function Frotas() {
       {/* ========================================================================= */}
       {/* ABA 0: DASHBOARD GERENCIAL DA FROTA (COM OS 3 GRÁFICOS SOLICITADOS) */}
       {/* ========================================================================= */}
+      {abaPrincipal === 'consumo' && (
+        <ConsumoCombustivel
+          veiculos={veiculosConsumo}
+          motoristas={pessoas.map((pe) => pe.nome)}
+          isAdmin={isAdmin}
+          usuarioNome={perfil?.nome || user?.email || ''}
+        />
+      )}
+
       {abaPrincipal === 'dashboard' && (
         <div className="space-y-6">
           {/* Indicadores Principais em Cards */}

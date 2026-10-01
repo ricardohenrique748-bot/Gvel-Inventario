@@ -26,5 +26,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Testes rodam no Node (`npm test`), fora do build do app.
+  "exclude": ["src/**/*.test.ts"]
 }

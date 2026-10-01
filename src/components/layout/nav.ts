@@ -17,6 +17,7 @@ import {
   Briefcase,
   UserCheck,
   Route,
+  Fuel,
 } from 'lucide-react'
 
 export const navItems = [
@@ -48,6 +49,7 @@ export const navItems = [
       { to: '/frotas?categoria=pesado', label: 'Rodocaçamba', icon: Truck },
       { to: '/frotas?aba=checklist', label: 'Checklist', icon: ClipboardCheck },
       { to: '/frotas?aba=viagens', label: 'Controle de Viagens', icon: Route },
+      { to: '/frotas?aba=consumo', label: 'Consumo', icon: Fuel },
     ],
   },
   {

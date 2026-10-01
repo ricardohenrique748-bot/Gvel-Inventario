@@ -237,6 +237,7 @@ export function Sidebar() {
             if (c.to === '/frotas?aba=veiculos') return isModuloAuthorized(userRef, 'frotas_veiculos')
             if (c.to === '/frotas?aba=checklist') return isModuloAuthorized(userRef, 'frotas_checklist')
             if (c.to === '/frotas?aba=viagens') return isModuloAuthorized(userRef, 'frotas_viagens')
+            if (c.to === '/frotas?aba=consumo') return isModuloAuthorized(userRef, 'frotas_consumo')
             if (c.to === '/inventario-ferramentas') return isModuloAuthorized(userRef, 'estoque_ferramentas')
             if (c.to === '/inventario-ferramentas?aba=consumo') return isModuloAuthorized(userRef, 'estoque_consumo')
             if (c.to === '/inventario-ferramentas?aba=caixas') return isModuloAuthorized(userRef, 'estoque_caixas')

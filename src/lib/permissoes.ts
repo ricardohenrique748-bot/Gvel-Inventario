@@ -66,6 +66,7 @@ export const MODULOS_SISTEMA: ModuloSistema[] = [
       { id: 'frotas_veiculos', label: 'Veículos', descricao: 'Listagem e cadastro completo de veículos', rota: '/frotas?aba=veiculos' },
       { id: 'frotas_checklist', label: 'Checklist', descricao: 'Inspeções e conferência de itens', rota: '/frotas?aba=checklist' },
       { id: 'frotas_viagens', label: 'Controle de Viagens', descricao: 'Registro de viagens, KM rodado e motoristas', rota: '/frotas?aba=viagens' },
+      { id: 'frotas_consumo', label: 'Consumo de Combustível', descricao: 'Abastecimentos, média km/L, alertas e importação MoveTruck', rota: '/frotas?aba=consumo' },
     ],
   },
   {

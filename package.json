@@ -12,6 +12,7 @@
     "build:ios": "npm run build && npx cap sync ios",
     "apk:debug": "npm run build:apk && powershell -Command \"$env:JAVA_HOME='C:\\Users\\Ricardo\\.jdks\\jbr-21.0.11'; $env:ANDROID_HOME='C:\\Users\\Ricardo\\AppData\\Local\\Android\\Sdk'; cd android; .\\gradlew.bat assembleDebug\"",
     "lint": "oxlint",
+    "test": "node --test \"src/**/*.test.ts\"",
     "preview": "vite preview"
   },
   "dependencies": {
