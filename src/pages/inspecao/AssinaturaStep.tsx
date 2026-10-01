@@ -114,7 +114,7 @@ function EnvioParaAprovacao({ state, onPatch, onNext, onBack }: Props) {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <p className="text-xs uppercase text-secondary">Encarregado</p>
-            <p className="font-medium text-foreground">{state.inspetor || '—'}</p>
+            <p className="font-medium text-foreground">{state.encarregado || state.inspetor || '—'}</p>
           </div>
           <div>
             <p className="text-xs uppercase text-secondary">Data / hora</p>

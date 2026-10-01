@@ -16,30 +16,35 @@ import type { InspecaoWizardState } from './types'
 
 const NOVO_VEICULO = '__novo__'
 
-const schema = z
-  .object({
-    clienteId: z.string().min(1, 'Selecione o cliente'),
-    veiculoId: z.string().min(1, 'Selecione a placa'),
-    tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
-    placa: z.string().optional(),
-    marcaId: z.string().optional(),
-    modeloId: z.string().optional(),
-    motorista: z.string().optional(),
-    km: z.string().optional(),
-    numeroOS: z.string().optional(),
-    horimetro: z.string().optional(),
-    inspetor: z.string().trim().min(1, 'Informe o nome do responsável'),
-  })
-  .superRefine((values, ctx) => {
-    if (values.veiculoId !== NOVO_VEICULO) return
-    if (!values.placa || values.placa.trim().length < 7) {
-      ctx.addIssue({ code: 'custom', path: ['placa'], message: 'Placa inválida' })
-    }
-    if (!values.marcaId) ctx.addIssue({ code: 'custom', path: ['marcaId'], message: 'Selecione a marca' })
-    if (!values.modeloId) ctx.addIssue({ code: 'custom', path: ['modeloId'], message: 'Selecione o modelo' })
-  })
+const criarSchema = (liberacao: boolean) =>
+  z
+    .object({
+      clienteId: z.string().min(1, 'Selecione o cliente'),
+      veiculoId: z.string().min(1, 'Selecione a placa'),
+      tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
+      placa: z.string().optional(),
+      marcaId: z.string().optional(),
+      modeloId: z.string().optional(),
+      motorista: z.string().optional(),
+      km: z.string().optional(),
+      numeroOS: z.string().optional(),
+      horimetro: z.string().optional(),
+      inspetor: z.string().trim().min(1, 'Informe o nome do responsável'),
+      encarregado: z.string().optional(),
+    })
+    .superRefine((values, ctx) => {
+      if (liberacao && !values.encarregado?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['encarregado'], message: 'Informe o nome do encarregado' })
+      }
+      if (values.veiculoId !== NOVO_VEICULO) return
+      if (!values.placa || values.placa.trim().length < 7) {
+        ctx.addIssue({ code: 'custom', path: ['placa'], message: 'Placa inválida' })
+      }
+      if (!values.marcaId) ctx.addIssue({ code: 'custom', path: ['marcaId'], message: 'Selecione a marca' })
+      if (!values.modeloId) ctx.addIssue({ code: 'custom', path: ['modeloId'], message: 'Selecione o modelo' })
+    })
 
-type FormValues = z.infer<typeof schema>
+type FormValues = z.infer<ReturnType<typeof criarSchema>>
 
 interface Props {
   state: InspecaoWizardState
@@ -50,6 +55,7 @@ interface Props {
 export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
   const { clientes, refetch: refetchClientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
+  const liberacao = state.modelo === 'liberacao'
 
   const {
     register,
@@ -59,7 +65,7 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
     setValue,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(criarSchema(liberacao)),
     defaultValues: {
       tipo: state.tipo,
       placa: state.placa,
@@ -72,10 +78,9 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
       numeroOS: state.numeroOS,
       horimetro: state.horimetro != null ? String(state.horimetro) : undefined,
       inspetor: state.inspetor,
+      encarregado: state.encarregado,
     },
   })
-
-  const liberacao = state.modelo === 'liberacao'
 
   const clienteId = watch('clienteId')
   const veiculoId = watch('veiculoId')
@@ -115,6 +120,7 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
       numeroOS: liberacao ? values.numeroOS?.trim() || undefined : undefined,
       horimetro: liberacao && values.horimetro ? Number(values.horimetro) : undefined,
       inspetor: values.inspetor,
+      encarregado: liberacao ? values.encarregado?.trim() : undefined,
       dataHora: new Date().toISOString(),
     })
     onNext()
@@ -265,6 +271,14 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
             />
             <FieldError message={errors.inspetor?.message} />
           </div>
+
+          {liberacao && (
+            <div>
+              <Label htmlFor="encarregado">Encarregado</Label>
+              <Input id="encarregado" placeholder="Nome do encarregado" {...register('encarregado')} />
+              <FieldError message={errors.encarregado?.message} />
+            </div>
+          )}
 
           <p className="text-xs text-secondary">
             Data/hora da {liberacao ? 'liberação' : 'inspeção'}: {formatDateTime(new Date().toISOString())}

@@ -50,7 +50,7 @@ export function LiberacoesFinalizadas() {
       if (filtro === 'aguardando' && l.status_liberacao) return false
       if (filtro !== 'todos' && filtro !== 'aguardando' && l.status_liberacao !== filtro) return false
       if (!q) return true
-      return [l.veiculo?.placa, l.numero_os, l.veiculo?.cliente?.nome, l.inspetor, l.responsavel_nome].some((v) =>
+      return [l.veiculo?.placa, l.numero_os, l.veiculo?.cliente?.nome, l.inspetor, l.encarregado_nome, l.responsavel_nome].some((v) =>
         (v ?? '').toUpperCase().includes(q),
       )
     })
@@ -469,7 +469,8 @@ function LiberacaoDetalhe({ liberacao: l }: { liberacao: LiberacaoComVeiculo }) 
       <dl className="grid grid-cols-2 gap-2">
         <Info label="KM" value={l.km != null ? l.km.toLocaleString('pt-BR') : '—'} />
         <Info label="Horímetro" value={l.horimetro != null ? l.horimetro.toLocaleString('pt-BR') : '—'} />
-        <Info label="Encarregado" value={l.inspetor || '—'} />
+        <Info label="Resp. manutenção" value={l.inspetor || '—'} />
+        <Info label="Encarregado" value={l.encarregado_nome || l.inspetor || '—'} />
         <Info
           label="Resp. liberação"
           value={l.responsavel_nome ? `${l.responsavel_nome}${l.responsavel_cargo ? ` (${l.responsavel_cargo})` : ''}` : 'Aguardando'}
@@ -552,7 +553,7 @@ function LiberacaoDetalhe({ liberacao: l }: { liberacao: LiberacaoComVeiculo }) 
             <Assinatura
               titulo="Encarregado"
               url={l.assinatura_encarregado_url}
-              nome={l.inspetor}
+              nome={l.encarregado_nome || l.inspetor}
               quando={l.data_hora}
             />
           )}

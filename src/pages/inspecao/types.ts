@@ -41,6 +41,8 @@ export interface InspecaoWizardState {
   responsavelNome?: string
   responsavelCargo?: string
   // Só no modelo 'liberacao'
+  /** Encarregado que assina o envio (pessoa diferente do responsável pela manutenção). */
+  encarregado?: string
   numeroOS?: string
   horimetro?: number
   statusLiberacao?: StatusLiberacao

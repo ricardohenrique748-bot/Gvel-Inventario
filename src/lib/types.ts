@@ -169,8 +169,10 @@ export interface Inspecao {
   observacoes: string | null
   aprovado_por: string | null
   aprovado_em: string | null
-  /** Assinatura do encarregado (resp. manutenção) ao enviar a liberação. */
+  /** Assinatura do encarregado ao enviar a liberação. */
   assinatura_encarregado_url: string | null
+  /** Nulo em liberações anteriores à migration 0088 (aí o encarregado era o `inspetor`). */
+  encarregado_nome: string | null
   created_at: string
 }
 

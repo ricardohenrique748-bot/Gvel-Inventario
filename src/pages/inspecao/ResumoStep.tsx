@@ -135,6 +135,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
           <SummaryRow label="KM" value={state.km ? String(state.km) : '—'} />
           {liberacao && <SummaryRow label="Horímetro" value={state.horimetro != null ? String(state.horimetro) : '—'} />}
           <SummaryRow label={liberacao ? 'Resp. manutenção' : 'Inspetor'} value={state.inspetor} />
+          {liberacao && <SummaryRow label="Encarregado" value={state.encarregado || '—'} />}
           <SummaryRow label="Data/hora" value={formatDateTime(state.dataHora)} />
           <SummaryRow
             label={liberacao ? 'Resp. liberação' : 'Responsável'}

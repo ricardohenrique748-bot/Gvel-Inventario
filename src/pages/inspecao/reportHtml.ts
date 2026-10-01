@@ -243,7 +243,7 @@ export function buildInspecaoReportHtml(params: BuildParams) {
               ? `<td style="width:50%;vertical-align:bottom;padding-left:24px;">
             ${state.assinaturaEncarregadoUrl ? `<img src="${state.assinaturaEncarregadoUrl}" style="height:60px;" />` : ''}
             <div style="border-top:1px solid #999;padding-top:4px;margin-top:4px;">
-              Encarregado: ${state.inspetor}<br />
+              Encarregado: ${state.encarregado ?? state.inspetor}<br />
               <span style="color:#777;">${formatDateTime(state.dataHora)}</span>
             </div>
           </td>`

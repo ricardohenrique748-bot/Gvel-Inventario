@@ -125,6 +125,7 @@ export async function salvarInspecao(state: InspecaoWizardState) {
           horimetro: state.horimetro ?? null,
           status_liberacao: state.statusLiberacao ?? null,
           observacoes: up(state.observacoes),
+          encarregado_nome: up(state.encarregado),
           ...(assinaturaEncarregadoUrl ? { assinatura_encarregado_url: assinaturaEncarregadoUrl } : {}),
         }
       : {}),

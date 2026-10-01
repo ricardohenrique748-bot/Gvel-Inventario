@@ -67,6 +67,7 @@ export async function montarHtmlLiberacaoSalva(l: LiberacaoComVeiculo): Promise<
     responsavelNome: l.responsavel_nome ?? undefined,
     responsavelCargo: l.responsavel_cargo ?? undefined,
     numeroOS: l.numero_os ?? undefined,
+    encarregado: l.encarregado_nome ?? l.inspetor,
     horimetro: l.horimetro ?? undefined,
     statusLiberacao: l.status_liberacao ?? undefined,
     observacoes: l.observacoes ?? undefined,
