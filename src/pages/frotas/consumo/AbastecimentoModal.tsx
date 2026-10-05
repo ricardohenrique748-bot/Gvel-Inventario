@@ -53,7 +53,7 @@ function lerArquivoComoDataUrl(file: File): Promise<string> {
   })
 }
 
-const COMBUSTIVEIS = ['DIESEL S10', 'DIESEL S500', 'ARLA 32']
+const COMBUSTIVEIS = ['DIESEL S10', 'DIESEL S500']
 
 interface Props {
   veiculos: VeiculoConsumo[]
@@ -175,7 +175,7 @@ export function AbastecimentoModal({ veiculos, abastecimentos, postos, motorista
       setValorLitro(numBR(d.valorLitro, 3))
       preenchidos.push('valor/litro')
     }
-    if (d.combustivel) {
+    if (d.combustivel && COMBUSTIVEIS.includes(d.combustivel)) {
       setCombustivel(d.combustivel)
       preenchidos.push('combustível')
     }
@@ -279,7 +279,7 @@ export function AbastecimentoModal({ veiculos, abastecimentos, postos, motorista
     if (!veiculo) return setErro('Selecione a placa.')
     if (!nLitros || nLitros <= 0) return setErro('Informe os litros abastecidos.')
     if (tanqueCheio === null) return setErro('Informe se completou o tanque.')
-    if (!isArlaSel() && nOdometro == null) return setErro('Informe o odômetro — sem ele não dá pra calcular o consumo.')
+    if (nOdometro == null) return setErro('Informe o odômetro — sem ele não dá pra calcular o consumo.')
     if (previa?.bloqueios.length) return setErro(previa.bloqueios.join(' '))
 
     const posto = postosAtivos.find((p) => p.id === postoId)
@@ -324,10 +324,6 @@ export function AbastecimentoModal({ veiculos, abastecimentos, postos, motorista
     } finally {
       setSalvando(false)
     }
-  }
-
-  function isArlaSel() {
-    return combustivel.includes('ARLA')
   }
 
   const kmDesdeAnterior = nOdometro != null && ultimo?.odometro != null ? nOdometro - ultimo.odometro : undefined
@@ -479,7 +475,7 @@ export function AbastecimentoModal({ veiculos, abastecimentos, postos, motorista
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="abOdo">Odômetro (km){!isArlaSel() && ' *'}</Label>
+                  <Label htmlFor="abOdo">Odômetro (km) *</Label>
                   <Input id="abOdo" inputMode="decimal" noUppercase placeholder="0" value={odometro} onChange={(e) => setOdometro(e.target.value)} />
                 </div>
                 <div>

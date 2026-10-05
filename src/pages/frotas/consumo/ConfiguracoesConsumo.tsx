@@ -49,7 +49,7 @@ function MetasVeiculos({ veiculos, metas, isAdmin }: { veiculos: VeiculoConsumo[
         <table className="w-full text-xs">
           <thead className="bg-background/60 text-[10px] uppercase text-secondary">
             <tr>
-              {['Placa', 'Tanque diesel (L)', 'Tanque ARLA (L)', 'Meta km/L', 'Meta carregado', 'Meta vazio', ''].map((h) => (
+              {['Placa', 'Tanque diesel (L)', 'Meta km/L', 'Meta carregado', 'Meta vazio', ''].map((h) => (
                 <th key={h} className="whitespace-nowrap px-3 py-2 text-left font-bold">
                   {h}
                 </th>
@@ -124,7 +124,6 @@ function LinhaMeta({ veiculo, meta, isAdmin }: { veiculo: VeiculoConsumo; meta?:
         <span className="block text-[10px] text-secondary">{veiculo.nome}</span>
       </td>
       {campo('capacidadeTanque')}
-      {campo('capacidadeTanqueArla')}
       {campo('metaKmL')}
       {campo('metaKmLCarregado')}
       {campo('metaKmLVazio')}

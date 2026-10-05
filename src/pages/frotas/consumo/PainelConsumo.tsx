@@ -63,7 +63,6 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
     (a) => a.status !== 'invalidado' && dentroDoPeriodo(a.dataHora, periodo) && (placaSel === FROTA || a.placa === placaSel),
   )
   const litrosDiesel = abastPeriodo.filter((a) => !isArla(a.combustivel)).reduce((s, a) => s + a.litros, 0)
-  const litrosArla = abastPeriodo.filter((a) => isArla(a.combustivel)).reduce((s, a) => s + a.litros, 0)
   const valorTotal = abastPeriodo.reduce((s, a) => s + a.valorTotal, 0)
   const comMeta = ciclosEscopo.filter((c) => c.semaforo)
   const pctFora = comMeta.length ? (comMeta.filter((c) => c.semaforo === 'vermelho').length / comMeta.length) * 100 : undefined
@@ -187,7 +186,7 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
           }
         />
         <StatCard icon={DollarSign} label="Custo/km" value={fmtMoeda(cons.custoKm)} hint={`${fmtNum(cons.km)} km nos ciclos`} />
-        <StatCard icon={Droplets} label="Diesel abastecido" value={`${fmtNum(litrosDiesel)} L`} hint={`ARLA 32: ${fmtNum(litrosArla)} L`} />
+        <StatCard icon={Droplets} label="Diesel abastecido" value={`${fmtNum(litrosDiesel)} L`} />
         <StatCard icon={Fuel} label="Valor total" value={fmtMoeda(valorTotal)} hint={`${abastPeriodo.length} abastecimento(s)`} />
         <StatCard
           icon={Target}

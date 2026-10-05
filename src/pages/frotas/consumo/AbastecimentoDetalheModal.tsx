@@ -270,10 +270,10 @@ export function AbastecimentoDetalheModal({ abastecimento: a, alertas, config, i
                 <div>
                   <Label htmlFor="edComb">Combustível</Label>
                   <Select id="edComb" value={form.combustivel} onChange={(e) => setForm({ ...form, combustivel: e.target.value })}>
-                    {['DIESEL S10', 'DIESEL S500', 'ARLA 32'].map((c) => (
+                    {['DIESEL S10', 'DIESEL S500'].map((c) => (
                       <option key={c}>{c}</option>
                     ))}
-                    {!['DIESEL S10', 'DIESEL S500', 'ARLA 32'].includes(form.combustivel) && <option>{form.combustivel}</option>}
+                    {!['DIESEL S10', 'DIESEL S500'].includes(form.combustivel) && <option>{form.combustivel}</option>}
                   </Select>
                 </div>
                 <div>

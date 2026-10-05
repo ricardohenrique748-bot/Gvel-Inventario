@@ -78,13 +78,7 @@ export function extrairDadosComprovante(texto: string): DadosComprovante {
   const litros = litrosMatch ? numeroBR(litrosMatch[1]) : undefined
   const unitMatch = t.match(/(?:v(?:a)?l(?:or)?\.?\s*unit(?:[áa]rio)?\.?|pre[çc]o\s*\/?\s*l(?:itro)?)\s*:?\s*(?:R\$\s*)?([\d.]+,\d{2,3})/i)
   const valorLitro = unitMatch ? numeroBR(unitMatch[1]) : undefined
-  const combustivel = /arla/i.test(t)
-    ? 'ARLA 32'
-    : /s-?500/i.test(t)
-      ? 'DIESEL S500'
-      : /s-?10\b/i.test(t)
-        ? 'DIESEL S10'
-        : undefined
+  const combustivel = /s-?500/i.test(t) ? 'DIESEL S500' : /s-?10\b/i.test(t) ? 'DIESEL S10' : undefined
 
   const identificador =
     t.match(/ID\s+da\s+transa[çc][ãa]o\s*:\s*(\S+)/i)?.[1] ?? t.match(/chave\s+de\s+acesso\s*:?\s*([\d ]{44,60})/i)?.[1]?.replace(/\s/g, '')

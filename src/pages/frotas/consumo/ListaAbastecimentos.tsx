@@ -23,7 +23,6 @@ export function ListaAbastecimentos({ abastecimentos, veiculos, postos, periodo,
   const [placa, setPlaca] = useState('')
   const [motorista, setMotorista] = useState('')
   const [posto, setPosto] = useState('')
-  const [combustivel, setCombustivel] = useState('')
   const [tanque, setTanque] = useState('')
   const [status, setStatus] = useState('')
   const [origem, setOrigem] = useState('')
@@ -55,13 +54,13 @@ export function ListaAbastecimentos({ abastecimentos, veiculos, postos, periodo,
           (!placa || a.placa === placa) &&
           (!m || (a.motoristaNome ?? '').toUpperCase().includes(m)) &&
           (!posto || a.postoId === posto || a.postoNome === posto) &&
-          (!combustivel || (combustivel === 'ARLA' ? isArla(a.combustivel) : !isArla(a.combustivel))) &&
+          !isArla(a.combustivel) &&
           (!tanque || String(a.tanqueCheio) === tanque) &&
           (!status || a.status === status) &&
           (!origem || a.origem === origem),
       )
       .sort((a, b) => b.dataHora.localeCompare(a.dataHora))
-  }, [abastecimentos, periodo, placa, motorista, posto, combustivel, tanque, status, origem])
+  }, [abastecimentos, periodo, placa, motorista, posto, tanque, status, origem])
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
   const paginaAtual = Math.min(pagina, totalPaginas - 1)
@@ -115,11 +114,6 @@ export function ListaAbastecimentos({ abastecimentos, veiculos, postos, periodo,
               {p.nome}
             </option>
           ))}
-        </Select>
-        <Select className={sel} value={combustivel} onChange={(e) => filtro(setCombustivel)(e.target.value)}>
-          <option value="">Diesel + ARLA</option>
-          <option value="DIESEL">Só diesel</option>
-          <option value="ARLA">Só ARLA 32</option>
         </Select>
         <Select className={sel} value={tanque} onChange={(e) => filtro(setTanque)(e.target.value)}>
           <option value="">Tanque cheio e parcial</option>
