@@ -14,6 +14,7 @@ import {
   Truck,
   ExternalLink,
   SlidersHorizontal,
+  DollarSign,
 } from 'lucide-react'
 import { useNotificacoes, type NotificacaoItem } from '@/contexts/NotificacoesContext'
 import { formatDistanceToNow } from 'date-fns'
@@ -63,6 +64,9 @@ export function NotificacoesDropdown() {
   function renderIcon(tipo: string, prioridade?: string) {
     if (tipo === 'frota_preventiva' || tipo === 'frota_doc_vencido') {
       return <Truck className="h-4 w-4 text-red-400" />
+    }
+    if (tipo === 'financeiro_vencido') {
+      return <DollarSign className="h-4 w-4 text-red-400" />
     }
     if (tipo === 'frota_doc_avencer') {
       return <Truck className="h-4 w-4 text-amber-400" />

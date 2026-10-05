@@ -4,10 +4,13 @@ import { supabase } from '@/lib/supabase'
 import { notificationSound } from '@/lib/notificationSound'
 import { dispararPushLocal, solicitarPermissaoNotificacoes, inicializarPushRemoto } from '@/lib/pushNotifications'
 import { useAuth } from '@/contexts/AuthContext'
+import { isModuloAuthorized } from '@/components/layout/nav'
+import { temAcessoModuloEmpresa } from '@/lib/permissoes'
+import { isLancamentoVencido, hojeIsoLocal } from '@/hooks/useFluxoCaixaLancamentos'
 
 export interface NotificacaoItem {
   id: string
-  tipo: 'entrada' | 'saida' | 'patio_tempo' | 'os_status' | 'os_finalizada' | 'sistema' | 'frota_preventiva' | 'frota_doc_vencido' | 'frota_doc_avencer'
+  tipo: 'entrada' | 'saida' | 'patio_tempo' | 'os_status' | 'os_finalizada' | 'sistema' | 'frota_preventiva' | 'frota_doc_vencido' | 'frota_doc_avencer' | 'financeiro_vencido'
   titulo: string
   mensagem: string
   dataHora: string
@@ -32,6 +35,7 @@ export interface ConfigNotificacoes {
   alertaOsFinalizadaAtivo: boolean
   alertaFrotaPreventivaAtivo: boolean
   alertaFrotaDocAtivo: boolean
+  alertaFinanceiroVencidoAtivo: boolean
   somAtivo: boolean
 }
 
@@ -50,6 +54,7 @@ export const CONFIG_NOTIF_DEFAULT: ConfigNotificacoes = {
   alertaOsFinalizadaAtivo: true,
   alertaFrotaPreventivaAtivo: true,
   alertaFrotaDocAtivo: true,
+  alertaFinanceiroVencidoAtivo: true,
   somAtivo: true,
 }
 
@@ -78,7 +83,13 @@ interface NotificacoesContextType {
 const NotificacoesContext = createContext<NotificacoesContextType | undefined>(undefined)
 
 export function NotificacoesProvider({ children }: { children: React.ReactNode }) {
-  const { session, loading: authLoading } = useAuth()
+  const { session, loading: authLoading, user, perfil, empresa } = useAuth()
+  // Lançamentos vencidos são informação financeira: só avisa quem enxerga o
+  // Fluxo de Caixa, e só em empresa que usa o campo VENCIMENTO.
+  const podeVerVencidosFinanceiro =
+    !!empresa?.financeiro_campos_estendidos &&
+    temAcessoModuloEmpresa(empresa, 'financeiro') &&
+    isModuloAuthorized(perfil || { email: user?.email }, 'financeiro_fluxo_caixa')
   const inicializadoRef = useRef(false)
   const disparadasRef = useRef<Set<string>>(new Set())
 
@@ -550,6 +561,49 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
         console.error('[useNotificacoes] Erro ao verificar alertas de frotas:', e)
       }
 
+      // 4. Financeiro: lançamentos do fluxo de caixa com vencimento passado e PGT em aberto.
+      // Uma notificação resumida por dia (id inclui a data) pra não disparar push a cada lançamento.
+      if (config.alertaFinanceiroVencidoAtivo && podeVerVencidosFinanceiro) {
+        try {
+          const hojeIso = hojeIsoLocal()
+          const { data: vencRows } = await supabase
+            .from('fluxo_caixa_lancamentos')
+            .select('id, movimentacao, valor, data_vencimento, status_pagamento')
+            .lt('data_vencimento', hojeIso)
+            .limit(1000)
+          const vencidos = (vencRows || []).filter((r) =>
+            isLancamentoVencido(
+              { dataVencimento: r.data_vencimento, statusPagamento: r.status_pagamento ?? undefined, valor: Number(r.valor) || 0 },
+              hojeIso,
+            ),
+          )
+          if (vencidos.length > 0) {
+            const somar = (mov: string) =>
+              vencidos.filter((r) => r.movimentacao === mov).reduce((s, r) => s + (Number(r.valor) || 0), 0)
+            const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+            const receber = somar('entrada')
+            const pagar = somar('saida')
+            const partes = [
+              receber > 0 ? `A receber: ${brl(receber)}` : null,
+              pagar > 0 ? `A pagar: ${brl(pagar)}` : null,
+            ].filter(Boolean)
+            lista.push({
+              id: `fin_vencidos_${hojeIso}`,
+              tipo: 'financeiro_vencido',
+              titulo: `💰 ${vencidos.length} ${vencidos.length === 1 ? 'LANÇAMENTO VENCIDO' : 'LANÇAMENTOS VENCIDOS'}`,
+              mensagem: `Vencimento passou e o pagamento segue em aberto. ${partes.join(' · ')}.`,
+              dataHora: `${hojeIso}T08:00:00`,
+              link: '/financeiro?aba=fluxo-caixa',
+              lida: false,
+              prioridade: 'urgente',
+              icone: '💰',
+            })
+          }
+        } catch (e) {
+          console.warn('[useNotificacoes] Erro ao verificar lançamentos vencidos:', e)
+        }
+      }
+
       // Gerenciamento de disparo de push nativo e som para NOVOS eventos
       if (!inicializadoRef.current) {
         // Na primeira carga, memoriza os itens já existentes no snapshot inicial
@@ -583,7 +637,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     } catch (e) {
       console.error('[useNotificacoes] Erro ao carregar notificações:', e)
     }
-  }, [config])
+  }, [config, podeVerVencidosFinanceiro])
 
   useEffect(() => {
     // Sem sessão ainda (tela de login, troca de senha obrigatória no primeiro
@@ -619,6 +673,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
     window.addEventListener('frota_updated', onLocalUpdate)
     window.addEventListener('movimentacao_cadastrada', onLocalUpdate)
     window.addEventListener('movimentacao_updated', onLocalUpdate)
+    window.addEventListener('fluxo_caixa_lancamento_updated', onLocalUpdate)
 
     return () => {
       clearInterval(timer)
@@ -627,6 +682,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
       window.removeEventListener('frota_updated', onLocalUpdate)
       window.removeEventListener('movimentacao_cadastrada', onLocalUpdate)
       window.removeEventListener('movimentacao_updated', onLocalUpdate)
+      window.removeEventListener('fluxo_caixa_lancamento_updated', onLocalUpdate)
     }
   }, [carregarEventos, authLoading, session])
 

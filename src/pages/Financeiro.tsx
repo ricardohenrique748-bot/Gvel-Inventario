@@ -30,6 +30,9 @@ import {
   Truck,
   CreditCard,
   Upload,
+  Layers,
+  Bell,
+  Pencil,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -52,7 +55,12 @@ import { useClientes } from '@/hooks/useClientes'
 import {
   useFluxoCaixaLancamentos,
   criarLancamentoFluxoCaixa,
+  criarLancamentosFluxoCaixaEmLote,
   excluirLancamentoFluxoCaixa,
+  atualizarStatusPagamentoLancamento,
+  isLancamentoVencido,
+  diasDeAtraso,
+  hojeIsoLocal,
 } from '@/hooks/useFluxoCaixaLancamentos'
 import { useEmpresasDivisoesOverrides, importarDivisoesVariosMeses } from '@/hooks/usePainelGerencialDivisoes'
 import { importarPainelGerencialExcel } from '@/lib/importarPainelGerencialExcel'
@@ -378,6 +386,17 @@ const STATUS_PAGAMENTO_OPCOES = [
   'PENDENTE', 'PAGO', 'COBRADO', 'CANCELADO', 'ISENTO', 'ABATER', 'RETIRAR', 'SOMANDO', 'TROCAR AP', 'ZEROU',
 ]
 
+/** Soma meses a uma data 'YYYY-MM-DD' sem estourar o fim do mês (31/01 + 1 mês → 28/02). */
+function somarMeses(dataIso: string, meses: number): string {
+  const [ano, mes, dia] = dataIso.split('-').map(Number)
+  const alvo = new Date(ano, mes - 1 + meses, 1)
+  const ultimoDia = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate()
+  alvo.setDate(Math.min(dia, ultimoDia))
+  const mm = String(alvo.getMonth() + 1).padStart(2, '0')
+  const dd = String(alvo.getDate()).padStart(2, '0')
+  return `${alvo.getFullYear()}-${mm}-${dd}`
+}
+
 export function Financeiro() {
   const { user, perfil, perfilLoading, empresa } = useAuth()
   const userRef = perfil || { email: user?.email }
@@ -680,6 +699,7 @@ export function Financeiro() {
     dataVencimento: '',
     formaPagamento: '',
     statusPagamento: 'PENDENTE',
+    parcelas: '1',
   })
   const [formaPagamentoOutro, setFormaPagamentoOutro] = useState(false)
   const [statusPagamentoOutro, setStatusPagamentoOutro] = useState(false)
@@ -698,13 +718,17 @@ export function Financeiro() {
       return
     }
 
+    const totalParcelas = camposEstendidos ? Math.floor(Number(novoLancamento.parcelas) || 1) : 1
+    if (totalParcelas < 1 || totalParcelas > 120) {
+      setErroFormLancamento('Informe um número de parcelas entre 1 e 120.')
+      return
+    }
+
     setSalvandoLancamento(true)
     try {
-      await criarLancamentoFluxoCaixa({
-        data: novoLancamento.data,
+      const base = {
         movimentacao: novoLancamento.movimentacao,
         descricao: novoLancamento.descricao.trim().toUpperCase(),
-        valor: valorNumerico,
         observacao: novoLancamento.observacao.trim() || undefined,
         usuarioNome: user?.email,
         clienteId: camposEstendidos ? novoLancamento.clienteId || undefined : undefined,
@@ -714,7 +738,30 @@ export function Financeiro() {
         dataVencimento: camposEstendidos ? novoLancamento.dataVencimento || undefined : undefined,
         formaPagamento: camposEstendidos ? novoLancamento.formaPagamento || undefined : undefined,
         statusPagamento: camposEstendidos ? novoLancamento.statusPagamento : undefined,
-      })
+      }
+
+      if (totalParcelas === 1) {
+        await criarLancamentoFluxoCaixa({ ...base, data: novoLancamento.data, valor: valorNumerico })
+      } else {
+        // Valor informado é o TOTAL: divide em centavos e joga a sobra do arredondamento na última parcela.
+        // Cada parcela vira um lançamento próprio, um mês depois do outro (data e vencimento).
+        const totalCentavos = Math.round(valorNumerico * 100)
+        const parcelaCentavos = Math.floor(totalCentavos / totalParcelas)
+        await criarLancamentosFluxoCaixaEmLote(
+          Array.from({ length: totalParcelas }, (_, i) => {
+            const centavos = i === totalParcelas - 1
+              ? totalCentavos - parcelaCentavos * (totalParcelas - 1)
+              : parcelaCentavos
+            return {
+              ...base,
+              data: somarMeses(novoLancamento.data, i),
+              descricao: `${base.descricao} (${i + 1}/${totalParcelas})`,
+              valor: centavos / 100,
+              dataVencimento: base.dataVencimento ? somarMeses(base.dataVencimento, i) : undefined,
+            }
+          }),
+        )
+      }
       setNovoLancamento((prev) => ({
         ...prev,
         descricao: '',
@@ -725,12 +772,43 @@ export function Financeiro() {
         dataVencimento: '',
         formaPagamento: '',
         statusPagamento: 'PENDENTE',
+        parcelas: '1',
       }))
     } catch (err) {
       setErroFormLancamento(err instanceof Error ? err.message : 'Erro ao salvar lançamento.')
     } finally {
       setSalvandoLancamento(false)
     }
+  }
+
+  const [alterandoPgtId, setAlterandoPgtId] = useState<string | null>(null)
+  async function salvarStatusPagamento(id: string, novo: string) {
+    setAlterandoPgtId(id)
+    try {
+      await atualizarStatusPagamentoLancamento(id, novo)
+    } catch (err) {
+      console.warn('Erro ao alterar status de pagamento:', err)
+    } finally {
+      setAlterandoPgtId(null)
+    }
+  }
+  function handleAlternarPago(id: string, statusAtual?: string) {
+    // Já quitado (PAGO, PAGO ANUAL...) volta pra PENDENTE; qualquer outro vira PAGO.
+    return salvarStatusPagamento(id, statusAtual?.toUpperCase().trim().startsWith('PAGO') ? 'PENDENTE' : 'PAGO')
+  }
+
+  // Lápis da tabela: edição do PGT com todas as opções (ou texto livre em "OUTRO...").
+  const [editandoPgtId, setEditandoPgtId] = useState<string | null>(null)
+  const [pgtOutroTexto, setPgtOutroTexto] = useState<string | null>(null)
+  function fecharEdicaoPgt() {
+    setEditandoPgtId(null)
+    setPgtOutroTexto(null)
+  }
+  async function confirmarEdicaoPgt(id: string, valor: string) {
+    const v = valor.trim().toUpperCase()
+    if (!v) return
+    fecharEdicaoPgt()
+    await salvarStatusPagamento(id, v)
   }
 
   async function handleExcluirLancamento(id: string) {
@@ -743,6 +821,47 @@ export function Financeiro() {
       setExcluindoLancamentoId(null)
     }
   }
+
+  // Alerta de vencidos: só faz sentido onde existe o campo VENCIMENTO (campos estendidos).
+  const [mostrarTodosVencidos, setMostrarTodosVencidos] = useState(false)
+  const sinoVencidosRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!mostrarTodosVencidos) return
+    const fechar = (e: MouseEvent) => {
+      if (!sinoVencidosRef.current?.contains(e.target as Node)) setMostrarTodosVencidos(false)
+    }
+    document.addEventListener('mousedown', fechar)
+    return () => document.removeEventListener('mousedown', fechar)
+  }, [mostrarTodosVencidos])
+  const hojeIso = hojeIsoLocal()
+  const lancamentosVencidos = useMemo(() => {
+    if (!camposEstendidos) return []
+    return lancamentos
+      .filter((l) => isLancamentoVencido(l, hojeIso))
+      .sort((a, b) => (a.dataVencimento ?? '').localeCompare(b.dataVencimento ?? ''))
+  }, [lancamentos, camposEstendidos, hojeIso])
+  const totalVencidoReceber = lancamentosVencidos
+    .filter((l) => l.movimentacao === 'entrada')
+    .reduce((s, l) => s + l.valor, 0)
+  const totalVencidoPagar = lancamentosVencidos
+    .filter((l) => l.movimentacao === 'saida')
+    .reduce((s, l) => s + l.valor, 0)
+
+  // Abas da tabela de lançamentos, pela DATA do lançamento (regime de caixa).
+  // "Próximos meses" é onde caem as parcelas futuras; nos próximos a ordem é crescente (o mais perto primeiro).
+  const [periodoLancamentos, setPeriodoLancamentos] = useState<'mes-atual' | 'proximos' | 'todos'>('mes-atual')
+  const mesAtualIso = hojeIso.slice(0, 7)
+  const { lancamentosDoPeriodo, contagemPorPeriodo } = useMemo(() => {
+    const doMes = lancamentos.filter((l) => l.data.slice(0, 7) === mesAtualIso)
+    const proximos = lancamentos
+      .filter((l) => l.data.slice(0, 7) > mesAtualIso)
+      .sort((a, b) => a.data.localeCompare(b.data))
+    const porPeriodo = { 'mes-atual': doMes, proximos, todos: lancamentos }
+    return {
+      lancamentosDoPeriodo: porPeriodo[periodoLancamentos],
+      contagemPorPeriodo: { 'mes-atual': doMes.length, proximos: proximos.length, todos: lancamentos.length },
+    }
+  }, [lancamentos, mesAtualIso, periodoLancamentos])
 
   const lancamentosOrdenadosCronologicamente = useMemo(() => {
     return [...lancamentos].sort((a, b) => a.data.localeCompare(b.data) || a.createdAt.localeCompare(b.createdAt))
@@ -919,6 +1038,67 @@ export function Financeiro() {
       <PageHeader
         title="PAINEL GERENCIAL - GRUPO VEL"
         subtitle="RECEITAS E DESPESAS EM REGIME DE CAIXA · FATURAMENTO EM REGIME DE COMPETÊNCIA"
+        actions={
+          camposEstendidos && podeFluxoCaixa ? (
+            <div ref={sinoVencidosRef} className="relative ml-auto sm:ml-0">
+              <button
+                type="button"
+                onClick={() => setMostrarTodosVencidos((v) => !v)}
+                className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-border/30 bg-surface/60 text-secondary hover:text-foreground transition-colors"
+                aria-label="Lançamentos vencidos"
+                title="Lançamentos vencidos"
+              >
+                <Bell className="h-[18px] w-[18px]" />
+                {lancamentosVencidos.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white">
+                    {lancamentosVencidos.length > 99 ? '99+' : lancamentosVencidos.length}
+                  </span>
+                )}
+              </button>
+
+              {mostrarTodosVencidos && (
+                <div className="absolute right-0 top-12 z-30 w-[min(360px,calc(100vw-32px))] rounded-xl border border-border/30 bg-surface shadow-xl text-[11px]">
+                  <div className="border-b border-border/20 px-3 py-2.5">
+                    <p className="font-black uppercase text-foreground">
+                      {lancamentosVencidos.length === 0
+                        ? 'Nenhum lançamento vencido'
+                        : `${lancamentosVencidos.length} ${lancamentosVencidos.length === 1 ? 'lançamento vencido' : 'lançamentos vencidos'}`}
+                    </p>
+                    {(totalVencidoReceber > 0 || totalVencidoPagar > 0) && (
+                      <p className="mt-0.5 flex flex-wrap gap-x-3 text-secondary">
+                        {totalVencidoReceber > 0 && (
+                          <span>A receber <span className="font-mono font-bold text-emerald-400">{fmtBRL(totalVencidoReceber)}</span></span>
+                        )}
+                        {totalVencidoPagar > 0 && (
+                          <span>A pagar <span className="font-mono font-bold text-red-400">{fmtBRL(totalVencidoPagar)}</span></span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  {lancamentosVencidos.length > 0 && (
+                    <ul className="max-h-80 overflow-y-auto divide-y divide-border/10">
+                      {lancamentosVencidos.map((l) => {
+                        const [a, m, d] = (l.dataVencimento ?? '').split('-')
+                        const dias = diasDeAtraso(l.dataVencimento!, hojeIso)
+                        return (
+                          <li key={l.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="truncate font-bold uppercase text-foreground">{l.clienteNome || l.descricao}</p>
+                              <p className="text-[10px] text-secondary">
+                                Venceu {`${d}/${m}/${a}`} · <span className="text-amber-400">{dias} {dias === 1 ? 'dia' : 'dias'}</span>
+                              </p>
+                            </div>
+                            <span className="shrink-0 font-mono font-bold text-foreground">{fmtBRL(l.valor)}</span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : undefined
+        }
       />
 
       {/* Barra de Abas */}
@@ -1978,7 +2158,7 @@ export function Financeiro() {
           </div>
 
           {camposEstendidos && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               <div>
                 <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
                   <Users className="h-3.5 w-3.5 text-primary" />
@@ -2007,6 +2187,32 @@ export function Financeiro() {
                   onChange={(e) => setNovoLancamento((prev) => ({ ...prev, dataVencimento: e.target.value }))}
                   className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
                 />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1.5 text-[10px] font-black text-secondary mb-1.5">
+                  <Layers className="h-3.5 w-3.5 text-primary" />
+                  PARCELAS
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={novoLancamento.parcelas}
+                  onChange={(e) => setNovoLancamento((prev) => ({ ...prev, parcelas: e.target.value }))}
+                  placeholder="1"
+                  className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-mono font-bold text-foreground placeholder:text-secondary/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                />
+                {(() => {
+                  const n = Math.floor(Number(novoLancamento.parcelas) || 0)
+                  const total = Number(novoLancamento.valor.replace(',', '.'))
+                  if (n < 2 || !total || total <= 0) return null
+                  return (
+                    <p className="mt-1 text-[10px] font-bold text-secondary">
+                      {n}x DE {(total / n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </p>
+                  )
+                })()}
               </div>
 
               <div>
@@ -2472,14 +2678,34 @@ export function Financeiro() {
           LIVRO-CAIXA: TODOS OS LANÇAMENTOS (DATA, MOVIMENTAÇÃO, DESCRIÇÃO, VALOR, OBSERVAÇÃO)
          ────────────────────────────────────────────────────────────────────────── */}
       <Card className="overflow-hidden border-border/30 bg-surface/50 shadow-md">
-        <div className="border-b border-border/20 bg-surface/80 p-4 flex items-center justify-between">
+        <div className="border-b border-border/20 bg-surface/80 p-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Wallet className="h-5 w-5 text-primary" />
             <h3 className="text-sm font-black text-foreground uppercase">LANÇAMENTOS</h3>
           </div>
-          <Badge tone="neutral" className="text-[10px] font-bold">
-            {lancamentos.length} {lancamentos.length === 1 ? 'REGISTRO' : 'REGISTROS'}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-xl border border-border/30 bg-background/50 p-0.5">
+              {([
+                ['mes-atual', 'MÊS ATUAL'],
+                ['proximos', 'PRÓXIMOS MESES'],
+                ['todos', 'TODOS'],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPeriodoLancamentos(id)}
+                  className={`rounded-lg px-3 py-1.5 text-[10px] font-black uppercase transition-colors ${
+                    periodoLancamentos === id ? 'bg-primary text-white' : 'text-secondary hover:text-foreground'
+                  }`}
+                >
+                  {label} ({contagemPorPeriodo[id]})
+                </button>
+              ))}
+            </div>
+            <Badge tone="neutral" className="text-[10px] font-bold">
+              {lancamentosDoPeriodo.length} {lancamentosDoPeriodo.length === 1 ? 'REGISTRO' : 'REGISTROS'}
+            </Badge>
+          </div>
         </div>
 
         {carregandoLancamentos ? (
@@ -2491,68 +2717,145 @@ export function Financeiro() {
           <div className="p-8 text-center text-xs text-secondary font-medium lowercase">
             Nenhum lançamento registrado ainda. Use o formulário acima para começar.
           </div>
+        ) : lancamentosDoPeriodo.length === 0 ? (
+          <div className="p-8 text-center text-xs text-secondary font-medium lowercase">
+            {periodoLancamentos === 'proximos'
+              ? 'Nenhum lançamento para os próximos meses.'
+              : 'Nenhum lançamento neste mês.'}
+          </div>
         ) : (
         <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="sticky top-0 z-10">
-              <tr className="border-b border-border/30 bg-surface text-secondary font-black uppercase text-[11px]">
-                <th className="py-3 px-4">DATA</th>
-                <th className="py-3 px-4">MOVIMENTAÇÃO</th>
-                <th className="py-3 px-4">DESCRIÇÃO</th>
-                <th className="py-3 px-4 text-right">VALOR</th>
-                {camposEstendidos && <th className="py-3 px-4">CLIENTE</th>}
-                {camposEstendidos && <th className="py-3 px-4">VENCIMENTO</th>}
-                {camposEstendidos && <th className="py-3 px-4 text-center">QTD. VEÍCULOS</th>}
-                {camposEstendidos && <th className="py-3 px-4">BOLETO/PIX</th>}
-                {camposEstendidos && <th className="py-3 px-4">PGT</th>}
-                <th className="py-3 px-4">OBSERVAÇÃO</th>
-                <th className="py-3 px-4 text-center">AÇÕES</th>
+              <tr className="border-b border-border/30 bg-surface text-secondary font-black uppercase text-[11px] whitespace-nowrap">
+                <th className="py-3 px-2.5">DATA</th>
+                <th className="py-3 px-2.5">DESCRIÇÃO</th>
+                <th className="py-3 px-2.5 text-right">VALOR</th>
+                {camposEstendidos && <th className="py-3 px-2.5">CLIENTE</th>}
+                {camposEstendidos && <th className="py-3 px-2.5">VENCIMENTO</th>}
+                {camposEstendidos && <th className="py-3 px-2.5 text-center">VEÍC.</th>}
+                {camposEstendidos && <th className="py-3 px-2.5">FORMA</th>}
+                {camposEstendidos && <th className="py-3 px-2.5">PGT</th>}
+                <th className="py-3 px-2.5">OBS.</th>
+                <th className="py-3 px-2.5 text-center"><span className="sr-only">AÇÕES</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/10 font-mono">
-              {lancamentos.map((l) => {
+              {lancamentosDoPeriodo.map((l) => {
                 const isEntrada = l.movimentacao === 'entrada'
                 const [ano, mes, dia] = l.data.split('-')
                 const [anoVenc, mesVenc, diaVenc] = l.dataVencimento ? l.dataVencimento.split('-') : []
+                const vencido = camposEstendidos && isLancamentoVencido(l, hojeIso)
 
                 return (
                   <tr
                     key={l.id}
                     className={`transition-colors ${isEntrada ? 'bg-emerald-500/10 hover:bg-emerald-500/15' : 'bg-red-500/10 hover:bg-red-500/15'}`}
                   >
-                    <td className="py-2.5 px-4 font-bold text-foreground whitespace-nowrap">{`${dia}/${mes}/${ano}`}</td>
-                    <td className="py-2.5 px-4">
-                      <Badge tone={isEntrada ? 'success' : 'danger'} className="text-[9px] font-bold">
-                        {isEntrada ? 'ENTRADA' : 'SAÍDA'}
-                      </Badge>
-                    </td>
-                    <td className="py-2.5 px-4 font-sans font-bold text-foreground">{l.descricao}</td>
-                    <td className={`py-2.5 px-4 text-right font-black ${isEntrada ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {fmtBRL(l.valor)}
+                    <td className="py-2 px-2.5 font-bold text-foreground whitespace-nowrap">{`${dia}/${mes}/${ano}`}</td>
+                    <td className="py-2 px-2.5 font-sans font-bold text-foreground">{l.descricao}</td>
+                    <td
+                      className={`py-2 px-2.5 text-right font-black whitespace-nowrap ${isEntrada ? 'text-emerald-400' : 'text-red-400'}`}
+                      title={isEntrada ? 'Entrada' : 'Saída'}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {isEntrada ? <ArrowUpCircle className="h-3 w-3" /> : <ArrowDownCircle className="h-3 w-3" />}
+                        {fmtBRL(l.valor)}
+                      </span>
                     </td>
                     {camposEstendidos && (
-                      <td className="py-2.5 px-4 font-sans text-secondary">{l.clienteNome || '—'}</td>
+                      <td className="py-2 px-2.5 font-sans text-secondary min-w-[150px] max-w-[220px]">{l.clienteNome || '—'}</td>
                     )}
                     {camposEstendidos && (
-                      <td className="py-2.5 px-4 text-secondary whitespace-nowrap">
+                      <td
+                        className={`py-2 px-2.5 whitespace-nowrap ${vencido ? 'text-amber-400' : 'text-secondary'}`}
+                        title={vencido ? 'Vencido' : undefined}
+                      >
                         {diaVenc ? `${diaVenc}/${mesVenc}/${anoVenc}` : '—'}
                       </td>
                     )}
                     {camposEstendidos && (
-                      <td className="py-2.5 px-4 font-sans text-secondary text-center">{l.quantidadeVeiculos ?? '—'}</td>
+                      <td className="py-2 px-2.5 font-sans text-secondary text-center">{l.quantidadeVeiculos ?? '—'}</td>
                     )}
                     {camposEstendidos && (
-                      <td className="py-2.5 px-4 font-sans text-secondary uppercase">{l.formaPagamento || '—'}</td>
+                      <td className="py-2 px-2.5 font-sans text-secondary uppercase">{l.formaPagamento || '—'}</td>
                     )}
                     {camposEstendidos && (
-                      <td className="py-2.5 px-4">
-                        <Badge tone={l.statusPagamento?.toUpperCase() === 'PAGO' ? 'success' : 'warning'} className="text-[9px] font-bold">
-                          {l.statusPagamento?.toUpperCase() || 'PENDENTE'}
-                        </Badge>
+                      <td className="py-2 px-2.5 whitespace-nowrap">
+                        {(() => {
+                          const pago = !!l.statusPagamento?.toUpperCase().trim().startsWith('PAGO')
+                          if (editandoPgtId === l.id) {
+                            const atual = (l.statusPagamento || 'PENDENTE').toUpperCase().trim()
+                            return pgtOutroTexto !== null ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                value={pgtOutroTexto}
+                                onChange={(e) => setPgtOutroTexto(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') confirmarEdicaoPgt(l.id, pgtOutroTexto)
+                                  if (e.key === 'Escape') fecharEdicaoPgt()
+                                }}
+                                onBlur={() => (pgtOutroTexto.trim() ? confirmarEdicaoPgt(l.id, pgtOutroTexto) : fecharEdicaoPgt())}
+                                placeholder="DIGITE E ENTER"
+                                className="h-7 w-32 rounded-lg border border-primary/50 bg-background px-2 font-sans text-[10px] font-bold uppercase text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                            ) : (
+                              <select
+                                autoFocus
+                                value={STATUS_PAGAMENTO_OPCOES.includes(atual) ? atual : '__atual__'}
+                                onChange={(e) => {
+                                  if (e.target.value === '__outro__') setPgtOutroTexto('')
+                                  else if (e.target.value !== '__atual__') confirmarEdicaoPgt(l.id, e.target.value)
+                                }}
+                                onKeyDown={(e) => { if (e.key === 'Escape') fecharEdicaoPgt() }}
+                                className="h-7 rounded-lg border border-primary/50 bg-background px-1.5 font-sans text-[10px] font-bold uppercase text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                              >
+                                {!STATUS_PAGAMENTO_OPCOES.includes(atual) && (
+                                  <option value="__atual__" className="bg-white text-black">{atual}</option>
+                                )}
+                                {STATUS_PAGAMENTO_OPCOES.map((opt) => (
+                                  <option key={opt} value={opt} className="bg-white text-black">{opt}</option>
+                                ))}
+                                <option value="__outro__" className="bg-white text-black">OUTRO...</option>
+                              </select>
+                            )
+                          }
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => handleAlternarPago(l.id, l.statusPagamento)}
+                              disabled={alterandoPgtId === l.id}
+                              title={pago ? 'Clique para marcar como PENDENTE' : 'Clique para marcar como PAGO'}
+                              className="inline-flex items-center gap-1 rounded-full hover:brightness-125 transition disabled:opacity-60"
+                            >
+                              <Badge tone={pago ? 'success' : 'warning'} className="text-[9px] font-bold cursor-pointer">
+                                {alterandoPgtId === l.id ? (
+                                  <Loader2 className="mr-1 h-2.5 w-2.5 animate-spin" />
+                                ) : pago ? (
+                                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />
+                                ) : null}
+                                {l.statusPagamento?.toUpperCase() || 'PENDENTE'}
+                              </Badge>
+                            </button>
+                          )
+                        })()}
                       </td>
                     )}
-                    <td className="py-2.5 px-4 font-sans text-secondary lowercase">{l.observacao || '—'}</td>
-                    <td className="py-2.5 px-4 text-center">
+                    <td className="py-2 px-2.5 font-sans text-secondary lowercase min-w-[110px] max-w-[200px] break-words">{l.observacao || '—'}</td>
+                    <td className="py-2 px-2.5 text-center whitespace-nowrap">
+                      {camposEstendidos && (
+                        <button
+                          type="button"
+                          onClick={() => (editandoPgtId === l.id ? fecharEdicaoPgt() : (setPgtOutroTexto(null), setEditandoPgtId(l.id)))}
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                            editandoPgtId === l.id ? 'bg-primary/15 text-primary' : 'text-secondary hover:bg-primary/15 hover:text-primary'
+                          }`}
+                          title={editandoPgtId === l.id ? 'Cancelar edição do PGT' : 'Editar PGT'}
+                        >
+                          {editandoPgtId === l.id ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleExcluirLancamento(l.id)}

@@ -25,6 +25,38 @@ function mapRowParaLancamento(row: any): LancamentoFluxoCaixa {
   }
 }
 
+/** Status de pagamento que encerram a cobrança — o resto (PENDENTE, COBRADO, ABATER...) segue em aberto. */
+export const STATUS_PAGAMENTO_QUITADOS = ['PAGO', 'CANCELADO', 'ISENTO', 'ZEROU']
+
+/** Data de hoje em 'YYYY-MM-DD' no fuso local (toISOString usaria UTC e viraria o dia às 21h). */
+export function hojeIsoLocal(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Vencido = tem valor, vencimento anterior a hoje e o status ainda não é de quitação. */
+export function isLancamentoVencido(
+  l: { dataVencimento?: string; statusPagamento?: string; valor?: number },
+  hojeIso = hojeIsoLocal(),
+): boolean {
+  if (!l.dataVencimento || l.dataVencimento >= hojeIso) return false
+  if (l.valor !== undefined && !(l.valor > 0)) return false
+  return !isStatusQuitado(l.statusPagamento)
+}
+
+/** Quitado = PAGO e variações digitadas no "OUTRO..." (PAGO ANUAL, PAGO PIX...), ou CANCELADO/ISENTO/ZEROU. */
+export function isStatusQuitado(status?: string): boolean {
+  const s = (status || 'PENDENTE').toUpperCase().trim()
+  return s.startsWith('PAGO') || STATUS_PAGAMENTO_QUITADOS.includes(s)
+}
+
+/** Dias corridos entre o vencimento e hoje (ambos 'YYYY-MM-DD'). */
+export function diasDeAtraso(dataVencimento: string, hojeIso = hojeIsoLocal()): number {
+  const [a1, m1, d1] = dataVencimento.split('-').map(Number)
+  const [a2, m2, d2] = hojeIso.split('-').map(Number)
+  return Math.round((Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / 86_400_000)
+}
+
 export async function fetchFluxoCaixaLancamentosSupabase(limit = 1000): Promise<LancamentoFluxoCaixa[]> {
   const { data, error } = await supabase
     .from('fluxo_caixa_lancamentos')
@@ -96,6 +128,19 @@ export async function criarLancamentosFluxoCaixaEmLote(inputs: CriarLancamentoFl
       status_pagamento: input.statusPagamento || 'pendente',
     })),
   )
+  if (error) throw error
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('fluxo_caixa_lancamento_updated'))
+  }
+}
+
+/** Botão PGT da tabela: marca o lançamento como PAGO ou volta pra PENDENTE. */
+export async function atualizarStatusPagamentoLancamento(id: string, statusPagamento: string): Promise<void> {
+  const { error } = await supabase
+    .from('fluxo_caixa_lancamentos')
+    .update({ status_pagamento: statusPagamento })
+    .eq('id', id)
   if (error) throw error
 
   if (typeof window !== 'undefined') {

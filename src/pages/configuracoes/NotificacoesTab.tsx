@@ -497,6 +497,21 @@ export function NotificacoesTab() {
               disabled={!formConfig.pushAtivo}
             />
           </div>
+
+          {/* Lançamentos financeiros vencidos */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/20 bg-background/50 px-3.5 py-3">
+            <div>
+              <p className="text-xs font-bold text-foreground">💰 LANÇAMENTOS VENCIDOS (FINANCEIRO)</p>
+              <p className="text-[10px] text-secondary mt-0.5 normal-case">
+                Avisa uma vez por dia quando há lançamentos do fluxo de caixa com vencimento passado e pagamento em aberto
+              </p>
+            </div>
+            <Toggle
+              checked={formConfig.alertaFinanceiroVencidoAtivo}
+              onChange={(v) => update('alertaFinanceiroVencidoAtivo', v)}
+              disabled={!formConfig.pushAtivo}
+            />
+          </div>
         </div>
       </Card>
 
