@@ -1,60 +1,63 @@
-# Gvel Diesel — Center Truck
+# Estrutura GV — Sistema de gestão do Grupo GVEL
 
-Sistema de gestão de pátio: checklist de vistoria (com geração e compartilhamento de PDF) e controle de entrada/saída de veículos, com dashboard. PWA instalável, tema escuro com a identidade visual da Gvel Diesel.
+Sistema web + app Android (Capacitor) usado pela GVEL Diesel para controlar pátio, manutenção, frota, consumo de combustível, estoque de ferramentas e insumos, financeiro e RH. É multiempresa: cada empresa do grupo enxerga só os próprios dados.
+
+A documentação detalhada fica em [`docs/`](docs/README.md).
 
 ## Stack
 
-React + Vite + TypeScript, React Router, Tailwind CSS, Supabase (Postgres + Auth + Storage), Recharts, jsPDF + html2canvas, react-hook-form + zod, react-signature-canvas, vite-plugin-pwa.
+React 19 + Vite + TypeScript, React Router, Tailwind CSS, Supabase (Postgres + Auth + Storage + Realtime + Edge Functions), Recharts, jsPDF + html2canvas, pdfjs-dist, react-hook-form + zod, Capacitor 8 (Android/iOS). Deploy web na Vercel.
 
-## Configuração inicial
-
-### 1. Instalar dependências
+## Rodar localmente
 
 ```bash
 npm install
-```
-
-### 2. Criar o projeto Supabase
-
-1. Crie um projeto em [supabase.com](https://supabase.com).
-2. No **SQL Editor**, rode os arquivos de `supabase/migrations/` **em ordem** (0001 até o mais recente) — juntos eles criam as tabelas, índices, políticas de RLS, os buckets de storage e um seed de marcas comuns.
-3. Em **Edge Functions**, publique as duas funções em `supabase/functions/`:
-   - `create-usuario` — cria conta de login (Supabase Auth) + registro em `usuarios`.
-   - `delete-usuario` — exclui conta de login + registro em `usuarios` (só admins podem chamar).
-   (Via `supabase functions deploy create-usuario` / `delete-usuario` com a CLI, ou colando o código na aba Edge Functions do dashboard.)
-4. Em **Authentication → Users**, crie o primeiro usuário que vai acessar o sistema (e-mail/senha) — ele também precisa existir na tabela `usuarios` (a migration `0009` promove automaticamente o usuário mais antigo a administrador). Depois disso, novos usuários são criados pela própria tela de Configurações → Usuários do app.
-
-### 3. Configurar variáveis de ambiente
-
-Copie `.env.example` para `.env` e preencha com os dados do seu projeto (em **Project Settings → API**):
-
-```bash
-VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
-VITE_SUPABASE_ANON_KEY=SUA_ANON_KEY
-```
-
-### 4. Rodar em desenvolvimento
-
-```bash
+cp .env.example .env   # preencher VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY
 npm run dev
 ```
 
-> A PWA (manifest + service worker) só é ativada em build de produção. Para testar a instalação no celular/Lighthouse:
-> ```bash
-> npm run build
-> npm run preview
-> ```
+Sem `.env` preenchido o app entra num modo de login local de teste (`admin@gvel.com` / `admin`) — ver `src/contexts/AuthContext.tsx`.
 
-## Estrutura
+## Scripts
 
-- `src/pages` — telas do Módulo 2 (Dashboard, Movimentações, Registrar Entrada, Detalhe do Veículo, Clientes, Relatórios).
-- `src/pages/inspecao` — wizard do Módulo 1 (Dados do veículo → Checklist → Assinatura → Resumo/PDF).
-- `src/data/checklistSchema.ts` — seções e itens do checklist (editável em código).
-- `src/lib/pdf.ts` + `src/pages/inspecao/reportHtml.ts` — geração do relatório de vistoria em PDF.
-- `src/lib/share.ts` — compartilhamento do PDF via Web Share API (WhatsApp etc.), com fallback para download.
-- `src/hooks` — acesso a dados (Supabase) por entidade.
-- `supabase/migrations` — schema do banco.
+| Comando | O que faz |
+|---|---|
+| `npm run dev` | Servidor de desenvolvimento (Vite) |
+| `npm run build` | **Type-check real** (`tsc -b`) + build de produção em `dist/`. `tsc --noEmit` não checa nada neste repo — use o build. |
+| `npm test` | Testes (`node --test`) — domínio do consumo, leitura de comprovante, troca de tambores |
+| `npm run lint` | oxlint |
+| `npm run build:apk` | Build + `cap sync android` |
+| `npm run apk:debug` | Gera o APK de debug via Gradle (caminhos de JDK/SDK fixos da máquina do Ricardo) |
+| `npm run build:ios` | Build + `cap sync ios` |
+
+## Banco de dados (Supabase)
+
+- Projeto: **Gvel Inventario** (`njuncnhzkiajtcnemblx`).
+- Schema em `supabase/migrations/` (0001 → 0090), aplicado **em ordem** pelo SQL Editor do painel. Mapa das tabelas em [docs/banco-de-dados.md](docs/banco-de-dados.md).
+- Edge Functions em `supabase/functions/`: `create-usuario`, `delete-usuario`, `reset-senha`, `ler-cupom-abastecimento`. Deploy: `supabase functions deploy <nome>` (precisa de `supabase login`).
+
+## Deploy
+
+- **Web:** Vercel, build do Vite. `vercel.json` reescreve todas as rotas para `index.html` (SPA).
+- **App Android:** `npm run apk:debug`; o APK sai em `android/app/build/outputs/apk/debug/`. App id `com.gvel.entradaesaida`, nome "Estrutura - GV". O apk é **só da GVEL** — não deve conectar em outras empresas do multiempresa.
+
+## Onde está cada coisa
+
+| Pasta | Conteúdo |
+|---|---|
+| `src/pages` | Uma tela por rota (as maiores: `Frotas.tsx`, `InventarioFerramentas.tsx`, `Financeiro.tsx`, `RH.tsx`) |
+| `src/pages/frotas/consumo` | Módulo de consumo de combustível (domínio testado em `dominio.ts`) |
+| `src/pages/inspecao` | Wizard de vistoria e de liberação do veículo |
+| `src/pages/configuracoes` | Abas de Configurações (empresas, usuários, pátios, frota...) |
+| `src/pages/publico` | Páginas públicas por link (frota do cliente) |
+| `src/hooks` | Acesso a dados por entidade (Supabase ou planilha Google) |
+| `src/contexts` | Auth, empresa ativa, notificações, tema |
+| `src/lib` | Utilitários: permissões, PDF, fotos, parsers (OFX, PDF de faltas, Excel) |
+| `src/components/layout` | Menu lateral, barra inferior do app, cabeçalho, regras de menu (`nav.ts`) |
+| `src/data` | Dados fixos em código: checklist, catálogo padrão de ferramentas, frota oficial |
+| `supabase/` | Migrations e Edge Functions |
+| `android/`, `ios/` | Projetos nativos do Capacitor |
 
 ## Identidade visual
 
-As cores da marca estão centralizadas em `tailwind.config.js` (`background`, `surface`, `primary`, `secondary`, `status.*`) e na paleta de gráficos validada em `src/lib/chartColors.ts`.
+Cores centralizadas em `tailwind.config.js` e na paleta de gráficos `src/lib/chartColors.ts`. Cada empresa pode ter cor e logo próprios (tabela `companies`), aplicados em tempo de execução pelo `EmpresaContext`.

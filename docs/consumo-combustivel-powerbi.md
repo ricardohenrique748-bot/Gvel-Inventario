@@ -10,7 +10,7 @@ usuário de leitura.
 
 | View | Grão | Chaves |
 |---|---|---|
-| `fato_abastecimento` | 1 linha por abastecimento (diesel e ARLA) | `id`, `placa`, `motorista`, `posto_id`, `data` |
+| `fato_abastecimento` | 1 linha por abastecimento (diesel; registros antigos de ARLA podem existir — a tela não usa mais ARLA desde out/2026) | `id`, `placa`, `motorista`, `posto_id`, `data` |
 | `fato_ciclo` | 1 linha por ciclo tanque cheio → tanque cheio | `abastecimento_inicio_id`, `placa`, `data_referencia` |
 | `fato_viagem` | 1 linha por viagem (manual ou MoveTruck) | `id`, `placa`, `motorista`, `data` |
 | `dim_veiculo` | 1 linha por placa | `placa` (+ metas e capacidade) |
