@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { FOTOS_BUCKET, supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
 import { comPrefixoEmpresa } from '@/lib/tenant'
-import type { Ferramenta, FerramentaRetirada, StatusRetiradaFerramenta } from '@/lib/types'
+import type { Ferramenta, FerramentaRetirada, StatusRetiradaFerramenta, TipoFerramenta } from '@/lib/types'
 
 export const STORAGE_FERRAMENTAS_KEY = 'gvel_inventario_ferramentas_v1'
 export const STORAGE_RETIRADAS_KEY = 'gvel_inventario_retiradas_v1'
@@ -63,12 +63,13 @@ export function formatarFerramentaComFoto(f: any): Ferramenta {
   if (!f) return f
   let foto_url: string | null = f.foto_url || null
   let observacoes: string | null = f.observacoes || null
-  let tipo_ferramenta: 'comum' | 'especial' | 'estoque' | undefined = f.tipo_ferramenta
+  let tipo_ferramenta: TipoFerramenta | undefined = f.tipo_ferramenta
 
   if (observacoes && observacoes.includes('[TIPO:')) {
     const matchTipo = observacoes.match(/\[TIPO:(.*?)\]/)
     if (matchTipo) {
-      tipo_ferramenta = matchTipo[1] === 'especial' ? 'especial' : matchTipo[1] === 'estoque' ? 'estoque' : 'comum'
+      const t = matchTipo[1]
+      tipo_ferramenta = t === 'especial' || t === 'estoque' || t === 'patrimonio' ? t : 'comum'
       observacoes = observacoes.replace(/\[TIPO:.*?\]/g, '').trim() || null
     }
   }
@@ -439,7 +440,7 @@ export interface CriarFerramentaInput {
   codigo?: string
   nome: string
   categoria?: string
-  tipo_ferramenta?: 'comum' | 'especial' | 'estoque'
+  tipo_ferramenta?: TipoFerramenta
   quantidade_total: number
   localizacao?: string
   observacoes?: string
@@ -508,7 +509,7 @@ export interface AtualizarFerramentaInput {
   codigo?: string
   nome: string
   categoria?: string
-  tipo_ferramenta?: 'comum' | 'especial' | 'estoque'
+  tipo_ferramenta?: TipoFerramenta
   quantidade_total: number
   localizacao?: string
   observacoes?: string
@@ -628,7 +629,7 @@ export async function excluirFerramenta(id: string): Promise<void> {
 }
 
 export interface EdicaoMassaInput {
-  tipo_ferramenta?: 'comum' | 'especial' | 'estoque'
+  tipo_ferramenta?: TipoFerramenta
   categoria?: string
   localizacao?: string
 }

@@ -205,12 +205,15 @@ export interface InspecaoItem {
 
 export type StatusRetiradaFerramenta = 'em_uso' | 'devolvido' | 'avaria_perda' | 'baixa_definitiva'
 
+/** 'patrimonio' = bens da empresa (máquinas, móveis, equipamentos) — aba PATRIMÔNIO do inventário. */
+export type TipoFerramenta = 'comum' | 'especial' | 'estoque' | 'patrimonio'
+
 export interface Ferramenta {
   id: string
   codigo: string | null
   nome: string
   categoria: string
-  tipo_ferramenta?: 'comum' | 'especial' | 'estoque'
+  tipo_ferramenta?: TipoFerramenta
   quantidade_total: number
   quantidade_disponivel: number
   localizacao: string | null

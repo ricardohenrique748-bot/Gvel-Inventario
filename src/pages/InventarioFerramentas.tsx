@@ -35,6 +35,7 @@ import {
   FolderOpen,
   ArrowLeft,
   Warehouse,
+  Landmark,
   FileText,
   Paperclip,
 } from 'lucide-react'
@@ -73,7 +74,7 @@ import {
 import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
 import { getPlacasFrotaCadastrada } from '@/lib/frotasStorage'
-import type { Ferramenta, FerramentaRetirada, ItemConsumo, RegistroBaixaConsumo, RegistroEntradaConsumo } from '@/lib/types'
+import type { Ferramenta, FerramentaRetirada, ItemConsumo, RegistroBaixaConsumo, RegistroEntradaConsumo, TipoFerramenta } from '@/lib/types'
 import {
   useInsumos,
   useBaixasConsumo,
@@ -170,10 +171,21 @@ const CATEGORIAS_FERRAMENTA_ESTOQUE = [
   'GERAL',
 ]
 
+const CATEGORIAS_PATRIMONIO = [
+  'TODAS',
+  'MÁQUINAS E EQUIPAMENTOS',
+  'ELEVADORES E MACACOS',
+  'COMPRESSORES',
+  'INFORMÁTICA',
+  'MÓVEIS E UTENSÍLIOS',
+  'VEÍCULOS DE APOIO',
+  'GERAL',
+]
+
 // Detecção robusta de ferramenta especial por tipo, categoria e palavras-chave
 export function isEspecial(f: Ferramenta): boolean {
   if (f.tipo_ferramenta === 'especial') return true
-  if (f.tipo_ferramenta === 'comum' || f.tipo_ferramenta === 'estoque') return false
+  if (f.tipo_ferramenta === 'comum' || f.tipo_ferramenta === 'estoque' || f.tipo_ferramenta === 'patrimonio') return false
   const catUpper = (f.categoria || '').toUpperCase()
   if (CATEGORIAS_ESPECIAIS.some((c) => c !== 'TODAS' && c !== 'GERAL' && catUpper === c)) return true
   if (
@@ -197,6 +209,12 @@ export function isEspecial(f: Ferramenta): boolean {
 // nem em Ferramentas Pátio nem em Especiais.
 export function isFerramentaEstoque(f: Ferramenta): boolean {
   return f.tipo_ferramenta === 'estoque'
+}
+
+// Patrimônio = bens da empresa (máquinas, elevadores, móveis, informática) —
+// fica só na aba PATRIMÔNIO, fora das listas de ferramentas e insumos.
+export function isPatrimonio(f: Ferramenta): boolean {
+  return f.tipo_ferramenta === 'patrimonio'
 }
 
 export type AbaEstoque = 'ferramentas' | 'especiais' | 'insumos' | 'em_uso' | 'historico' | 'caixas'
@@ -380,7 +398,7 @@ export function InventarioFerramentas() {
   }
 
   // A aba "Ferramentas Pátio" saiu da tela; abre direto em Ferramenta Estoque.
-  const [tipoFiltro, setTipoFiltro] = useState<'ferramentas' | 'especiais' | 'insumos' | 'estoque'>('estoque')
+  const [tipoFiltro, setTipoFiltro] = useState<'ferramentas' | 'especiais' | 'insumos' | 'estoque' | 'patrimonio'>('estoque')
   const [busca, setBusca] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState('TODAS')
   const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'grid'>('lista')
@@ -542,7 +560,7 @@ export function InventarioFerramentas() {
   // Seleção e Edição em Massa
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [modalEdicaoMassaAberto, setModalEdicaoMassaAberto] = useState(false)
-  const [edicaoMassaTipo, setEdicaoMassaTipo] = useState<'manter' | 'comum' | 'especial' | 'estoque'>('manter')
+  const [edicaoMassaTipo, setEdicaoMassaTipo] = useState<'manter' | TipoFerramenta>('manter')
   const [edicaoMassaCategoria, setEdicaoMassaCategoria] = useState('')
   const [edicaoMassaLocalizacao, setEdicaoMassaLocalizacao] = useState('')
   const [salvandoMassa, setSalvandoMassa] = useState(false)
@@ -572,9 +590,11 @@ export function InventarioFerramentas() {
   // Ferramentas comuns vs especiais vs insumos vs estoque
   const ferramentasComuns = useMemo(() => {
     return ferramentas.filter(
-      (f) => !isEspecial(f) && !isFerramentaEstoque(f) && !f.categoria?.toUpperCase().includes('INSUMO')
+      (f) => !isEspecial(f) && !isFerramentaEstoque(f) && !isPatrimonio(f) && !f.categoria?.toUpperCase().includes('INSUMO')
     )
   }, [ferramentas])
+
+  const ferramentasPatrimonio = useMemo(() => ferramentas.filter(isPatrimonio), [ferramentas])
 
   const ferramentasEspeciais = useMemo(() => {
     return ferramentas.filter(
@@ -584,7 +604,7 @@ export function InventarioFerramentas() {
 
   const ferramentasInsumos = useMemo(() => {
     return ferramentas.filter(
-      (f) => f.categoria?.toUpperCase().includes('INSUMO')
+      (f) => !isPatrimonio(f) && f.categoria?.toUpperCase().includes('INSUMO')
     )
   }, [ferramentas])
 
@@ -612,8 +632,12 @@ export function InventarioFerramentas() {
       const customCats = Array.from(new Set(ferramentasEstoqueTab.map((f) => f.categoria?.toUpperCase()).filter(Boolean))) as string[]
       return Array.from(new Set([...CATEGORIAS_FERRAMENTA_ESTOQUE, ...customCats]))
     }
+    if (tipoFiltro === 'patrimonio') {
+      const customCats = Array.from(new Set(ferramentasPatrimonio.map((f) => f.categoria?.toUpperCase()).filter(Boolean))) as string[]
+      return Array.from(new Set([...CATEGORIAS_PATRIMONIO, ...customCats]))
+    }
     return ['TODAS']
-  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, ferramentasInsumos, ferramentasEstoqueTab])
+  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, ferramentasInsumos, ferramentasEstoqueTab, ferramentasPatrimonio])
 
   // Filtragem da lista ativa de acordo com o tipoFiltro
   const ferramentasFiltradas = useMemo(() => {
@@ -625,6 +649,8 @@ export function InventarioFerramentas() {
         ? (ferramentasInsumos.length > 0 ? ferramentasInsumos : ferramentas.filter((f) => f.categoria?.toUpperCase().includes('INSUMO')))
         : tipoFiltro === 'estoque'
         ? ferramentasEstoqueTab
+        : tipoFiltro === 'patrimonio'
+        ? ferramentasPatrimonio
         : ferramentasComuns
 
     return baseList.filter((f) => {
@@ -640,7 +666,7 @@ export function InventarioFerramentas() {
 
       return matchBusca && matchCat
     })
-  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, ferramentasInsumos, ferramentasEstoqueTab, ferramentas, deferredBusca, categoriaFiltro])
+  }, [tipoFiltro, ferramentasComuns, ferramentasEspeciais, ferramentasInsumos, ferramentasEstoqueTab, ferramentasPatrimonio, ferramentas, deferredBusca, categoriaFiltro])
 
   // Retiradas ativas
   const retiradasAtivas = useMemo(() => {
@@ -1111,6 +1137,27 @@ export function InventarioFerramentas() {
                     tipoFiltro === 'insumos' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
                   }`}>
                     {ferramentasInsumos.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoFiltro('patrimonio')
+                    setCategoriaFiltro('TODAS')
+                  }}
+                  className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 uppercase ${
+                    tipoFiltro === 'patrimonio'
+                      ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                      : 'text-secondary hover:text-foreground hover:bg-surface-hover/50'
+                  }`}
+                >
+                  <Landmark className="h-3.5 w-3.5" />
+                  PATRIMÔNIO
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                    tipoFiltro === 'patrimonio' ? 'bg-white/20 text-white' : 'bg-overlay/10 text-secondary'
+                  }`}>
+                    {ferramentasPatrimonio.length}
                   </span>
                 </button>
               </ScrollContainer>
@@ -3022,6 +3069,17 @@ export function InventarioFerramentas() {
                   >
                     Estoque
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setEdicaoMassaTipo('patrimonio')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold uppercase transition-all ${
+                      edicaoMassaTipo === 'patrimonio'
+                        ? 'border-primary bg-primary/15 text-primary'
+                        : 'border-border/30 bg-background text-secondary hover:border-primary/40'
+                    }`}
+                  >
+                    Patrimônio
+                  </button>
                 </div>
               </div>
 
@@ -3161,7 +3219,7 @@ export function InventarioFerramentas() {
       {modalFerramentaAberto && (
         <ModalFerramenta
           ferramenta={ferramentaEditando}
-          tipoInicial={tipoFiltro === 'especiais' ? 'especial' : tipoFiltro === 'estoque' ? 'estoque' : 'comum'}
+          tipoInicial={tipoFiltro === 'especiais' ? 'especial' : tipoFiltro === 'estoque' ? 'estoque' : tipoFiltro === 'patrimonio' ? 'patrimonio' : 'comum'}
           categoriaInicial={tipoFiltro === 'insumos' ? 'INSUMOS' : undefined}
           onClose={() => setModalFerramentaAberto(false)}
           onSalvo={async () => {
@@ -4283,12 +4341,12 @@ function ModalFerramenta({
   onSalvo,
 }: {
   ferramenta: Ferramenta | null
-  tipoInicial?: 'comum' | 'especial' | 'estoque'
+  tipoInicial?: TipoFerramenta
   categoriaInicial?: string
   onClose: () => void
   onSalvo: () => Promise<void>
 }) {
-  const [tipoFerramenta, setTipoFerramenta] = useState<'comum' | 'especial' | 'estoque'>(() => {
+  const [tipoFerramenta, setTipoFerramenta] = useState<TipoFerramenta>(() => {
     if (ferramenta) {
       if (ferramenta.tipo_ferramenta) return ferramenta.tipo_ferramenta
       return isEspecial(ferramenta) ? 'especial' : 'comum'
@@ -4301,7 +4359,13 @@ function ModalFerramenta({
   const [categoria, setCategoria] = useState(
     ferramenta?.categoria ||
       categoriaInicial ||
-      (tipoInicial === 'especial' ? 'SACADORES E EXTRATORES' : tipoInicial === 'estoque' ? 'RESERVA/EXCEDENTE' : 'GERAL')
+      (tipoInicial === 'especial'
+        ? 'SACADORES E EXTRATORES'
+        : tipoInicial === 'estoque'
+        ? 'RESERVA/EXCEDENTE'
+        : tipoInicial === 'patrimonio'
+        ? 'MÁQUINAS E EQUIPAMENTOS'
+        : 'GERAL')
   )
   const [quantidadeTotal, setQuantidadeTotal] = useState(String(ferramenta?.quantidade_total || 1))
   const [localizacao, setLocalizacao] = useState(ferramenta?.localizacao || '')
@@ -4393,6 +4457,8 @@ function ModalFerramenta({
                 <Wrench className="h-5 w-5" />
               ) : tipoFerramenta === 'estoque' ? (
                 <Warehouse className="h-5 w-5" />
+              ) : tipoFerramenta === 'patrimonio' ? (
+                <Landmark className="h-5 w-5" />
               ) : (
                 <Hammer className="h-5 w-5" />
               )}
@@ -4403,11 +4469,15 @@ function ModalFerramenta({
                   ? 'EDITAR FERRAMENTA ESPECIAL'
                   : tipoFerramenta === 'estoque'
                   ? 'EDITAR FERRAMENTA (ESTOQUE)'
+                  : tipoFerramenta === 'patrimonio'
+                  ? 'EDITAR PATRIMÔNIO'
                   : 'EDITAR FERRAMENTA'
                 : tipoFerramenta === 'especial'
                 ? 'NOVA FERRAMENTA ESPECIAL'
                 : tipoFerramenta === 'estoque'
                 ? 'NOVA FERRAMENTA (ESTOQUE)'
+                : tipoFerramenta === 'patrimonio'
+                ? 'NOVO PATRIMÔNIO'
                 : 'NOVA FERRAMENTA'}
             </h2>
           </div>
@@ -4426,7 +4496,7 @@ function ModalFerramenta({
             {/* Tipo de Ferramenta */}
             <div>
               <Label className="uppercase font-bold text-xs">TIPO DE FERRAMENTA *</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -4472,6 +4542,23 @@ function ModalFerramenta({
                   <Warehouse className="h-4 w-4" />
                   ESTOQUE
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoFerramenta('patrimonio')
+                    if (categoria === 'GERAL' || categoria === 'SACADORES E EXTRATORES' || categoria === 'RESERVA/EXCEDENTE') {
+                      setCategoria('MÁQUINAS E EQUIPAMENTOS')
+                    }
+                  }}
+                  className={`flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl border text-[11px] font-bold uppercase transition-all cursor-pointer ${
+                    tipoFerramenta === 'patrimonio'
+                      ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                      : 'bg-background border-border/20 text-secondary hover:text-foreground'
+                  }`}
+                >
+                  <Landmark className="h-4 w-4" />
+                  PATRIMÔNIO
+                </button>
               </div>
             </div>
 
@@ -4481,7 +4568,13 @@ function ModalFerramenta({
                 id="nome"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
-                placeholder={tipoFerramenta === 'especial' ? 'EX: SACADOR DE BICO, SCANNER DIESEL...' : 'EX: CHAVE DE IMPACTO 1/2, SOQUETE 24MM...'}
+                placeholder={
+                  tipoFerramenta === 'especial'
+                    ? 'EX: SACADOR DE BICO, SCANNER DIESEL...'
+                    : tipoFerramenta === 'patrimonio'
+                    ? 'EX: ELEVADOR AUTOMOTIVO, COMPRESSOR 40 PCM...'
+                    : 'EX: CHAVE DE IMPACTO 1/2, SOQUETE 24MM...'
+                }
                 required
                 className="uppercase font-medium"
               />
@@ -4510,6 +4603,8 @@ function ModalFerramenta({
                       ? 'EX: SACADORES E EXTRATORES'
                       : tipoFerramenta === 'estoque'
                       ? 'EX: RESERVA/EXCEDENTE'
+                      : tipoFerramenta === 'patrimonio'
+                      ? 'EX: MÁQUINAS E EQUIPAMENTOS'
                       : 'EX: PNEUMÁTICA'
                   }
                   className="uppercase font-medium"
@@ -4519,6 +4614,8 @@ function ModalFerramenta({
                     ? CATEGORIAS_ESPECIAIS
                     : tipoFerramenta === 'estoque'
                     ? CATEGORIAS_FERRAMENTA_ESTOQUE
+                    : tipoFerramenta === 'patrimonio'
+                    ? CATEGORIAS_PATRIMONIO
                     : categoriaInicial === 'INSUMOS'
                     ? CATEGORIAS_INSUMOS
                     : CATEGORIAS_FERRAMENTAS)
