@@ -7,7 +7,7 @@ import { formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/contexts/AuthContext'
 import { AssinaturaForm } from './AssinaturaForm'
-import { podeAprovarLiberacao, type InspecaoWizardState } from './types'
+import { capturarAssinatura, podeAprovarLiberacao, type InspecaoWizardState } from './types'
 
 interface Props {
   state: InspecaoWizardState
@@ -67,8 +67,13 @@ function EnvioParaAprovacao({ state, onPatch, onNext, onBack }: Props) {
     return () => clearInterval(t)
   }, [])
 
+  // Cópia da assinatura tirada a cada traço — se o canvas for limpo por algum
+  // motivo (ex.: teclado abrindo no celular), o envio ainda tem a assinatura.
+  const [assinatura, setAssinatura] = useState<string | null>(null)
+
   function handleContinuar() {
-    if (!sigRef.current || sigRef.current.isEmpty()) {
+    const assinaturaAtual = sigRef.current && !sigRef.current.isEmpty() ? capturarAssinatura(sigRef.current) : assinatura
+    if (!assinaturaAtual) {
       setErro('O encarregado precisa assinar antes de enviar.')
       return
     }
@@ -79,7 +84,7 @@ function EnvioParaAprovacao({ state, onPatch, onNext, onBack }: Props) {
     // Sem status/assinatura do aprovador: quem define é a Maria Clara.
     onPatch({
       observacoes: observacoes.trim() || undefined,
-      assinaturaEncarregadoUrl: sigRef.current.getTrimmedCanvas().toDataURL('image/png'),
+      assinaturaEncarregadoUrl: assinaturaAtual,
       dataHora: new Date().toISOString(),
       statusLiberacao: undefined,
       assinaturaDataUrl: undefined,
@@ -128,13 +133,20 @@ function EnvioParaAprovacao({ state, onPatch, onNext, onBack }: Props) {
             <SignatureCanvas
               ref={sigRef}
               penColor="#1a1a1a"
+              clearOnResize={false}
               canvasProps={{ className: 'w-full h-48 touch-none' }}
-              onEnd={() => setErro(null)}
+              onEnd={() => {
+                setErro(null)
+                if (sigRef.current) setAssinatura(capturarAssinatura(sigRef.current))
+              }}
             />
           </div>
           <button
             type="button"
-            onClick={() => sigRef.current?.clear()}
+            onClick={() => {
+              sigRef.current?.clear()
+              setAssinatura(null)
+            }}
             className="mt-2 inline-flex items-center gap-1.5 text-xs text-secondary hover:text-foreground"
           >
             <Eraser className="h-3.5 w-3.5" />

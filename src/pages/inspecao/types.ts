@@ -73,6 +73,18 @@ export const STATUS_LIBERACAO_COR: Record<StatusLiberacao, string> = {
   nao_liberado: '#E23B2E',
 }
 
+/**
+ * PNG da assinatura, recortado. Se o recorte falhar (bug conhecido do
+ * trim-canvas em alguns builds), usa o canvas inteiro em vez de travar o envio.
+ */
+export function capturarAssinatura(sig: { getTrimmedCanvas: () => HTMLCanvasElement; toDataURL: (type?: string) => string }) {
+  try {
+    return sig.getTrimmedCanvas().toDataURL('image/png')
+  } catch {
+    return sig.toDataURL('image/png')
+  }
+}
+
 export function itemKey(secaoId: string, itemId: string) {
   return `${secaoId}::${itemId}`
 }

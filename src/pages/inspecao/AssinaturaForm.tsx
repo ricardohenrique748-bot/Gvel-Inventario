@@ -5,7 +5,7 @@ import { Input, Label, FieldError, Textarea } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import type { StatusLiberacao } from '@/lib/types'
-import { STATUS_LIBERACAO_LABEL } from './types'
+import { STATUS_LIBERACAO_LABEL, capturarAssinatura } from './types'
 
 const OPCOES_LIBERACAO: { value: StatusLiberacao; emoji: string; activeClass: string }[] = [
   { value: 'liberado', emoji: '🟢', activeClass: 'bg-status-success text-white border-status-success' },
@@ -54,9 +54,12 @@ export function AssinaturaForm({
   const [statusLiberacao, setStatusLiberacao] = useState<StatusLiberacao | undefined>(inicial?.statusLiberacao)
   const [observacoes, setObservacoes] = useState(inicial?.observacoes ?? '')
   const [erro, setErro] = useState<string | null>(null)
+  // Cópia tirada a cada traço: se o canvas for limpo (ex.: teclado abrindo no celular), a assinatura não se perde.
+  const [assinatura, setAssinatura] = useState<string | null>(null)
 
   function handleLimpar() {
     sigRef.current?.clear()
+    setAssinatura(null)
     setErro(null)
   }
 
@@ -81,7 +84,8 @@ export function AssinaturaForm({
       setErro('É necessário confirmar a declaração para continuar.')
       return
     }
-    if (!sigRef.current || sigRef.current.isEmpty()) {
+    const assinaturaAtual = sigRef.current && !sigRef.current.isEmpty() ? capturarAssinatura(sigRef.current) : assinatura
+    if (!assinaturaAtual) {
       setErro('Colete a assinatura antes de continuar.')
       return
     }
@@ -91,7 +95,7 @@ export function AssinaturaForm({
       observacoes: comStatus ? observacoes.trim() || undefined : undefined,
       nome: nomeValor,
       cargo: cargo.trim(),
-      assinaturaDataUrl: sigRef.current.getTrimmedCanvas().toDataURL('image/png'),
+      assinaturaDataUrl: assinaturaAtual,
     })
   }
 
@@ -169,8 +173,12 @@ export function AssinaturaForm({
           <SignatureCanvas
             ref={sigRef}
             penColor="#1a1a1a"
+            clearOnResize={false}
             canvasProps={{ className: 'w-full h-48 touch-none' }}
-            onEnd={() => setErro(null)}
+            onEnd={() => {
+              setErro(null)
+              if (sigRef.current) setAssinatura(capturarAssinatura(sigRef.current))
+            }}
           />
         </div>
         <button

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { FileClock, Save, Trash2 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/Header'
 import { cn } from '@/lib/cn'
@@ -10,6 +11,17 @@ import { ChecklistStep } from './ChecklistStep'
 import { AssinaturaStep } from './AssinaturaStep'
 import { ResumoStep } from './ResumoStep'
 import { LiberacoesFinalizadas } from './LiberacoesFinalizadas'
+import {
+  apagarRascunhoLiberacao,
+  carregarRascunhoLiberacao,
+  salvarRascunhoLiberacao,
+  temConteudo,
+  type RascunhoLiberacao,
+} from './rascunhoLiberacao'
+
+function horaCurta(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
 
 /**
  * `embutido`: usado dentro da aba "Liberação do Veículo" da Manutenção — sempre no
@@ -40,7 +52,88 @@ export function NovaInspecao({ embutido = false }: { embutido?: boolean } = {}) 
     setState((prev) => ({ ...prev, ...next }))
   }
 
+  // ── Rascunho (só liberação) ────────────────────────────────────────────────
+  // Ao abrir: se existe rascunho, pergunta antes de mostrar o formulário (e não
+  // salva nada por cima enquanto a pessoa não decide). Depois: salva sozinho
+  // 1s após cada mudança e na hora em que o app vai pro fundo/fecha.
+  const usuarioRascunho = user?.email
+  const [rascunhoEncontrado, setRascunhoEncontrado] = useState<RascunhoLiberacao | null>(null)
+  const [rascunhoDecidido, setRascunhoDecidido] = useState(!liberacao)
+  const [rascunhoSalvoEm, setRascunhoSalvoEm] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!liberacao || !usuarioRascunho) return
+    let cancelado = false
+    carregarRascunhoLiberacao(usuarioRascunho)
+      .then((r) => {
+        if (cancelado) return
+        if (r && temConteudo(r.state)) setRascunhoEncontrado(r)
+        else setRascunhoDecidido(true)
+      })
+      .catch(() => !cancelado && setRascunhoDecidido(true))
+    return () => {
+      cancelado = true
+    }
+  }, [liberacao, usuarioRascunho])
+
+  const ultimoRef = useRef({ state, step })
+  ultimoRef.current = { state, step }
+  const podeSalvarRascunho = liberacao && rascunhoDecidido && !!usuarioRascunho
+
+  async function salvarRascunhoAgora() {
+    const { state: s, step: st } = ultimoRef.current
+    if (!podeSalvarRascunho || !temConteudo(s)) return
+    try {
+      setRascunhoSalvoEm(await salvarRascunhoLiberacao(usuarioRascunho, s, st))
+    } catch (err) {
+      console.warn('Não foi possível salvar o rascunho da liberação:', err)
+    }
+  }
+
+  useEffect(() => {
+    if (!podeSalvarRascunho || !temConteudo(state)) return
+    const t = setTimeout(salvarRascunhoAgora, 1000)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, step, podeSalvarRascunho])
+
+  useEffect(() => {
+    if (!podeSalvarRascunho) return
+    const aoSair = () => {
+      if (document.visibilityState === 'hidden') salvarRascunhoAgora()
+    }
+    document.addEventListener('visibilitychange', aoSair)
+    window.addEventListener('pagehide', salvarRascunhoAgora)
+    return () => {
+      document.removeEventListener('visibilitychange', aoSair)
+      window.removeEventListener('pagehide', salvarRascunhoAgora)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [podeSalvarRascunho])
+
+  function continuarRascunho() {
+    if (!rascunhoEncontrado) return
+    setState(rascunhoEncontrado.state)
+    setStep(rascunhoEncontrado.step)
+    setRascunhoSalvoEm(rascunhoEncontrado.salvoEm)
+    setRascunhoEncontrado(null)
+    setRascunhoDecidido(true)
+  }
+
+  function descartarRascunho() {
+    apagarRascunhoLiberacao(usuarioRascunho).catch(() => {})
+    setState(criarEstadoInicial(state.modelo))
+    setStep(0)
+    setRascunhoEncontrado(null)
+    setRascunhoSalvoEm(null)
+    setRascunhoDecidido(true)
+  }
+
   function reset() {
+    if (liberacao) {
+      apagarRascunhoLiberacao(usuarioRascunho).catch(() => {})
+      setRascunhoSalvoEm(null)
+    }
     setState(criarEstadoInicial(state.modelo))
     setStep(0)
   }
@@ -93,8 +186,64 @@ export function NovaInspecao({ embutido = false }: { embutido?: boolean } = {}) 
 
       {verFinalizadas ? (
         <LiberacoesFinalizadas />
+      ) : rascunhoEncontrado ? (
+        <div className="max-w-xl rounded-2xl border border-primary/30 bg-surface p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+              <FileClock className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-foreground">Você tem uma liberação em andamento</p>
+              <p className="mt-1 text-xs text-secondary">
+                {rascunhoEncontrado.state.placa ? `Placa ${rascunhoEncontrado.state.placa.toUpperCase()} · ` : ''}
+                Etapa {rascunhoEncontrado.step + 1} de {steps.length} ({steps[rascunhoEncontrado.step]}) · salvo em{' '}
+                {horaCurta(rascunhoEncontrado.salvoEm)}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={continuarRascunho}
+              className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 transition"
+            >
+              Continuar de onde parei
+            </button>
+            <button
+              type="button"
+              onClick={descartarRascunho}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-border/40 px-4 py-2.5 text-sm font-medium text-secondary hover:text-foreground transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+              Descartar e começar nova
+            </button>
+          </div>
+        </div>
       ) : (
         <>
+          {podeSalvarRascunho && temConteudo(state) && (
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-secondary">
+              <span>{rascunhoSalvoEm ? `Rascunho salvo em ${horaCurta(rascunhoSalvoEm)}` : 'Rascunho ainda não salvo'}</span>
+              <button
+                type="button"
+                onClick={salvarRascunhoAgora}
+                className="inline-flex items-center gap-1 rounded-lg border border-border/40 px-2.5 py-1 font-medium text-foreground hover:border-primary/60 transition-colors"
+              >
+                <Save className="h-3.5 w-3.5" />
+                Salvar rascunho
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Descartar esta liberação em andamento? O que foi preenchido será apagado.')) descartarRascunho()
+                }}
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 hover:text-status-danger transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Descartar
+              </button>
+            </div>
+          )}
           <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-1">
             {steps.map((label, i) => (
               <div key={label} className="flex items-center gap-2 shrink-0">
