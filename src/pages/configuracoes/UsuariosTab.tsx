@@ -40,7 +40,7 @@ import { useEmpresa, type Empresa } from '@/contexts/EmpresaContext'
 import { useEmpresasVisiveis } from '@/hooks/useCompanies'
 import { RecortarFotoModal } from '@/components/RecortarFotoModal'
 import { formatDate } from '@/lib/format'
-import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, expandirModulosLegados, getModulosUsuario, temAcessoModuloEmpresa, type ModuloSistema } from '@/lib/permissoes'
+import { MODULOS_SISTEMA, TODOS_MODULOS_IDS, MODULOS_PADRAO_USUARIO, expandirModulosLegados, getModulosUsuario, temAcessoModuloEmpresa, temAcessoSubModuloEmpresa, type ModuloSistema } from '@/lib/permissoes'
 import type { Usuario } from '@/lib/types'
 
 const ICONES_MODULOS: Record<string, React.ElementType> = {
@@ -101,7 +101,7 @@ function ModulosSelector({ nivel, selected, onChange }: ModulosSelectorProps) {
   const modulosDisponiveis = useMemo(() => {
     return MODULOS_SISTEMA.filter((m) => temAcessoModuloEmpresa(empresa, m.id)).map((m) => ({
       ...m,
-      subModulos: m.subModulos?.filter((s) => temAcessoModuloEmpresa(empresa, s.id)),
+      subModulos: m.subModulos?.filter((s) => temAcessoSubModuloEmpresa(empresa, s.id)),
     }))
   }, [empresa])
 

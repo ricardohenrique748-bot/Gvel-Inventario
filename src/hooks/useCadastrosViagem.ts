@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
-import type { CentroCusto, Transportadora, TipoCarga, EnderecoFrequente, Pessoa, FormaPagamento, TipoLancamento, Fornecedor } from '@/lib/types'
+import type { CentroCusto, Transportadora, TipoCarga, EnderecoFrequente, Pessoa, FormaPagamento, TipoLancamento, Fornecedor, ClienteViagem } from '@/lib/types'
 
 // Cadastros de apoio do Controle de Viagens (Centro de Custo, Transportadora,
 // Tipo de Carga) — todos simples (id + nome), no mesmo padrão de
@@ -56,6 +56,12 @@ export function useTiposLancamento() {
   return { tiposLancamento: itens, loading, refetch }
 }
 
+/** Clientes das viagens — tabela própria, não mistura com `clientes` do pátio/inventário. */
+export function useClientesViagem() {
+  const { itens, loading, refetch } = useCadastroSimples<ClienteViagem>('clientes_viagem')
+  return { clientesViagem: itens, loading, refetch }
+}
+
 export function useFornecedores() {
   const { itens, loading, refetch } = useCadastroSimples<Fornecedor>('fornecedores')
   return { fornecedores: itens, loading, refetch }
@@ -96,6 +102,11 @@ const cadastroTiposLancamento = fabricaCadastroSimples<TipoLancamento>('tipos_la
 export const criarTipoLancamento = cadastroTiposLancamento.criar
 export const atualizarTipoLancamento = cadastroTiposLancamento.atualizar
 export const excluirTipoLancamento = cadastroTiposLancamento.excluir
+
+const cadastroClientesViagem = fabricaCadastroSimples<ClienteViagem>('clientes_viagem')
+export const criarClienteViagem = cadastroClientesViagem.criar
+export const atualizarClienteViagem = cadastroClientesViagem.atualizar
+export const excluirClienteViagem = cadastroClientesViagem.excluir
 
 const cadastroFornecedores = fabricaCadastroSimples<Fornecedor>('fornecedores')
 export const criarFornecedor = cadastroFornecedores.criar

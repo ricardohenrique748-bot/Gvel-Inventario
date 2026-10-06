@@ -484,6 +484,12 @@ export interface Fornecedor {
   nome: string
 }
 
+/** Cliente do Controle de Viagens — cadastro separado de `Cliente` (pátio/inventário). */
+export interface ClienteViagem {
+  id: string
+  nome: string
+}
+
 export type TipoMovimentacaoConta = 'despesa' | 'receita'
 export type StatusContaPagarReceber = 'pendente' | 'pago' | 'atrasado' | 'cancelado'
 

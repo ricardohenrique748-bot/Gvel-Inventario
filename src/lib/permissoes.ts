@@ -380,3 +380,21 @@ export function temAcessoModuloEmpresa(
   if (!habilitados || habilitados.length === 0) return true
   return habilitados.includes(moduloId)
 }
+
+/**
+ * Sub-abas que o app de fato esconde por empresa (Configurações e o
+ * Indicador de Performance — ver Configuracoes.tsx e Sidebar). As demais
+ * sub-abas (ex.: frotas_consumo) só dependem do módulo pai estar liberado
+ * pra empresa; exigir o ID da sub-aba em `modulos_habilitados` escondia da
+ * tela de permissões toda aba criada depois que a lista da empresa foi salva.
+ */
+function subModuloFiltradoPorEmpresa(subId: string): boolean {
+  return subId.startsWith('config_') || subId === 'dashboard_controle_horas'
+}
+
+export function temAcessoSubModuloEmpresa(
+  empresa: Pick<Company, 'modulos_habilitados'> | null | undefined,
+  subId: string,
+): boolean {
+  return subModuloFiltradoPorEmpresa(subId) ? temAcessoModuloEmpresa(empresa, subId) : true
+}

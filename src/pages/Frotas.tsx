@@ -113,6 +113,7 @@ import type {
   FormaCalculoFrete,
   TipoFrete,
   Cliente,
+  ClienteViagem,
   CentroCusto,
   Transportadora,
   TipoCarga,
@@ -156,6 +157,10 @@ import {
   excluirTipoLancamento,
   useFornecedores,
   criarFornecedor,
+  useClientesViagem,
+  criarClienteViagem,
+  atualizarClienteViagem,
+  excluirClienteViagem,
 } from '@/hooks/useCadastrosViagem'
 import {
   useViagensFrota,
@@ -426,6 +431,7 @@ type SubAbaViagens =
   | 'marcas'
   | 'modelos'
   | 'pessoas'
+  | 'clientes_viagem'
   | 'formas_pagamento'
   | 'tipos_lancamento'
   | 'contas_bancarias'
@@ -465,6 +471,7 @@ const GRUPOS_MENU_VIAGENS: { titulo: string; itens: ItemMenuViagens[] }[] = [
   {
     titulo: 'Cadastro',
     itens: [
+      { kind: 'tab', id: 'clientes_viagem', label: 'CLIENTES', icon: UserCheck },
       { kind: 'tab', id: 'pessoas', label: 'PESSOAS', icon: Users },
       { kind: 'link', to: '/frotas?aba=veiculos', label: 'VEÍCULOS', icon: Truck },
       { kind: 'tab', id: 'marcas', label: 'MARCAS', icon: Award },
@@ -766,6 +773,7 @@ export function Frotas() {
     refetch: refetchEnderecosFrequentes,
   } = useEnderecosFrequentes()
   const { pessoas, loading: carregandoPessoas, refetch: refetchPessoas } = usePessoas()
+  const { clientesViagem, loading: carregandoClientesViagem, refetch: refetchClientesViagem } = useClientesViagem()
   const { formasPagamento, loading: carregandoFormasPagamento, refetch: refetchFormasPagamento } = useFormasPagamento()
   const { tiposLancamento, loading: carregandoTiposLancamento, refetch: refetchTiposLancamento } = useTiposLancamento()
   const { contas: contasBancarias, loading: carregandoContasBancarias, addConta, removeConta, updateConta } = useContas()
@@ -3999,7 +4007,7 @@ export function Frotas() {
                   className="mt-1 text-xs font-bold"
                 >
                   <option value="">TODOS OS CLIENTES</option>
-                  {clientes.map((c) => (
+                  {clientesViagem.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.nome}
                     </option>
@@ -4276,6 +4284,21 @@ export function Frotas() {
       {/* SUB-ABA: MODELOS */}
       {abaPrincipal === 'viagens' && subAbaViagens === 'modelos' && (
         <GerenciadorModelos marcas={marcas} />
+      )}
+
+      {/* SUB-ABA: CLIENTES (das viagens — separado do cadastro de clientes do pátio/inventário) */}
+      {abaPrincipal === 'viagens' && subAbaViagens === 'clientes_viagem' && (
+        <GerenciadorCadastroSimples
+          titulo="Clientes"
+          subtitulo="Clientes das viagens — cadastro próprio, não mistura com os clientes do pátio/inventário"
+          icon={UserCheck}
+          itens={clientesViagem}
+          loading={carregandoClientesViagem}
+          refetch={refetchClientesViagem}
+          onCriar={criarClienteViagem}
+          onAtualizar={atualizarClienteViagem}
+          onExcluir={excluirClienteViagem}
+        />
       )}
 
       {/* SUB-ABA: PESSOAS */}
@@ -6545,8 +6568,8 @@ export function Frotas() {
         <ModalViagem
           viagemEditando={viagemEditando}
           veiculos={frotas}
-          clientes={clientes}
-          onRefetchClientes={refetchClientes}
+          clientes={clientesViagem}
+          onRefetchClientes={refetchClientesViagem}
           centrosCusto={centrosCusto}
           onRefetchCentrosCusto={refetchCentrosCusto}
           transportadoras={transportadoras}
@@ -8139,7 +8162,7 @@ function ModalViagem({
 }: {
   viagemEditando: RegistroViagem | null
   veiculos: ItemFrotaCadastrada[]
-  clientes: Cliente[]
+  clientes: ClienteViagem[]
   onRefetchClientes: () => Promise<void>
   centrosCusto: CentroCusto[]
   onRefetchCentrosCusto: () => Promise<void>
@@ -8391,7 +8414,7 @@ function ModalViagem({
                 value={clienteId}
                 onChange={setClienteId}
                 onCreate={async (nome) => {
-                  const novo = await criarCliente(nome)
+                  const novo = await criarClienteViagem(nome)
                   await onRefetchClientes()
                   return novo
                 }}
