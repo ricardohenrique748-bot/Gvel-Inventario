@@ -96,9 +96,9 @@ export interface ItemCaixa {
   quantidade: number
 }
 
-export type SetorCaixa = 'LEVE' | 'PESADA' | 'FUNILARIA' | 'ESTETICA'
+export type SetorCaixa = 'LEVE' | 'PESADA' | 'FUNILARIA' | 'ESTETICA' | 'TRANSPORTES'
 
-export const SETORES_CAIXA: SetorCaixa[] = ['LEVE', 'PESADA', 'FUNILARIA', 'ESTETICA']
+export const SETORES_CAIXA: SetorCaixa[] = ['LEVE', 'PESADA', 'FUNILARIA', 'ESTETICA', 'TRANSPORTES']
 
 export interface CaixaFerramenta {
   id: string
@@ -112,7 +112,7 @@ export interface CaixaFerramenta {
   responsavel?: string
   placa?: string
   data_retirada?: string
-  /** Pasta/setor da oficina onde essa caixa fica (LEVE, PESADA, FUNILARIA, ESTETICA). */
+  /** Pasta/setor da oficina onde essa caixa fica (LEVE, PESADA, FUNILARIA, ESTETICA, TRANSPORTES). */
   setor?: SetorCaixa | null
   created_at: string
 }
@@ -700,7 +700,7 @@ export function InventarioFerramentas() {
   // não o filtro de status — a pasta mostra o total de caixas ali dentro).
   const contagemCaixasPorSetor = useMemo(() => {
     const termo = deferredBuscaCaixas.trim().toLowerCase()
-    const mapa: Record<SetorCaixa, number> = { LEVE: 0, PESADA: 0, FUNILARIA: 0, ESTETICA: 0 }
+    const mapa: Record<SetorCaixa, number> = { LEVE: 0, PESADA: 0, FUNILARIA: 0, ESTETICA: 0, TRANSPORTES: 0 }
     caixas.forEach((c) => {
       if (!c.setor) return
       const matchBusca =
@@ -2145,7 +2145,7 @@ export function InventarioFerramentas() {
 
           {mostrarPastasCaixas ? (
             /* ============ VISÃO DE PASTAS POR SETOR ============ */
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
               {SETORES_CAIXA.map((setor) => (
                 <button
                   key={setor}
