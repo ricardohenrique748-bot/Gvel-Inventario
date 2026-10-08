@@ -59,6 +59,7 @@ import {
   Download,
   LogOut,
   History,
+  FileDown,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -79,6 +80,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Input, Label, FieldError, Select, Textarea } from '@/components/ui/Input'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
 import { TipoVeiculoRadioGroup } from '@/components/TipoVeiculoRadioGroup'
+import { FOTOS_CARRETA, GuiaFotoCarreta, GuiaFotoCavalo, type AnguloCarreta } from '@/components/GuiaFotoCavalo'
 import { useClientes, criarCliente } from '@/hooks/useClientes'
 import {
   useMarcas,
@@ -104,7 +106,6 @@ import { STORAGE_FROTAS_KEY } from '@/lib/frotasStorage'
 import { useVeiculosFrotaOverrides, upsertVeiculoFrota, excluirVeiculoFrotaOverride } from '@/hooks/useVeiculosFrota'
 import type {
   FotosVistoria,
-  FotoExtraChecklist,
   StatusPreventivaChecklist,
   RegistroChecklist,
   RegistroViagem,
@@ -190,6 +191,7 @@ import { ManutencaoViagens } from '@/pages/frotas/ManutencaoViagens'
 import { ConciliacaoViagens } from '@/pages/frotas/ConciliacaoViagens'
 import { ConsumoCombustivel } from '@/pages/frotas/ConsumoCombustivel'
 import { formatarNomeSobrenome } from '@/constants/equipe'
+import { baixarPdfChecklist, podeEmitirPdfChecklist } from '@/pages/frotas/pdfChecklist'
 
 export function isFrotaEmbarcado(v: { placa?: string; tipo?: string }): boolean {
   const placa = (v.placa || '').toUpperCase().trim()
@@ -1040,9 +1042,15 @@ export function Frotas() {
   const [kmChecklist, setKmChecklist] = useState<number>(0)
   const [resultadoChecklist, setResultadoChecklist] = useState<'aprovado' | 'aprovado_com_ressalvas' | 'reprovado'>('aprovado')
   const [obsChecklist, setObsChecklist] = useState('')
+  // Id do checklist cujo PDF está sendo gerado (desabilita o botão).
+  const [gerandoPdfChecklistId, setGerandoPdfChecklistId] = useState<string | null>(null)
+  // Declaração obrigatória: sem marcar, o checklist não pode ser salvo.
+  const [atestoChecklist, setAtestoChecklist] = useState(false)
   const [fotosChecklist, setFotosChecklist] = useState<FotosVistoria>({})
-  // Fotos adicionais livres — só na frota pesada.
-  const [fotosExtrasChecklist, setFotosExtrasChecklist] = useState<FotoExtraChecklist[]>([])
+  // Fotos guiadas das carretas (frota pesada; um bloco por carreta engatada —
+  // bitrem/rodotrem têm mais de uma). Salvas junto das fotos adicionais com o
+  // rótulo "CARRETA <N> - <ÂNGULO>", sem coluna nova no banco.
+  const [fotosCarretasChecklist, setFotosCarretasChecklist] = useState<Partial<Record<AnguloCarreta, string>>[]>([{}])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -1060,7 +1068,8 @@ export function Frotas() {
   const inputFotoLadoEsquerdoRef = useRef<HTMLInputElement>(null)
   const inputFotoTraseiraRef = useRef<HTMLInputElement>(null)
   const inputFotoLadoDireitoRef = useRef<HTMLInputElement>(null)
-  const inputFotoExtraRef = useRef<HTMLInputElement>(null)
+  const inputFotoCarretaRef = useRef<HTMLInputElement>(null)
+  const fotoCarretaPendenteRef = useRef<{ carreta: number; angulo: AnguloCarreta } | null>(null)
 
   const {
     register,
@@ -2083,8 +2092,9 @@ export function Frotas() {
     setKmChecklist(0)
     setResultadoChecklist('aprovado')
     setObsChecklist('')
+    setAtestoChecklist(false)
     setFotosChecklist({})
-    setFotosExtrasChecklist([])
+    setFotosCarretasChecklist([{}])
     setTipoChecklistNovo('ida')
     setMostrarModalNovoChecklist(true)
   }
@@ -2101,8 +2111,9 @@ export function Frotas() {
     setKmChecklist(0)
     setResultadoChecklist('aprovado')
     setObsChecklist('')
+    setAtestoChecklist(false)
     setFotosChecklist({})
-    setFotosExtrasChecklist([])
+    setFotosCarretasChecklist([{}])
     setMostrarModalNovoChecklist(true)
   }
 
@@ -2137,21 +2148,45 @@ export function Frotas() {
     }
   }
 
-  async function handleAdicionarFotoExtra(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
+  function abrirFotoCarreta(carreta: number, angulo: AnguloCarreta) {
+    fotoCarretaPendenteRef.current = { carreta, angulo }
+    inputFotoCarretaRef.current?.click()
+  }
+
+  async function handleUploadFotoCarreta(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
     e.target.value = ''
-    if (files.length === 0) return
+    const pendente = fotoCarretaPendenteRef.current
+    if (!file || !pendente) return
     try {
-      const novas = await Promise.all(files.map((f) => comprimirFoto(f)))
-      setFotosExtrasChecklist((prev) => [...prev, ...novas.map((url) => ({ url }))])
+      const base64 = await comprimirFoto(file)
+      setFotosCarretasChecklist((prev) =>
+        prev.map((fotos, i) => (i === pendente.carreta ? { ...fotos, [pendente.angulo]: base64 } : fotos)),
+      )
     } catch (err) {
       console.error('Erro ao processar imagem:', err)
       alert('Erro ao carregar a foto.')
     }
   }
 
+  async function handleBaixarPdfChecklist(chk: RegistroChecklist) {
+    setGerandoPdfChecklistId(chk.id)
+    try {
+      await baixarPdfChecklist(chk)
+    } catch (err) {
+      console.error('Erro ao gerar PDF do checklist:', err)
+      alert(err instanceof Error ? err.message : 'Não foi possível gerar o PDF do checklist.')
+    } finally {
+      setGerandoPdfChecklistId(null)
+    }
+  }
+
   async function handleSalvarChecklist(e: React.FormEvent) {
     e.preventDefault()
+    if (!atestoChecklist) {
+      alert('Marque a declaração de que o veículo está em perfeitas condições para trabalho.')
+      return
+    }
     if (!veiculoChecklistId) {
       alert('Selecione um veículo da frota.')
       return
@@ -2186,7 +2221,14 @@ export function Frotas() {
         itens: [],
         fotos: fotosChecklist,
         fotosExtras: checklistFrotaPesada
-          ? fotosExtrasChecklist.map((f) => ({ url: f.url, label: f.label?.trim().toUpperCase() || undefined }))
+          ? [
+              ...fotosCarretasChecklist.flatMap((fotos, i) =>
+                FOTOS_CARRETA.filter((c) => fotos[c.angulo]).map((c) => ({
+                  url: fotos[c.angulo]!,
+                  label: fotosCarretasChecklist.length > 1 ? `CARRETA ${i + 1} - ${c.rotulo}` : `CARRETA - ${c.rotulo}`,
+                })),
+              ),
+            ]
           : undefined,
         observacoesGerais: obsChecklist.trim() || undefined,
         tipoChecklist: veiculo && precisaChecklistIdaVolta(veiculo.placa) ? tipoChecklistNovo : undefined,
@@ -3878,6 +3920,17 @@ export function Frotas() {
                               >
                                 <Eye className="h-4 w-4" />
                               </button>
+                              {podeEmitirPdfChecklist(chk.placa) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleBaixarPdfChecklist(chk)}
+                                  disabled={gerandoPdfChecklistId === chk.id}
+                                  className="rounded-lg p-1.5 text-secondary hover:text-primary hover:bg-overlay/10 transition-colors disabled:opacity-40 disabled:cursor-wait"
+                                  title="Baixar checklist em PDF"
+                                >
+                                  <FileDown className={`h-4 w-4 ${gerandoPdfChecklistId === chk.id ? 'animate-pulse' : ''}`} />
+                                </button>
+                              )}
                               {isAdmin && (
                                 <button
                                   type="button"
@@ -5698,7 +5751,11 @@ export function Frotas() {
                           onClick={() => inputFotoPainelRef.current?.click()}
                           className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
                         >
-                          <Camera className="h-4 w-4" />
+                          {checklistFrotaPesada ? (
+                            <GuiaFotoCavalo angulo="painel" className="h-9 w-14" />
+                          ) : (
+                            <Camera className="h-4 w-4" />
+                          )}
                           <span className="text-[9px] font-bold">PAINEL</span>
                         </button>
                       )}
@@ -5753,7 +5810,11 @@ export function Frotas() {
                           onClick={() => inputFotoFrenteRef.current?.click()}
                           className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
                         >
-                          <Camera className="h-4 w-4" />
+                          {checklistFrotaPesada ? (
+                            <GuiaFotoCavalo angulo="frente" className="h-9 w-14" />
+                          ) : (
+                            <Camera className="h-4 w-4" />
+                          )}
                           <span className="text-[9px] font-bold">FRENTE</span>
                         </button>
                       )}
@@ -5808,7 +5869,11 @@ export function Frotas() {
                           onClick={() => inputFotoLadoEsquerdoRef.current?.click()}
                           className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
                         >
-                          <Camera className="h-4 w-4" />
+                          {checklistFrotaPesada ? (
+                            <GuiaFotoCavalo angulo="ladoEsquerdo" className="h-9 w-14" />
+                          ) : (
+                            <Camera className="h-4 w-4" />
+                          )}
                           <span className="text-[9px] font-bold">LADO ESQ.</span>
                         </button>
                       )}
@@ -5863,7 +5928,11 @@ export function Frotas() {
                           onClick={() => inputFotoTraseiraRef.current?.click()}
                           className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
                         >
-                          <Camera className="h-4 w-4" />
+                          {checklistFrotaPesada ? (
+                            <GuiaFotoCavalo angulo="traseira" className="h-9 w-14" />
+                          ) : (
+                            <Camera className="h-4 w-4" />
+                          )}
                           <span className="text-[9px] font-bold">TRASEIRA</span>
                         </button>
                       )}
@@ -5918,7 +5987,11 @@ export function Frotas() {
                           onClick={() => inputFotoLadoDireitoRef.current?.click()}
                           className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
                         >
-                          <Camera className="h-4 w-4" />
+                          {checklistFrotaPesada ? (
+                            <GuiaFotoCavalo angulo="ladoDireito" className="h-9 w-14" />
+                          ) : (
+                            <Camera className="h-4 w-4" />
+                          )}
                           <span className="text-[9px] font-bold">LADO DIR.</span>
                         </button>
                       )}
@@ -5926,59 +5999,99 @@ export function Frotas() {
                   </div>
                 </div>
 
-                {/* Fotos adicionais livres — só frota pesada */}
+                {/* Fotos da(s) carreta(s) — só frota pesada */}
                 {checklistFrotaPesada && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-black text-secondary uppercase tracking-wider">
-                        FOTOS ADICIONAIS {fotosExtrasChecklist.length > 0 && `(${fotosExtrasChecklist.length})`}
-                      </span>
-                      <span className="text-[10px] text-secondary/70 normal-case">Avarias, pneus, detalhes…</span>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-secondary uppercase tracking-wider">FOTOS DA CARRETA</span>
+                      <span className="text-[10px] text-secondary/70 normal-case">Opcional — se estiver engatada</span>
                     </div>
                     <input
-                      ref={inputFotoExtraRef}
+                      ref={inputFotoCarretaRef}
                       type="file"
                       accept="image/*"
-                      multiple
+                      capture="environment"
                       className="hidden"
-                      onChange={handleAdicionarFotoExtra}
+                      onChange={handleUploadFotoCarreta}
                     />
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-                      {fotosExtrasChecklist.map((foto, i) => (
-                        <div key={i} className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-2.5 flex flex-col gap-1.5">
-                          <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30">
-                            <img src={foto.url} alt={`Foto adicional ${i + 1}`} className="w-full h-full object-cover" />
+                    {fotosCarretasChecklist.map((fotosCarreta, idxCarreta) => (
+                      <div key={idxCarreta} className="space-y-2">
+                        {fotosCarretasChecklist.length > 1 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-foreground">CARRETA {idxCarreta + 1}</span>
                             <button
                               type="button"
-                              onClick={() => setFotosExtrasChecklist((prev) => prev.filter((_, idx) => idx !== i))}
-                              className="absolute top-1 right-1 p-1 rounded bg-red-600 text-white"
-                              aria-label="Remover foto"
+                              onClick={() => setFotosCarretasChecklist((prev) => prev.filter((_, i) => i !== idxCarreta))}
+                              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold text-secondary hover:bg-red-500/10 hover:text-red-500"
                             >
-                              <Trash2 className="h-2.5 w-2.5" />
+                              <Trash2 className="h-3 w-3" /> Remover carreta
                             </button>
                           </div>
-                          <input
-                            type="text"
-                            value={foto.label ?? ''}
-                            onChange={(e) =>
-                              setFotosExtrasChecklist((prev) =>
-                                prev.map((f, idx) => (idx === i ? { ...f, label: e.target.value } : f)),
-                              )
-                            }
-                            placeholder="Descrição"
-                            className="w-full rounded-md border border-border/30 bg-background px-1.5 py-1 text-[10px] uppercase text-foreground placeholder:text-secondary/50 focus:border-primary/60 focus:outline-none"
-                          />
+                        )}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          {FOTOS_CARRETA.map(({ angulo, rotulo }) => {
+                            const foto = fotosCarreta[angulo]
+                            return (
+                              <div
+                                key={angulo}
+                                className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                                  foto ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between w-full mb-1.5">
+                                  <span className="text-[9px] font-black text-foreground truncate">{rotulo}</span>
+                                  {foto && <span className="text-[8px] font-black text-emerald-400">✓</span>}
+                                </div>
+                                {foto ? (
+                                  <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                                    <img src={foto} alt={`Carreta ${idxCarreta + 1} - ${rotulo}`} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                                      <button
+                                        type="button"
+                                        onClick={() => abrirFotoCarreta(idxCarreta, angulo)}
+                                        className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                                      >
+                                        Trocar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setFotosCarretasChecklist((prev) =>
+                                            prev.map((f, i) => (i === idxCarreta ? { ...f, [angulo]: undefined } : f)),
+                                          )
+                                        }
+                                        className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                                        aria-label={`Remover foto da carreta ${idxCarreta + 1} - ${rotulo}`}
+                                      >
+                                        <Trash2 className="h-2.5 w-2.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirFotoCarreta(idxCarreta, angulo)}
+                                    className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                                  >
+                                    <GuiaFotoCarreta angulo={angulo} className="h-9 w-14" />
+                                    <span className="text-[9px] font-bold">{rotulo}</span>
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
-                      ))}
+                      </div>
+                    ))}
+                    {fotosCarretasChecklist.length < 3 && (
                       <button
                         type="button"
-                        onClick={() => inputFotoExtraRef.current?.click()}
-                        className="rounded-xl border-2 border-dashed border-border/40 hover:border-primary/60 min-h-[8.5rem] flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                        onClick={() => setFotosCarretasChecklist((prev) => [...prev, {}])}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border/40 py-2 text-[10px] font-bold text-secondary hover:border-primary/60 hover:text-primary transition-all"
                       >
-                        <Plus className="h-4 w-4" />
-                        <span className="text-[9px] font-bold">ADICIONAR FOTO</span>
+                        <Plus className="h-3.5 w-3.5" /> ADICIONAR CARRETA
                       </button>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -5996,6 +6109,29 @@ export function Frotas() {
                     className="mt-1 text-xs resize-none"
                   />
                 </div>
+
+                <label
+                  htmlFor="chkAtesto"
+                  className={`mt-4 flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 transition-colors ${
+                    atestoChecklist ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-primary/40 bg-primary/5'
+                  }`}
+                >
+                  <input
+                    id="chkAtesto"
+                    type="checkbox"
+                    checked={atestoChecklist}
+                    onChange={(e) => setAtestoChecklist(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-emerald-500"
+                  />
+                  <span className="text-xs font-bold text-foreground">
+                    Atesto que o veículo está em perfeitas condições para trabalho.
+                    {!atestoChecklist && (
+                      <span className="mt-0.5 block text-[10px] font-medium normal-case text-secondary">
+                        Obrigatório para salvar o checklist.
+                      </span>
+                    )}
+                  </span>
+                </label>
               </div>
             </div>
 
@@ -6012,7 +6148,7 @@ export function Frotas() {
               </Button>
               <Button
                 type="submit"
-                disabled={salvandoChecklist}
+                disabled={salvandoChecklist || !atestoChecklist}
                 className="!h-10 px-6 text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 flex items-center gap-1.5 disabled:opacity-60"
               >
                 <CheckCircle2 className="h-4 w-4" />
