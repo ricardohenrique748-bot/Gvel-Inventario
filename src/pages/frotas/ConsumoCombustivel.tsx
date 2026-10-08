@@ -39,6 +39,8 @@ export function ConsumoCombustivel({ veiculos: veiculosFrota, motoristas, isAdmi
   const [novoAberto, setNovoAberto] = useState(false)
   const [detalhe, setDetalhe] = useState<AbastecimentoConsumo | null>(null)
 
+  // Data vazia/incompleta enquanto o usuário edita viraria Invalid Date e
+  // toISOString() derrubaria a tela — por isso o onChange ignora valor vazio.
   const periodo = useMemo(
     () =>
       periodoDoPreset(preset, {
@@ -94,8 +96,8 @@ export function ConsumoCombustivel({ veiculos: veiculosFrota, motoristas, isAdmi
       </Select>
       {preset === 'personalizado' && (
         <>
-          <Input type="date" className="h-10 w-auto text-xs" value={personalizado.inicio} onChange={(e) => setPersonalizado({ ...personalizado, inicio: e.target.value })} />
-          <Input type="date" className="h-10 w-auto text-xs" value={personalizado.fim} onChange={(e) => setPersonalizado({ ...personalizado, fim: e.target.value })} />
+          <Input type="date" className="h-10 w-auto text-xs" value={personalizado.inicio} onChange={(e) => e.target.value && setPersonalizado({ ...personalizado, inicio: e.target.value })} />
+          <Input type="date" className="h-10 w-auto text-xs" value={personalizado.fim} onChange={(e) => e.target.value && setPersonalizado({ ...personalizado, fim: e.target.value })} />
         </>
       )}
     </>

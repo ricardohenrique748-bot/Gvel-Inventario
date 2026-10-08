@@ -111,16 +111,20 @@ export function AbastecimentoModal({ veiculos, abastecimentos, postos, motorista
   const nOdometro = parseDecimal(odometro)
   const nHorimetro = parseDecimal(horimetro)
   const nTotalInformado = parseDecimal(valorTotalInformado)
+  // Enquanto o campo de data é editado ele fica vazio/incompleto por um
+  // instante; new Date('').toISOString() lança e derrubava a tela inteira.
+  const dataValida = dataHora ? new Date(dataHora) : null
+  const dataHoraIso = dataValida && !Number.isNaN(dataValida.getTime()) ? dataValida.toISOString() : null
   const valor = nLitros ? conferirValorTotal(nLitros, nValorLitro, nTotalInformado, config.toleranciaValorTotal) : undefined
 
   // Validação ao vivo, com a mesma regra que roda ao gravar.
   const previa = useMemo(() => {
-    if (!veiculo || !nLitros) return null
+    if (!veiculo || !nLitros || !dataHoraIso) return null
     return validarAbastecimento(
       {
         id,
         placa: veiculo.placa,
-        dataHora: new Date(dataHora).toISOString(),
+        dataHora: dataHoraIso,
         odometro: nOdometro,
         horimetro: nHorimetro,
         litros: nLitros,
@@ -133,7 +137,7 @@ export function AbastecimentoModal({ veiculos, abastecimentos, postos, motorista
       meta,
       config,
     )
-  }, [veiculo, nLitros, nOdometro, nHorimetro, nValorLitro, nTotalInformado, dataHora, tanqueCheio, combustivel, abastecimentos, meta, config, id])
+  }, [veiculo, nLitros, nOdometro, nHorimetro, nValorLitro, nTotalInformado, dataHoraIso, tanqueCheio, combustivel, abastecimentos, meta, config, id])
 
   async function escolherFoto(e: React.ChangeEvent<HTMLInputElement>, set: (v: string | undefined) => void) {
     const file = e.target.files?.[0]
@@ -277,6 +281,7 @@ export function AbastecimentoModal({ veiculos, abastecimentos, postos, motorista
     e.preventDefault()
     setErro(null)
     if (!veiculo) return setErro('Selecione a placa.')
+    if (!dataHoraIso) return setErro('Informe a data e hora do abastecimento.')
     if (!nLitros || nLitros <= 0) return setErro('Informe os litros abastecidos.')
     if (tanqueCheio === null) return setErro('Informe se completou o tanque.')
     if (nOdometro == null) return setErro('Informe o odômetro — sem ele não dá pra calcular o consumo.')
@@ -289,7 +294,7 @@ export function AbastecimentoModal({ veiculos, abastecimentos, postos, motorista
       placa: veiculo.placa,
       veiculoNome: veiculo.nome,
       motoristaNome: motorista.trim() || undefined,
-      dataHora: new Date(dataHora).toISOString(),
+      dataHora: dataHoraIso,
       odometro: nOdometro,
       horimetro: nHorimetro,
       litros: nLitros,
