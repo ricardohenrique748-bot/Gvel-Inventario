@@ -210,6 +210,14 @@ export function isAdminUsuario(usuario?: Partial<Usuario> | null, emailFallback?
 }
 
 /**
+ * Excluir abastecimento é restrito a uma única conta (nem admins comuns
+ * podem). O banco reforça a mesma regra — ver migration 0093.
+ */
+export function podeExcluirAbastecimento(email?: string | null): boolean {
+  return (email || '').toLowerCase().trim() === 'ricardo_h.16@hotmail.com'
+}
+
+/**
  * Obtém os módulos permitidos para um usuário
  */
 export function getModulosUsuario(usuario?: Partial<Usuario> | null): string[] {

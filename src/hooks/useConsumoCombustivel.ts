@@ -570,6 +570,17 @@ export async function atualizarAbastecimento(
   avisarAtualizacao()
 }
 
+// Exclusão definitiva — só a conta liberada em podeExcluirAbastecimento; o RLS
+// (migration 0093) recusa as demais. A auditoria registra a 'exclusao' com os
+// valores anteriores.
+export async function excluirAbastecimento(id: string): Promise<void> {
+  const { data, error } = await supabase.from('abastecimentos').delete().eq('id', id).select('id')
+  if (error) throw new Error(error.message)
+  if (!data?.length) throw new Error('Sem permissão para excluir este abastecimento.')
+  await supabase.from('alertas_consumo').delete().eq('referencia_id', id)
+  avisarAtualizacao()
+}
+
 export async function resolverAlerta(id: string, usuario: string): Promise<void> {
   const { error } = await supabase
     .from('alertas_consumo')

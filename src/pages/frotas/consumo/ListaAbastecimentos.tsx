@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Download } from 'lucide-react'
+import { Download, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { exportRowsToCsv } from '@/lib/csv'
+import { podeExcluirAbastecimento } from '@/lib/permissoes'
+import { useAuth } from '@/contexts/AuthContext'
+import { excluirAbastecimento } from '@/hooks/useConsumoCombustivel'
 import type { AbastecimentoConsumo, Posto } from '@/hooks/useConsumoCombustivel'
 import { isArla, ordenarAbastecimentos } from './dominio'
 import { StatusAbastecimentoBadge, dentroDoPeriodo, fmtDataHora, fmtMoeda, fmtNum, type Periodo, type VeiculoConsumo } from './ui'
@@ -27,6 +30,22 @@ export function ListaAbastecimentos({ abastecimentos, veiculos, postos, periodo,
   const [status, setStatus] = useState('')
   const [origem, setOrigem] = useState('')
   const [pagina, setPagina] = useState(0)
+  const [excluindo, setExcluindo] = useState<string | null>(null)
+  const { user } = useAuth()
+  const podeExcluir = podeExcluirAbastecimento(user?.email)
+  const colunas = podeExcluir ? 11 : 10
+
+  async function excluir(a: AbastecimentoConsumo) {
+    if (!confirm(`Excluir o abastecimento de ${a.placa} em ${fmtDataHora(a.dataHora)}? Essa ação não pode ser desfeita.`)) return
+    setExcluindo(a.id)
+    try {
+      await excluirAbastecimento(a.id)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Não foi possível excluir o abastecimento.')
+    } finally {
+      setExcluindo(null)
+    }
+  }
 
   // KM desde o abastecimento anterior do mesmo veículo (qualquer combustível, não invalidado).
   const kmDesdeAnterior = useMemo(() => {
@@ -149,12 +168,13 @@ export function ListaAbastecimentos({ abastecimentos, veiculos, postos, periodo,
                     {h}
                   </th>
                 ))}
+                {podeExcluir && <th className="w-10 px-3 py-2" />}
               </tr>
             </thead>
             <tbody>
               {visiveis.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-3 py-8 text-center normal-case text-secondary">
+                  <td colSpan={colunas} className="px-3 py-8 text-center normal-case text-secondary">
                     Nenhum abastecimento com esses filtros.
                   </td>
                 </tr>
@@ -173,6 +193,22 @@ export function ListaAbastecimentos({ abastecimentos, veiculos, postos, periodo,
                   <td className="px-3 py-2">
                     <StatusAbastecimentoBadge status={a.status} />
                   </td>
+                  {podeExcluir && (
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        title="Excluir abastecimento"
+                        className="rounded p-1 text-secondary hover:bg-red-500/10 hover:text-red-500 disabled:opacity-40"
+                        disabled={excluindo === a.id}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          excluir(a)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
