@@ -62,8 +62,10 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
   const abastPeriodo = abastecimentos.filter(
     (a) => a.status !== 'invalidado' && dentroDoPeriodo(a.dataHora, periodo) && (placaSel === FROTA || a.placa === placaSel),
   )
-  const litrosDiesel = abastPeriodo.filter((a) => !isArla(a.combustivel)).reduce((s, a) => s + a.litros, 0)
-  const valorTotal = abastPeriodo.reduce((s, a) => s + a.valorTotal, 0)
+  // ARLA fica fora do valor total: o painel é de consumo de diesel.
+  const abastDiesel = abastPeriodo.filter((a) => !isArla(a.combustivel))
+  const litrosDiesel = abastDiesel.reduce((s, a) => s + a.litros, 0)
+  const valorTotal = abastDiesel.reduce((s, a) => s + a.valorTotal, 0)
   const comMeta = ciclosEscopo.filter((c) => c.semaforo)
   const pctFora = comMeta.length ? (comMeta.filter((c) => c.semaforo === 'vermelho').length / comMeta.length) * 100 : undefined
 
@@ -131,7 +133,12 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
         semaforo: c.kmL && m ? classificarSemaforo(c.kmL, m, config) : undefined,
       }
     })
-    .filter((r) => r.c.ciclos > 0 || (abastecimentos.some((a) => a.placa === r.v.placa)))
+    // Só placas com ciclo ou abastecimento de diesel válido no período (ARLA não forma ciclo).
+    .filter(
+      (r) =>
+        r.c.ciclos > 0 ||
+        abastecimentos.some((a) => a.placa === r.v.placa && a.status !== 'invalidado' && !isArla(a.combustivel) && dentroDoPeriodo(a.dataHora, periodo)),
+    )
 
   function alternarSerie(id: string) {
     setSeriesSel((atual) => {
@@ -187,7 +194,7 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
         />
         <StatCard icon={DollarSign} label="Custo/km" value={fmtMoeda(cons.custoKm)} hint={`${fmtNum(cons.km)} km nos ciclos`} />
         <StatCard icon={Droplets} label="Diesel abastecido" value={`${fmtNum(litrosDiesel)} L`} />
-        <StatCard icon={Fuel} label="Valor total" value={fmtMoeda(valorTotal)} hint={`${abastPeriodo.length} abastecimento(s)`} />
+        <StatCard icon={Fuel} label="Valor total" value={fmtMoeda(valorTotal)} hint={`${abastDiesel.length} abastecimento(s) de diesel`} />
         <StatCard
           icon={Target}
           label="% fora da meta"
