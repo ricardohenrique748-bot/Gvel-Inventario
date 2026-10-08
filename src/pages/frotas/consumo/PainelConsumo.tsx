@@ -125,8 +125,21 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
       const ciclos = ciclosPeriodo[v.placa] ?? []
       const c = consolidar(ciclos)
       const m = metaPonderada(ciclos) ?? metas[v.placa]?.metaKmL
+      // Sem ciclo fechado: explica o porquê com o último ciclo do veículo.
+      // O inválido tem prioridade: o último ciclo é quase sempre o aberto.
+      const todos = ciclosPorPlaca[v.placa] ?? []
+      const invalido = todos.filter((x) => x.status === 'invalidado' && dentroDoPeriodo(x.dataFim, periodo)).at(-1)
+      const ultimo = todos.at(-1)
+      const semCiclo = invalido
+        ? `Ciclo inválido: ${invalido.motivoStatus ?? 'verifique os abastecimentos'}`
+        : !ultimo
+          ? 'Sem tanque cheio'
+          : ultimo.status === 'aberto'
+            ? 'Ciclo aberto (aguardando próximo tanque cheio)'
+            : 'Sem ciclo no período'
       return {
         v,
+        semCiclo,
         c,
         meta: m,
         desvio: c.kmL && m ? ((c.kmL - m) / m) * 100 : undefined,
@@ -325,7 +338,7 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
                   </td>
                 </tr>
               )}
-              {resumoVeiculos.map(({ v, c, meta: m, desvio, semaforo }) => (
+              {resumoVeiculos.map(({ v, c, meta: m, desvio, semaforo, semCiclo }) => (
                 <tr
                   key={v.placa}
                   className="cursor-pointer border-t border-border/10 hover:bg-overlay/[0.04]"
@@ -340,7 +353,7 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
                   <td className="px-3 py-2 tabular-nums">{fmtPct(desvio)}</td>
                   <td className="px-3 py-2 tabular-nums">{c.lh != null ? fmtNum(c.lh, 2) : '—'}</td>
                   <td className="px-3 py-2 tabular-nums">{fmtMoeda(c.custoKm)}</td>
-                  <td className="px-3 py-2">{c.ciclos ? <SemaforoBadge semaforo={semaforo} /> : <span className="text-secondary">Sem ciclo</span>}</td>
+                  <td className="px-3 py-2">{c.ciclos ? <SemaforoBadge semaforo={semaforo} /> : <span className="text-secondary normal-case">{semCiclo}</span>}</td>
                 </tr>
               ))}
             </tbody>
