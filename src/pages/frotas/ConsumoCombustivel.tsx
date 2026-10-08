@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LayoutDashboard, Fuel, Repeat, Settings, Plus, CloudOff } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { Input, Select } from '@/components/ui/Input'
+import { Input } from '@/components/ui/Input'
 import { useConsumoCombustivel, type AbastecimentoConsumo } from '@/hooks/useConsumoCombustivel'
 import { calcularCiclos, condicaoDoIntervalo, normalizarPlaca, type Ciclo } from './consumo/dominio'
 import { useFilaOffline } from './consumo/filaOffline'
@@ -12,7 +12,16 @@ import { PainelConsumo } from './consumo/PainelConsumo'
 import { ListaAbastecimentos } from './consumo/ListaAbastecimentos'
 import { TabelaCiclos } from './consumo/TabelaCiclos'
 import { ConfiguracoesConsumo } from './consumo/ConfiguracoesConsumo'
-import { PERIODO_LABEL, periodoDoPreset, type PeriodoPreset, type VeiculoConsumo } from './consumo/ui'
+import { fmtData, periodoDoPreset, type PeriodoPreset, type VeiculoConsumo } from './consumo/ui'
+
+const ROTULO_PERIODO: Record<PeriodoPreset, string> = {
+  mes: 'Mês atual',
+  '30': '30 dias',
+  '90': '90 dias',
+  '180': '6 meses',
+  '365': '12 meses',
+  personalizado: 'Personalizado',
+}
 
 // Aba "Consumo" da Gestão de Frotas: abastecimento, ciclos tanque cheio →
 // tanque cheio, média km/L, alertas e importação do MoveTruck.
@@ -85,22 +94,34 @@ export function ConsumoCombustivel({ veiculos: veiculosFrota, motoristas, isAdmi
     { id: 'config', label: 'Configurações', icon: Settings },
   ]
 
+  // Atalhos de período em botões (um clique) + as datas que estão valendo.
   const filtroPeriodo = (
-    <>
-      <Select value={preset} onChange={(e) => setPreset(e.target.value as PeriodoPreset)} className="h-10 w-auto text-xs font-bold">
-        {(Object.keys(PERIODO_LABEL) as PeriodoPreset[]).map((p) => (
-          <option key={p} value={p}>
-            {PERIODO_LABEL[p]}
-          </option>
+    <div className="flex flex-wrap items-center gap-2">
+      <div role="group" aria-label="Período" className="flex flex-wrap gap-0.5 rounded-xl border border-border/30 bg-background/60 p-0.5">
+        {(Object.keys(ROTULO_PERIODO) as PeriodoPreset[]).map((p) => (
+          <button
+            key={p}
+            type="button"
+            aria-pressed={preset === p}
+            onClick={() => setPreset(p)}
+            className={`h-8 rounded-lg px-3 text-[11px] font-bold transition-colors ${
+              preset === p ? 'bg-primary text-white' : 'text-secondary hover:bg-overlay/[0.06] hover:text-foreground'
+            }`}
+          >
+            {ROTULO_PERIODO[p]}
+          </button>
         ))}
-      </Select>
+      </div>
       {preset === 'personalizado' && (
         <>
-          <Input type="date" className="h-10 w-auto text-xs" value={personalizado.inicio} onChange={(e) => e.target.value && setPersonalizado({ ...personalizado, inicio: e.target.value })} />
-          <Input type="date" className="h-10 w-auto text-xs" value={personalizado.fim} onChange={(e) => e.target.value && setPersonalizado({ ...personalizado, fim: e.target.value })} />
+          <Input type="date" className="h-9 w-auto text-xs" value={personalizado.inicio} onChange={(e) => e.target.value && setPersonalizado({ ...personalizado, inicio: e.target.value })} />
+          <Input type="date" className="h-9 w-auto text-xs" value={personalizado.fim} onChange={(e) => e.target.value && setPersonalizado({ ...personalizado, fim: e.target.value })} />
         </>
       )}
-    </>
+      <span className="text-[11px] normal-case text-secondary">
+        {fmtData(periodo.inicio)} a {fmtData(periodo.fim)}
+      </span>
+    </div>
   )
 
   return (

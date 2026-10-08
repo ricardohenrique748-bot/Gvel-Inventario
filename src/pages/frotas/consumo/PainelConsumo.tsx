@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Fuel, Gauge, DollarSign, Droplets, Target, Clock, Route, Weight } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { Card } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { Select } from '@/components/ui/Input'
@@ -8,17 +8,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
 import type { AbastecimentoConsumo, MetaConsumoVeiculo, ViagemConsumo } from '@/hooks/useConsumoCombustivel'
 import { classificarSemaforo, consolidar, cruzarComViagens, isArla, type Ciclo, type ConfigConsumo } from './dominio'
-import {
-  SecaoTitulo,
-  SemaforoBadge,
-  dentroDoPeriodo,
-  fmtKmL,
-  fmtMoeda,
-  fmtNum,
-  fmtPct,
-  type Periodo,
-  type VeiculoConsumo,
-} from './ui'
+import { SecaoTitulo, SemaforoBadge, dentroDoPeriodo, fmtKmL, fmtMoeda, fmtNum, fmtPct, type Periodo, type VeiculoConsumo } from './ui'
 
 interface Props {
   veiculos: VeiculoConsumo[]
@@ -45,6 +35,7 @@ function metaPonderada(ciclos: Ciclo[]): number | undefined {
 export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagens, metas, config, periodo, filtroPeriodo }: Props) {
   const [placaSel, setPlacaSel] = useState(FROTA)
   const [seriesSel, setSeriesSel] = useState<string[]>([FROTA])
+  const [agrupamento, setAgrupamento] = useState<'semana' | 'mes'>('semana')
 
   const ciclosPeriodo = useMemo(() => {
     const r: Record<string, Ciclo[]> = {}
@@ -55,7 +46,7 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
   }, [ciclosPorPlaca, periodo])
 
   const todosCiclosPeriodo = useMemo(() => Object.values(ciclosPeriodo).flat(), [ciclosPeriodo])
-  const ciclosEscopo = placaSel === FROTA ? todosCiclosPeriodo : ciclosPeriodo[placaSel] ?? []
+  const ciclosEscopo = placaSel === FROTA ? todosCiclosPeriodo : (ciclosPeriodo[placaSel] ?? [])
   const cons = consolidar(ciclosEscopo)
   const meta = metaPonderada(ciclosEscopo)
 
@@ -76,43 +67,75 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
   const cruzamento =
     placaSel === FROTA
       ? cruzarComViagens(todosCiclosPeriodo, viagens, periodo)
-      : cruzarComViagens(ciclosPorPlaca[placaSel] ?? [], viagens.filter((v) => v.placa === placaSel), periodo)
+      : cruzarComViagens(
+          ciclosPorPlaca[placaSel] ?? [],
+          viagens.filter((v) => v.placa === placaSel),
+          periodo,
+        )
 
   const veiculoSel = veiculos.find((v) => v.placa === placaSel)
   const metaVeiculo = placaSel !== FROTA ? metas[placaSel] : undefined
 
-  // ---------- Tendência mensal ----------
-  const meses = useMemo(() => {
-    const ini = new Date(periodo.inicio)
-    const fim = new Date(periodo.fim)
+  // ---------- Tendência (por semana ou mês) ----------
+  // Chave do grupo de um ciclo pela data de fechamento: segunda-feira da
+  // semana (YYYY-MM-DD) ou o mês (YYYY-MM).
+  const chaveGrupo = useCallback(
+    (iso: string) => {
+      const d = new Date(iso)
+      if (agrupamento === 'mes') return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const seg = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
+      return `${seg.getFullYear()}-${String(seg.getMonth() + 1).padStart(2, '0')}-${String(seg.getDate()).padStart(2, '0')}`
+    },
+    [agrupamento],
+  )
+
+  // Eixo X do primeiro ao último grupo com ciclo fechado (sem pontas vazias),
+  // preenchendo os buracos para o espaçamento refletir o tempo.
+  const grupos = useMemo(() => {
+    const datas = todosCiclosPeriodo
+      .map((c) => c.dataFim)
+      .filter((d): d is string => !!d)
+      .sort()
+    if (!datas.length) return []
     const lista: string[] = []
-    const d = new Date(ini.getFullYear(), ini.getMonth(), 1)
-    while (d <= fim) {
-      lista.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
-      d.setMonth(d.getMonth() + 1)
+    const fim = chaveGrupo(datas[datas.length - 1])
+    const d = new Date(datas[0])
+    for (let i = 0; i < 400; i++) {
+      const k = chaveGrupo(d.toISOString())
+      if (lista[lista.length - 1] !== k) lista.push(k)
+      if (k === fim) break
+      if (agrupamento === 'mes') d.setMonth(d.getMonth() + 1, 1)
+      else d.setDate(d.getDate() + 7)
     }
     return lista
-  }, [periodo])
+  }, [todosCiclosPeriodo, chaveGrupo, agrupamento])
 
   const dadosTendencia = useMemo(() => {
-    const mesDe = (iso: string) => iso.slice(0, 7)
-    return meses.map((m) => {
+    const rotulo = (k: string) => (agrupamento === 'mes' ? `${k.slice(5, 7)}/${k.slice(2, 4)}` : `${k.slice(8, 10)}/${k.slice(5, 7)}`)
+    return grupos.map((g) => {
       const linha: Record<string, number | string | undefined> = {
-        mes: `${m.slice(5)}/${m.slice(2, 4)}`,
+        grupo: rotulo(g),
       }
-      for (const s of seriesSel) {
-        const ciclos = (s === FROTA ? todosCiclosPeriodo : ciclosPeriodo[s] ?? []).filter((c) => c.dataFim && mesDe(c.dataFim) === m)
-        linha[s] = consolidar(ciclos).kmL
-      }
+      const doGrupo = (s: string) =>
+        (s === FROTA ? todosCiclosPeriodo : (ciclosPeriodo[s] ?? [])).filter((c) => c.dataFim && chaveGrupo(c.dataFim) === g)
+      for (const s of seriesSel) linha[s] = consolidar(doGrupo(s)).kmL
       if (seriesSel.length === 1) {
-        const ciclos = (seriesSel[0] === FROTA ? todosCiclosPeriodo : ciclosPeriodo[seriesSel[0]] ?? []).filter(
-          (c) => c.dataFim && mesDe(c.dataFim) === m,
-        )
-        linha.meta = metaPonderada(ciclos) ?? (seriesSel[0] !== FROTA ? metas[seriesSel[0]]?.metaKmL : undefined)
+        linha.meta = metaPonderada(doGrupo(seriesSel[0])) ?? (seriesSel[0] !== FROTA ? metas[seriesSel[0]]?.metaKmL : undefined)
       }
       return linha
     })
-  }, [meses, seriesSel, todosCiclosPeriodo, ciclosPeriodo, metas])
+  }, [grupos, agrupamento, chaveGrupo, seriesSel, todosCiclosPeriodo, ciclosPeriodo, metas])
+
+  const temMeta = dadosTendencia.some((l) => typeof l.meta === 'number')
+  // Escala vertical justa aos valores (com folga), nunca abaixo de zero.
+  const valoresTendencia = dadosTendencia.flatMap((l) =>
+    [...seriesSel, ...(temMeta ? ['meta'] : [])].map((k) => l[k]).filter((v): v is number => typeof v === 'number'),
+  )
+  const dominioY: [number, number] = valoresTendencia.length
+    ? [Math.max(0, Math.floor((Math.min(...valoresTendencia) - 0.3) * 2) / 2), Math.ceil((Math.max(...valoresTendencia) + 0.3) * 2) / 2]
+    : [0, 3]
+  // Só placas com ciclo fechado no período viram opção de série.
+  const placasComCiclo = veiculos.filter((v) => (ciclosPeriodo[v.placa] ?? []).length > 0)
 
   const { theme } = useTheme()
   const isDark = theme === 'dark'
@@ -150,8 +173,23 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
     .filter(
       (r) =>
         r.c.ciclos > 0 ||
-        abastecimentos.some((a) => a.placa === r.v.placa && a.status !== 'invalidado' && !isArla(a.combustivel) && dentroDoPeriodo(a.dataHora, periodo)),
+        abastecimentos.some(
+          (a) => a.placa === r.v.placa && a.status !== 'invalidado' && !isArla(a.combustivel) && dentroDoPeriodo(a.dataHora, periodo),
+        ),
     )
+
+  // Maior média primeiro; só quem tem ciclo fechado no período.
+  const kmLPorPlaca = resumoVeiculos
+    .filter((r) => r.c.kmL != null)
+    .map((r) => ({
+      placa: r.v.placa,
+      kmL: r.c.kmL!,
+      km: r.c.km,
+      ciclos: r.c.ciclos,
+    }))
+    .sort((a, b) => b.kmL - a.kmL)
+  // Topo do eixo em múltiplo de 0,5 com folga para o rótulo acima da barra.
+  const tetoBarras = Math.max(1, Math.ceil(((kmLPorPlaca[0]?.kmL ?? 0) + 0.2) * 2) / 2)
 
   function alternarSerie(id: string) {
     setSeriesSel((atual) => {
@@ -167,17 +205,25 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        {filtroPeriodo}
-        <Select value={placaSel} onChange={(e) => setPlacaSel(e.target.value)} className="h-10 w-auto min-w-[12rem] text-xs font-bold">
-          <option value={FROTA}>Frota inteira</option>
-          {veiculos.map((v) => (
-            <option key={v.placa} value={v.placa}>
-              {v.placa} — {v.nome}
-            </option>
-          ))}
-        </Select>
-      </div>
+      <Card className="flex flex-wrap items-end gap-x-6 gap-y-3 p-3">
+        <div className="space-y-1">
+          <span className="block text-[10px] font-bold uppercase text-secondary">Período</span>
+          {filtroPeriodo}
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="painelCaminhao" className="block text-[10px] font-bold uppercase text-secondary">
+            Caminhão
+          </label>
+          <Select id="painelCaminhao" value={placaSel} onChange={(e) => setPlacaSel(e.target.value)} className="h-9 w-64 max-w-full px-3 text-xs font-bold">
+            <option value={FROTA}>Frota inteira</option>
+            {veiculos.map((v) => (
+              <option key={v.placa} value={v.placa}>
+                {v.placa} — {v.nome}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </Card>
 
       {placaSel !== FROTA && veiculoSel && (
         <Card className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">
@@ -188,9 +234,7 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
             {metaVeiculo?.metaKmLCarregado ? ` · carregado ${fmtKmL(metaVeiculo.metaKmLCarregado)}` : ''}
             {metaVeiculo?.metaKmLVazio ? ` · vazio ${fmtKmL(metaVeiculo.metaKmLVazio)}` : ''}
           </span>
-          {cons.kmL != null && meta != null && (
-            <SemaforoBadge semaforo={classificarSemaforo(cons.kmL, meta, config)} />
-          )}
+          {cons.kmL != null && meta != null && <SemaforoBadge semaforo={classificarSemaforo(cons.kmL, meta, config)} />}
         </Card>
       )}
 
@@ -214,7 +258,12 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
           value={pctFora != null ? `${fmtNum(pctFora, 0)}%` : '—'}
           hint={comMeta.length ? `${comMeta.length} ciclo(s) com meta` : 'Cadastre metas em Configurações'}
         />
-        <StatCard icon={Clock} label="L/h" value={cons.lh != null ? fmtNum(cons.lh, 2) : '—'} hint={cons.horas ? `${fmtNum(cons.horas, 1)} h de motor` : 'Sem horímetro nos ciclos'} />
+        <StatCard
+          icon={Clock}
+          label="L/h"
+          value={cons.lh != null ? fmtNum(cons.lh, 2) : '—'}
+          hint={cons.horas ? `${fmtNum(cons.horas, 1)} h de motor` : 'Sem horímetro nos ciclos'}
+        />
         <StatCard
           icon={Weight}
           label="KM/L carregado"
@@ -251,9 +300,26 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
 
       {/* Tendência */}
       <Card className="p-4">
-        <SecaoTitulo titulo="Tendência de KM/L" descricao="Média oficial por mês (km total / litros total dos ciclos fechados)." />
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <SecaoTitulo
+            titulo="Tendência de KM/L"
+            descricao={`Média oficial por ${agrupamento === 'mes' ? 'mês' : 'semana'} (km total / litros total dos ciclos fechados em cada ${agrupamento === 'mes' ? 'mês' : 'semana'}).`}
+          />
+          <div className="flex rounded-lg border border-border/30 p-0.5">
+            {(['semana', 'mes'] as const).map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setAgrupamento(a)}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${agrupamento === a ? 'bg-primary text-white' : 'text-secondary hover:text-foreground'}`}
+              >
+                {a === 'mes' ? 'Mês' : 'Semana'}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {[{ placa: FROTA, rotulo: 'Frota inteira' }, ...veiculos.map((v) => ({ placa: v.placa, rotulo: v.placa }))].map((o) => {
+          {[{ placa: FROTA, rotulo: 'Frota inteira' }, ...placasComCiclo.map((v) => ({ placa: v.placa, rotulo: v.placa }))].map((o) => {
             const ativo = seriesSel.includes(o.placa)
             return (
               <button
@@ -270,48 +336,121 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
           })}
           <span className="self-center text-[10px] normal-case text-secondary">até {MAX_SERIES} caminhões ao mesmo tempo</span>
         </div>
-        <div className="mt-3 h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={dadosTendencia} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
-              <CartesianGrid stroke={corGrid} vertical={false} />
-              <XAxis dataKey="mes" tick={{ fill: corEixo, fontSize: 11 }} axisLine={{ stroke: corGrid }} tickLine={false} />
-              <YAxis
-                tick={{ fill: corEixo, fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                domain={['auto', 'auto']}
-                tickFormatter={(v: number) => v.toFixed(1).replace('.', ',')}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: isDark ? '#1c1c1c' : '#ffffff',
-                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
-                  borderRadius: 12,
-                  fontSize: 12,
-                }}
-                labelStyle={{ color: isDark ? '#fff' : '#18181b', fontWeight: 700 }}
-                formatter={(v) => (typeof v === 'number' ? `${v.toFixed(2).replace('.', ',')} km/L` : '—')}
-              />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              {seriesSel.map((s, i) => (
-                <Line
-                  key={s}
-                  type="monotone"
-                  dataKey={s}
-                  name={s === FROTA ? 'Frota (real)' : `${s} (real)`}
-                  stroke={CHART_CATEGORICAL[i % MAX_SERIES]}
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                  activeDot={{ r: 6 }}
-                  connectNulls
+        {dadosTendencia.length === 0 ? (
+          <p className="mt-3 text-xs normal-case text-secondary">Nenhum ciclo fechado no período.</p>
+        ) : (
+          <div className="mt-3 h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={dadosTendencia} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
+                <CartesianGrid stroke={corGrid} vertical={false} />
+                <XAxis dataKey="grupo" tick={{ fill: corEixo, fontSize: 11 }} axisLine={{ stroke: corGrid }} tickLine={false} />
+                <YAxis
+                  tick={{ fill: corEixo, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  domain={dominioY}
+                  allowDataOverflow={false}
+                  tickFormatter={(v: number) => v.toFixed(1).replace('.', ',')}
                 />
-              ))}
-              {seriesSel.length === 1 && (
-                <Line type="monotone" dataKey="meta" name="Meta" stroke={CHART_OTHER} strokeWidth={2} strokeDasharray="6 4" dot={false} connectNulls />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+                <Tooltip
+                  contentStyle={{
+                    background: isDark ? '#1c1c1c' : '#ffffff',
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                    borderRadius: 12,
+                    fontSize: 12,
+                  }}
+                  labelStyle={{
+                    color: isDark ? '#fff' : '#18181b',
+                    fontWeight: 700,
+                  }}
+                  formatter={(v) => (typeof v === 'number' ? `${v.toFixed(2).replace('.', ',')} km/L` : '—')}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {seriesSel.map((s, i) => (
+                  <Line
+                    key={s}
+                    type="monotone"
+                    dataKey={s}
+                    name={s === FROTA ? 'Frota (real)' : `${s} (real)`}
+                    stroke={CHART_CATEGORICAL[i % MAX_SERIES]}
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6 }}
+                    connectNulls
+                  />
+                ))}
+                {seriesSel.length === 1 && temMeta && (
+                  <Line
+                    type="monotone"
+                    dataKey="meta"
+                    name="Meta"
+                    stroke={CHART_OTHER}
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    dot={false}
+                    connectNulls
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Card>
+
+      {/* KM/L por placa */}
+      <Card className="p-4">
+        <SecaoTitulo titulo="KM/L por placa" descricao="Média do período por caminhão (km total / litros total dos ciclos fechados)." />
+        {kmLPorPlaca.length === 0 ? (
+          <p className="mt-3 text-xs normal-case text-secondary">Nenhum caminhão com ciclo fechado no período.</p>
+        ) : (
+          <div className="mt-3 h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={kmLPorPlaca} margin={{ top: 24, right: 16, bottom: 0, left: -8 }}>
+                <CartesianGrid stroke={corGrid} vertical={false} />
+                <XAxis dataKey="placa" tick={{ fill: corEixo, fontSize: 11 }} axisLine={{ stroke: corGrid }} tickLine={false} />
+                <YAxis
+                  tick={{ fill: corEixo, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  domain={[0, tetoBarras]}
+                  ticks={Array.from({ length: tetoBarras * 2 + 1 }, (_, i) => i / 2)}
+                  tickFormatter={(v: number) => v.toFixed(1).replace('.', ',')}
+                />
+                <Tooltip
+                  cursor={{
+                    fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                  }}
+                  contentStyle={{
+                    background: isDark ? '#1c1c1c' : '#ffffff',
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                    borderRadius: 12,
+                    fontSize: 12,
+                  }}
+                  labelStyle={{
+                    color: isDark ? '#fff' : '#18181b',
+                    fontWeight: 700,
+                  }}
+                  itemStyle={{ color: isDark ? '#d4d4d4' : '#3f3f46' }}
+                  formatter={(v, _n, item) => [
+                    `${typeof v === 'number' ? v.toFixed(2).replace('.', ',') : '—'} km/L · ${fmtNum(item.payload.km)} km · ${fmtNum(item.payload.ciclos)} ciclo(s)`,
+                    'Média',
+                  ]}
+                />
+                <Bar dataKey="kmL" name="KM/L" fill={CHART_CATEGORICAL[0]} radius={[4, 4, 0, 0]} maxBarSize={48}>
+                  <LabelList
+                    dataKey="kmL"
+                    position="top"
+                    offset={6}
+                    fill={isDark ? '#e5e5e5' : '#18181b'}
+                    fontSize={12}
+                    fontWeight={700}
+                    formatter={(v) => (typeof v === 'number' ? v.toFixed(2).replace('.', ',') : '')}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </Card>
 
       {/* Resumo por caminhão */}
@@ -339,11 +478,7 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
                 </tr>
               )}
               {resumoVeiculos.map(({ v, c, meta: m, desvio, semaforo, semCiclo }) => (
-                <tr
-                  key={v.placa}
-                  className="cursor-pointer border-t border-border/10 hover:bg-overlay/[0.04]"
-                  onClick={() => setPlacaSel(v.placa)}
-                >
+                <tr key={v.placa} className="cursor-pointer border-t border-border/10 hover:bg-overlay/[0.04]" onClick={() => setPlacaSel(v.placa)}>
                   <td className="whitespace-nowrap px-3 py-2 font-bold text-foreground">{v.placa}</td>
                   <td className="px-3 py-2 tabular-nums">{c.ciclos}</td>
                   <td className="px-3 py-2 tabular-nums">{fmtNum(c.km)}</td>
@@ -353,7 +488,9 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
                   <td className="px-3 py-2 tabular-nums">{fmtPct(desvio)}</td>
                   <td className="px-3 py-2 tabular-nums">{c.lh != null ? fmtNum(c.lh, 2) : '—'}</td>
                   <td className="px-3 py-2 tabular-nums">{fmtMoeda(c.custoKm)}</td>
-                  <td className="px-3 py-2">{c.ciclos ? <SemaforoBadge semaforo={semaforo} /> : <span className="text-secondary normal-case">{semCiclo}</span>}</td>
+                  <td className="px-3 py-2">
+                    {c.ciclos ? <SemaforoBadge semaforo={semaforo} /> : <span className="text-secondary normal-case">{semCiclo}</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
