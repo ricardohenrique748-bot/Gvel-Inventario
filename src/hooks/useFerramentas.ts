@@ -982,10 +982,26 @@ export async function atualizarRetiradaFerramenta(input: AtualizarRetiradaInput)
   if (input.veiculo_id !== undefined) payload.veiculo_id = input.veiculo_id || null
   if (input.data_hora_retirada) payload.data_hora_retirada = input.data_hora_retirada
 
+  // Retirada em uso que mudou de ferramenta ou de quantidade: devolve o que
+  // estava retirado e desconta o novo (antes o estoque não era ajustado).
+  const anterior = await buscarRetiradaAtual(input.id)
+
+  let atualizouNoBanco = false
   try {
-    await supabase.from('ferramentas_retiradas').update(payload).eq('id', input.id)
+    const { error } = await supabase.from('ferramentas_retiradas').update(payload).eq('id', input.id)
+    atualizouNoBanco = !error
   } catch (sbErr) {
     console.warn('Erro ao atualizar retirada no Supabase:', sbErr)
+  }
+
+  if (
+    anterior &&
+    anterior.status === 'em_uso' &&
+    (atualizouNoBanco || retiradaIndex >= 0) &&
+    (anterior.ferramenta_id !== novaFerramentaId || (anterior.quantidade || 1) !== novaQtd)
+  ) {
+    await ajustarDisponivelFerramenta(anterior.ferramenta_id, anterior.quantidade || 1)
+    await ajustarDisponivelFerramenta(novaFerramentaId, -novaQtd)
   }
 
   const locais = getFerramentasLocais()
@@ -1016,23 +1032,62 @@ export async function atualizarRetiradaFerramenta(input: AtualizarRetiradaInput)
   return atualizada
 }
 
-export async function excluirRetiradaFerramenta(retiradaId: string): Promise<void> {
-  const retiradas = getRetiradasLocais()
-  const retirada = retiradas.find((r) => r.id === retiradaId)
-
-  if (retirada && retirada.status === 'em_uso') {
-    const locais = getFerramentasLocais()
-    const ferramenta = locais.find((f) => f.id === retirada.ferramenta_id)
-    if (ferramenta) {
-      ferramenta.quantidade_disponivel = Math.min(
-        ferramenta.quantidade_total,
-        (ferramenta.quantidade_disponivel || 0) + (retirada.quantidade || 1),
-      )
-      salvarFerramentasLocais(locais)
+// Soma `delta` ao disponível da ferramenta (negativo = retirar), sempre entre
+// 0 e o total — no Supabase e na cópia local. Usado quando uma retirada em uso
+// é excluída ou editada, para o estoque não ficar descontado sem saída.
+async function ajustarDisponivelFerramenta(ferramentaId: string, delta: number): Promise<void> {
+  if (!ferramentaId || !delta) return
+  try {
+    const { data: f } = await supabase
+      .from('ferramentas')
+      .select('quantidade_total,quantidade_disponivel')
+      .eq('id', ferramentaId)
+      .maybeSingle()
+    if (f) {
+      const total = Number(f.quantidade_total) || 0
+      await supabase
+        .from('ferramentas')
+        .update({ quantidade_disponivel: Math.min(total, Math.max(0, (Number(f.quantidade_disponivel) || 0) + delta)) })
+        .eq('id', ferramentaId)
     }
+  } catch (err) {
+    console.warn('Erro ao ajustar disponível da ferramenta no Supabase:', err)
   }
 
-  salvarRetiradasLocais(retiradas.filter((r) => r.id !== retiradaId))
+  const locais = getFerramentasLocais()
+  const local = locais.find((f) => f.id === ferramentaId)
+  if (local) {
+    local.quantidade_disponivel = Math.min(local.quantidade_total, Math.max(0, (local.quantidade_disponivel || 0) + delta))
+    salvarFerramentasLocais(locais)
+  }
+}
+
+/** Estado atual da retirada: o do banco tem prioridade sobre a cópia local. */
+async function buscarRetiradaAtual(
+  retiradaId: string,
+): Promise<Pick<FerramentaRetirada, 'status' | 'ferramenta_id' | 'quantidade'> | null> {
+  try {
+    const { data } = await supabase
+      .from('ferramentas_retiradas')
+      .select('status,ferramenta_id,quantidade')
+      .eq('id', retiradaId)
+      .maybeSingle()
+    if (data) return data as Pick<FerramentaRetirada, 'status' | 'ferramenta_id' | 'quantidade'>
+  } catch (err) {
+    console.warn('Erro ao buscar retirada no Supabase:', err)
+  }
+  return getRetiradasLocais().find((r) => r.id === retiradaId) ?? null
+}
+
+export async function excluirRetiradaFerramenta(retiradaId: string): Promise<void> {
+  // Antes só devolvia ao estoque na cópia local: no banco a ferramenta ficava
+  // "em uso" sem nenhuma saída registrada.
+  const retirada = await buscarRetiradaAtual(retiradaId)
+  if (retirada && retirada.status === 'em_uso') {
+    await ajustarDisponivelFerramenta(retirada.ferramenta_id, retirada.quantidade || 1)
+  }
+
+  salvarRetiradasLocais(getRetiradasLocais().filter((r) => r.id !== retiradaId))
 
   try {
     await supabase.from('ferramentas_retiradas').delete().eq('id', retiradaId)
