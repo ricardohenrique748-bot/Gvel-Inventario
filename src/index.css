@@ -174,3 +174,16 @@ html:not(.dark) .glass-button:not(.glass-button-primary):hover {
   opacity: 0.8;
 }
 
+
+/* Mapa das viagens (Leaflet) no tema escuro: escurece só os blocos do mapa,
+   mantendo rotas e marcadores com as cores originais. */
+.mapa-escuro .leaflet-tile-pane {
+  filter: invert(0.9) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}
+.mapa-escuro .leaflet-control-attribution {
+  background: rgba(20, 20, 20, 0.8);
+  color: #bbb;
+}
+.mapa-escuro .leaflet-control-attribution a {
+  color: #ddd;
+}

@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
-import { LayoutDashboard, Fuel, Repeat, Settings, Plus, CloudOff } from 'lucide-react'
+import { LayoutDashboard, Fuel, Repeat, Settings, Plus, CloudOff, Map as MapIcon } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useConsumoCombustivel, type AbastecimentoConsumo } from '@/hooks/useConsumoCombustivel'
@@ -13,6 +13,9 @@ import { ListaAbastecimentos } from './consumo/ListaAbastecimentos'
 import { TabelaCiclos } from './consumo/TabelaCiclos'
 import { ConfiguracoesConsumo } from './consumo/ConfiguracoesConsumo'
 import { fmtData, periodoDoPreset, type PeriodoPreset, type VeiculoConsumo } from './consumo/ui'
+
+// Leaflet (~150 KB) só é baixado quando a aba Viagens é aberta.
+const ViagensMapa = lazy(() => import('./consumo/ViagensMapa').then((m) => ({ default: m.ViagensMapa })))
 
 const ROTULO_PERIODO: Record<PeriodoPreset, string> = {
   mes: 'Mês atual',
@@ -27,7 +30,7 @@ const ROTULO_PERIODO: Record<PeriodoPreset, string> = {
 // tanque cheio, média km/L, alertas e importação do MoveTruck.
 // Regras de cálculo: ./consumo/dominio.ts · Banco: migration 0090.
 
-type SubAba = 'painel' | 'abastecimentos' | 'ciclos' | 'config'
+type SubAba = 'painel' | 'abastecimentos' | 'ciclos' | 'viagens' | 'config'
 
 interface Props {
   /** Veículos da frota (lista oficial + cadastros), já mesclados em Frotas.tsx. */
@@ -91,6 +94,7 @@ export function ConsumoCombustivel({ veiculos: veiculosFrota, motoristas, isAdmi
     { id: 'painel', label: 'Painel', icon: LayoutDashboard },
     { id: 'abastecimentos', label: 'Abastecimentos', icon: Fuel },
     { id: 'ciclos', label: 'Ciclos', icon: Repeat },
+    { id: 'viagens', label: 'Viagens', icon: MapIcon },
     { id: 'config', label: 'Configurações', icon: Settings },
   ]
 
@@ -186,6 +190,11 @@ export function ConsumoCombustivel({ veiculos: veiculosFrota, motoristas, isAdmi
             <ListaAbastecimentos abastecimentos={abastecimentos} veiculos={veiculos} postos={postos} periodo={periodo} filtroPeriodo={filtroPeriodo} onAbrir={setDetalhe} />
           )}
           {subAba === 'ciclos' && <TabelaCiclos ciclosPorPlaca={ciclosPorPlaca} veiculos={veiculos} periodo={periodo} filtroPeriodo={filtroPeriodo} />}
+          {subAba === 'viagens' && (
+            <Suspense fallback={<p className="py-10 text-center text-xs text-secondary">Carregando mapa…</p>}>
+              <ViagensMapa veiculos={veiculos} motoristas={motoristas} periodo={periodo} filtroPeriodo={filtroPeriodo} isAdmin={isAdmin} />
+            </Suspense>
+          )}
           {subAba === 'config' && <ConfiguracoesConsumo veiculos={veiculos} metas={metas} postos={postos} config={config} isAdmin={isAdmin} />}
         </>
       )}

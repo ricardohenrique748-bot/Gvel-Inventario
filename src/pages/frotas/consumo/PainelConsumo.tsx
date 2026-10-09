@@ -32,10 +32,30 @@ function metaPonderada(ciclos: Ciclo[]): number | undefined {
   return litrosMeta > 0 ? km / litrosMeta : undefined
 }
 
+type AgrupamentoTempo = 'mes' | 'semana' | 'dia'
+
+const ROTULO_AGRUPAMENTO: Record<AgrupamentoTempo, string> = { mes: 'Mês', semana: 'Semana', dia: 'Dia' }
+
+/** Chave ordenável do grupo (data local): YYYY-MM, segunda-feira da semana ou o dia. */
+function chaveTempo(iso: string, ag: AgrupamentoTempo): string {
+  const d = new Date(iso)
+  const dois = (n: number) => String(n).padStart(2, '0')
+  if (ag === 'mes') return `${d.getFullYear()}-${dois(d.getMonth() + 1)}`
+  const base = ag === 'semana' ? new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)) : d
+  return `${base.getFullYear()}-${dois(base.getMonth() + 1)}-${dois(base.getDate())}`
+}
+
+function rotuloTempo(chave: string, ag: AgrupamentoTempo): string {
+  if (ag === 'mes') return `${chave.slice(5, 7)}/${chave.slice(2, 4)}`
+  const dm = `${chave.slice(8, 10)}/${chave.slice(5, 7)}`
+  return ag === 'semana' ? `sem. ${dm}` : dm
+}
+
 export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagens, metas, config, periodo, filtroPeriodo }: Props) {
   const [placaSel, setPlacaSel] = useState(FROTA)
   const [seriesSel, setSeriesSel] = useState<string[]>([FROTA])
   const [agrupamento, setAgrupamento] = useState<'semana' | 'mes'>('semana')
+  const [agrupamentoPlaca, setAgrupamentoPlaca] = useState<AgrupamentoTempo>('semana')
 
   const ciclosPeriodo = useMemo(() => {
     const r: Record<string, Ciclo[]> = {}
@@ -178,9 +198,10 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
         ),
     )
 
-  // Maior média primeiro; só quem tem ciclo fechado no período.
+  // Maior média primeiro; só quem tem ciclo fechado no período. Com um
+  // caminhão escolhido no filtro, mostra só ele.
   const kmLPorPlaca = resumoVeiculos
-    .filter((r) => r.c.kmL != null)
+    .filter((r) => r.c.kmL != null && (placaSel === FROTA || r.v.placa === placaSel))
     .map((r) => ({
       placa: r.v.placa,
       kmL: r.c.kmL!,
@@ -188,8 +209,27 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
       ciclos: r.c.ciclos,
     }))
     .sort((a, b) => b.kmL - a.kmL)
+
+  // Frota inteira: uma barra por placa. Caminhão escolhido: a média dele ao
+  // longo do tempo, por mês, semana ou dia (data de fechamento do ciclo).
+  const barrasKmL: { rotulo: string; kmL: number; km: number; ciclos: number }[] =
+    placaSel === FROTA
+      ? kmLPorPlaca.map((p) => ({ rotulo: p.placa, kmL: p.kmL, km: p.km, ciclos: p.ciclos }))
+      : (() => {
+          const grupos = new Map<string, Ciclo[]>()
+          for (const c of ciclosPeriodo[placaSel] ?? []) {
+            if (!c.dataFim) continue
+            const k = chaveTempo(c.dataFim, agrupamentoPlaca)
+            grupos.set(k, [...(grupos.get(k) ?? []), c])
+          }
+          return [...grupos.entries()]
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([k, ciclos]) => ({ rotulo: rotuloTempo(k, agrupamentoPlaca), ...consolidar(ciclos) }))
+            .filter((b): b is typeof b & { kmL: number } => b.kmL != null)
+            .map((b) => ({ rotulo: b.rotulo, kmL: b.kmL, km: b.km, ciclos: b.ciclos }))
+        })()
   // Topo do eixo em múltiplo de 0,5 com folga para o rótulo acima da barra.
-  const tetoBarras = Math.max(1, Math.ceil(((kmLPorPlaca[0]?.kmL ?? 0) + 0.2) * 2) / 2)
+  const tetoBarras = Math.max(1, Math.ceil((Math.max(0, ...barrasKmL.map((b) => b.kmL)) + 0.2) * 2) / 2)
 
   function alternarSerie(id: string) {
     setSeriesSel((atual) => {
@@ -399,15 +439,43 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
 
       {/* KM/L por placa */}
       <Card className="p-4">
-        <SecaoTitulo titulo="KM/L por placa" descricao="Média do período por caminhão (km total / litros total dos ciclos fechados)." />
-        {kmLPorPlaca.length === 0 ? (
-          <p className="mt-3 text-xs normal-case text-secondary">Nenhum caminhão com ciclo fechado no período.</p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          {placaSel === FROTA ? (
+            <SecaoTitulo titulo="KM/L por placa" descricao="Média do período por caminhão (km total / litros total dos ciclos fechados)." />
+          ) : (
+            <SecaoTitulo
+              titulo={`KM/L de ${placaSel} por ${ROTULO_AGRUPAMENTO[agrupamentoPlaca].toLowerCase()}`}
+              descricao="Km total / litros total dos ciclos fechados em cada período (pela data do tanque cheio que fechou o ciclo)."
+            />
+          )}
+          {placaSel !== FROTA && (
+            <div role="group" aria-label="Agrupar por" className="flex rounded-lg border border-border/30 p-0.5">
+              {(['mes', 'semana', 'dia'] as const).map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  aria-pressed={agrupamentoPlaca === a}
+                  onClick={() => setAgrupamentoPlaca(a)}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${
+                    agrupamentoPlaca === a ? 'bg-primary text-white' : 'text-secondary hover:text-foreground'
+                  }`}
+                >
+                  {ROTULO_AGRUPAMENTO[a]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {barrasKmL.length === 0 ? (
+          <p className="mt-3 text-xs normal-case text-secondary">
+            {placaSel === FROTA ? 'Nenhum caminhão com ciclo fechado no período.' : `${placaSel} não tem ciclo fechado no período.`}
+          </p>
         ) : (
           <div className="mt-3 h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={kmLPorPlaca} margin={{ top: 24, right: 16, bottom: 0, left: -8 }}>
+              <BarChart data={barrasKmL} margin={{ top: 24, right: 16, bottom: 0, left: -8 }}>
                 <CartesianGrid stroke={corGrid} vertical={false} />
-                <XAxis dataKey="placa" tick={{ fill: corEixo, fontSize: 11 }} axisLine={{ stroke: corGrid }} tickLine={false} />
+                <XAxis dataKey="rotulo" tick={{ fill: corEixo, fontSize: 11 }} axisLine={{ stroke: corGrid }} tickLine={false} />
                 <YAxis
                   tick={{ fill: corEixo, fontSize: 11 }}
                   axisLine={false}
@@ -442,7 +510,7 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
                     position="top"
                     offset={6}
                     fill={isDark ? '#e5e5e5' : '#18181b'}
-                    fontSize={12}
+                    fontSize={barrasKmL.length > 16 ? 9 : 12}
                     fontWeight={700}
                     formatter={(v) => (typeof v === 'number' ? v.toFixed(2).replace('.', ',') : '')}
                   />
