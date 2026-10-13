@@ -175,25 +175,7 @@ html:not(.dark) .glass-button:not(.glass-button-primary):hover {
 }
 
 
-/* Mapa das viagens (Leaflet). O mapa base escuro vem pronto do CARTO; aqui
-   só os controles acompanham o tema. */
-.mapa-pino span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 2px solid #fff;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-}
-.mapa-pino b {
-  transform: rotate(45deg);
-}
+/* Mapa das viagens (Leaflet, satélite): os controles acompanham o tema escuro. */
 .mapa-escuro .leaflet-bar a {
   background: #1c1c1c;
   color: #e5e5e5;

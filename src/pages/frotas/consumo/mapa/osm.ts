@@ -1,6 +1,7 @@
-// Serviços públicos e gratuitos do OpenStreetMap usados pela aba Viagens.
+// Serviços públicos e gratuitos do OpenStreetMap usados para gerar a rota das
+// viagens no mapa (rotaAutomatica.ts).
 // - Nominatim (busca de endereço): política de uso de no máximo 1 requisição
-//   por segundo — a tela só busca ao apertar Enter/botão, nunca a cada tecla.
+//   por segundo.
 // - OSRM (rota): servidor de demonstração, perfil de carro. Bom para a
 //   distância; o tempo real de caminhão costuma ser maior.
 
@@ -52,17 +53,6 @@ export async function buscarEndereco(texto: string): Promise<PontoMapa[]> {
   const resp = await fetch(url, { headers: { Accept: 'application/json' } })
   if (!resp.ok) throw new Error('Busca de endereço indisponível no momento. Tente de novo em alguns segundos.')
   return ((await resp.json()) as any[]).map(pontoDoResultado)
-}
-
-export async function enderecoDoPonto(lat: number, lng: number): Promise<PontoMapa> {
-  const url = `${NOMINATIM}/reverse?format=jsonv2&addressdetails=1&zoom=16&accept-language=pt-BR&lat=${lat}&lon=${lng}`
-  try {
-    const resp = await fetch(url, { headers: { Accept: 'application/json' } })
-    if (resp.ok) return { ...pontoDoResultado(await resp.json()), lat, lng }
-  } catch {
-    // sem endereço: fica só a coordenada
-  }
-  return { lat, lng, rotulo: `${lat.toFixed(5)}, ${lng.toFixed(5)}` }
 }
 
 export async function calcularRota(origem: PontoMapa, destino: PontoMapa): Promise<RotaCalculada> {

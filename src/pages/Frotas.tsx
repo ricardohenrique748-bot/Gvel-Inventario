@@ -2508,6 +2508,7 @@ export function Frotas() {
           motoristas={pessoas.map((pe) => pe.nome)}
           isAdmin={isAdmin}
           usuarioNome={perfil?.nome || user?.email || ''}
+          onNovaViagem={iniciarNovaViagem}
         />
       )}
 

@@ -38,9 +38,11 @@ interface Props {
   motoristas: string[]
   isAdmin: boolean
   usuarioNome: string
+  /** Abre o cadastro de viagem operacional (Controle de Viagens) da Frotas.tsx. */
+  onNovaViagem: () => void
 }
 
-export function ConsumoCombustivel({ veiculos: veiculosFrota, motoristas, isAdmin, usuarioNome }: Props) {
+export function ConsumoCombustivel({ veiculos: veiculosFrota, motoristas, isAdmin, usuarioNome, onNovaViagem }: Props) {
   const { abastecimentos, viagens, postos, metas, config, alertas, loading, erro } = useConsumoCombustivel()
   const [subAba, setSubAba] = useState<SubAba>('painel')
   const [preset, setPreset] = useState<PeriodoPreset>('90')
@@ -149,9 +151,15 @@ export function ConsumoCombustivel({ veiculos: veiculosFrota, motoristas, isAdmi
             </button>
           ))}
         </div>
-        <Button type="button" size="md" onClick={() => setNovoAberto(true)} className="shadow-md shadow-primary/20">
-          <Plus className="h-4 w-4" /> Abastecimento
-        </Button>
+        {subAba === 'viagens' ? (
+          <Button type="button" size="md" onClick={onNovaViagem} className="shadow-md shadow-primary/20">
+            <Plus className="h-4 w-4" /> Nova viagem
+          </Button>
+        ) : (
+          <Button type="button" size="md" onClick={() => setNovoAberto(true)} className="shadow-md shadow-primary/20">
+            <Plus className="h-4 w-4" /> Abastecimento
+          </Button>
+        )}
       </div>
 
       {fila.itens.length > 0 && (
@@ -192,7 +200,7 @@ export function ConsumoCombustivel({ veiculos: veiculosFrota, motoristas, isAdmi
           {subAba === 'ciclos' && <TabelaCiclos ciclosPorPlaca={ciclosPorPlaca} veiculos={veiculos} periodo={periodo} filtroPeriodo={filtroPeriodo} />}
           {subAba === 'viagens' && (
             <Suspense fallback={<p className="py-10 text-center text-xs text-secondary">Carregando mapa…</p>}>
-              <ViagensMapa veiculos={veiculos} motoristas={motoristas} periodo={periodo} filtroPeriodo={filtroPeriodo} isAdmin={isAdmin} />
+              <ViagensMapa veiculos={veiculos} periodo={periodo} filtroPeriodo={filtroPeriodo} isAdmin={isAdmin} />
             </Suspense>
           )}
           {subAba === 'config' && <ConfiguracoesConsumo veiculos={veiculos} metas={metas} postos={postos} config={config} isAdmin={isAdmin} />}
