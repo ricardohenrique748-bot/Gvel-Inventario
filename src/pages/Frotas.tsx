@@ -170,6 +170,7 @@ import {
   excluirViagemFrota,
   type SalvarViagemInput,
 } from '@/hooks/useViagensFrota'
+import { vincularRotaNoMapa } from './frotas/consumo/mapa/rotaAutomatica'
 import {
   useContasPagarReceber,
   criarContaPagarReceber,
@@ -8493,10 +8494,19 @@ function ModalViagem({
     setSalvando(true)
     setErro(null)
     try {
-      if (viagemEditando) {
-        await atualizarViagemFrota(viagemEditando.id, input)
-      } else {
-        await criarViagemFrota(input)
+      const salva = viagemEditando
+        ? await atualizarViagemFrota(viagemEditando.id, input)
+        : await criarViagemFrota(input)
+      // Alimenta a aba Viagens do Consumo (mapa): coordenadas e rota em segundo plano.
+      const rotaMudou =
+        !viagemEditando || viagemEditando.origem !== input.origem || viagemEditando.destino !== input.destino
+      if (rotaMudou) {
+        void vincularRotaNoMapa(salva.id, {
+          origem: { endereco: input.enderecoOrigem, cidade: input.cidadeOrigem, uf: input.ufOrigem },
+          destino: { endereco: input.enderecoDestino, cidade: input.cidadeDestino, uf: input.ufDestino },
+          distanciaInformada: input.distanciaEstimadaKm != null,
+          tempoInformado: input.tempoEstimadoHoras != null,
+        })
       }
       onClose()
     } catch (err) {
