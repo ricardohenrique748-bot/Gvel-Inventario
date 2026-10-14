@@ -230,7 +230,7 @@ export function ResumoStep({ state, onBack, onFinalizado }: Props) {
         <div className="flex items-center gap-2 rounded-xl border border-status-success/30 bg-status-success/10 px-4 py-3 text-sm text-status-success">
           <CheckCircle2 className="h-4 w-4" />
           {aguardandoAprovacao
-            ? 'Enviado! Aguardando aprovação da Maria Clara.'
+            ? 'Enviado! Aguardando aprovação do Inventário.'
             : liberacao
               ? 'Liberação salva com sucesso.'
               : 'Inspeção salva com sucesso.'}

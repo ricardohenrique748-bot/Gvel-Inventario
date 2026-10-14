@@ -25,7 +25,7 @@ Checklist de liberação pós-manutenção. Usa o mesmo wizard da vistoria (`src
 
 1. Qualquer usuário preenche o checklist com fotos, O.S, horímetro, responsável pela manutenção (`inspetor`) e encarregado.
 2. O **encarregado assina** o envio (`assinatura_encarregado_url`). A liberação fica "aguardando aprovação" (`status_liberacao` nulo).
-3. Só a **aprovadora** (`mariaclara@gveldiesel.com`, constante `APROVADOR_LIBERACAO_EMAIL`) define o status final: `liberado`, `liberado_restricao` ou `nao_liberado`. A regra está também no trigger `trava_aprovacao_liberacao` (0086); **para trocar a aprovadora, mude nos dois lugares.**
+3. Só o **aprovador** (`inventario@gveldiesel.com`, constante `APROVADOR_LIBERACAO_EMAIL`) define o status final: `liberado`, `liberado_restricao` ou `nao_liberado`. A regra está também no trigger `trava_aprovacao_liberacao` (0086, atualizado na 0096); **para trocar o aprovador, mude nos dois lugares.**
 4. As liberações finalizadas ficam em `LiberacoesFinalizadas.tsx`. Só admin exclui.
 
 ## Vistoria (`/inspecoes/nova`)

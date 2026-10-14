@@ -56,7 +56,7 @@ Introduzido nas migrations 0072–0078.
 |---|---|---|
 | `inventario@gveldiesel.com` | Edita/exclui no estoque e nas movimentações sem ser admin; no app sempre tem Estoque | `InventarioFerramentas.tsx`, `Movimentacoes.tsx`, `nav.ts` |
 | `rh@gveldiesel.com` | Vê a aba Hora Extra do RH (dado salarial; não é liberável por checkbox) | `RH.tsx` |
-| `mariaclara@gveldiesel.com` | Única aprovadora da Liberação do Veículo (travado também no banco, 0086) | `src/pages/inspecao/types.ts` |
+| `inventario@gveldiesel.com` | Único aprovador da Liberação do Veículo (travado também no banco, 0096) | `src/pages/inspecao/types.ts` |
 | `junior@`, `mariaclara@` | Conjunto de módulos legado, usado se não tiverem `modulos` salvos | `getModulosUsuario` |
 
 ## Fontes de dados

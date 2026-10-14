@@ -54,9 +54,9 @@ export interface InspecaoWizardState {
 
 /**
  * Único usuário que dá o OK final da liberação (define o status e assina).
- * A mesma regra está no banco (trigger da migration 0086) — mudar nos dois lugares.
+ * A mesma regra está no banco (trigger da migration 0096) — mudar nos dois lugares.
  */
-export const APROVADOR_LIBERACAO_EMAIL = 'mariaclara@gveldiesel.com'
+export const APROVADOR_LIBERACAO_EMAIL = 'inventario@gveldiesel.com'
 
 export function podeAprovarLiberacao(email: string | null | undefined) {
   return (email ?? '').trim().toLowerCase() === APROVADOR_LIBERACAO_EMAIL

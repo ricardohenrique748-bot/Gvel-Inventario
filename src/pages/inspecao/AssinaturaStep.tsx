@@ -20,7 +20,7 @@ export function AssinaturaStep({ state, onPatch, onNext, onBack }: Props) {
   const { user } = useAuth()
   const liberacao = state.modelo === 'liberacao'
 
-  // Liberação feita por quem não é o aprovador: só envia (fica aguardando o OK da Maria Clara).
+  // Liberação feita por quem não é o aprovador: só envia (fica aguardando o OK do Inventário).
   if (liberacao && !podeAprovarLiberacao(user?.email)) {
     return <EnvioParaAprovacao state={state} onPatch={onPatch} onNext={onNext} onBack={onBack} />
   }
@@ -81,7 +81,7 @@ function EnvioParaAprovacao({ state, onPatch, onNext, onBack }: Props) {
       setErro('É necessário confirmar a declaração para continuar.')
       return
     }
-    // Sem status/assinatura do aprovador: quem define é a Maria Clara.
+    // Sem status/assinatura do aprovador: quem define é o Inventário.
     onPatch({
       observacoes: observacoes.trim() || undefined,
       assinaturaEncarregadoUrl: assinaturaAtual,
@@ -100,8 +100,8 @@ function EnvioParaAprovacao({ state, onPatch, onNext, onBack }: Props) {
         <div className="flex gap-3 rounded-xl border border-status-warning/30 bg-status-warning/10 p-4 text-sm">
           <Hourglass className="h-5 w-5 shrink-0 text-status-warning" />
           <p className="text-foreground">
-            A liberação final é feita pela <strong>Maria Clara</strong>. Ao enviar, o checklist fica{' '}
-            <strong>aguardando aprovação</strong> e aparece para ela na aba Finalizadas.
+            A liberação final é feita pelo <strong>Inventário</strong>. Ao enviar, o checklist fica{' '}
+            <strong>aguardando aprovação</strong> e aparece para aprovação na aba Finalizadas.
           </p>
         </div>
 
@@ -112,7 +112,7 @@ function EnvioParaAprovacao({ state, onPatch, onNext, onBack }: Props) {
             rows={3}
             value={observacoes}
             onChange={(e) => setObservacoes(e.target.value)}
-            placeholder="Opcional: algo que a Maria Clara precisa saber"
+            placeholder="Opcional: algo que o aprovador precisa saber"
           />
         </div>
 

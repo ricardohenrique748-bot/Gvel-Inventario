@@ -78,7 +78,7 @@ Toda tabela de negócio tem `company_id` com RLS por empresa (ver [arquitetura](
 | `handle_new_auth_user` | Cria o `usuarios` quando nasce um login | 0021, 0075 |
 | `set_movimentacao_usuario` | Grava quem registrou entrada/saída | 0032 |
 | `get_frota_publica`, `get_veiculo_publico` | Leitura pública por token (link do cliente) | 0017–0048 |
-| `trava_aprovacao_liberacao` | Só a aprovadora define o status da Liberação | 0086 |
+| `trava_aprovacao_liberacao` | Só o aprovador define o status da Liberação | 0086, 0096 |
 | `valida_odometro_abastecimento`, `exige_motivo_correcao_abastecimento` | Regras de integridade do consumo | 0090 |
 | pg_cron 18h / 08h | Pausa e retoma atividades do checklist de O.S | 0050, 0051 |
 

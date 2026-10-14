@@ -39,7 +39,7 @@ export function LiberacoesFinalizadas() {
   const aprovador = podeAprovarLiberacao(user?.email)
   const admin = isAdminUsuario(perfil, user?.email)
   const [busca, setBusca] = useState('')
-  // A Maria Clara já abre direto no que falta ela aprovar.
+  // O aprovador já abre direto no que falta aprovar.
   const [filtro, setFiltro] = useState<Filtro>(aprovador ? 'aguardando' : 'todos')
   const [abertaId, setAbertaId] = useState<string | null>(null)
   const qtdAguardando = liberacoes.filter((l) => !l.status_liberacao).length
@@ -226,7 +226,7 @@ function LiberacaoCard({
       ) : (
         <div className="mx-4 mb-4 space-y-2">
           <p className="rounded-lg bg-background px-3 py-2 text-sm text-secondary">
-            ⏳ Aguardando aprovação da <strong className="text-foreground">Maria Clara</strong>. Compartilhar fica disponível depois.
+            ⏳ Aguardando aprovação do <strong className="text-foreground">Inventário</strong>. Compartilhar fica disponível depois.
           </p>
           <BotaoVerPdf liberacao={l} className="w-full" />
         </div>
