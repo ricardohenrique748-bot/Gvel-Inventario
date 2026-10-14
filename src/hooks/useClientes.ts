@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { up } from '@/lib/text'
 import type { Cliente } from '@/lib/types'
+import { gerarUuid } from '@/lib/uuid'
 
 export function useClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -71,7 +72,7 @@ export async function obterLinkPublico(clienteId: string) {
 
   let token = data.share_token as string | null
   if (!token) {
-    token = crypto.randomUUID()
+    token = gerarUuid()
     const { error: updateError } = await supabase
       .from('clientes')
       .update({ share_token: token })

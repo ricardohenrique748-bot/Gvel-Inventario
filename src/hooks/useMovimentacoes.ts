@@ -5,6 +5,7 @@ import { up } from '@/lib/text'
 import { comPrefixoEmpresa } from '@/lib/tenant'
 import type { MovimentacaoComVeiculo, StatusMovimentacao, TipoVeiculo } from '@/lib/types'
 import { upsertVeiculo } from './useVeiculos'
+import { gerarUuid } from '@/lib/uuid'
 
 export interface MovimentacoesFilters {
   search?: string
@@ -263,7 +264,7 @@ export async function registrarEntrada(
           })
         ).id
 
-  const movimentacaoId = movimentacaoIdExistente ?? crypto.randomUUID()
+  const movimentacaoId = movimentacaoIdExistente ?? gerarUuid()
 
   // Processa uploads das fotos padrão e extras em paralelo
   const [usuarioId, fotoFrenteUrl, fotoLadoEsquerdoUrl, fotoLadoDireitoUrl, fotoTraseiraUrl, fotoPainelUrl, fotosExtrasProcessadas] =

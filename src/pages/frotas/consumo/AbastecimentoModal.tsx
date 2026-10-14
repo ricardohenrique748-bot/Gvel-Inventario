@@ -18,6 +18,7 @@ import { conferirValorTotal, ordenarAbastecimentos, validarAbastecimento } from 
 import { fmtMoeda, fmtNum, parseDecimal, type VeiculoConsumo } from './ui'
 import { soDigitos, type DadosComprovante } from './comprovante'
 import { erroConsumo } from './erros'
+import { gerarUuid } from '@/lib/uuid'
 
 interface InfoLeitura {
   origem: string
@@ -93,7 +94,7 @@ export function AbastecimentoModal({ veiculos, abastecimentos, postos, motorista
   const [lendoPdf, setLendoPdf] = useState(false)
   const [infoPdf, setInfoPdf] = useState<InfoLeitura | null>(null)
   // id gerado no aparelho = chave de idempotência (fila offline / reenvio)
-  const [id] = useState(() => crypto.randomUUID())
+  const [id] = useState(() => gerarUuid())
 
   const veiculo = veiculos.find((v) => v.id === veiculoId)
   const meta = veiculo ? metas[veiculo.placa] : undefined

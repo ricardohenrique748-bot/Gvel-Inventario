@@ -16,6 +16,10 @@
        EmpresaContext.tsx, que aplica a cor cadastrada em `companies.primary_color`. */
     --color-primary: 226 59 46;
     --color-primary-hover: 199 48 31;
+    /* Altura da barra de navegação do Android embaixo da tela. Alguns WebViews
+       (visto em Xiaomi) devolvem env() = 0 mesmo desenhando o app por baixo da
+       barra; o Capacitor injeta o valor real em --safe-area-inset-bottom. */
+    --inset-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
   }
 
   html.dark {

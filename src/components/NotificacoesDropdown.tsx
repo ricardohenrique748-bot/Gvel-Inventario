@@ -120,7 +120,7 @@ export function NotificacoesDropdown() {
               rounded-t-3xl sm:rounded-none
               border-t sm:border-t-0 sm:border-l border-white/10
               animate-in slide-in-from-bottom sm:slide-in-from-right
-              pb-[env(safe-area-inset-bottom)] sm:pb-0"
+              pb-[var(--inset-bottom)] sm:pb-0"
             >
               {/* Header Clean */}
               <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-white/5">

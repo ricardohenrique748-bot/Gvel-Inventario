@@ -445,7 +445,7 @@ export function Movimentacoes() {
 
       <LinkButton
         to="/movimentacoes/nova"
-        className="md:hidden fixed right-4 z-30 shadow-lg bottom-[calc(5rem+env(safe-area-inset-bottom))]"
+        className="md:hidden fixed right-4 z-30 shadow-lg bottom-[calc(5rem+var(--inset-bottom))]"
         size="lg"
       >
         <Plus className="h-5 w-5" />

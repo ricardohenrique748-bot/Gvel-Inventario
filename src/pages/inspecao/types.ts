@@ -1,5 +1,6 @@
 import type { ModeloInspecao, StatusChecklist, StatusLiberacao, TipoVeiculo } from '@/lib/types'
 import type { ChecklistItemDef } from '@/data/checklistSchema'
+import { gerarUuid } from '@/lib/uuid'
 
 export interface ChecklistItemState {
   status?: StatusChecklist
@@ -106,7 +107,7 @@ export function itemRespondido(modelo: ModeloInspecao, def: ChecklistItemDef, st
 
 export function criarEstadoInicial(modelo: ModeloInspecao = 'vistoria'): InspecaoWizardState {
   return {
-    id: crypto.randomUUID(),
+    id: gerarUuid(),
     modelo,
     tipo: 'pesado',
     placa: '',

@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { OFXTransaction } from '@/lib/ofxParser'
+import { gerarUuid } from '@/lib/uuid'
 
 export interface ExtratoItem {
   id: string
@@ -58,7 +59,7 @@ export function useExtratoBancario(contaId?: string) {
     for (const t of transactions) {
       if (existing.includes(t.fitid)) { duplicatas++; continue }
       const item: ExtratoItem = {
-        id: crypto.randomUUID(),
+        id: gerarUuid(),
         conta_id: cId,
         data: t.data,
         descricao: t.descricao,

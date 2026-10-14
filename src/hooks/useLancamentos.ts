@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { gerarUuid } from '@/lib/uuid'
 
 export interface LancamentoFinanceiro {
   id: string
@@ -51,7 +52,7 @@ export function useLancamentos(contaId?: string) {
 
   const addLancamento = useCallback(async (form: Omit<LancamentoFinanceiro, 'id' | 'created_at' | 'conciliado'>) => {
     const novo: LancamentoFinanceiro = {
-      ...form, id: crypto.randomUUID(),
+      ...form, id: gerarUuid(),
       conciliado: false, created_at: new Date().toISOString(),
     }
     if (useDB) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { gerarUuid } from '@/lib/uuid'
 
 export interface ContaBancaria {
   id: string
@@ -48,7 +49,7 @@ export function useContas() {
 
   const addConta = useCallback(async (form: Omit<ContaBancaria, 'id' | 'created_at'>) => {
     const nova: ContaBancaria = {
-      ...form, id: crypto.randomUUID(),
+      ...form, id: gerarUuid(),
       created_at: new Date().toISOString(),
     }
     if (useDB) {

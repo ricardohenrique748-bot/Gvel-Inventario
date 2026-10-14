@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, Controller, type FieldErrors } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { PageHeader } from '@/components/layout/Header'
@@ -32,6 +32,7 @@ import {
 } from '@/lib/rascunhosEntrada'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { gerarUuid } from '@/lib/uuid'
 
 const NOVO_VEICULO = '__novo__'
 const anoAtual = new Date().getFullYear()
@@ -310,7 +311,7 @@ export function RegistrarEntrada() {
     // rascunho — se a tentativa atual falhar do lado do cliente mas o
     // servidor já tiver gravado a movimentação, o reenvio com o mesmo id
     // regrava a mesma linha em vez de criar uma segunda entrada duplicada.
-    const movimentacaoId = crypto.randomUUID()
+    const movimentacaoId = gerarUuid()
 
     try {
       const mov = await registrarEntrada(input, fotosEntrada, movimentacaoId)
@@ -331,6 +332,16 @@ export function RegistrarEntrada() {
         setSubmitError(mensagem)
       }
     }
+  }
+
+  // Sem isso, um campo inválido fora da tela (ex.: lá em cima, no cliente/placa)
+  // faz o "Registrar entrada" parecer que não responde ao toque no celular.
+  function onInvalid(erros: FieldErrors<FormValues>) {
+    setSubmitError('Confira os campos obrigatórios destacados acima.')
+    const primeiro = Object.keys(erros)[0]
+    if (!primeiro) return
+    const el = document.getElementById(primeiro) ?? document.querySelector(`[name="${primeiro}"]`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
   const veiculoSelecionado = frotaCliente.find((v) => v.id === veiculoId)
@@ -401,7 +412,7 @@ export function RegistrarEntrada() {
               {submitAviso}
             </div>
           )}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+          <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-5" noValidate>
             <Controller
               control={control}
               name="clienteId"

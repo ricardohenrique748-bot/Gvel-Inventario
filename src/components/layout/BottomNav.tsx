@@ -41,7 +41,7 @@ export function BottomNav() {
   ]
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border/15 bg-surface/95 backdrop-blur-xl shadow-2xl pb-[calc(env(safe-area-inset-bottom,0px)+0.25rem)] pt-1 px-1">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border/15 bg-surface/95 backdrop-blur-xl shadow-2xl pb-[calc(var(--inset-bottom)+0.25rem)] pt-1 px-1">
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {items.map((item) => {
           // Item com query (ex.: liberação) compara só o caminho.

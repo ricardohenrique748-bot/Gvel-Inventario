@@ -9,6 +9,7 @@ import type {
   FotoExtraChecklist,
   StatusPreventivaChecklist,
 } from '@/lib/types'
+import { gerarUuid } from '@/lib/uuid'
 
 // Checklist da Frota Leve (vistoria de veículo). Antes ficava só no
 // localStorage do navegador, incluindo as fotos em base64 — sem backup e
@@ -108,7 +109,7 @@ export async function criarChecklistFrota(
   input: CriarChecklistFrotaInput,
   dataHora: string = new Date().toISOString(),
 ): Promise<RegistroChecklist> {
-  const checklistId = crypto.randomUUID()
+  const checklistId = gerarUuid()
 
   // Sobe todas as fotos em paralelo. Cada foto é evidência opcional do
   // item — se uma falhar (ex: conexão fraca), não trava o registro inteiro.
