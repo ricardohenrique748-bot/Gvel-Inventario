@@ -33,6 +33,7 @@ import {
   Layers,
   Bell,
   Pencil,
+  CalendarRange,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -58,12 +59,15 @@ import {
   criarLancamentosFluxoCaixaEmLote,
   excluirLancamentoFluxoCaixa,
   atualizarStatusPagamentoLancamento,
+  atualizarDescricaoLancamento,
   isLancamentoVencido,
   diasDeAtraso,
   hojeIsoLocal,
+  somarMeses,
 } from '@/hooks/useFluxoCaixaLancamentos'
 import { useEmpresasDivisoesOverrides, importarDivisoesVariosMeses } from '@/hooks/usePainelGerencialDivisoes'
 import { importarPainelGerencialExcel } from '@/lib/importarPainelGerencialExcel'
+import { RepetirMesClientesModal } from './financeiro/RepetirMesClientesModal'
 
 // ─── Helpers de Formatação ──────────────────────────────────────────────────
 function fmtBRL(val: number) {
@@ -386,17 +390,6 @@ const STATUS_PAGAMENTO_OPCOES = [
   'PENDENTE', 'PAGO', 'COBRADO', 'CANCELADO', 'ISENTO', 'ABATER', 'RETIRAR', 'SOMANDO', 'TROCAR AP', 'ZEROU',
 ]
 
-/** Soma meses a uma data 'YYYY-MM-DD' sem estourar o fim do mês (31/01 + 1 mês → 28/02). */
-function somarMeses(dataIso: string, meses: number): string {
-  const [ano, mes, dia] = dataIso.split('-').map(Number)
-  const alvo = new Date(ano, mes - 1 + meses, 1)
-  const ultimoDia = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate()
-  alvo.setDate(Math.min(dia, ultimoDia))
-  const mm = String(alvo.getMonth() + 1).padStart(2, '0')
-  const dd = String(alvo.getDate()).padStart(2, '0')
-  return `${alvo.getFullYear()}-${mm}-${dd}`
-}
-
 export function Financeiro() {
   const { user, perfil, perfilLoading, empresa } = useAuth()
   const userRef = perfil || { email: user?.email }
@@ -707,6 +700,7 @@ export function Financeiro() {
   const [salvandoLancamento, setSalvandoLancamento] = useState(false)
   const [erroFormLancamento, setErroFormLancamento] = useState<string | null>(null)
   const [excluindoLancamentoId, setExcluindoLancamentoId] = useState<string | null>(null)
+  const [repetirMesAberto, setRepetirMesAberto] = useState(false)
 
   async function handleAdicionarLancamento(e: React.FormEvent) {
     e.preventDefault()
@@ -809,6 +803,25 @@ export function Financeiro() {
     if (!v) return
     fecharEdicaoPgt()
     await salvarStatusPagamento(id, v)
+  }
+
+  // Clique na descrição da tabela: edita o texto (Enter/sair do campo salva, Esc cancela).
+  const [editandoDescricao, setEditandoDescricao] = useState<{ id: string; texto: string } | null>(null)
+  const [salvandoDescricaoId, setSalvandoDescricaoId] = useState<string | null>(null)
+  async function confirmarEdicaoDescricao(original: string) {
+    if (!editandoDescricao) return
+    const { id, texto } = editandoDescricao
+    const nova = texto.trim().toUpperCase()
+    setEditandoDescricao(null)
+    if (!nova || nova === original) return
+    setSalvandoDescricaoId(id)
+    try {
+      await atualizarDescricaoLancamento(id, nova)
+    } catch (err) {
+      console.warn('Erro ao alterar a descrição:', err)
+    } finally {
+      setSalvandoDescricaoId(null)
+    }
   }
 
   async function handleExcluirLancamento(id: string) {
@@ -2089,6 +2102,17 @@ export function Financeiro() {
             <Plus className="h-4 w-4" />
           </div>
           <h3 className="text-sm font-black text-foreground uppercase">NOVO LANÇAMENTO</h3>
+          {camposEstendidos && (
+            <button
+              type="button"
+              onClick={() => setRepetirMesAberto(true)}
+              className="ml-auto flex h-8 items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 text-[10px] font-black uppercase text-primary hover:bg-primary/20 transition-colors"
+              title="Copiar as entradas de todos os clientes para o mês seguinte"
+            >
+              <CalendarRange className="h-3.5 w-3.5" />
+              REPETIR MÊS DOS CLIENTES
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleAdicionarLancamento} className="space-y-3">
@@ -2753,7 +2777,37 @@ export function Financeiro() {
                     className={`transition-colors ${isEntrada ? 'bg-emerald-500/10 hover:bg-emerald-500/15' : 'bg-red-500/10 hover:bg-red-500/15'}`}
                   >
                     <td className="py-2 px-2.5 font-bold text-foreground whitespace-nowrap">{`${dia}/${mes}/${ano}`}</td>
-                    <td className="py-2 px-2.5 font-sans font-bold text-foreground">{l.descricao}</td>
+                    <td className="py-2 px-2.5 font-sans font-bold text-foreground">
+                      {editandoDescricao?.id === l.id ? (
+                        <input
+                          type="text"
+                          autoFocus
+                          value={editandoDescricao.texto}
+                          onChange={(e) => setEditandoDescricao({ id: l.id, texto: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') confirmarEdicaoDescricao(l.descricao)
+                            if (e.key === 'Escape') setEditandoDescricao(null)
+                          }}
+                          onBlur={() => confirmarEdicaoDescricao(l.descricao)}
+                          className="h-7 w-full min-w-[140px] rounded-lg border border-primary/50 bg-background px-2 font-sans text-[11px] font-bold uppercase text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditandoDescricao({ id: l.id, texto: l.descricao })}
+                          disabled={salvandoDescricaoId === l.id}
+                          title="Clique para editar a descrição"
+                          className="group inline-flex items-center gap-1.5 rounded-md text-left uppercase hover:text-primary disabled:opacity-60"
+                        >
+                          {l.descricao}
+                          {salvandoDescricaoId === l.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Pencil className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                          )}
+                        </button>
+                      )}
+                    </td>
                     <td
                       className={`py-2 px-2.5 text-right font-black whitespace-nowrap ${isEntrada ? 'text-emerald-400' : 'text-red-400'}`}
                       title={isEntrada ? 'Entrada' : 'Saída'}
@@ -2785,7 +2839,7 @@ export function Financeiro() {
                         {(() => {
                           const pago = !!l.statusPagamento?.toUpperCase().trim().startsWith('PAGO')
                           if (editandoPgtId === l.id) {
-                            const atual = (l.statusPagamento || 'PENDENTE').toUpperCase().trim()
+                            const atual = (l.statusPagamento || '').toUpperCase().trim()
                             return pgtOutroTexto !== null ? (
                               <input
                                 type="text"
@@ -2812,7 +2866,7 @@ export function Financeiro() {
                                 className="h-7 rounded-lg border border-primary/50 bg-background px-1.5 font-sans text-[10px] font-bold uppercase text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                               >
                                 {!STATUS_PAGAMENTO_OPCOES.includes(atual) && (
-                                  <option value="__atual__" className="bg-white text-black">{atual}</option>
+                                  <option value="__atual__" className="bg-white text-black">{atual || '—'}</option>
                                 )}
                                 {STATUS_PAGAMENTO_OPCOES.map((opt) => (
                                   <option key={opt} value={opt} className="bg-white text-black">{opt}</option>
@@ -2829,13 +2883,13 @@ export function Financeiro() {
                               title={pago ? 'Clique para marcar como PENDENTE' : 'Clique para marcar como PAGO'}
                               className="inline-flex items-center gap-1 rounded-full hover:brightness-125 transition disabled:opacity-60"
                             >
-                              <Badge tone={pago ? 'success' : 'warning'} className="text-[9px] font-bold cursor-pointer">
+                              <Badge tone={pago ? 'success' : l.statusPagamento ? 'warning' : 'neutral'} className="text-[9px] font-bold cursor-pointer">
                                 {alterandoPgtId === l.id ? (
                                   <Loader2 className="mr-1 h-2.5 w-2.5 animate-spin" />
                                 ) : pago ? (
                                   <CheckCircle2 className="mr-1 h-2.5 w-2.5" />
                                 ) : null}
-                                {l.statusPagamento?.toUpperCase() || 'PENDENTE'}
+                                {l.statusPagamento?.toUpperCase() || '—'}
                               </Badge>
                             </button>
                           )
@@ -2884,6 +2938,10 @@ export function Financeiro() {
       {/* ────────────────────────────────────────────────────────────────────────
           MODAL: HISTÓRICO DE APURAÇÕES
          ──────────────────────────────────────────────────────────────────────── */}
+      {repetirMesAberto && (
+        <RepetirMesClientesModal usuarioNome={user?.email} onClose={() => setRepetirMesAberto(false)} />
+      )}
+
       {showHistoricoModal && (
         <div
           onClick={() => setShowHistoricoModal(false)}

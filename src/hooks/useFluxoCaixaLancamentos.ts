@@ -34,6 +34,17 @@ export function hojeIsoLocal(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** Soma meses a uma data 'YYYY-MM-DD' sem estourar o fim do mês (31/01 + 1 mês → 28/02). */
+export function somarMeses(dataIso: string, meses: number): string {
+  const [ano, mes, dia] = dataIso.split('-').map(Number)
+  const alvo = new Date(ano, mes - 1 + meses, 1)
+  const ultimoDia = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate()
+  alvo.setDate(Math.min(dia, ultimoDia))
+  const mm = String(alvo.getMonth() + 1).padStart(2, '0')
+  const dd = String(alvo.getDate()).padStart(2, '0')
+  return `${alvo.getFullYear()}-${mm}-${dd}`
+}
+
 /** Vencido = tem valor, vencimento anterior a hoje e o status ainda não é de quitação. */
 export function isLancamentoVencido(
   l: { dataVencimento?: string; statusPagamento?: string; valor?: number },
@@ -125,7 +136,8 @@ export async function criarLancamentosFluxoCaixaEmLote(inputs: CriarLancamentoFl
       quantidade_veiculos: input.quantidadeVeiculos ?? null,
       data_vencimento: input.dataVencimento || null,
       forma_pagamento: input.formaPagamento || null,
-      status_pagamento: input.statusPagamento || 'pendente',
+      // '' fica em branco (PGT preenchido depois à mão); só sem valor vira 'pendente'.
+      status_pagamento: input.statusPagamento ?? 'pendente',
     })),
   )
   if (error) throw error
@@ -141,6 +153,16 @@ export async function atualizarStatusPagamentoLancamento(id: string, statusPagam
     .from('fluxo_caixa_lancamentos')
     .update({ status_pagamento: statusPagamento })
     .eq('id', id)
+  if (error) throw error
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('fluxo_caixa_lancamento_updated'))
+  }
+}
+
+/** Edição da descrição direto na tabela do fluxo de caixa. */
+export async function atualizarDescricaoLancamento(id: string, descricao: string): Promise<void> {
+  const { error } = await supabase.from('fluxo_caixa_lancamentos').update({ descricao }).eq('id', id)
   if (error) throw error
 
   if (typeof window !== 'undefined') {
