@@ -172,3 +172,39 @@ export async function excluirLoteImportacaoFaltas(loteId: string): Promise<void>
   if (error) throw error
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('faltas_updated'))
 }
+
+export interface DadosFalta {
+  matricula: string
+  nome: string
+  funcao: string
+  departamento: string
+  data: string // YYYY-MM-DD
+  observacao: string
+}
+
+/** Edição manual de uma falta (lápis do Relatório de Ausências). */
+export async function atualizarFalta(id: string, dados: DadosFalta): Promise<void> {
+  const { error } = await supabase
+    .from('faltas_colaboradores')
+    .update({
+      matricula: dados.matricula.trim(),
+      nome: dados.nome.trim().toUpperCase(),
+      funcao: dados.funcao.trim().toUpperCase() || null,
+      departamento: dados.departamento.trim().toUpperCase() || null,
+      data: dados.data,
+      observacao: dados.observacao.trim().toUpperCase() || 'FALTA',
+    })
+    .eq('id', id)
+  if (error) {
+    // UNIQUE (matricula, data): já existe outra falta do mesmo colaborador nesse dia.
+    if (error.code === '23505') throw new Error('Este colaborador já tem uma falta registrada nessa data.')
+    throw error
+  }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('faltas_updated'))
+}
+
+export async function excluirFalta(id: string): Promise<void> {
+  const { error } = await supabase.from('faltas_colaboradores').delete().eq('id', id)
+  if (error) throw error
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('faltas_updated'))
+}

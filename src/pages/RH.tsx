@@ -49,7 +49,15 @@ import { isRhAuthorized, isModuloAuthorized } from '@/components/layout/nav'
 import { isAdminUsuario } from '@/lib/permissoes'
 import { useRhSheet, type ColaboradorRH } from '@/hooks/useRhSheet'
 import { useAtestadosSheet, type RegistroAtestado, type TipoAtestado } from '@/hooks/useAtestadosSheet'
-import { useFaltas, useLotesImportacaoFaltas, importarFaltasPdf, type RegistroFalta } from '@/hooks/useFaltas'
+import {
+  useFaltas,
+  useLotesImportacaoFaltas,
+  importarFaltasPdf,
+  atualizarFalta,
+  excluirFalta,
+  type RegistroFalta,
+  type DadosFalta,
+} from '@/hooks/useFaltas'
 import { useHoraExtraSheet, type RegistroHoraExtra } from '@/hooks/useHoraExtraSheet'
 import {
   useTurnover,
@@ -837,6 +845,8 @@ interface TabelaFaltasProps {
   meses: string[]
   filtroMes: string
   onFiltroMesChange: (valor: string) => void
+  onEditar: (item: RegistroFalta) => void
+  onExcluir: (item: RegistroFalta) => void
 }
 
 function TabelaFaltas({
@@ -851,6 +861,8 @@ function TabelaFaltas({
   meses,
   filtroMes,
   onFiltroMesChange,
+  onEditar,
+  onExcluir,
 }: TabelaFaltasProps) {
   return (
     <Card>
@@ -914,14 +926,15 @@ function TabelaFaltas({
           </div>
         ) : (
           <DragScrollArea>
-            <table className="w-full text-[11px] table-fixed">
+            <table className="w-full text-[11px] table-fixed min-w-[720px]">
               <colgroup>
                 <col className="w-[8%]" />
-                <col className="w-[24%]" />
-                <col className="w-[20%]" />
-                <col className="w-[18%]" />
-                <col className="w-[12%]" />
-                <col className="w-[18%]" />
+                <col className="w-[23%]" />
+                <col className="w-[19%]" />
+                <col className="w-[17%]" />
+                <col className="w-[11%]" />
+                <col className="w-[13%]" />
+                <col className="w-[9%]" />
               </colgroup>
               <thead>
                 <tr className="border-b border-border/10 text-left text-foreground font-bold">
@@ -931,6 +944,7 @@ function TabelaFaltas({
                   <th className="px-1.5 py-2 font-bold">Departamento</th>
                   <th className="px-1.5 py-2 font-bold whitespace-nowrap">Data</th>
                   <th className="px-1.5 py-2 font-bold">Observação</th>
+                  <th className="px-1.5 py-2 font-bold text-center">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -952,6 +966,26 @@ function TabelaFaltas({
                         {f.observacao}
                       </MiniBadge>
                     </td>
+                    <td className="px-1.5 py-1.5">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onEditar(f)}
+                          title="Editar"
+                          className="rounded-lg p-1.5 text-secondary hover:text-foreground hover:bg-surface-hover/60 transition-colors cursor-pointer"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onExcluir(f)}
+                          title="Excluir"
+                          className="rounded-lg p-1.5 text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -960,6 +994,130 @@ function TabelaFaltas({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+interface ModalEditarFaltaProps {
+  registro: RegistroFalta
+  onFechar: () => void
+}
+
+function ModalEditarFalta({ registro, onFechar }: ModalEditarFaltaProps) {
+  const [dados, setDados] = useState<DadosFalta>(() => ({
+    matricula: registro.matricula,
+    nome: registro.nome,
+    funcao: registro.funcao,
+    departamento: registro.departamento,
+    data: registro.data.slice(0, 10),
+    observacao: registro.observacao,
+  }))
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  function alterar<K extends keyof DadosFalta>(campo: K, valor: DadosFalta[K]) {
+    setDados((prev) => ({ ...prev, [campo]: valor }))
+  }
+
+  async function handleSalvar(e: React.FormEvent) {
+    e.preventDefault()
+    if (!dados.matricula.trim()) return setErro('Informe a matrícula.')
+    if (!dados.nome.trim()) return setErro('Informe o nome do colaborador.')
+    if (!dados.data) return setErro('Informe a data da falta.')
+    setSalvando(true)
+    setErro(null)
+    try {
+      await atualizarFalta(registro.id, dados)
+      onFechar()
+    } catch (err) {
+      setErro(getErrorMessage(err, 'Não foi possível salvar a falta.'))
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={onFechar}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in cursor-pointer"
+    >
+      <form
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSalvar}
+        className="w-full max-w-lg rounded-3xl border border-border/30 bg-surface p-6 shadow-2xl animate-scale-in space-y-4 cursor-default"
+      >
+        <div className="flex items-center justify-between border-b border-border/20 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
+              <UserX className="h-4 w-4" />
+            </div>
+            <h3 className="font-black text-sm text-foreground">EDITAR FALTA</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onFechar}
+            className="shrink-0 text-secondary hover:text-foreground transition-colors cursor-pointer p-1"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-[10px] font-black text-secondary mb-1.5">MATRÍCULA</label>
+            <input value={dados.matricula} onChange={(e) => alterar('matricula', e.target.value)} className={CLASSE_CAMPO_TURNOVER} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-[10px] font-black text-secondary mb-1.5">COLABORADOR</label>
+            <input
+              value={dados.nome}
+              onChange={(e) => alterar('nome', e.target.value.toUpperCase())}
+              className={CLASSE_CAMPO_TURNOVER}
+              autoFocus
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-[10px] font-black text-secondary mb-1.5">FUNÇÃO</label>
+            <input value={dados.funcao} onChange={(e) => alterar('funcao', e.target.value.toUpperCase())} className={CLASSE_CAMPO_TURNOVER} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-secondary mb-1.5">DATA</label>
+            <input type="date" value={dados.data} onChange={(e) => alterar('data', e.target.value)} className={CLASSE_CAMPO_TURNOVER} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-[10px] font-black text-secondary mb-1.5">DEPARTAMENTO</label>
+            <input
+              value={dados.departamento}
+              onChange={(e) => alterar('departamento', e.target.value.toUpperCase())}
+              className={CLASSE_CAMPO_TURNOVER}
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-secondary mb-1.5">OBSERVAÇÃO</label>
+            <input
+              value={dados.observacao}
+              onChange={(e) => alterar('observacao', e.target.value.toUpperCase())}
+              placeholder="FALTA"
+              className={CLASSE_CAMPO_TURNOVER}
+            />
+          </div>
+        </div>
+
+        {erro && (
+          <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-400">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="normal-case font-medium">{erro}</span>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="secondary" size="md" onClick={onFechar} disabled={salvando}>
+            CANCELAR
+          </Button>
+          <Button type="submit" variant="primary" size="md" disabled={salvando} className="font-bold">
+            {salvando ? 'SALVANDO...' : 'SALVAR'}
+          </Button>
+        </div>
+      </form>
+    </div>
   )
 }
 
@@ -1496,6 +1654,18 @@ export function RH() {
   const [buscaHoraExtra, setBuscaHoraExtra] = useState('')
   const [filtroEmpresaHoraExtra, setFiltroEmpresaHoraExtra] = useState('TODOS')
   const [colaboradorHoraExtraModal, setColaboradorHoraExtraModal] = useState<RegistroHoraExtra | null>(null)
+  const [faltaEditando, setFaltaEditando] = useState<RegistroFalta | null>(null)
+  const [erroExclusaoFalta, setErroExclusaoFalta] = useState<string | null>(null)
+
+  async function handleExcluirFalta(item: RegistroFalta) {
+    if (!window.confirm(`Excluir a falta de ${item.nome} em ${formatDataBr(item.data)}?`)) return
+    setErroExclusaoFalta(null)
+    try {
+      await excluirFalta(item.id)
+    } catch (err) {
+      setErroExclusaoFalta(getErrorMessage(err, 'Não foi possível excluir a falta.'))
+    }
+  }
   const [buscaFalta, setBuscaFalta] = useState('')
   const [filtroDepartamentoFalta, setFiltroDepartamentoFalta] = useState('TODOS')
   const [filtroMesFalta, setFiltroMesFalta] = useState('TODOS')
@@ -1974,6 +2144,13 @@ export function RH() {
         </div>
       )}
 
+      {erroExclusaoFalta && (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="lowercase font-medium">{erroExclusaoFalta}</span>
+        </div>
+      )}
+
       {erroExclusaoTurnover && (
         <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
           <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -2345,6 +2522,8 @@ export function RH() {
             meses={mesesFalta}
             filtroMes={filtroMesFalta}
             onFiltroMesChange={setFiltroMesFalta}
+            onEditar={setFaltaEditando}
+            onExcluir={handleExcluirFalta}
           />
         </>
       )}
@@ -2475,6 +2654,8 @@ export function RH() {
           />
         </>
       )}
+
+      {faltaEditando && <ModalEditarFalta registro={faltaEditando} onFechar={() => setFaltaEditando(null)} />}
 
       {lancamentoTurnover !== undefined && (
         <ModalLancamentoTurnover registro={lancamentoTurnover} onFechar={() => setLancamentoTurnover(undefined)} />
