@@ -12,16 +12,75 @@ export interface RegistroHoraExtra {
   observacao: string
 }
 
-const SHEET_PUB_ID = '2PACX-1vR2zNIx68rFZbmLJtM_UtXuvACZ47uk7XPPVpm7dxxlswtVKt-CJaTrkXBnpn5CqnBVmvjCzvnVkhqw'
-const GID_HORA_EXTRA = '1601597038' // aba do mês corrente — atualizada manualmente pelo usuário
-
-function urlSheet(): string {
-  return `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_ID}/pub?output=csv&gid=${GID_HORA_EXTRA}&single=true`
+export interface AbaMesHoraExtra {
+  nome: string
+  gid: string
 }
 
-const STORAGE_KEY = 'gvel_rh_hora_extra_v1'
+const SHEET_PUB_ID = '2PACX-1vR2zNIx68rFZbmLJtM_UtXuvACZ47uk7XPPVpm7dxxlswtVKt-CJaTrkXBnpn5CqnBVmvjCzvnVkhqw'
+const URL_PUBHTML = `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_ID}/pubhtml`
+
+// Usada só se a lista de abas publicada não puder ser lida. Cada mês é uma aba
+// da planilha; as novas são descobertas sozinhas pelo pubhtml.
+const ABAS_PADRAO: AbaMesHoraExtra[] = [
+  { nome: 'ABRIL', gid: '965568218' },
+  { nome: 'MAIO 2026', gid: '1722735347' },
+  { nome: 'JUNHO 2026', gid: '499053467' },
+  { nome: 'JULHO', gid: '175403388' },
+  { nome: 'AGOSTO', gid: '1601597038' },
+  { nome: 'SETEMBRO', gid: '7667789' },
+]
+
+function urlSheet(gid: string): string {
+  return `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_ID}/pub?output=csv&gid=${gid}&single=true`
+}
+
+const STORAGE_KEY = 'gvel_rh_hora_extra_v2'
+const ABAS_STORAGE_KEY = 'gvel_rh_hora_extra_abas_v1'
 const LAST_SYNC_KEY = 'gvel_rh_hora_extra_last_sync'
 const AUTO_SYNC_INTERVAL_MS = 60000
+
+interface CacheMes {
+  registros: RegistroHoraExtra[]
+  mesReferencia: string | null
+}
+
+function lerJson<T>(chave: string, padrao: T): T {
+  try {
+    const salvo = localStorage.getItem(chave)
+    return salvo ? (JSON.parse(salvo) as T) : padrao
+  } catch {
+    return padrao
+  }
+}
+
+function salvarJson(chave: string, valor: unknown) {
+  try {
+    localStorage.setItem(chave, JSON.stringify(valor))
+  } catch {
+    // cache é só conveniência
+  }
+}
+
+// O pubhtml lista as abas publicadas como `items.push({name: "Setembro", ..., gid: "7667789"`,
+// na ordem da planilha. A aba "Página1" que vem por padrão fica de fora.
+function parseAbasPublicadas(html: string): AbaMesHoraExtra[] {
+  const abas: AbaMesHoraExtra[] = []
+  const re = /items\.push\(\{name: "((?:[^"\\]|\\.)*)", pageUrl: "(?:[^"\\]|\\.)*", gid: "(\d+)"/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(html)) !== null) {
+    let nome = m[1]
+    try {
+      nome = JSON.parse(`"${nome.replace(/\\x([0-9a-fA-F]{2})/g, '\\u00$1')}"`)
+    } catch {
+      // mantém o texto cru
+    }
+    nome = nome.trim().toUpperCase()
+    if (/^P[ÁA]GINA\s*\d*$/.test(nome)) continue
+    abas.push({ nome, gid: m[2] })
+  }
+  return abas
+}
 
 function parseCsvLine(line: string): string[] {
   const cols: string[] = []
@@ -162,22 +221,27 @@ function parseCsv(csvText: string): { registros: RegistroHoraExtra[]; mesReferen
 }
 
 export function useHoraExtraSheet() {
-  const [items, setItems] = useState<RegistroHoraExtra[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
+  const [abas, setAbas] = useState<AbaMesHoraExtra[]>(() => {
+    const salvas = lerJson<AbaMesHoraExtra[]>(ABAS_STORAGE_KEY, [])
+    return salvas.length > 0 ? salvas : ABAS_PADRAO
   })
+  // Começa sempre no mês mais recente (última aba da planilha).
+  const [gidSelecionado, setGidSelecionado] = useState<string>(() => abas[abas.length - 1]?.gid ?? '')
+  const [cache, setCache] = useState<Record<string, CacheMes>>(() => lerJson(STORAGE_KEY, {}))
 
-  const [mesReferencia, setMesReferencia] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [isAutoSyncing, setIsAutoSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastSync, setLastSync] = useState<string | null>(() => localStorage.getItem(LAST_SYNC_KEY))
 
   const isFetchingRef = useRef(false)
+  const gidRef = useRef(gidSelecionado)
+  gidRef.current = gidSelecionado
+  // Enquanto o usuário não escolher um mês, acompanha a aba mais nova
+  // (ex.: o RH cria a aba de outubro e ela já abre sozinha).
+  const escolhaManualRef = useRef(false)
+  const gidBuscadoRef = useRef('')
+  const fetchSheetRef = useRef<(silent?: boolean) => Promise<void>>(async () => {})
 
   const fetchSheet = useCallback(async (silent: boolean = false) => {
     if (isFetchingRef.current) return
@@ -191,19 +255,42 @@ export function useHoraExtraSheet() {
     setError(null)
 
     try {
-      const res = await fetch(`${urlSheet()}&t=${Date.now()}`)
+      let gid = gidRef.current
+      try {
+        const resAbas = await fetch(`${URL_PUBHTML}?t=${Date.now()}`)
+        const novasAbas = resAbas.ok ? parseAbasPublicadas(await resAbas.text()) : []
+        if (novasAbas.length > 0) {
+          setAbas(novasAbas)
+          salvarJson(ABAS_STORAGE_KEY, novasAbas)
+          const existe = novasAbas.some((a) => a.gid === gid)
+          if (!escolhaManualRef.current || !existe) {
+            gid = novasAbas[novasAbas.length - 1].gid
+            gidRef.current = gid
+            setGidSelecionado(gid)
+          }
+        }
+      } catch (err) {
+        // sem a lista de abas, segue com a que já conhece
+        console.error('Erro ao listar abas da planilha de Hora Extra:', err)
+      }
+      if (!gid) throw new Error('Nenhuma aba de mês encontrada na planilha.')
+      gidBuscadoRef.current = gid
+
+      const res = await fetch(`${urlSheet(gid)}&t=${Date.now()}`)
       if (!res.ok) throw new Error(`Status ${res.status}`)
       const text = await res.text()
-      const { registros, mesReferencia: mes } = parseCsv(text)
+      const dadosMes = parseCsv(text)
 
-      setItems(registros)
-      setMesReferencia(mes)
+      setCache((anterior) => {
+        const novo = { ...anterior, [gid]: dadosMes }
+        salvarJson(STORAGE_KEY, novo)
+        return novo
+      })
       const now = new Date()
       const nowStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       const fullSyncStr = `${now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ÀS ${nowStr}`
 
       setLastSync(fullSyncStr)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(registros))
       localStorage.setItem(LAST_SYNC_KEY, fullSyncStr)
     } catch (err: any) {
       console.error('Erro ao sincronizar planilha de Hora Extra:', err)
@@ -214,12 +301,31 @@ export function useHoraExtraSheet() {
       setLoading(false)
       setIsAutoSyncing(false)
       isFetchingRef.current = false
+      // Trocou de mês enquanto buscava o anterior: busca o novo agora.
+      if (gidRef.current && gidRef.current !== gidBuscadoRef.current) {
+        setTimeout(() => fetchSheetRef.current(true), 0)
+      }
     }
   }, [])
+  fetchSheetRef.current = fetchSheet
 
   useEffect(() => {
-    fetchSheet(items.length > 0)
+    fetchSheet(Boolean(cache[gidSelecionado]))
   }, [])
+
+  const selecionarMes = useCallback(
+    (gid: string) => {
+      escolhaManualRef.current = true
+      gidRef.current = gid
+      setGidSelecionado(gid)
+      fetchSheet(Boolean(cache[gid]))
+    },
+    [cache, fetchSheet],
+  )
+
+  const mesAtual = cache[gidSelecionado]
+  const items = mesAtual?.registros ?? []
+  const mesReferencia = mesAtual?.mesReferencia ?? null
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -243,6 +349,9 @@ export function useHoraExtraSheet() {
   return {
     items,
     mesReferencia,
+    abas,
+    gidSelecionado,
+    selecionarMes,
     loading,
     isAutoSyncing,
     error,

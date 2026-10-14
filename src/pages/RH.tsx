@@ -1626,6 +1626,9 @@ export function RH() {
   const {
     items: horasExtras,
     mesReferencia: mesReferenciaHoraExtra,
+    abas: abasMesHoraExtra,
+    gidSelecionado: gidMesHoraExtra,
+    selecionarMes: selecionarMesHoraExtra,
     loading: loadingHoraExtra,
     error: erroHoraExtra,
     fetchSheet: fetchHoraExtra,
@@ -2304,11 +2307,30 @@ export function RH() {
       )}
 
       {/* Mês de referência da planilha de Hora Extra — só na aba Hora Extra */}
-      {abaAtiva === 'horaExtra' && mesReferenciaHoraExtra && (
+      {abaAtiva === 'horaExtra' && (
         <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-border/10 bg-surface/80 px-4 py-3 text-xs font-medium text-secondary backdrop-blur-md">
           <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          <span className="font-bold text-foreground">MÊS DE REFERÊNCIA:</span>
-          <span>{mesReferenciaHoraExtra.toUpperCase()}</span>
+          <label htmlFor="filtro-mes-hora-extra" className="font-bold text-foreground">
+            MÊS:
+          </label>
+          <select
+            id="filtro-mes-hora-extra"
+            value={gidMesHoraExtra}
+            onChange={(e) => selecionarMesHoraExtra(e.target.value)}
+            className={cn(CLASSE_CAMPO_TURNOVER, 'w-auto min-w-[10rem] cursor-pointer')}
+          >
+            {[...abasMesHoraExtra].reverse().map((aba) => (
+              <option key={aba.gid} value={aba.gid}>
+                {aba.nome}
+              </option>
+            ))}
+          </select>
+          {mesReferenciaHoraExtra && (
+            <>
+              <span className="font-bold text-foreground">MÊS DE REFERÊNCIA:</span>
+              <span>{mesReferenciaHoraExtra.toUpperCase()}</span>
+            </>
+          )}
         </div>
       )}
 
