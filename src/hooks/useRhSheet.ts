@@ -5,11 +5,12 @@ export interface ColaboradorRH {
   empresa: string
   nome: string
   funcao: string
-  valorCarteira: number
-  custoRegistro: number
-  ajudaCusto: number
-  gratificacao: number
   ganhosTotais: number
+  adiantamento: number
+  aPagarHolerite: number
+  recebidoMes: number
+  descontos: number
+  gratificacao: number
   custoTotal: number
   observacao: string
 }
@@ -17,9 +18,10 @@ export interface ColaboradorRH {
 const SHEET_PUB_ID = '2PACX-1vQZa_bvGYffYNXDleozoflStm8C22-UAfafo9o9-g6QWDMCP2Kk1AgHxczBrs5_69h7IXPW6Z22JoLW'
 
 // A planilha "RELAÇÃO FUNCIONÁRIOS E PRESTADORES DE SERVIÇO - GRUPO VEL" tem uma
-// aba por empresa do grupo — cada uma publicada com seu próprio gid. A aba
-// "TERCEIROS" tem um layout mais simples (só nome/função/salário), por isso
-// usa um parser separado.
+// aba por empresa do grupo — cada uma publicada com seu próprio gid. As abas
+// não têm as mesmas colunas nem na mesma ordem (e mudam com o tempo), então o
+// parser localiza cada coluna pelo nome no cabeçalho. A aba "TERCEIROS" só tem
+// nome/função/salário e aceita linha sem função.
 const ABAS_RH: { empresa: string; gid: string; formato: 'padrao' | 'terceiros' }[] = [
   { empresa: 'GVEL DIESEL', gid: '326329368', formato: 'padrao' },
   { empresa: 'GV COMÉRCIO DE PEÇAS', gid: '2101974683', formato: 'padrao' },
@@ -33,7 +35,7 @@ function urlAba(gid: string): string {
   return `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_ID}/pub?output=csv&gid=${gid}&single=true`
 }
 
-const STORAGE_KEY = 'gvel_rh_data_v2'
+const STORAGE_KEY = 'gvel_rh_data_v3'
 const LAST_SYNC_KEY = 'gvel_rh_last_sync'
 const AUTO_SYNC_INTERVAL_MS = 60000 // 60 segundos
 
@@ -66,9 +68,42 @@ function parseValorMonetario(raw: string | undefined): number {
   return isNaN(valor) ? 0 : valor
 }
 
+type CampoRH =
+  | 'ganhosTotais'
+  | 'adiantamento'
+  | 'aPagarHolerite'
+  | 'recebidoMes'
+  | 'descontos'
+  | 'gratificacao'
+  | 'custoTotal'
+  | 'observacao'
+
+function normalizarCabecalho(raw: string): string {
+  return raw.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim()
+}
+
+// Reconhece as variações de nome que aparecem nas abas (ex: "ADIANT. HOLERITE",
+// "ADANTAMENTO HOLERITE", "GANHO TOTAIS", "RECEBIDOS MÊS"). Na aba TERCEIROS o
+// "SALÁRIO" é o próprio ganho total.
+function campoDoCabecalho(raw: string): CampoRH | null {
+  const h = normalizarCabecalho(raw)
+  if (h.startsWith('GANHO') || h.startsWith('SALARIO')) return 'ganhosTotais'
+  if (h.includes('HOLERITE') && h.includes('PAGAR')) return 'aPagarHolerite'
+  if (h.includes('HOLERITE') && (h.startsWith('ADIANT') || h.startsWith('ADANT'))) return 'adiantamento'
+  if (h.startsWith('RECEBID')) return 'recebidoMes'
+  if (h.startsWith('DESCONTO')) return 'descontos'
+  if (h.startsWith('GRATIFICA')) return 'gratificacao'
+  if (h.startsWith('CUSTO TOTAL')) return 'custoTotal'
+  if (h.startsWith('OBSERVA')) return 'observacao'
+  return null
+}
+
 function parseCsv(csvText: string, empresa: string, formato: 'padrao' | 'terceiros'): ColaboradorRH[] {
   const lines = csvText.split(/\r?\n/).filter((line) => line.trim().length > 0)
   const items: ColaboradorRH[] = []
+  // Coluna de cada campo, definida ao achar a linha de cabeçalho (NOME, FUNÇÃO, ...).
+  // Quando o nome se repete (ex: "GANHOS TOTAIS" duas vezes), vale a primeira.
+  let colunas: Partial<Record<CampoRH, number>> | null = null
 
   for (let i = 0; i < lines.length; i++) {
     const cols = parseCsvLine(lines[i])
@@ -76,46 +111,49 @@ function parseCsv(csvText: string, empresa: string, formato: 'padrao' | 'terceir
     const funcao = (cols[1] || '').trim()
 
     if (!nome) continue
-    if (formato === 'padrao' && !funcao) continue
-    if (nome.toUpperCase().startsWith('VALOR TOTAL')) continue
-    if (nome.toUpperCase() === 'COLABORADOR' || nome.toUpperCase() === 'NOME') continue
-
-    if (formato === 'terceiros') {
-      // Aba "TERCEIROS": só NOME, FUNÇÃO e SALÁRIO — sem a quebra em
-      // carteira/registro/ajuda de custo/gratificação das demais abas.
-      // Linha de título da seção (ex: "PRESTADORES DE SERVIÇO,,") não tem
-      // função nem salário — não é um colaborador de verdade, pula.
-      if (!funcao && !cols[2]?.trim()) continue
-
-      const salario = parseValorMonetario(cols[2])
-      items.push({
-        id: `rh-${empresa}-${i}-${nome}`,
-        empresa,
-        nome: nome.toUpperCase(),
-        funcao: (funcao || 'PRESTADOR DE SERVIÇO').toUpperCase(),
-        valorCarteira: 0,
-        custoRegistro: 0,
-        ajudaCusto: 0,
-        gratificacao: 0,
-        ganhosTotais: salario,
-        custoTotal: salario,
-        observacao: '',
+    const nomeUpper = nome.toUpperCase()
+    if (nomeUpper === 'COLABORADOR' || nomeUpper === 'NOME') {
+      colunas = {}
+      cols.forEach((c, idx) => {
+        const campo = campoDoCabecalho(c)
+        if (campo && colunas![campo] === undefined) colunas![campo] = idx
       })
       continue
     }
+    // Antes do cabeçalho só há o título da aba.
+    if (!colunas) continue
+    if (nomeUpper.startsWith('VALOR TOTAL')) continue
+
+    const valor = (campo: CampoRH) => {
+      const idx = colunas![campo]
+      return idx === undefined ? 0 : parseValorMonetario(cols[idx])
+    }
+    const ganhosTotais = valor('ganhosTotais')
+
+    if (formato === 'padrao' && !funcao) continue
+    // Linha de título de seção (ex: "PRESTADORES DE SERVIÇO,,") não tem função nem valor.
+    if (formato === 'terceiros' && !funcao && ganhosTotais === 0) continue
+
+    const adiantamento = valor('adiantamento')
+    const aPagarHolerite = valor('aPagarHolerite')
+    const custoTotal = valor('custoTotal')
+    const idxObs = colunas.observacao
 
     items.push({
       id: `rh-${empresa}-${i}-${nome}`,
       empresa,
-      nome: nome.toUpperCase(),
-      funcao: funcao.toUpperCase(),
-      valorCarteira: parseValorMonetario(cols[2]),
-      custoRegistro: parseValorMonetario(cols[3]),
-      ajudaCusto: parseValorMonetario(cols[4]),
-      gratificacao: parseValorMonetario(cols[5]),
-      ganhosTotais: parseValorMonetario(cols[6]),
-      custoTotal: parseValorMonetario(cols[7]),
-      observacao: (cols[8] || '').trim(),
+      nome: nomeUpper,
+      funcao: (funcao || 'PRESTADOR DE SERVIÇO').toUpperCase(),
+      ganhosTotais,
+      adiantamento,
+      aPagarHolerite,
+      // Aba sem a coluna "RECEBIDO MÊS" (ex: GV TRANSPORTES): é a soma do holerite.
+      recebidoMes: colunas.recebidoMes !== undefined ? valor('recebidoMes') : adiantamento + aPagarHolerite,
+      descontos: valor('descontos'),
+      gratificacao: valor('gratificacao'),
+      // A maioria das abas não tem mais "CUSTO TOTAL" (ou vem "R$ -"): usa o ganho total.
+      custoTotal: custoTotal > 0 ? custoTotal : ganhosTotais,
+      observacao: idxObs !== undefined ? (cols[idxObs] || '').trim() : '',
     })
   }
 

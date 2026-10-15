@@ -366,11 +366,12 @@ function BarRankingCard({
 }
 
 interface TotaisFolha {
-  valorCarteira: number
-  custoRegistro: number
-  ajudaCusto: number
-  gratificacao: number
   ganhosTotais: number
+  adiantamento: number
+  aPagarHolerite: number
+  recebidoMes: number
+  descontos: number
+  gratificacao: number
   custoTotal: number
 }
 
@@ -383,15 +384,21 @@ interface TabelaColaboradoresProps {
   onBuscaChange: (valor: string) => void
 }
 
+// Colunas de valor da planilha, na ordem dela. "sempre" fica visível mesmo
+// zerada; as demais somem quando a aba não tem o dado (ex: TERCEIROS só tem
+// salário), evitando colunas inteiras de "R$ 0,00".
+const COLUNAS_FOLHA: { campo: keyof TotaisFolha; titulo: string; sempre?: boolean; classe: string }[] = [
+  { campo: 'ganhosTotais', titulo: 'Ganhos Totais', sempre: true, classe: 'font-bold text-foreground' },
+  { campo: 'adiantamento', titulo: 'Adiant. Holerite', classe: 'text-secondary' },
+  { campo: 'aPagarHolerite', titulo: 'A Pagar Holerite', classe: 'text-secondary' },
+  { campo: 'recebidoMes', titulo: 'Recebido Mês', classe: 'text-secondary' },
+  { campo: 'descontos', titulo: 'Descontos', sempre: true, classe: 'text-red-400' },
+  { campo: 'gratificacao', titulo: 'Gratificação', classe: 'text-secondary' },
+  { campo: 'custoTotal', titulo: 'Custo Total', sempre: true, classe: 'font-bold text-primary' },
+]
+
 function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca, onBuscaChange }: TabelaColaboradoresProps) {
-  // Empresas como "Terceiros" não têm a quebra em carteira/registro/ajuda de
-  // custo/gratificação (só um salário único) — nesse caso essas colunas vêm
-  // sempre zeradas. Escondê-las evita 4 colunas inúteis de "R$ 0,00" e faz a
-  // tabela caber na tela sem precisar arrastar.
-  const mostrarCarteira = itens.some((c) => c.valorCarteira !== 0)
-  const mostrarRegistro = itens.some((c) => c.custoRegistro !== 0)
-  const mostrarAjudaCusto = itens.some((c) => c.ajudaCusto !== 0)
-  const mostrarGratificacao = itens.some((c) => c.gratificacao !== 0)
+  const colunas = COLUNAS_FOLHA.filter((col) => col.sempre || itens.some((c) => c[col.campo] !== 0))
 
   return (
     <Card>
@@ -424,12 +431,11 @@ function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca,
                 <tr className="border-b border-border/10 text-left text-foreground font-bold">
                   <th className="px-2 py-2.5 font-bold">Colaborador</th>
                   <th className="px-2 py-2.5 font-bold">Função</th>
-                  {mostrarCarteira && <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Carteira</th>}
-                  {mostrarRegistro && <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Registro (80%)</th>}
-                  {mostrarAjudaCusto && <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Ajuda Custo</th>}
-                  {mostrarGratificacao && <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Gratificação</th>}
-                  <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Ganhos Totais</th>
-                  <th className="px-2 py-2.5 font-bold whitespace-nowrap text-right">Custo Total</th>
+                  {colunas.map((col) => (
+                    <th key={col.campo} className="px-2 py-2.5 font-bold whitespace-nowrap text-right">
+                      {col.titulo}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -448,32 +454,11 @@ function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca,
                         )}
                       </div>
                     </td>
-                    {mostrarCarteira && (
-                      <td className="px-2 py-2 text-secondary whitespace-nowrap text-right tabular-nums">
-                        {formatMoeda(c.valorCarteira)}
+                    {colunas.map((col) => (
+                      <td key={col.campo} className={`px-2 py-2 whitespace-nowrap text-right tabular-nums ${col.classe}`}>
+                        {formatMoeda(c[col.campo])}
                       </td>
-                    )}
-                    {mostrarRegistro && (
-                      <td className="px-2 py-2 text-secondary whitespace-nowrap text-right tabular-nums">
-                        {formatMoeda(c.custoRegistro)}
-                      </td>
-                    )}
-                    {mostrarAjudaCusto && (
-                      <td className="px-2 py-2 text-secondary whitespace-nowrap text-right tabular-nums">
-                        {formatMoeda(c.ajudaCusto)}
-                      </td>
-                    )}
-                    {mostrarGratificacao && (
-                      <td className="px-2 py-2 text-secondary whitespace-nowrap text-right tabular-nums">
-                        {formatMoeda(c.gratificacao)}
-                      </td>
-                    )}
-                    <td className="px-2 py-2 font-bold text-foreground whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(c.ganhosTotais)}
-                    </td>
-                    <td className="px-2 py-2 font-bold text-primary whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(c.custoTotal)}
-                    </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -483,32 +468,16 @@ function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca,
                     <td className="px-2 py-2.5 whitespace-nowrap" colSpan={2}>
                       TOTAL ({itens.length} {itens.length === 1 ? 'COLABORADOR' : 'COLABORADORES'})
                     </td>
-                    {mostrarCarteira && (
-                      <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums">
-                        {formatMoeda(totais.valorCarteira)}
+                    {colunas.map((col) => (
+                      <td
+                        key={col.campo}
+                        className={`px-2 py-2.5 whitespace-nowrap text-right tabular-nums ${
+                          col.campo === 'custoTotal' ? 'text-primary' : col.campo === 'descontos' ? 'text-red-400' : ''
+                        }`}
+                      >
+                        {formatMoeda(totais[col.campo])}
                       </td>
-                    )}
-                    {mostrarRegistro && (
-                      <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums">
-                        {formatMoeda(totais.custoRegistro)}
-                      </td>
-                    )}
-                    {mostrarAjudaCusto && (
-                      <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums">
-                        {formatMoeda(totais.ajudaCusto)}
-                      </td>
-                    )}
-                    {mostrarGratificacao && (
-                      <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums">
-                        {formatMoeda(totais.gratificacao)}
-                      </td>
-                    )}
-                    <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums">
-                      {formatMoeda(totais.ganhosTotais)}
-                    </td>
-                    <td className="px-2 py-2.5 whitespace-nowrap text-right tabular-nums text-primary">
-                      {formatMoeda(totais.custoTotal)}
-                    </td>
+                    ))}
                   </tr>
                 </tfoot>
               )}
@@ -1764,17 +1733,18 @@ export function RH() {
     return itensEmpresa.filter((c) => c.nome.includes(termo) || c.funcao.includes(termo))
   }, [itensEmpresa, busca])
 
-  function somarTotais(lista: typeof items) {
+  function somarTotais(lista: typeof items): TotaisFolha {
     return lista.reduce(
       (acc, c) => ({
-        valorCarteira: acc.valorCarteira + c.valorCarteira,
-        custoRegistro: acc.custoRegistro + c.custoRegistro,
-        ajudaCusto: acc.ajudaCusto + c.ajudaCusto,
-        gratificacao: acc.gratificacao + c.gratificacao,
         ganhosTotais: acc.ganhosTotais + c.ganhosTotais,
+        adiantamento: acc.adiantamento + c.adiantamento,
+        aPagarHolerite: acc.aPagarHolerite + c.aPagarHolerite,
+        recebidoMes: acc.recebidoMes + c.recebidoMes,
+        descontos: acc.descontos + c.descontos,
+        gratificacao: acc.gratificacao + c.gratificacao,
         custoTotal: acc.custoTotal + c.custoTotal,
       }),
-      { valorCarteira: 0, custoRegistro: 0, ajudaCusto: 0, gratificacao: 0, ganhosTotais: 0, custoTotal: 0 },
+      { ganhosTotais: 0, adiantamento: 0, aPagarHolerite: 0, recebidoMes: 0, descontos: 0, gratificacao: 0, custoTotal: 0 },
     )
   }
 
@@ -1795,11 +1765,13 @@ export function RH() {
   }, [itensEmpresa])
 
   const composicaoCusto = useMemo(() => {
-    if (totaisGerais.custoTotal <= 0) return []
+    // Na planilha, GANHOS TOTAIS = RECEBIDO MÊS + DESCONTOS + GRATIFICAÇÃO.
+    if (totaisGerais.ganhosTotais <= 0) return []
     return [
-      { name: 'Ganhos dos Colaboradores', value: totaisGerais.ganhosTotais },
-      { name: 'Encargos (Custo Registro)', value: totaisGerais.custoRegistro },
-    ]
+      { name: 'Recebido no Mês', value: totaisGerais.recebidoMes },
+      { name: 'Descontos', value: totaisGerais.descontos },
+      { name: 'Gratificação', value: totaisGerais.gratificacao },
+    ].filter((d) => d.value > 0)
   }, [totaisGerais])
 
   const mesesAtestado = useMemo(() => {
@@ -2372,7 +2344,7 @@ export function RH() {
             <StatCard align="center" valueClassName="text-2xl" icon={Users} label="Colaboradores" value={String(itensEmpresa.length)} />
             <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={Wallet} label="Ganhos Totais" value={formatMoeda(totaisGerais.ganhosTotais)} />
             <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={TrendingUp} label="Custo Total" value={formatMoeda(totaisGerais.custoTotal)} />
-            <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={Banknote} label="Ajuda de Custo" value={formatMoeda(totaisGerais.ajudaCusto)} />
+            <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={Banknote} label="Descontos" value={formatMoeda(totaisGerais.descontos)} />
             <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={Scale} label="Custo Médio" value={formatMoeda(custoMedio)} hint="POR COLABORADOR" />
           </div>
 
