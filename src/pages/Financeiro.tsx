@@ -876,6 +876,36 @@ export function Financeiro() {
     }
   }, [lancamentos, mesAtualIso, periodoLancamentos])
 
+  // Filtros por CLIENTE e faixa de VENCIMENTO, aplicados sobre a aba de período (só com campos estendidos).
+  const [filtroCliente, setFiltroCliente] = useState('')
+  const [filtroVencDe, setFiltroVencDe] = useState('')
+  const [filtroVencAte, setFiltroVencAte] = useState('')
+  const filtrosAtivos = camposEstendidos && Boolean(filtroCliente || filtroVencDe || filtroVencAte)
+  const clientesDosLancamentos = useMemo(
+    () =>
+      Array.from(new Set(lancamentos.map((l) => l.clienteNome?.trim()).filter((n): n is string => Boolean(n)))).sort(
+        (a, b) => a.localeCompare(b, 'pt-BR'),
+      ),
+    [lancamentos],
+  )
+  const lancamentosFiltrados = useMemo(() => {
+    if (!filtrosAtivos) return lancamentosDoPeriodo
+    return lancamentosDoPeriodo.filter((l) => {
+      if (filtroCliente && l.clienteNome?.trim() !== filtroCliente) return false
+      if (filtroVencDe || filtroVencAte) {
+        if (!l.dataVencimento) return false
+        if (filtroVencDe && l.dataVencimento < filtroVencDe) return false
+        if (filtroVencAte && l.dataVencimento > filtroVencAte) return false
+      }
+      return true
+    })
+  }, [lancamentosDoPeriodo, filtrosAtivos, filtroCliente, filtroVencDe, filtroVencAte])
+  const limparFiltrosLancamentos = () => {
+    setFiltroCliente('')
+    setFiltroVencDe('')
+    setFiltroVencAte('')
+  }
+
   const lancamentosOrdenadosCronologicamente = useMemo(() => {
     return [...lancamentos].sort((a, b) => a.data.localeCompare(b.data) || a.createdAt.localeCompare(b.createdAt))
   }, [lancamentos])
@@ -2727,10 +2757,58 @@ export function Financeiro() {
               ))}
             </div>
             <Badge tone="neutral" className="text-[10px] font-bold">
-              {lancamentosDoPeriodo.length} {lancamentosDoPeriodo.length === 1 ? 'REGISTRO' : 'REGISTROS'}
+              {lancamentosFiltrados.length} {lancamentosFiltrados.length === 1 ? 'REGISTRO' : 'REGISTROS'}
             </Badge>
           </div>
         </div>
+
+        {camposEstendidos && lancamentos.length > 0 && (
+          <div className="border-b border-border/20 bg-surface/60 px-4 py-3 flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase text-secondary">CLIENTE</span>
+              <select
+                value={filtroCliente}
+                onChange={(e) => setFiltroCliente(e.target.value)}
+                className="h-8 min-w-[200px] rounded-lg border border-border/30 bg-background px-2 text-[11px] font-bold uppercase text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">TODOS OS CLIENTES</option>
+                {clientesDosLancamentos.map((nome) => (
+                  <option key={nome} value={nome}>
+                    {nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase text-secondary">VENCIMENTO DE</span>
+              <input
+                type="date"
+                value={filtroVencDe}
+                onChange={(e) => setFiltroVencDe(e.target.value)}
+                className="h-8 rounded-lg border border-border/30 bg-background px-2 text-[11px] font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase text-secondary">ATÉ</span>
+              <input
+                type="date"
+                value={filtroVencAte}
+                min={filtroVencDe || undefined}
+                onChange={(e) => setFiltroVencAte(e.target.value)}
+                className="h-8 rounded-lg border border-border/30 bg-background px-2 text-[11px] font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </label>
+            {filtrosAtivos && (
+              <button
+                type="button"
+                onClick={limparFiltrosLancamentos}
+                className="h-8 rounded-lg border border-border/30 px-3 text-[10px] font-black uppercase text-secondary hover:text-foreground"
+              >
+                LIMPAR FILTROS
+              </button>
+            )}
+          </div>
+        )}
 
         {carregandoLancamentos ? (
           <div className="p-8 flex items-center justify-center gap-2 text-xs text-secondary font-medium">
@@ -2741,9 +2819,11 @@ export function Financeiro() {
           <div className="p-8 text-center text-xs text-secondary font-medium lowercase">
             Nenhum lançamento registrado ainda. Use o formulário acima para começar.
           </div>
-        ) : lancamentosDoPeriodo.length === 0 ? (
+        ) : lancamentosFiltrados.length === 0 ? (
           <div className="p-8 text-center text-xs text-secondary font-medium lowercase">
-            {periodoLancamentos === 'proximos'
+            {filtrosAtivos
+              ? 'Nenhum lançamento encontrado com esses filtros.'
+              : periodoLancamentos === 'proximos'
               ? 'Nenhum lançamento para os próximos meses.'
               : 'Nenhum lançamento neste mês.'}
           </div>
@@ -2765,7 +2845,7 @@ export function Financeiro() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/10 font-mono">
-              {lancamentosDoPeriodo.map((l) => {
+              {lancamentosFiltrados.map((l) => {
                 const isEntrada = l.movimentacao === 'entrada'
                 const [ano, mes, dia] = l.data.split('-')
                 const [anoVenc, mesVenc, diaVenc] = l.dataVencimento ? l.dataVencimento.split('-') : []
