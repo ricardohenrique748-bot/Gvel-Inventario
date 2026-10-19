@@ -50,12 +50,52 @@ function parseValorMonetario(v: unknown): number {
   return isNaN(n) ? 0 : n
 }
 
-/** Lê um Excel com colunas MÊS, EMPRESA, FATURAMENTO, RECEITAS, DESPESAS — uma linha por divisão da GVEL, podendo ter vários meses na mesma planilha. */
+/**
+ * Planilha exportada do próprio dashboard ("Painel Gerencial"): o mês fica abaixo do rótulo
+ * "MÊS DE APURAÇÃO" e a tabela "Empresa | Faturamento | Receitas | Despesas" fica no meio da folha.
+ * Converte para o formato de linhas do layout simples. Retorna null se não for esse layout.
+ */
+function extrairLayoutDashboard(sheet: XLSX.WorkSheet): Record<string, unknown>[] | null {
+  const matriz = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null })
+  const celula = (r: number, c: number) => normalizarCabecalho(String(matriz[r]?.[c] ?? ''))
+
+  let mes: unknown = null
+  for (let r = 0; r < matriz.length && mes === null; r++) {
+    const c = (matriz[r] ?? []).findIndex((_, c) => celula(r, c).includes('MES DE APURACAO'))
+    if (c >= 0) mes = matriz[r + 1]?.[c] ?? null
+  }
+
+  for (let r = 0; r < matriz.length; r++) {
+    const cab = (matriz[r] ?? []).map((_, c) => celula(r, c))
+    const col = (nome: string) => cab.indexOf(nome)
+    if (col('EMPRESA') < 0 || col('FATURAMENTO') < 0 || col('RECEITAS') < 0 || col('DESPESAS') < 0) continue
+
+    const linhas: Record<string, unknown>[] = []
+    for (let i = r + 1; i < matriz.length; i++) {
+      const empresa = String(matriz[i]?.[col('EMPRESA')] ?? '').trim()
+      if (!empresa) break
+      if (normalizarCabecalho(empresa) === 'TOTAL') continue
+      linhas.push({
+        MES: mes,
+        EMPRESA: empresa,
+        FATURAMENTO: matriz[i][col('FATURAMENTO')],
+        RECEITAS: matriz[i][col('RECEITAS')],
+        DESPESAS: matriz[i][col('DESPESAS')],
+      })
+    }
+    return linhas
+  }
+  return null
+}
+
+/** Lê um Excel com colunas MÊS, EMPRESA, FATURAMENTO, RECEITAS, DESPESAS — uma linha por divisão da GVEL, podendo ter vários meses na mesma planilha. Também aceita a planilha exportada do dashboard. */
 export async function importarPainelGerencialExcel(file: File): Promise<ResultadoImportacaoPainel> {
   const buffer = await file.arrayBuffer()
   const wb = XLSX.read(buffer, { cellDates: true })
   const sheet = wb.Sheets[wb.SheetNames[0]]
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null })
+  const simples = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null })
+  const temCabecalhoSimples = simples.length > 0 && Object.keys(simples[0]).some((k) => normalizarCabecalho(k) === 'EMPRESA')
+  const rows = temCabecalhoSimples ? simples : (extrairLayoutDashboard(sheet) ?? simples)
 
   const porMes: Record<string, DivisaoEmpresaData[]> = {}
   const avisos: string[] = []
@@ -80,6 +120,8 @@ export async function importarPainelGerencialExcel(file: File): Promise<Resultad
     }
 
     const divisao = mapearDivisao(empresaRaw)
+    const tudoZerado = ['FATURAMENTO', 'RECEITAS', 'DESPESAS'].every((k) => parseValorMonetario(porCabecalho[k]) === 0)
+    if (!divisao && tudoZerado) return // ex.: "Margem de Risco/Erro" zerada no dashboard
     if (!divisao) {
       avisos.push(
         `Linha ${linhaNum}: "${empresaRaw}" não é reconhecido (esperado: GVel Diesel, GVel Leves, GV Distribuidora, GV Transportes ou Investimento) — pulada.`,
