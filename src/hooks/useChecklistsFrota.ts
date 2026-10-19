@@ -148,6 +148,10 @@ export async function criarChecklistFrota(
   ])
   const fotosExtras = extrasEnviadas.filter((f): f is FotoExtraChecklist => f !== null)
 
+  // Colunas de KM são integer no banco — o motorista pode digitar casa decimal
+  // (ex.: "354504.8"), e os campos da preventiva derivam desse valor.
+  const kmInteiro = (v: number | null | undefined) => (v == null ? null : Math.round(v))
+
   const payload = {
     id: checklistId,
     veiculo_id: input.veiculoId || null,
@@ -156,13 +160,13 @@ export async function criarChecklistFrota(
     cliente_nome: input.clienteNome || null,
     motorista_nome: input.motoristaNome,
     inspetor_nome: input.inspetorNome,
-    km_atual: input.kmAtual,
+    km_atual: kmInteiro(input.kmAtual) ?? 0,
     resultado: input.resultado,
     status_preventiva: input.statusPreventiva?.status || null,
-    km_ultima_preventiva: input.statusPreventiva?.kmUltima ?? null,
-    km_limite_preventiva: input.statusPreventiva?.kmLimite ?? null,
-    km_restante_preventiva: input.statusPreventiva?.kmRestante ?? null,
-    km_rodados_preventiva: input.statusPreventiva?.kmRodados ?? null,
+    km_ultima_preventiva: kmInteiro(input.statusPreventiva?.kmUltima),
+    km_limite_preventiva: kmInteiro(input.statusPreventiva?.kmLimite),
+    km_restante_preventiva: kmInteiro(input.statusPreventiva?.kmRestante),
+    km_rodados_preventiva: kmInteiro(input.statusPreventiva?.kmRodados),
     mensagem_preventiva: input.statusPreventiva?.mensagem || null,
     observacoes_gerais: input.observacoesGerais || null,
     tipo_checklist: input.tipoChecklist || null,

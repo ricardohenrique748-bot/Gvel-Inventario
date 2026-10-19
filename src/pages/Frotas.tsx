@@ -5325,8 +5325,10 @@ export function Frotas() {
       {/* MODAL 2: NOVO CHECKLIST DE INSPEÇÃO COM COMPARADOR DE PREVENTIVA */}
       {/* ========================================================================= */}
       {mostrarModalNovoChecklist && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4 animate-fade-in">
-          <div className="w-full max-w-2xl rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+        // Padding com as áreas seguras: no APK o WebView desenha por baixo da barra de
+        // navegação do Android, que cobria o rodapé com o botão "Salvar Checklist".
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] pb-[calc(var(--inset-bottom)+0.5rem)] sm:p-4 animate-fade-in">
+          <div className="w-full max-w-2xl rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-full">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border/10 px-5 py-3.5 bg-surface/90">
               <div className="flex items-center gap-2.5">
