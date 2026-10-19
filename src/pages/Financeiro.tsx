@@ -100,7 +100,21 @@ interface MesFinanceiroData {
   topPlanosConta: { rank: number; nome: string; despesa: number }[]
 }
 
-const ORDEM_MESES = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto']
+const MESES_ANO = [
+  { id: 'janeiro', label: 'Janeiro', curto: 'JAN' },
+  { id: 'fevereiro', label: 'Fevereiro', curto: 'FEV' },
+  { id: 'marco', label: 'Março', curto: 'MAR' },
+  { id: 'abril', label: 'Abril', curto: 'ABR' },
+  { id: 'maio', label: 'Maio', curto: 'MAI' },
+  { id: 'junho', label: 'Junho', curto: 'JUN' },
+  { id: 'julho', label: 'Julho', curto: 'JUL' },
+  { id: 'agosto', label: 'Agosto', curto: 'AGO' },
+  { id: 'setembro', label: 'Setembro', curto: 'SET' },
+  { id: 'outubro', label: 'Outubro', curto: 'OUT' },
+  { id: 'novembro', label: 'Novembro', curto: 'NOV' },
+  { id: 'dezembro', label: 'Dezembro', curto: 'DEZ' },
+]
+const ORDEM_MESES = MESES_ANO.map((m) => m.id)
 // Saldo de caixa apurado e fechado até junho/2026 — valor congelado, não recalculado.
 // A partir de julho/2026 o saldo passa a se movimentar de fato, somando as
 // receitas - despesas reais de cada mês em cima dessa base.
@@ -112,7 +126,8 @@ function calcularSaldoCaixa(
   dadosMeses: Record<string, MesFinanceiroData>,
   empresasExcluidas?: Set<string>,
 ): number {
-  const mesAlvo = mesFiltroAtual === 'todos' ? 'agosto' : mesFiltroAtual
+  const ultimoMesComDados = [...ORDEM_MESES].reverse().find((m) => dadosMeses[m]) ?? 'agosto'
+  const mesAlvo = mesFiltroAtual === 'todos' ? ultimoMesComDados : mesFiltroAtual
   const idxMes = ORDEM_MESES.indexOf(mesAlvo)
   const idxJulho = ORDEM_MESES.indexOf('julho')
   if (idxMes < 0 || idxMes < idxJulho) return SALDO_CAIXA_BASE_JUNHO
@@ -365,18 +380,6 @@ const DADOS_MESES: Record<string, MesFinanceiroData> = {
 type AbaFinanceiro = 'visao-geral' | 'fluxo-caixa'
 const ABAS_VALIDAS: AbaFinanceiro[] = ['visao-geral', 'fluxo-caixa']
 
-const MESES_OPCOES = [
-  { id: 'todos', label: 'Todos os Meses (Janeiro a Agosto / Consolidado)' },
-  { id: 'agosto', label: 'Agosto' },
-  { id: 'julho', label: 'Julho' },
-  { id: 'junho', label: 'Junho' },
-  { id: 'maio', label: 'Maio' },
-  { id: 'abril', label: 'Abril' },
-  { id: 'marco', label: 'Março' },
-  { id: 'fevereiro', label: 'Fevereiro' },
-  { id: 'janeiro', label: 'Janeiro' },
-]
-
 // Painel "Visão Geral" abaixo é conteúdo fixo (planilha importada uma vez,
 // não vem do banco) com o histórico financeiro real das divisões internas
 // da própria GVEL — não faz sentido pra nenhuma outra empresa da plataforma,
@@ -455,14 +458,31 @@ export function Financeiro() {
   const { overrides: divisoesOverrides, refetch: refetchDivisoesOverrides } = useEmpresasDivisoesOverrides()
   const dadosMesesComOverrides = useMemo(() => {
     const merged: Record<string, MesFinanceiroData> = {}
-    for (const mes of Object.keys(DADOS_MESES)) {
+    for (const mes of new Set([...Object.keys(DADOS_MESES), ...Object.keys(divisoesOverrides)])) {
+      // Meses que só existem no banco (ex.: setembro importado) ainda não têm rankings.
+      const base = DADOS_MESES[mes] ?? { empresas: [], topClientes: [], topPlanosConta: [] }
       merged[mes] = {
-        ...DADOS_MESES[mes],
-        empresas: divisoesOverrides[mes] ?? DADOS_MESES[mes].empresas,
+        ...base,
+        empresas: divisoesOverrides[mes] ?? base.empresas,
       }
     }
     return merged
   }, [divisoesOverrides])
+
+  // Meses com dados (fixos ou importados), em ordem cronológica.
+  const mesesDisponiveis = useMemo(
+    () => MESES_ANO.filter((m) => dadosMesesComOverrides[m.id]),
+    [dadosMesesComOverrides],
+  )
+  const ultimoMes = mesesDisponiveis[mesesDisponiveis.length - 1] ?? MESES_ANO[7]
+  const rotuloPeriodo = `${mesesDisponiveis[0]?.label ?? 'Janeiro'} a ${ultimoMes.label}`
+  const mesesOpcoes = useMemo(
+    () => [
+      { id: 'todos', label: `Todos os Meses (${rotuloPeriodo} / Consolidado)` },
+      ...[...mesesDisponiveis].reverse().map((m) => ({ id: m.id, label: m.label })),
+    ],
+    [mesesDisponiveis, rotuloPeriodo],
+  )
 
   const [importandoPainel, setImportandoPainel] = useState(false)
   const [avisosImportacaoPainel, setAvisosImportacaoPainel] = useState<string[]>([])
@@ -488,7 +508,7 @@ export function Financeiro() {
       setAvisosImportacaoPainel(avisos)
       const totalDivisoes = meses.reduce((acc, m) => acc + porMes[m].length, 0)
       const rotulosMeses = meses
-        .map((m) => MESES_OPCOES.find((opt) => opt.id === m)?.label ?? m)
+        .map((m) => MESES_ANO.find((opt) => opt.id === m)?.label ?? m)
         .join(', ')
       setSucessoImportacaoPainel(`${totalDivisoes} divisõe(s) atualizada(s) — ${rotulosMeses}.`)
     } catch (err) {
@@ -507,7 +527,7 @@ export function Financeiro() {
   // Mês Ativo da base de dados (ou consolidação de todos os meses)
   const dadosMesAtivo = useMemo(() => {
     if (mesFiltro === 'todos') {
-      const listaMeses = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto']
+      const listaMeses = mesesDisponiveis.map((m) => m.id)
       const empresasIds = ['gvel', 'leves', 'distribuidora', 'transportes', 'investimento']
       const empresas = empresasIds.map((id) => {
         const nome =
@@ -566,8 +586,8 @@ export function Financeiro() {
       return { empresas, topClientes, topPlanosConta }
     }
 
-    return dadosMesesComOverrides[mesFiltro] || dadosMesesComOverrides.agosto
-  }, [mesFiltro, dadosMesesComOverrides])
+    return dadosMesesComOverrides[mesFiltro] || dadosMesesComOverrides[ultimoMes.id]
+  }, [mesFiltro, dadosMesesComOverrides, mesesDisponiveis, ultimoMes])
 
   // Empresas filtradas
   const empresasExibidas = useMemo(() => {
@@ -638,19 +658,10 @@ export function Financeiro() {
 
   // Comparativo Mês a Mês (Evolutivo)
   const dadosComparativoMeses = useMemo(() => {
-    const meses = [
-      { id: 'janeiro', label: 'JAN 2026' },
-      { id: 'fevereiro', label: 'FEV 2026' },
-      { id: 'marco', label: 'MAR 2026' },
-      { id: 'abril', label: 'ABR 2026' },
-      { id: 'maio', label: 'MAI 2026' },
-      { id: 'junho', label: 'JUN 2026' },
-      { id: 'julho', label: 'JUL 2026' },
-      { id: 'agosto', label: 'AGO 2026' },
-    ]
+    const meses = mesesDisponiveis.map((m) => ({ id: m.id, label: `${m.curto} 2026` }))
 
     return meses.map((m) => {
-      const dataMes = dadosMesesComOverrides[m.id] || dadosMesesComOverrides.agosto
+      const dataMes = dadosMesesComOverrides[m.id]
       const empresas =
         empresaFiltro === 'TODAS'
           ? dataMes.empresas
@@ -672,7 +683,7 @@ export function Financeiro() {
         resFat,
       }
     })
-  }, [empresaFiltro, dadosMesesComOverrides])
+  }, [empresaFiltro, dadosMesesComOverrides, mesesDisponiveis])
 
   // Fluxo de Caixa: lançamentos reais (entradas e saídas) persistidos no Supabase
   const { lancamentos, loading: carregandoLancamentos, error: erroLancamentos } = useFluxoCaixaLancamentos()
@@ -1218,7 +1229,7 @@ export function Financeiro() {
               onChange={(e) => setMesFiltro(e.target.value)}
               className="h-10 w-full rounded-xl border border-border/40 bg-background px-3 text-xs font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors"
             >
-              {MESES_OPCOES.map((m) => (
+              {mesesOpcoes.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label.toUpperCase()}
                 </option>
@@ -1648,11 +1659,11 @@ export function Financeiro() {
                 <BarChart2 className="h-4 w-4" />
               </div>
               <h3 className="text-sm sm:text-base font-black text-foreground uppercase tracking-wide">
-                FATURAMENTO × DESPESAS POR EMPRESA — {mesFiltro === 'todos' ? 'TODOS OS MESES (JANEIRO A AGOSTO)' : `${mesFiltro.toUpperCase()} 2026`}
+                FATURAMENTO × DESPESAS POR EMPRESA — {mesFiltro === 'todos' ? `TODOS OS MESES (${rotuloPeriodo.toUpperCase()})` : `${mesFiltro.toUpperCase()} 2026`}
               </h3>
             </div>
             <p className="text-xs text-secondary font-medium mt-1">
-              Comparativo de faturamento e despesas por unidade de negócio {mesFiltro === 'todos' ? 'consolidado (Janeiro a Agosto)' : `em ${mesFiltro.toUpperCase()} / 2026`}
+              Comparativo de faturamento e despesas por unidade de negócio {mesFiltro === 'todos' ? `consolidado (${rotuloPeriodo})` : `em ${mesFiltro.toUpperCase()} / 2026`}
             </p>
           </div>
 
@@ -1665,7 +1676,7 @@ export function Financeiro() {
                 onChange={(e) => setMesFiltro(e.target.value)}
                 className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
               >
-                {MESES_OPCOES.map((m) => (
+                {mesesOpcoes.map((m) => (
                   <option key={m.id} value={m.id} className="bg-surface text-foreground font-bold">
                     {m.label.toUpperCase()}
                   </option>
@@ -1806,7 +1817,7 @@ export function Financeiro() {
                 COMPARATIVO EVOLUTIVO MÊS A MÊS — {empresaFiltro === 'TODAS' ? 'GRUPO VEL' : empresaFiltro.toUpperCase()}
               </h3>
               <p className="text-xs text-secondary font-medium lowercase">
-                Evolução comparativa de faturamento, receitas e despesas ao longo do ano (Janeiro a Agosto / 2026)
+                Evolução comparativa de faturamento, receitas e despesas ao longo do ano ({rotuloPeriodo} / 2026)
               </p>
             </div>
           </div>
@@ -1842,7 +1853,7 @@ export function Financeiro() {
             </div>
 
             <Badge tone="neutral" className="text-[11px] font-bold border-border/30">
-              JAN · FEV · MAR · ABR · MAI · JUN · JUL · AGO
+              {mesesDisponiveis.map((m) => m.curto).join(' · ')}
             </Badge>
           </div>
         </div>
@@ -1995,7 +2006,7 @@ export function Financeiro() {
                 onChange={(e) => setMesFiltro(e.target.value)}
                 className="h-8 pl-8 pr-3 rounded-xl border border-primary/40 bg-surface/90 text-xs font-black text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase transition-colors shadow-sm cursor-pointer hover:border-primary"
               >
-                {MESES_OPCOES.map((m) => (
+                {mesesOpcoes.map((m) => (
                   <option key={m.id} value={m.id} className="bg-surface text-foreground font-bold">
                     {m.label.toUpperCase()}
                   </option>
