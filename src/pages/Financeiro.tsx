@@ -492,7 +492,9 @@ export function Financeiro() {
         .join(', ')
       setSucessoImportacaoPainel(`${totalDivisoes} divisõe(s) atualizada(s) — ${rotulosMeses}.`)
     } catch (err) {
-      setAvisosImportacaoPainel([err instanceof Error ? err.message : 'Não foi possível importar o arquivo.'])
+      // Erros do Supabase são objetos { message, code }, não instâncias de Error.
+      const msg = (err as { message?: unknown } | null)?.message
+      setAvisosImportacaoPainel([typeof msg === 'string' && msg ? `Não foi possível importar o arquivo: ${msg}` : 'Não foi possível importar o arquivo.'])
     } finally {
       setImportandoPainel(false)
     }
