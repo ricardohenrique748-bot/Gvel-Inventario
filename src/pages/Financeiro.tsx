@@ -65,7 +65,12 @@ import {
   hojeIsoLocal,
   somarMeses,
 } from '@/hooks/useFluxoCaixaLancamentos'
-import { useEmpresasDivisoesOverrides, importarDivisoesVariosMeses } from '@/hooks/usePainelGerencialDivisoes'
+import {
+  useEmpresasDivisoesOverrides,
+  importarDivisoesVariosMeses,
+  useRankingsOverrides,
+  importarRankingsVariosMeses,
+} from '@/hooks/usePainelGerencialDivisoes'
 import { importarPainelGerencialExcel } from '@/lib/importarPainelGerencialExcel'
 import { RepetirMesClientesModal } from './financeiro/RepetirMesClientesModal'
 
@@ -456,18 +461,20 @@ export function Financeiro() {
   // por mês — sobrescrevem DADOS_MESES quando existirem pra aquele mês. Ver
   // src/hooks/usePainelGerencialDivisoes.ts.
   const { overrides: divisoesOverrides, refetch: refetchDivisoesOverrides } = useEmpresasDivisoesOverrides()
+  const { rankings: rankingsOverrides, refetch: refetchRankingsOverrides } = useRankingsOverrides()
   const dadosMesesComOverrides = useMemo(() => {
     const merged: Record<string, MesFinanceiroData> = {}
     for (const mes of new Set([...Object.keys(DADOS_MESES), ...Object.keys(divisoesOverrides)])) {
-      // Meses que só existem no banco (ex.: setembro importado) ainda não têm rankings.
       const base = DADOS_MESES[mes] ?? { empresas: [], topClientes: [], topPlanosConta: [] }
+      const rankings = rankingsOverrides[mes]
       merged[mes] = {
-        ...base,
         empresas: divisoesOverrides[mes] ?? base.empresas,
+        topClientes: rankings?.topClientes.length ? rankings.topClientes : base.topClientes,
+        topPlanosConta: rankings?.topPlanosConta.length ? rankings.topPlanosConta : base.topPlanosConta,
       }
     }
     return merged
-  }, [divisoesOverrides])
+  }, [divisoesOverrides, rankingsOverrides])
 
   // Meses com dados (fixos ou importados), em ordem cronológica.
   const mesesDisponiveis = useMemo(
@@ -497,14 +504,15 @@ export function Financeiro() {
     setAvisosImportacaoPainel([])
     setSucessoImportacaoPainel(null)
     try {
-      const { porMes, avisos } = await importarPainelGerencialExcel(file)
+      const { porMes, rankingsPorMes, avisos } = await importarPainelGerencialExcel(file)
       const meses = Object.keys(porMes)
       if (meses.length === 0) {
         setAvisosImportacaoPainel(avisos.length ? avisos : ['Nenhuma linha reconhecida na planilha.'])
         return
       }
       await importarDivisoesVariosMeses(porMes)
-      await refetchDivisoesOverrides()
+      await importarRankingsVariosMeses(rankingsPorMes)
+      await Promise.all([refetchDivisoesOverrides(), refetchRankingsOverrides()])
       setAvisosImportacaoPainel(avisos)
       const totalDivisoes = meses.reduce((acc, m) => acc + porMes[m].length, 0)
       const rotulosMeses = meses
@@ -562,7 +570,7 @@ export function Financeiro() {
       // Consolidação de Top Clientes
       const mapClientes: Record<string, number> = {}
       listaMeses.forEach((m) => {
-        DADOS_MESES[m]?.topClientes.forEach((cli) => {
+        dadosMesesComOverrides[m]?.topClientes.forEach((cli) => {
           mapClientes[cli.nome] = (mapClientes[cli.nome] || 0) + cli.faturamento
         })
       })
@@ -574,7 +582,7 @@ export function Financeiro() {
       // Consolidação de Top Planos de Contas
       const mapPlanos: Record<string, number> = {}
       listaMeses.forEach((m) => {
-        DADOS_MESES[m]?.topPlanosConta.forEach((p) => {
+        dadosMesesComOverrides[m]?.topPlanosConta.forEach((p) => {
           mapPlanos[p.nome] = (mapPlanos[p.nome] || 0) + p.despesa
         })
       })
@@ -1989,7 +1997,7 @@ export function Financeiro() {
                 <Scale className="h-4 w-4" />
               </div>
               <h3 className="text-sm sm:text-base font-black text-foreground uppercase tracking-wide">
-                RECEITAS × DESPESAS (REGIME DE CAIXA) — {mesFiltro === 'todos' ? 'TODOS OS MESES (MAIO A JULHO)' : `${mesFiltro.toUpperCase()} 2026`}
+                RECEITAS × DESPESAS (REGIME DE CAIXA) — {mesFiltro === 'todos' ? `TODOS OS MESES (${rotuloPeriodo.toUpperCase()})` : `${mesFiltro.toUpperCase()} 2026`}
               </h3>
             </div>
             <p className="text-xs text-secondary font-medium mt-1">

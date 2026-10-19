@@ -1,9 +1,11 @@
 import * as XLSX from 'xlsx'
-import { mapearDivisao, type DivisaoEmpresaData } from '@/hooks/usePainelGerencialDivisoes'
+import { mapearDivisao, type DivisaoEmpresaData, type RankingsMesData } from '@/hooks/usePainelGerencialDivisoes'
 
 export interface ResultadoImportacaoPainel {
   /** Divisões agrupadas por mês — uma planilha pode trazer vários meses de uma vez. */
   porMes: Record<string, DivisaoEmpresaData[]>
+  /** Top Clientes / Top Planos de Conta — só vêm na planilha exportada do dashboard. */
+  rankingsPorMes: Record<string, RankingsMesData>
   avisos: string[]
 }
 
@@ -58,12 +60,7 @@ function parseValorMonetario(v: unknown): number {
 function extrairLayoutDashboard(sheet: XLSX.WorkSheet): Record<string, unknown>[] | null {
   const matriz = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null })
   const celula = (r: number, c: number) => normalizarCabecalho(String(matriz[r]?.[c] ?? ''))
-
-  let mes: unknown = null
-  for (let r = 0; r < matriz.length && mes === null; r++) {
-    const c = (matriz[r] ?? []).findIndex((_, c) => celula(r, c).includes('MES DE APURACAO'))
-    if (c >= 0) mes = matriz[r + 1]?.[c] ?? null
-  }
+  const mes = extrairMesDashboard(matriz)
 
   for (let r = 0; r < matriz.length; r++) {
     const cab = (matriz[r] ?? []).map((_, c) => celula(r, c))
@@ -86,6 +83,52 @@ function extrairLayoutDashboard(sheet: XLSX.WorkSheet): Record<string, unknown>[
     return linhas
   }
   return null
+}
+
+function extrairMesDashboard(matriz: unknown[][]): unknown {
+  for (let r = 0; r < matriz.length; r++) {
+    const c = (matriz[r] ?? []).findIndex((v) => normalizarCabecalho(String(v ?? '')).includes('MES DE APURACAO'))
+    if (c >= 0) return matriz[r + 1]?.[c] ?? null
+  }
+  return null
+}
+
+/**
+ * Top 5 Clientes e Top 10 Planos de Conta da planilha exportada do dashboard. Os dois
+ * rankings ficam lado a lado sob o cabeçalho "Cliente | Faturamento | Plano de Conta | Despesa".
+ */
+function extrairRankingsDashboard(sheet: XLSX.WorkSheet): Record<string, RankingsMesData> {
+  const matriz = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null })
+  const mes = parseMes(extrairMesDashboard(matriz))
+  if (!mes) return {}
+
+  const lerRanking = (r: number, colNome: number, colValor: number) => {
+    const itens: { rank: number; nome: string; valor: number }[] = []
+    if (colNome < 0 || colValor < 0) return itens
+    for (let i = r + 1; i < matriz.length; i++) {
+      const nome = String(matriz[i]?.[colNome] ?? '').trim()
+      if (!nome) break
+      itens.push({ rank: itens.length + 1, nome, valor: parseValorMonetario(matriz[i][colValor]) })
+    }
+    return itens
+  }
+
+  for (let r = 0; r < matriz.length; r++) {
+    const cab = (matriz[r] ?? []).map((v) => normalizarCabecalho(String(v ?? '')))
+    const colCliente = cab.indexOf('CLIENTE')
+    const colPlano = cab.indexOf('PLANO DE CONTA')
+    if (colCliente < 0 && colPlano < 0) continue
+
+    const clientes = lerRanking(r, colCliente, cab.indexOf('FATURAMENTO', colCliente))
+    const planos = lerRanking(r, colPlano, cab.indexOf('DESPESA', colPlano))
+    return {
+      [mes]: {
+        topClientes: clientes.map((c) => ({ rank: c.rank, nome: c.nome, faturamento: c.valor })),
+        topPlanosConta: planos.map((p) => ({ rank: p.rank, nome: p.nome, despesa: p.valor })),
+      },
+    }
+  }
+  return {}
 }
 
 /** Lê um Excel com colunas MÊS, EMPRESA, FATURAMENTO, RECEITAS, DESPESAS — uma linha por divisão da GVEL, podendo ter vários meses na mesma planilha. Também aceita a planilha exportada do dashboard. */
@@ -144,5 +187,6 @@ export async function importarPainelGerencialExcel(file: File): Promise<Resultad
     else porMes[mes].push(registro)
   })
 
-  return { porMes, avisos }
+  const rankingsPorMes = temCabecalhoSimples ? {} : extrairRankingsDashboard(sheet)
+  return { porMes, rankingsPorMes, avisos }
 }

@@ -97,6 +97,51 @@ export async function importarDivisoesDoMes(mes: string, divisoes: DivisaoEmpres
   if (insertError) throw insertError
 }
 
+export interface RankingsMesData {
+  topClientes: { rank: number; nome: string; faturamento: number }[]
+  topPlanosConta: { rank: number; nome: string; despesa: number }[]
+}
+
+/** Busca os rankings (Top Clientes / Top Planos de Conta) salvos no banco, por mês. */
+export function useRankingsOverrides() {
+  const [rankings, setRankings] = useState<Record<string, RankingsMesData>>({})
+
+  const refetch = useCallback(async () => {
+    const { data, error } = await supabase.from('painel_gerencial_rankings').select('*').order('posicao')
+    if (error || !data) return
+    const porMes: Record<string, RankingsMesData> = {}
+    for (const row of data) {
+      if (!porMes[row.mes]) porMes[row.mes] = { topClientes: [], topPlanosConta: [] }
+      const valor = Number(row.valor) || 0
+      if (row.tipo === 'cliente') porMes[row.mes].topClientes.push({ rank: row.posicao, nome: row.nome, faturamento: valor })
+      else porMes[row.mes].topPlanosConta.push({ rank: row.posicao, nome: row.nome, despesa: valor })
+    }
+    setRankings(porMes)
+  }, [])
+
+  useEffect(() => {
+    refetch()
+  }, [refetch])
+
+  return { rankings, refetch }
+}
+
+/** Substitui os rankings dos meses que vierem na planilha. */
+export async function importarRankingsVariosMeses(porMes: Record<string, RankingsMesData>): Promise<void> {
+  for (const [mes, r] of Object.entries(porMes)) {
+    const { error: deleteError } = await supabase.from('painel_gerencial_rankings').delete().eq('mes', mes)
+    if (deleteError) throw deleteError
+
+    const linhas = [
+      ...r.topClientes.map((c) => ({ mes, tipo: 'cliente', posicao: c.rank, nome: c.nome, valor: c.faturamento })),
+      ...r.topPlanosConta.map((p) => ({ mes, tipo: 'plano', posicao: p.rank, nome: p.nome, valor: p.despesa })),
+    ]
+    if (linhas.length === 0) continue
+    const { error: insertError } = await supabase.from('painel_gerencial_rankings').insert(linhas)
+    if (insertError) throw insertError
+  }
+}
+
 /** Mesma coisa, mas pra uma planilha que já traz vários meses juntos. */
 export async function importarDivisoesVariosMeses(porMes: Record<string, DivisaoEmpresaData[]>): Promise<void> {
   for (const [mes, divisoes] of Object.entries(porMes)) {
