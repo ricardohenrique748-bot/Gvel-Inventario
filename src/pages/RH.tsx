@@ -382,6 +382,10 @@ interface TabelaColaboradoresProps {
   temItensOriginais: boolean
   busca: string
   onBuscaChange: (valor: string) => void
+  /** Meses das abas da planilha (ex.: "SETEMBRO"), do mais antigo ao mais recente. */
+  meses: string[]
+  mes: string
+  onMesChange: (mes: string) => void
 }
 
 // Colunas de valor da planilha, na ordem dela. "sempre" fica visível mesmo
@@ -397,21 +401,48 @@ const COLUNAS_FOLHA: { campo: keyof TotaisFolha; titulo: string; sempre?: boolea
   { campo: 'custoTotal', titulo: 'Custo Total', sempre: true, classe: 'font-bold text-primary' },
 ]
 
-function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca, onBuscaChange }: TabelaColaboradoresProps) {
+function TabelaColaboradores({
+  itens,
+  totais,
+  loading,
+  temItensOriginais,
+  busca,
+  onBuscaChange,
+  meses,
+  mes,
+  onMesChange,
+}: TabelaColaboradoresProps) {
   const colunas = COLUNAS_FOLHA.filter((col) => col.sempre || itens.some((c) => c[col.campo] !== 0))
 
   return (
     <Card>
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <CardTitle>Planilha — Folha de Pagamento</CardTitle>
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
-          <Input
-            value={busca}
-            onChange={(e) => onBuscaChange(e.target.value)}
-            placeholder="BUSCAR POR NOME OU FUNÇÃO"
-            className="h-10 pl-9"
-          />
+        <div className="flex w-full sm:w-auto flex-col sm:flex-row gap-2">
+          <div className="relative w-full sm:w-48">
+            <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+            <select
+              aria-label="Mês da folha"
+              value={mes}
+              onChange={(e) => onMesChange(e.target.value)}
+              className={cn(CLASSE_CAMPO_TURNOVER, 'h-10 pl-9 cursor-pointer')}
+            >
+              {[...meses].reverse().map((m) => (
+                <option key={m} value={m}>
+                  {m || 'SEM MÊS'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+            <Input
+              value={busca}
+              onChange={(e) => onBuscaChange(e.target.value)}
+              placeholder="BUSCAR POR NOME OU FUNÇÃO"
+              className="h-10 pl-9"
+            />
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -444,15 +475,8 @@ function TabelaColaboradores({ itens, totais, loading, temItensOriginais, busca,
                     <td className="px-2 py-2 font-medium text-foreground max-w-[160px] truncate" title={c.nome}>
                       {c.nome}
                     </td>
-                    <td className="px-2 py-2 text-secondary max-w-[130px]" title={c.funcao}>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="truncate">{c.funcao}</span>
-                        {c.observacao && (
-                          <Badge tone="warning" className="normal-case text-[9px] shrink-0">
-                            {c.observacao}
-                          </Badge>
-                        )}
-                      </div>
+                    <td className="px-2 py-2 text-secondary max-w-[130px] truncate" title={c.funcao}>
+                      {c.funcao}
                     </td>
                     {colunas.map((col) => (
                       <td key={col.campo} className={`px-2 py-2 whitespace-nowrap text-right tabular-nums ${col.classe}`}>
@@ -1583,7 +1607,7 @@ export function RH() {
     boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
   }
 
-  const { items, loading, error, fetchSheet } = useRhSheet()
+  const { items, meses: mesesFolha, mesSelecionado: mesFolha, selecionarMes: selecionarMesFolha, loading, error, fetchSheet } = useRhSheet()
   const {
     items: atestados,
     loading: loadingAtestados,
@@ -2382,6 +2406,9 @@ export function RH() {
             temItensOriginais={items.length > 0}
             busca={busca}
             onBuscaChange={setBusca}
+            meses={mesesFolha}
+            mes={mesFolha}
+            onMesChange={selecionarMesFolha}
           />
         </>
       )}
@@ -2394,6 +2421,9 @@ export function RH() {
           temItensOriginais={items.length > 0}
           busca={busca}
           onBuscaChange={setBusca}
+          meses={mesesFolha}
+          mes={mesFolha}
+          onMesChange={selecionarMesFolha}
         />
       )}
 
