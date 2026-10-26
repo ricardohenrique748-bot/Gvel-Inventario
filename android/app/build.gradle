@@ -16,7 +16,24 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Chave de debug fixa do projeto: o APK sai com a mesma assinatura em qualquer
+    // computador e instala por cima do app já instalado. Sem o arquivo, usa a
+    // chave de debug padrão da máquina (aí o celular recusa a atualização).
+    def chaveDebugProjeto = file('gvel-debug.keystore')
+    signingConfigs {
+        debug {
+            if (chaveDebugProjeto.exists()) {
+                storeFile chaveDebugProjeto
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
