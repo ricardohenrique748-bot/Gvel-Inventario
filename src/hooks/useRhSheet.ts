@@ -210,7 +210,8 @@ function campoDoCabecalho(raw: string): CampoRH | null {
   if (h.startsWith('RECEBID')) return 'recebidoMes'
   if (h.startsWith('DESCONTO')) return 'descontos'
   if (h.startsWith('GRATIFICA')) return 'gratificacao'
-  if (h.startsWith('CUSTO TOTAL')) return 'custoTotal'
+  // "CUSTO TOTAL", "CUSTO TOTAIS 80%"...
+  if (h.startsWith('CUSTO TOTA')) return 'custoTotal'
   if (h.startsWith('OBSERVA')) return 'observacao'
   return null
 }
@@ -339,21 +340,24 @@ export function useRhSheet() {
       }
 
       // Lê todas as abas: o mês vem da coluna "MÊS" de cada linha, não do nome da aba.
-      const resultados = await Promise.allSettled(
-        abasAtuais.map(async ({ empresa, gid, formato }) => {
-          const res = await fetch(`${urlAba(gid)}&t=${Date.now()}`)
-          if (!res.ok) throw new Error(`${empresa}: status ${res.status}`)
-          const text = await res.text()
-          return parseCsv(text, empresa, formato)
-        }),
-      )
-
+      // Uma por vez e com nova tentativa: o Google responde 401 quando recebe
+      // várias de uma vez, e a empresa que falha ficava com os dados antigos.
       const lidas: { aba: AbaRH; linhas: LinhaRH[] }[] = []
       const falhas: string[] = []
-      resultados.forEach((r, i) => {
-        if (r.status === 'fulfilled') lidas.push({ aba: abasAtuais[i], linhas: r.value })
-        else falhas.push(abasAtuais[i].empresa)
-      })
+      for (const aba of abasAtuais) {
+        let linhas: LinhaRH[] | null = null
+        for (let tentativa = 0; tentativa < 3 && !linhas; tentativa++) {
+          if (tentativa > 0) await new Promise((r) => setTimeout(r, 1500 * tentativa))
+          try {
+            const res = await fetch(`${urlAba(aba.gid)}&t=${Date.now()}`)
+            if (res.ok) linhas = parseCsv(await res.text(), aba.empresa, aba.formato)
+          } catch {
+            // tenta de novo
+          }
+        }
+        if (linhas) lidas.push({ aba, linhas })
+        else falhas.push(aba.empresa)
+      }
 
       const mesesDasLinhas = ordenarMeses(lidas.flatMap(({ linhas }) => linhas.map((l) => l.mes)).filter(Boolean))
       const porMes: Record<string, ColaboradorRH[]> = {}

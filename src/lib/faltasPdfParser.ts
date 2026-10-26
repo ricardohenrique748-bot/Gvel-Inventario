@@ -70,7 +70,14 @@ function agruparLinhas(items: TextItem[]): Linha[] {
 }
 
 const RE_TITULO_PERIODO = /per[íi]odo de (\d{2}\/\d{2}\/\d{4})\s*[àa]\s*(\d{2}\/\d{2}\/\d{4})/i
-const RE_DEPARTAMENTO = /^Departamento\s*:\s*(.+)$/i
+const RE_DEPARTAMENTO = /^Departamento\s*:\s*(.*)$/i
+// Formato "Relatório de Horas Extras e Faltas - ANALÍTICO": um bloco por
+// funcionário ("Funcionário : 62 -NOME  Nº Cartão : 123") com uma linha por dia
+// ("26/10/2026 Segunda 08:48"). Não traz função.
+const RE_FUNCIONARIO = /^Funcion[áa]rio\s*:\s*(\d+)\s*-\s*(.+?)\s+N[ºo°.]*\s*Cart[ãa]o\s*:\s*(\d+)/i
+const RE_CABECALHO_ANALITICO = /^Data\s+Dia\s+Semana\b/i
+const RE_LINHA_DIA = /^(\d{2}\/\d{2}\/\d{4})\b/
+const RE_HORAS = /^\d{1,3}:\d{2}$/
 const RE_DATA = /^Data\s*:\s*(\d{2}\/\d{2}\/\d{4})/i
 const RE_CABECALHO_TABELA = /^Matr[íi]cula\s+Nome\s+Fun[çc][ãa]o\s+Cart[ãa]o\s+Observa[çc][ãa]o$/i
 const RE_RESUMO_LINHA = /funcion[áa]rio\(s\)\s+ausente\(s\)/i
@@ -102,6 +109,9 @@ export async function parseFaltasPdf(file: File): Promise<ResultadoImportacaoFal
   let dataAtual = ''
   let colunas: number[] | null = null // fronteiras X: [matricula, nome, funcao, cartao, observacao]
   let cabecalhoEncontrado = false
+  // Formato analítico
+  let funcionarioAtual: { matricula: string; nome: string; cartao: string } | null = null
+  let xColunaFaltas: number | null = null
 
   for (let numPagina = 1; numPagina <= doc.numPages; numPagina++) {
     const page = await doc.getPage(numPagina)
@@ -119,6 +129,46 @@ export async function parseFaltasPdf(file: File): Promise<ResultadoImportacaoFal
           periodoFim = dataBrParaIso(mPeriodo[2])
           continue
         }
+      }
+
+      const mFuncionario = texto.match(RE_FUNCIONARIO)
+      if (mFuncionario) {
+        funcionarioAtual = { matricula: mFuncionario[1], nome: mFuncionario[2].trim(), cartao: mFuncionario[3] }
+        continue
+      }
+
+      if (RE_CABECALHO_ANALITICO.test(texto)) {
+        cabecalhoEncontrado = true
+        xColunaFaltas = linha.itens.find((i) => /faltas/i.test(i.texto))?.x ?? null
+        continue
+      }
+
+      if (funcionarioAtual) {
+        const mDia = texto.match(RE_LINHA_DIA)
+        if (mDia) {
+          // Se o relatório tiver mais de uma coluna de horas (extras e faltas),
+          // vale a mais próxima do título "Horas Faltas".
+          const horas = linha.itens.filter((i) => RE_HORAS.test(i.texto))
+          const alvo =
+            xColunaFaltas === null || horas.length <= 1
+              ? horas[horas.length - 1]
+              : [...horas].sort((a, b) => Math.abs(a.x - xColunaFaltas!) - Math.abs(b.x - xColunaFaltas!))[0]
+          const horasFalta = alvo?.texto ?? texto.match(/(\d{1,3}:\d{2})\s*$/)?.[1]
+          const data = dataBrParaIso(mDia[1])
+          if (data && horasFalta && horasFalta !== '00:00') {
+            registros.push({
+              matricula: funcionarioAtual.matricula,
+              nome: funcionarioAtual.nome,
+              funcao: '',
+              cartao: funcionarioAtual.cartao,
+              departamento: departamentoAtual,
+              data,
+              observacao: `FALTA (${horasFalta})`,
+            })
+          }
+          continue
+        }
+        if (/^Totais\b/i.test(texto)) continue
       }
 
       if (RE_CABECALHO_TABELA.test(texto)) {
@@ -239,7 +289,7 @@ export async function parseFaltasPdf(file: File): Promise<ResultadoImportacaoFal
     if (cabecalhoEncontrado && !colunas) {
       erros.push('O cabeçalho da tabela foi encontrado, mas não deu pra calibrar as colunas (Matrícula/Nome/Função/Cartão/Observação). Avise para eu ajustar o importador.')
     } else if (!cabecalhoEncontrado) {
-      erros.push('Não foi encontrado o cabeçalho "Matricula Nome Função Cartão Observação" no PDF — confira se é o "Relatório de Ausências" do PROPWin.')
+      erros.push('Formato de PDF não reconhecido — use o "Relatório de Ausências" ou o "Relatório de Horas Extras e Faltas (Analítico)" do PROPWin.')
     } else {
       erros.push('Nenhum registro de falta encontrado no PDF.')
     }

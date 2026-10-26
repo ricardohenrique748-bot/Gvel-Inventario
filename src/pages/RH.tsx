@@ -398,7 +398,7 @@ const COLUNAS_FOLHA: { campo: keyof TotaisFolha; titulo: string; sempre?: boolea
   { campo: 'recebidoMes', titulo: 'Recebido Mês', classe: 'text-secondary' },
   { campo: 'descontos', titulo: 'Descontos', sempre: true, classe: 'text-red-400' },
   { campo: 'gratificacao', titulo: 'Gratificação', classe: 'text-secondary' },
-  { campo: 'custoTotal', titulo: 'Custo Total', sempre: true, classe: 'font-bold text-primary' },
+  { campo: 'custoTotal', titulo: 'Custo Total 80%', sempre: true, classe: 'font-bold text-primary' },
 ]
 
 function TabelaColaboradores({
@@ -2367,7 +2367,7 @@ export function RH() {
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
             <StatCard align="center" valueClassName="text-2xl" icon={Users} label="Colaboradores" value={String(itensEmpresa.length)} />
             <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={Wallet} label="Ganhos Totais" value={formatMoeda(totaisGerais.ganhosTotais)} />
-            <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={TrendingUp} label="Custo Total" value={formatMoeda(totaisGerais.custoTotal)} />
+            <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={TrendingUp} label="Custo Total 80%" value={formatMoeda(totaisGerais.custoTotal)} />
             <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={Banknote} label="Descontos" value={formatMoeda(totaisGerais.descontos)} />
             <StatCard align="center" valueClassName="text-lg sm:text-xl" icon={Scale} label="Custo Médio" value={formatMoeda(custoMedio)} hint="POR COLABORADOR" />
           </div>
