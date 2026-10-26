@@ -361,10 +361,9 @@ export function useRhSheet() {
         ;(porMes[mes] ??= []).push(item)
       }
       for (const { aba, linhas } of lidas) {
-        // Aba sem coluna "MÊS" (ex.: TERCEIROS): se a empresa tem uma aba por mês,
-        // vale o mês do nome; senão a lista vale para todos os meses da planilha.
-        const abaPorMes = abasAtuais.filter((a) => a.empresa === aba.empresa).length > 1
-        const mesesSemColuna = abaPorMes || mesesDasLinhas.length === 0 ? [aba.mes] : mesesDasLinhas
+        // Aba sem coluna "MÊS" (ex.: "TERCEIROS SETEMBRO") vale só para o mês do nome;
+        // se o nome também não traz mês, vale para todos os meses da planilha.
+        const mesesSemColuna = aba.mes || mesesDasLinhas.length === 0 ? [aba.mes] : mesesDasLinhas
         for (const { mes, item } of linhas) {
           if (mes) adicionar(mes, item)
           else mesesSemColuna.forEach((m) => adicionar(m, item))
