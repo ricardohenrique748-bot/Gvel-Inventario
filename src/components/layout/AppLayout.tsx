@@ -12,7 +12,8 @@ export function AppLayout() {
     location.pathname.startsWith('/controle-horas') ||
     location.pathname.startsWith('/movimentacoes') ||
     location.pathname.startsWith('/inventario') ||
-    location.pathname.startsWith('/relatorios')
+    location.pathname.startsWith('/relatorios') ||
+    location.pathname.startsWith('/rh')
 
   return (
     <div className="flex min-h-svh bg-background">

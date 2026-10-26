@@ -472,10 +472,10 @@ function TabelaColaboradores({
               <tbody>
                 {itens.map((c) => (
                   <tr key={c.id} className="border-b border-border/5 last:border-0 hover:bg-overlay/[0.03]">
-                    <td className="px-2 py-2 font-medium text-foreground max-w-[160px] truncate" title={c.nome}>
+                    <td className="px-2 py-2 font-medium text-foreground max-w-[280px] truncate" title={c.nome}>
                       {c.nome}
                     </td>
-                    <td className="px-2 py-2 text-secondary max-w-[130px] truncate" title={c.funcao}>
+                    <td className="px-2 py-2 text-secondary max-w-[200px] truncate" title={c.funcao}>
                       {c.funcao}
                     </td>
                     {colunas.map((col) => (
