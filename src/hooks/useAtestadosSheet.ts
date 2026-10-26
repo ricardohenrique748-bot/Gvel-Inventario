@@ -66,13 +66,25 @@ function parseInteiro(raw: string | undefined): number {
   return isNaN(valor) ? 0 : valor
 }
 
-// A planilha exporta a data no formato M/D/AAAA (mês primeiro) independente
-// do local da aba — confirmado comparando a ordem cronológica das linhas.
-function parseData(raw: string | undefined): { exibicao: string; iso: string } {
+const MESES = ['JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO']
+
+// A coluna DATA mistura formatos linha a linha: as linhas antigas vêm como
+// M/D/AAAA (exportação da planilha, sem zero à esquerda) e as digitadas depois
+// como DD/MM/AAAA. Decide por linha: número > 12 só pode ser dia; senão
+// desempata pela coluna MÊS; por fim, zero à esquerda indica DD/MM.
+function parseData(raw: string | undefined, mesColuna: string | undefined): { exibicao: string; iso: string } {
   if (!raw) return { exibicao: '', iso: '' }
   const partes = raw.trim().split('/')
   if (partes.length !== 3) return { exibicao: raw, iso: '' }
-  const [mes, dia, ano] = partes.map((p) => parseInt(p, 10))
+  const [a, b, ano] = partes.map((p) => parseInt(p, 10))
+  const mesRef = MESES.indexOf(normalizarCabecalho(mesColuna || '')) + 1
+  let mesPrimeiro: boolean
+  if (a > 12) mesPrimeiro = false
+  else if (b > 12) mesPrimeiro = true
+  else if (mesRef && mesRef !== a && mesRef === b) mesPrimeiro = false
+  else if (mesRef && mesRef === a && mesRef !== b) mesPrimeiro = true
+  else mesPrimeiro = !partes[0].trim().startsWith('0') && !partes[1].trim().startsWith('0')
+  const [dia, mes] = mesPrimeiro ? [b, a] : [a, b]
   if (!mes || !dia || !ano) return { exibicao: raw, iso: '' }
   const pad = (n: number) => String(n).padStart(2, '0')
   return { exibicao: `${pad(dia)}/${pad(mes)}/${ano}`, iso: `${ano}-${pad(mes)}-${pad(dia)}` }
@@ -151,7 +163,7 @@ function parseCsv(csvText: string): RegistroAtestado[] {
     const nome = (col('nome') || '').trim()
     if (!nome) continue // linha de título da planilha (mês/ano), sem colaborador
 
-    const { exibicao: data, iso: dataIso } = parseData(col('data'))
+    const { exibicao: data, iso: dataIso } = parseData(col('data'), col('mes'))
 
     items.push({
       id: `atestado-${i}-${col('id') || nome}`,

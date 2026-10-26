@@ -78,6 +78,12 @@ function htmlChecklist(chk: RegistroChecklist): string {
       }</div>
     </div>
 
+    <!-- O checklist só salva com a declaração marcada, então todo registro a tem. -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:8px 10px;border:1px solid #15803d;border-radius:6px;background:#f0fdf4;">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:3px;background:#15803d;color:#fff;font-size:10px;font-weight:bold;">✓</span>
+      <span style="font-size:11px;font-weight:bold;">Atesto que o veículo está em perfeitas condições para trabalho.</span>
+    </div>
+
     <div style="font-size:11px;font-weight:bold;margin-bottom:6px;">FOTOS (${fotos.length})</div>
     ${
       fotos.length

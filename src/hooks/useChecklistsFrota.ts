@@ -111,20 +111,22 @@ export async function criarChecklistFrota(
 ): Promise<RegistroChecklist> {
   const checklistId = gerarUuid()
 
-  // Sobe todas as fotos em paralelo. Cada foto é evidência opcional do
-  // item — se uma falhar (ex: conexão fraca), não trava o registro inteiro.
+  // Sobe todas as fotos em paralelo, com uma nova tentativa por foto. Se
+  // alguma não subir, o checklist NÃO é gravado (antes ficava "sem fotos").
   async function enviarFoto(nome: string, base64: string): Promise<string | null> {
-    try {
-      const blob = dataUrlParaBlob(base64)
-      const path = comPrefixoEmpresa(`checklist-frota/${checklistId}/${nome}.jpg`)
-      const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, blob, {
-        contentType: blob.type || 'image/jpeg',
-        upsert: true,
-      })
-      if (!error) return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
-      console.warn(`Falha ao enviar foto "${nome}" do checklist:`, error)
-    } catch (err) {
-      console.warn(`Falha ao enviar foto "${nome}" do checklist:`, err)
+    for (let tentativa = 1; tentativa <= 2; tentativa++) {
+      try {
+        const blob = dataUrlParaBlob(base64)
+        const path = comPrefixoEmpresa(`checklist-frota/${checklistId}/${nome}.jpg`)
+        const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(path, blob, {
+          contentType: blob.type || 'image/jpeg',
+          upsert: true,
+        })
+        if (!error) return supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+        console.warn(`Falha ao enviar foto "${nome}" do checklist (tentativa ${tentativa}):`, error)
+      } catch (err) {
+        console.warn(`Falha ao enviar foto "${nome}" do checklist (tentativa ${tentativa}):`, err)
+      }
     }
     return null
   }
@@ -147,6 +149,15 @@ export async function criarChecklistFrota(
     ),
   ])
   const fotosExtras = extrasEnviadas.filter((f): f is FotoExtraChecklist => f !== null)
+
+  const fotosEsperadas =
+    CAMPOS_FOTO.filter((campo) => input.fotos?.[campo]).length + (input.fotosExtras?.length ?? 0)
+  const fotosEnviadas = Object.keys(fotoUrls).length + fotosExtras.length
+  if (fotosEnviadas < fotosEsperadas) {
+    throw new Error(
+      `${fotosEsperadas - fotosEnviadas} foto(s) não foram enviadas. Verifique a conexão e tente salvar de novo — as fotos continuam no formulário.`,
+    )
+  }
 
   // Colunas de KM são integer no banco — o motorista pode digitar casa decimal
   // (ex.: "354504.8"), e os campos da preventiva derivam desse valor.

@@ -122,7 +122,65 @@ const DESENHOS_CARRETA: Record<AnguloCarreta, React.ReactNode> = {
   ),
 }
 
-export function GuiaFotoCarreta({ angulo, className }: { angulo: AnguloCarreta; className?: string }) {
+// ---------- Dolly ----------
+// Cabeçalho com olhal à esquerda (frente), quinta roda em cima e dois eixos.
+function LateralDolly() {
+  return (
+    <>
+      <circle cx="5" cy="23" r="2" />
+      <path d="M7 23h16" />
+      <rect x="22" y="20" width="36" height="5" rx="1" />
+      <rect x="33" y="14" width="18" height="3" rx="1" />
+      <path d="M36 17v3M48 17v3M58 25v7" />
+      <circle cx="36" cy="31" r="5" />
+      <circle cx="48" cy="31" r="5" />
+    </>
+  )
+}
+
+function FrenteDolly({ cabecalho }: { cabecalho: boolean }) {
+  return (
+    <>
+      <rect x="18" y="9" width="28" height="4" rx="1.5" />
+      <path d="M24 13v7M40 13v7" />
+      <rect x="14" y="20" width="36" height="4" rx="1" />
+      <rect x="5" y="18" width="9" height="18" rx="2" />
+      <rect x="50" y="18" width="9" height="18" rx="2" />
+      {cabecalho ? (
+        <>
+          <path d="M32 24v4" />
+          <circle cx="32" cy="30.5" r="2.5" />
+        </>
+      ) : (
+        <>
+          <rect x="17" y="26" width="3" height="2" rx="0.5" />
+          <rect x="44" y="26" width="3" height="2" rx="0.5" />
+        </>
+      )}
+    </>
+  )
+}
+
+const DESENHOS_DOLLY: Record<AnguloCarreta, React.ReactNode> = {
+  frente: <FrenteDolly cabecalho />,
+  ladoEsquerdo: <LateralDolly />,
+  ladoDireito: (
+    <g transform="matrix(-1 0 0 1 64 0)">
+      <LateralDolly />
+    </g>
+  ),
+  traseira: <FrenteDolly cabecalho={false} />,
+}
+
+export function GuiaFotoCarreta({
+  angulo,
+  dolly,
+  className,
+}: {
+  angulo: AnguloCarreta
+  dolly?: boolean
+  className?: string
+}) {
   return (
     <svg
       viewBox="0 0 64 40"
@@ -134,7 +192,7 @@ export function GuiaFotoCarreta({ angulo, className }: { angulo: AnguloCarreta; 
       className={className}
       aria-hidden="true"
     >
-      {DESENHOS_CARRETA[angulo]}
+      {(dolly ? DESENHOS_DOLLY : DESENHOS_CARRETA)[angulo]}
     </svg>
   )
 }

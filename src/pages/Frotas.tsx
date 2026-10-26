@@ -80,7 +80,8 @@ import { Badge } from '@/components/ui/Badge'
 import { Input, Label, FieldError, Select, Textarea } from '@/components/ui/Input'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
 import { TipoVeiculoRadioGroup } from '@/components/TipoVeiculoRadioGroup'
-import { FOTOS_CARRETA, GuiaFotoCarreta, GuiaFotoCavalo, type AnguloCarreta } from '@/components/GuiaFotoCavalo'
+import { GuiaFotoCarreta, GuiaFotoCavalo } from '@/components/GuiaFotoCavalo'
+import { conjuntoDoCavalo, ehDollyDeConjunto } from '@/data/conjuntosFrota'
 import { useClientes, criarCliente } from '@/hooks/useClientes'
 import {
   useMarcas,
@@ -590,6 +591,61 @@ function DetalheCampo({ label, children }: { label: string; children: ReactNode 
   )
 }
 
+// Fotos obrigatórias do checklist conforme o veículo escolhido: cavalo/caminhão
+// (e frota leve) 5 com o painel; carreta 4 (sem painel, não tem motor); dolly 3.
+type FotoVistoriaDef = { campo: keyof FotosVistoria; rotulo: string }
+
+const FOTO_PAINEL: FotoVistoriaDef = { campo: 'painel', rotulo: 'PAINEL/KM' }
+const FOTO_FRENTE: FotoVistoriaDef = { campo: 'frente', rotulo: 'FRENTE' }
+const FOTO_LADO_ESQUERDO: FotoVistoriaDef = { campo: 'ladoEsquerdo', rotulo: 'LADO ESQUERDO' }
+const FOTO_TRASEIRA: FotoVistoriaDef = { campo: 'traseira', rotulo: 'TRASEIRA' }
+const FOTO_LADO_DIREITO: FotoVistoriaDef = { campo: 'ladoDireito', rotulo: 'LADO DIREITO' }
+
+type TipoImplemento = 'carreta' | 'dolly'
+
+type VeiculoFotos = { tipo: string; placa?: string; tipoVeiculo?: string; categoria?: string }
+
+function tipoImplemento(v: VeiculoFotos | undefined): TipoImplemento | null {
+  if (!v || v.tipo !== 'carreta') return null
+  const dolly =
+    ehDollyDeConjunto(v.placa) || [v.tipoVeiculo, v.categoria].some((t) => (t ?? '').toUpperCase().includes('DOLLY'))
+  return dolly ? 'dolly' : 'carreta'
+}
+
+function fotosDoImplemento(tipo: TipoImplemento): FotoVistoriaDef[] {
+  return tipo === 'dolly'
+    ? [FOTO_FRENTE, FOTO_LADO_ESQUERDO, FOTO_LADO_DIREITO]
+    : [FOTO_FRENTE, FOTO_LADO_ESQUERDO, FOTO_TRASEIRA, FOTO_LADO_DIREITO]
+}
+
+function fotosExigidasChecklist(v: VeiculoFotos | undefined): FotoVistoriaDef[] {
+  const implemento = tipoImplemento(v)
+  if (implemento) return fotosDoImplemento(implemento)
+  return [FOTO_PAINEL, FOTO_FRENTE, FOTO_LADO_ESQUERDO, FOTO_TRASEIRA, FOTO_LADO_DIREITO]
+}
+
+// Cavalo mecânico puxa rodotrem: o checklist dele já traz, sem precisar
+// adicionar, as fotos da carreta 1 (4), do dolly (3) e da carreta 2 (4), com a
+// placa de cada implemento quando o conjunto está em src/data/conjuntosFrota.ts.
+// Salvas nas fotos adicionais com o rótulo "<IMPLEMENTO> <PLACA> - <ÂNGULO>".
+function implementosDoChecklist(v: VeiculoFotos | undefined): { tipo: TipoImplemento; rotulo: string }[] {
+  const conjunto = conjuntoDoCavalo(v?.placa)
+  if (v?.tipo !== 'trator' && !conjunto) return []
+  const comPlaca = (nome: string, placa: string | undefined) => (placa ? `${nome} ${placa}` : nome)
+  return [
+    { tipo: 'carreta', rotulo: comPlaca('CARRETA 1', conjunto?.carreta1) },
+    { tipo: 'dolly', rotulo: comPlaca('DOLLY', conjunto?.dolly) },
+    { tipo: 'carreta', rotulo: comPlaca('CARRETA 2', conjunto?.carreta2) },
+  ]
+}
+
+function totalFotosEsperadasChecklist(v: VeiculoFotos | undefined) {
+  return (
+    fotosExigidasChecklist(v).length +
+    implementosDoChecklist(v).reduce((acc, imp) => acc + fotosDoImplemento(imp.tipo).length, 0)
+  )
+}
+
 function comprimirFoto(file: File, maxWidth = 1000, quality = 0.72): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -1048,10 +1104,6 @@ export function Frotas() {
   // Declaração obrigatória: sem marcar, o checklist não pode ser salvo.
   const [atestoChecklist, setAtestoChecklist] = useState(false)
   const [fotosChecklist, setFotosChecklist] = useState<FotosVistoria>({})
-  // Fotos guiadas das carretas (frota pesada; um bloco por carreta engatada —
-  // bitrem/rodotrem têm mais de uma). Salvas junto das fotos adicionais com o
-  // rótulo "CARRETA <N> - <ÂNGULO>", sem coluna nova no banco.
-  const [fotosCarretasChecklist, setFotosCarretasChecklist] = useState<Partial<Record<AnguloCarreta, string>>[]>([{}])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -1069,8 +1121,10 @@ export function Frotas() {
   const inputFotoLadoEsquerdoRef = useRef<HTMLInputElement>(null)
   const inputFotoTraseiraRef = useRef<HTMLInputElement>(null)
   const inputFotoLadoDireitoRef = useRef<HTMLInputElement>(null)
-  const inputFotoCarretaRef = useRef<HTMLInputElement>(null)
-  const fotoCarretaPendenteRef = useRef<{ carreta: number; angulo: AnguloCarreta } | null>(null)
+  // Fotos dos implementos do cavalo, na ordem de implementosDoChecklist().
+  const [fotosImplementosChecklist, setFotosImplementosChecklist] = useState<FotosVistoria[]>([])
+  const inputFotoImplementoRef = useRef<HTMLInputElement>(null)
+  const fotoImplementoPendenteRef = useRef<{ idx: number; campo: keyof FotosVistoria } | null>(null)
 
   const {
     register,
@@ -2095,7 +2149,7 @@ export function Frotas() {
     setObsChecklist('')
     setAtestoChecklist(false)
     setFotosChecklist({})
-    setFotosCarretasChecklist([{}])
+    setFotosImplementosChecklist([])
     setTipoChecklistNovo('ida')
     setMostrarModalNovoChecklist(true)
   }
@@ -2114,7 +2168,7 @@ export function Frotas() {
     setObsChecklist('')
     setAtestoChecklist(false)
     setFotosChecklist({})
-    setFotosCarretasChecklist([{}])
+    setFotosImplementosChecklist([])
     setMostrarModalNovoChecklist(true)
   }
 
@@ -2149,25 +2203,35 @@ export function Frotas() {
     }
   }
 
-  function abrirFotoCarreta(carreta: number, angulo: AnguloCarreta) {
-    fotoCarretaPendenteRef.current = { carreta, angulo }
-    inputFotoCarretaRef.current?.click()
+  function abrirFotoImplemento(idx: number, campo: keyof FotosVistoria) {
+    fotoImplementoPendenteRef.current = { idx, campo }
+    inputFotoImplementoRef.current?.click()
   }
 
-  async function handleUploadFotoCarreta(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleUploadFotoImplemento(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
-    const pendente = fotoCarretaPendenteRef.current
+    const pendente = fotoImplementoPendenteRef.current
     if (!file || !pendente) return
     try {
       const base64 = await comprimirFoto(file)
-      setFotosCarretasChecklist((prev) =>
-        prev.map((fotos, i) => (i === pendente.carreta ? { ...fotos, [pendente.angulo]: base64 } : fotos)),
-      )
+      setFotosImplementosChecklist((prev) => {
+        const novo = [...prev]
+        novo[pendente.idx] = { ...novo[pendente.idx], [pendente.campo]: base64 }
+        return novo
+      })
     } catch (err) {
       console.error('Erro ao processar imagem:', err)
       alert('Erro ao carregar a foto.')
     }
+  }
+
+  function removerFotoImplemento(idx: number, campo: keyof FotosVistoria) {
+    setFotosImplementosChecklist((prev) => {
+      const novo = [...prev]
+      novo[idx] = { ...novo[idx], [campo]: undefined }
+      return novo
+    })
   }
 
   async function handleBaixarPdfChecklist(chk: RegistroChecklist) {
@@ -2196,6 +2260,21 @@ export function Frotas() {
       alert('Informe o nome do motorista ou condutor.')
       return
     }
+    const implementos = implementosDoChecklist(veiculoChecklistSelecionado)
+    const fotosFaltando = [
+      ...fotosExigidasChecklist(veiculoChecklistSelecionado)
+        .filter(({ campo }) => !fotosChecklist[campo])
+        .map(({ rotulo }) => rotulo),
+      ...implementos.flatMap((imp, i) =>
+        fotosDoImplemento(imp.tipo)
+          .filter(({ campo }) => !fotosImplementosChecklist[i]?.[campo])
+          .map(({ rotulo }) => `${imp.rotulo} - ${rotulo}`),
+      ),
+    ]
+    if (fotosFaltando.length > 0) {
+      alert(`Tire todas as fotos da vistoria antes de salvar. Faltando: ${fotosFaltando.join(', ')}.`)
+      return
+    }
 
     const veiculo = frotas.find((f) => f.id === veiculoChecklistId)
     const inspetor = perfil?.nome || user?.email || 'INSPETOR'
@@ -2221,15 +2300,12 @@ export function Frotas() {
         statusPreventiva: comparacaoPreventivaChecklist,
         itens: [],
         fotos: fotosChecklist,
-        fotosExtras: checklistFrotaPesada
-          ? [
-              ...fotosCarretasChecklist.flatMap((fotos, i) =>
-                FOTOS_CARRETA.filter((c) => fotos[c.angulo]).map((c) => ({
-                  url: fotos[c.angulo]!,
-                  label: fotosCarretasChecklist.length > 1 ? `CARRETA ${i + 1} - ${c.rotulo}` : `CARRETA - ${c.rotulo}`,
-                })),
-              ),
-            ]
+        fotosExtras: implementos.length
+          ? implementos.flatMap((imp, i) =>
+              fotosDoImplemento(imp.tipo)
+                .filter(({ campo }) => fotosImplementosChecklist[i]?.[campo])
+                .map(({ campo, rotulo }) => ({ url: fotosImplementosChecklist[i]![campo]!, label: `${imp.rotulo} - ${rotulo}` })),
+            )
           : undefined,
         observacoesGerais: obsChecklist.trim() || undefined,
         tipoChecklist: veiculo && precisaChecklistIdaVolta(veiculo.placa) ? tipoChecklistNovo : undefined,
@@ -2259,13 +2335,17 @@ export function Frotas() {
 
   const checklistFrotaPesada = !!veiculoChecklistSelecionado && !isFrotaLeve(veiculoChecklistSelecionado)
 
-  const totalFotosTiradas = [
-    fotosChecklist.painel,
-    fotosChecklist.frente,
-    fotosChecklist.ladoEsquerdo,
-    fotosChecklist.traseira,
-    fotosChecklist.ladoDireito,
-  ].filter(Boolean).length
+  const fotosExigidas = fotosExigidasChecklist(veiculoChecklistSelecionado)
+  const exigeFoto = (campo: keyof FotosVistoria) => fotosExigidas.some((f) => f.campo === campo)
+  const implementoChecklist = tipoImplemento(veiculoChecklistSelecionado)
+  const implementosChecklist = implementosDoChecklist(veiculoChecklistSelecionado)
+  const totalFotosEsperadas = totalFotosEsperadasChecklist(veiculoChecklistSelecionado)
+  const totalFotosTiradas =
+    fotosExigidas.filter(({ campo }) => fotosChecklist[campo]).length +
+    implementosChecklist.reduce(
+      (acc, imp, i) => acc + fotosDoImplemento(imp.tipo).filter(({ campo }) => fotosImplementosChecklist[i]?.[campo]).length,
+      0,
+    )
 
   return (
     <div className="space-y-6 animate-fade-in uppercase pb-12">
@@ -3787,13 +3867,15 @@ export function Frotas() {
                   <tbody className="divide-y divide-border/10 font-medium">
                     {checklistsFiltrados.map((chk) => {
                       const dataFormatada = format(parseISO(chk.dataHora), "dd/MM/yyyy 'às' HH:mm")
-                      const fotosQtd = [
-                        chk.fotos?.painel,
-                        chk.fotos?.frente,
-                        chk.fotos?.ladoEsquerdo,
-                        chk.fotos?.traseira,
-                        chk.fotos?.ladoDireito,
-                      ].filter(Boolean).length
+                      const fotosEsperadas = totalFotosEsperadasChecklist(frotas.find((f) => f.placa === chk.placa))
+                      const fotosQtd =
+                        [
+                          chk.fotos?.painel,
+                          chk.fotos?.frente,
+                          chk.fotos?.ladoEsquerdo,
+                          chk.fotos?.traseira,
+                          chk.fotos?.ladoDireito,
+                        ].filter(Boolean).length + (chk.fotosExtras?.length ?? 0)
 
                       // IDA ainda sem uma VOLTA correspondente depois dela — o
                       // "trecho" fica pendente até o veículo ser devolvido.
@@ -3871,7 +3953,7 @@ export function Frotas() {
                             {fotosQtd > 0 ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                                 <Camera className="h-3 w-3" />
-                                {fotosQtd}/5 FOTOS
+                                {fotosQtd}/{fotosEsperadas} FOTOS
                               </span>
                             ) : (
                               <span className="text-[10px] text-secondary/50 font-semibold">— SEM FOTOS</span>
@@ -5689,15 +5771,16 @@ export function Frotas() {
                     </span>
                   </div>
                   <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-md ${
-                    totalFotosTiradas === 5
+                    totalFotosTiradas === totalFotosEsperadas
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                       : 'bg-primary/20 text-primary'
                   }`}>
-                    {totalFotosTiradas}/5 CAPTURADAS
+                    {totalFotosTiradas}/{totalFotosEsperadas} CAPTURADAS
                   </span>
                 </div>
                 <p className="text-[11px] text-secondary normal-case leading-relaxed">
-                  Tire as fotos da vistoria: painel/km, frente, lado esquerdo, traseira e lado direito:
+                  Tire as fotos da vistoria{implementoChecklist ? ` d${implementoChecklist === 'dolly' ? 'o dolly' : 'a carreta'}` : ''}:{' '}
+                  {fotosExigidas.map((f) => f.rotulo.toLowerCase()).join(', ')}.
                 </p>
 
                 {/* Fotos do Veículo */}
@@ -5705,65 +5788,67 @@ export function Frotas() {
                   <span className="text-[10px] font-black text-secondary uppercase tracking-wider block mb-2">
                     FOTOS DO VEÍCULO
                   </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                  <div className={`grid grid-cols-2 gap-2.5 ${['', '', '', 'sm:grid-cols-3', 'sm:grid-cols-4', 'sm:grid-cols-5'][fotosExigidas.length]}`}>
                     {/* Painel */}
-                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
-                      fotosChecklist.painel
-                        ? 'border-emerald-500/40 bg-emerald-500/5'
-                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                    }`}>
-                      <input
-                        ref={inputFotoPainelRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => handleUploadFoto('painel', e)}
-                      />
-                      <div className="flex items-center justify-between w-full mb-1.5">
-                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
-                          <Gauge className="h-2.5 w-2.5 text-primary" /> PAINEL
-                        </span>
-                        {fotosChecklist.painel && (
-                          <span className="text-[8px] font-black text-emerald-400">✓</span>
+                    {exigeFoto('painel') && (
+                      <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                        fotosChecklist.painel
+                          ? 'border-emerald-500/40 bg-emerald-500/5'
+                          : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                      }`}>
+                        <input
+                          ref={inputFotoPainelRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => handleUploadFoto('painel', e)}
+                        />
+                        <div className="flex items-center justify-between w-full mb-1.5">
+                          <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                            <Gauge className="h-2.5 w-2.5 text-primary" /> PAINEL
+                          </span>
+                          {fotosChecklist.painel && (
+                            <span className="text-[8px] font-black text-emerald-400">✓</span>
+                          )}
+                        </div>
+
+                        {fotosChecklist.painel ? (
+                          <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                            <img src={fotosChecklist.painel} alt="Painel" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={() => inputFotoPainelRef.current?.click()}
+                                className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                              >
+                                Trocar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFotosChecklist((prev) => ({ ...prev, painel: undefined }))}
+                                className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                              >
+                                <Trash2 className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => inputFotoPainelRef.current?.click()}
+                            className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                          >
+                            {checklistFrotaPesada ? (
+                              <GuiaFotoCavalo angulo="painel" className="h-9 w-14" />
+                            ) : (
+                              <Camera className="h-4 w-4" />
+                            )}
+                            <span className="text-[9px] font-bold">PAINEL</span>
+                          </button>
                         )}
                       </div>
-
-                      {fotosChecklist.painel ? (
-                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                          <img src={fotosChecklist.painel} alt="Painel" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => inputFotoPainelRef.current?.click()}
-                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
-                            >
-                              Trocar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setFotosChecklist((prev) => ({ ...prev, painel: undefined }))}
-                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
-                            >
-                              <Trash2 className="h-2.5 w-2.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => inputFotoPainelRef.current?.click()}
-                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                        >
-                          {checklistFrotaPesada ? (
-                            <GuiaFotoCavalo angulo="painel" className="h-9 w-14" />
-                          ) : (
-                            <Camera className="h-4 w-4" />
-                          )}
-                          <span className="text-[9px] font-bold">PAINEL</span>
-                        </button>
-                      )}
-                    </div>
+                    )}
 
                     {/* Frente */}
                     <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
@@ -5815,7 +5900,11 @@ export function Frotas() {
                           className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
                         >
                           {checklistFrotaPesada ? (
-                            <GuiaFotoCavalo angulo="frente" className="h-9 w-14" />
+                            implementoChecklist ? (
+                              <GuiaFotoCarreta angulo="frente" dolly={implementoChecklist === 'dolly'} className="h-9 w-14" />
+                            ) : (
+                              <GuiaFotoCavalo angulo="frente" className="h-9 w-14" />
+                            )
                           ) : (
                             <Camera className="h-4 w-4" />
                           )}
@@ -5874,7 +5963,11 @@ export function Frotas() {
                           className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
                         >
                           {checklistFrotaPesada ? (
-                            <GuiaFotoCavalo angulo="ladoEsquerdo" className="h-9 w-14" />
+                            implementoChecklist ? (
+                              <GuiaFotoCarreta angulo="ladoEsquerdo" dolly={implementoChecklist === 'dolly'} className="h-9 w-14" />
+                            ) : (
+                              <GuiaFotoCavalo angulo="ladoEsquerdo" className="h-9 w-14" />
+                            )
                           ) : (
                             <Camera className="h-4 w-4" />
                           )}
@@ -5884,63 +5977,69 @@ export function Frotas() {
                     </div>
 
                     {/* Traseira */}
-                    <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
-                      fotosChecklist.traseira
-                        ? 'border-emerald-500/40 bg-emerald-500/5'
-                        : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                    }`}>
-                      <input
-                        ref={inputFotoTraseiraRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => handleUploadFoto('traseira', e)}
-                      />
-                      <div className="flex items-center justify-between w-full mb-1.5">
-                        <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
-                          <ArrowDown className="h-2.5 w-2.5 text-amber-400" /> TRASEIRA
-                        </span>
-                        {fotosChecklist.traseira && (
-                          <span className="text-[8px] font-black text-emerald-400">✓</span>
+                    {exigeFoto('traseira') && (
+                      <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                        fotosChecklist.traseira
+                          ? 'border-emerald-500/40 bg-emerald-500/5'
+                          : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                      }`}>
+                        <input
+                          ref={inputFotoTraseiraRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => handleUploadFoto('traseira', e)}
+                        />
+                        <div className="flex items-center justify-between w-full mb-1.5">
+                          <span className="text-[9px] font-black text-foreground flex items-center gap-0.5 truncate">
+                            <ArrowDown className="h-2.5 w-2.5 text-amber-400" /> TRASEIRA
+                          </span>
+                          {fotosChecklist.traseira && (
+                            <span className="text-[8px] font-black text-emerald-400">✓</span>
+                          )}
+                        </div>
+
+                        {fotosChecklist.traseira ? (
+                          <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                            <img src={fotosChecklist.traseira} alt="Traseira" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={() => inputFotoTraseiraRef.current?.click()}
+                                className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                              >
+                                Trocar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFotosChecklist((prev) => ({ ...prev, traseira: undefined }))}
+                                className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                              >
+                                <Trash2 className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => inputFotoTraseiraRef.current?.click()}
+                            className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                          >
+                            {checklistFrotaPesada ? (
+                              implementoChecklist ? (
+                                <GuiaFotoCarreta angulo="traseira" dolly={implementoChecklist === 'dolly'} className="h-9 w-14" />
+                              ) : (
+                                <GuiaFotoCavalo angulo="traseira" className="h-9 w-14" />
+                              )
+                            ) : (
+                              <Camera className="h-4 w-4" />
+                            )}
+                            <span className="text-[9px] font-bold">TRASEIRA</span>
+                          </button>
                         )}
                       </div>
-
-                      {fotosChecklist.traseira ? (
-                        <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                          <img src={fotosChecklist.traseira} alt="Traseira" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => inputFotoTraseiraRef.current?.click()}
-                              className="p-1 rounded bg-white text-black text-[8px] font-bold"
-                            >
-                              Trocar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setFotosChecklist((prev) => ({ ...prev, traseira: undefined }))}
-                              className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
-                            >
-                              <Trash2 className="h-2.5 w-2.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => inputFotoTraseiraRef.current?.click()}
-                          className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                        >
-                          {checklistFrotaPesada ? (
-                            <GuiaFotoCavalo angulo="traseira" className="h-9 w-14" />
-                          ) : (
-                            <Camera className="h-4 w-4" />
-                          )}
-                          <span className="text-[9px] font-bold">TRASEIRA</span>
-                        </button>
-                      )}
-                    </div>
+                    )}
 
                     {/* Lado Direito */}
                     <div className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
@@ -5992,7 +6091,11 @@ export function Frotas() {
                           className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
                         >
                           {checklistFrotaPesada ? (
-                            <GuiaFotoCavalo angulo="ladoDireito" className="h-9 w-14" />
+                            implementoChecklist ? (
+                              <GuiaFotoCarreta angulo="ladoDireito" dolly={implementoChecklist === 'dolly'} className="h-9 w-14" />
+                            ) : (
+                              <GuiaFotoCavalo angulo="ladoDireito" className="h-9 w-14" />
+                            )
                           ) : (
                             <Camera className="h-4 w-4" />
                           )}
@@ -6003,99 +6106,82 @@ export function Frotas() {
                   </div>
                 </div>
 
-                {/* Fotos da(s) carreta(s) — só frota pesada */}
-                {checklistFrotaPesada && (
+                {/* Implementos do cavalo (rodotrem): aparecem sozinhos, todos obrigatórios */}
+                {implementosChecklist.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-secondary uppercase tracking-wider">FOTOS DA CARRETA</span>
-                      <span className="text-[10px] text-secondary/70 normal-case">Opcional — se estiver engatada</span>
-                    </div>
                     <input
-                      ref={inputFotoCarretaRef}
+                      ref={inputFotoImplementoRef}
                       type="file"
                       accept="image/*"
                       capture="environment"
                       className="hidden"
-                      onChange={handleUploadFotoCarreta}
+                      onChange={handleUploadFotoImplemento}
                     />
-                    {fotosCarretasChecklist.map((fotosCarreta, idxCarreta) => (
-                      <div key={idxCarreta} className="space-y-2">
-                        {fotosCarretasChecklist.length > 1 && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black text-foreground">CARRETA {idxCarreta + 1}</span>
-                            <button
-                              type="button"
-                              onClick={() => setFotosCarretasChecklist((prev) => prev.filter((_, i) => i !== idxCarreta))}
-                              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold text-secondary hover:bg-red-500/10 hover:text-red-500"
-                            >
-                              <Trash2 className="h-3 w-3" /> Remover carreta
-                            </button>
+                    {implementosChecklist.map((imp, idx) => {
+                      const fotosDef = fotosDoImplemento(imp.tipo)
+                      const tiradas = fotosDef.filter(({ campo }) => fotosImplementosChecklist[idx]?.[campo]).length
+                      return (
+                        <div key={imp.rotulo}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black text-secondary uppercase tracking-wider">
+                              FOTOS {imp.tipo === 'dolly' ? 'DO' : 'DA'} {imp.rotulo}
+                            </span>
+                            <span className={`text-[10px] font-black ${tiradas === fotosDef.length ? 'text-emerald-400' : 'text-secondary/70'}`}>
+                              {tiradas}/{fotosDef.length}
+                            </span>
                           </div>
-                        )}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                          {FOTOS_CARRETA.map(({ angulo, rotulo }) => {
-                            const foto = fotosCarreta[angulo]
-                            return (
-                              <div
-                                key={angulo}
-                                className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
-                                  foto ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-border/30 bg-surface/80 hover:border-primary/40'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between w-full mb-1.5">
-                                  <span className="text-[9px] font-black text-foreground truncate">{rotulo}</span>
-                                  {foto && <span className="text-[8px] font-black text-emerald-400">✓</span>}
-                                </div>
-                                {foto ? (
-                                  <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
-                                    <img src={foto} alt={`Carreta ${idxCarreta + 1} - ${rotulo}`} className="w-full h-full object-cover" />
-                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                                      <button
-                                        type="button"
-                                        onClick={() => abrirFotoCarreta(idxCarreta, angulo)}
-                                        className="p-1 rounded bg-white text-black text-[8px] font-bold"
-                                      >
-                                        Trocar
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setFotosCarretasChecklist((prev) =>
-                                            prev.map((f, i) => (i === idxCarreta ? { ...f, [angulo]: undefined } : f)),
-                                          )
-                                        }
-                                        className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
-                                        aria-label={`Remover foto da carreta ${idxCarreta + 1} - ${rotulo}`}
-                                      >
-                                        <Trash2 className="h-2.5 w-2.5" />
-                                      </button>
-                                    </div>
+                          <div className={`grid grid-cols-2 gap-2.5 ${fotosDef.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
+                            {fotosDef.map(({ campo, rotulo }) => {
+                              const foto = fotosImplementosChecklist[idx]?.[campo]
+                              return (
+                                <div
+                                  key={campo}
+                                  className={`rounded-xl border p-2.5 flex flex-col items-center text-center transition-all ${
+                                    foto ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-border/30 bg-surface/80 hover:border-primary/40'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between w-full mb-1.5">
+                                    <span className="text-[9px] font-black text-foreground truncate">{rotulo}</span>
+                                    {foto && <span className="text-[8px] font-black text-emerald-400">✓</span>}
                                   </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => abrirFotoCarreta(idxCarreta, angulo)}
-                                    className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
-                                  >
-                                    <GuiaFotoCarreta angulo={angulo} className="h-9 w-14" />
-                                    <span className="text-[9px] font-bold">{rotulo}</span>
-                                  </button>
-                                )}
-                              </div>
-                            )
-                          })}
+                                  {foto ? (
+                                    <div className="relative w-full h-20 rounded-lg overflow-hidden border border-emerald-500/30 group">
+                                      <img src={foto} alt={`${imp.rotulo} - ${rotulo}`} className="w-full h-full object-cover" />
+                                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                                        <button
+                                          type="button"
+                                          onClick={() => abrirFotoImplemento(idx, campo)}
+                                          className="p-1 rounded bg-white text-black text-[8px] font-bold"
+                                        >
+                                          Trocar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => removerFotoImplemento(idx, campo)}
+                                          className="p-1 rounded bg-red-600 text-white text-[8px] font-bold"
+                                          aria-label={`Remover foto ${imp.rotulo} - ${rotulo}`}
+                                        >
+                                          <Trash2 className="h-2.5 w-2.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => abrirFotoImplemento(idx, campo)}
+                                      className="w-full h-20 rounded-lg border-2 border-dashed border-border/40 hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-secondary hover:text-primary transition-all cursor-pointer bg-overlay/5"
+                                    >
+                                      {campo !== 'painel' && <GuiaFotoCarreta angulo={campo} dolly={imp.tipo === 'dolly'} className="h-9 w-14" />}
+                                      <span className="text-[9px] font-bold">{rotulo}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {fotosCarretasChecklist.length < 3 && (
-                      <button
-                        type="button"
-                        onClick={() => setFotosCarretasChecklist((prev) => [...prev, {}])}
-                        className="flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border/40 py-2 text-[10px] font-bold text-secondary hover:border-primary/60 hover:text-primary transition-all"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> ADICIONAR CARRETA
-                      </button>
-                    )}
+                      )
+                    })}
                   </div>
                 )}
               </div>
