@@ -46,7 +46,7 @@ function urlAba(gid: string): string {
   return `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_ID}/pub?output=csv&gid=${gid}&single=true`
 }
 
-const STORAGE_KEY = 'gvel_rh_data_v4'
+const STORAGE_KEY = 'gvel_rh_data_v5'
 const ABAS_STORAGE_KEY = 'gvel_rh_abas_v1'
 const LAST_SYNC_KEY = 'gvel_rh_last_sync'
 const AUTO_SYNC_INTERVAL_MS = 60000 // 60 segundos
@@ -103,6 +103,36 @@ function parseAbasPublicadas(html: string): AbaRH[] {
   return abas
 }
 
+function distanciaEdicao(a: string, b: string): number {
+  const linha = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    let diagonal = linha[0]
+    linha[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const acima = linha[j]
+      linha[j] = Math.min(linha[j] + 1, linha[j - 1] + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1))
+      diagonal = acima
+    }
+  }
+  return linha[b.length]
+}
+
+/** Valor da coluna "MÊS" → nome do mês. Tolera erro de digitação (ex.: "STEMBRO"). */
+function mesDaCelula(raw: string): string {
+  const v = normalizarCabecalho(raw).replace(/[^A-Z]/g, '')
+  if (!v) return ''
+  let melhor = ''
+  let menor = 3
+  for (const mes of MESES_ANO) {
+    const d = distanciaEdicao(v, mes)
+    if (d < menor) {
+      menor = d
+      melhor = mes
+    }
+  }
+  return melhor.replace('MARCO', 'MARÇO')
+}
+
 /** Ordem cronológica do mês da aba. Sem ano no nome: mês depois do atual é do ano passado. */
 function chaveMes(mes: string): number {
   const [nome, anoTxt] = mes.split(' ')
@@ -113,9 +143,13 @@ function chaveMes(mes: string): number {
   return ano * 12 + idx
 }
 
+function ordenarMeses(meses: string[]): string[] {
+  return [...new Set(meses)].sort((a, b) => chaveMes(a) - chaveMes(b))
+}
+
 /** Meses disponíveis nas abas, do mais antigo ao mais recente. */
 function mesesDasAbas(abas: AbaRH[]): string[] {
-  return [...new Set(abas.map((a) => a.mes))].sort((a, b) => chaveMes(a) - chaveMes(b))
+  return ordenarMeses(abas.map((a) => a.mes))
 }
 
 function parseCsvLine(line: string): string[] {
@@ -148,6 +182,8 @@ function parseValorMonetario(raw: string | undefined): number {
 }
 
 type CampoRH =
+  | 'mes'
+  | 'funcao'
   | 'ganhosTotais'
   | 'adiantamento'
   | 'aPagarHolerite'
@@ -166,6 +202,8 @@ function normalizarCabecalho(raw: string): string {
 // "SALÁRIO" é o próprio ganho total.
 function campoDoCabecalho(raw: string): CampoRH | null {
   const h = normalizarCabecalho(raw)
+  if (h === 'MES') return 'mes'
+  if (h.startsWith('FUNCAO')) return 'funcao'
   if (h.startsWith('GANHO') || h.startsWith('SALARIO')) return 'ganhosTotais'
   if (h.includes('HOLERITE') && h.includes('PAGAR')) return 'aPagarHolerite'
   if (h.includes('HOLERITE') && (h.startsWith('ADIANT') || h.startsWith('ADANT'))) return 'adiantamento'
@@ -177,9 +215,14 @@ function campoDoCabecalho(raw: string): CampoRH | null {
   return null
 }
 
-function parseCsv(csvText: string, empresa: string, formato: 'padrao' | 'terceiros'): ColaboradorRH[] {
+/** Colaborador lido da aba; `mes` vazio quando a aba não tem a coluna "MÊS". */
+type LinhaRH = { mes: string; item: ColaboradorRH }
+
+// Desde out/2026 cada aba empilha os meses (bloco de setembro, bloco de outubro...),
+// cada bloco com o próprio cabeçalho e a coluna "MÊS" em cada linha.
+function parseCsv(csvText: string, empresa: string, formato: 'padrao' | 'terceiros'): LinhaRH[] {
   const lines = csvText.split(/\r?\n/).filter((line) => line.trim().length > 0)
-  const items: ColaboradorRH[] = []
+  const items: LinhaRH[] = []
   // Coluna de cada campo, definida ao achar a linha de cabeçalho (NOME, FUNÇÃO, ...).
   // Quando o nome se repete (ex: "GANHOS TOTAIS" duas vezes), vale a primeira.
   let colunas: Partial<Record<CampoRH, number>> | null = null
@@ -187,7 +230,7 @@ function parseCsv(csvText: string, empresa: string, formato: 'padrao' | 'terceir
   for (let i = 0; i < lines.length; i++) {
     const cols = parseCsvLine(lines[i])
     const nome = (cols[0] || '').trim()
-    const funcao = (cols[1] || '').trim()
+    const funcao = (cols[colunas?.funcao ?? 1] || '').trim()
 
     if (!nome) continue
     const nomeUpper = nome.toUpperCase()
@@ -219,20 +262,23 @@ function parseCsv(csvText: string, empresa: string, formato: 'padrao' | 'terceir
     const idxObs = colunas.observacao
 
     items.push({
-      id: `rh-${empresa}-${i}-${nome}`,
-      empresa,
-      nome: nomeUpper,
-      funcao: (funcao || 'PRESTADOR DE SERVIÇO').toUpperCase(),
-      ganhosTotais,
-      adiantamento,
-      aPagarHolerite,
-      // Aba sem a coluna "RECEBIDO MÊS" (ex: GV TRANSPORTES): é a soma do holerite.
-      recebidoMes: colunas.recebidoMes !== undefined ? valor('recebidoMes') : adiantamento + aPagarHolerite,
-      descontos: valor('descontos'),
-      gratificacao: valor('gratificacao'),
-      // A maioria das abas não tem mais "CUSTO TOTAL" (ou vem "R$ -"): usa o ganho total.
-      custoTotal: custoTotal > 0 ? custoTotal : ganhosTotais,
-      observacao: idxObs !== undefined ? (cols[idxObs] || '').trim() : '',
+      mes: colunas.mes !== undefined ? mesDaCelula(cols[colunas.mes] || '') : '',
+      item: {
+        id: `rh-${empresa}-${i}-${nome}`,
+        empresa,
+        nome: nomeUpper,
+        funcao: (funcao || 'PRESTADOR DE SERVIÇO').toUpperCase(),
+        ganhosTotais,
+        adiantamento,
+        aPagarHolerite,
+        // Aba sem a coluna "RECEBIDO MÊS" (ex: GV TRANSPORTES): é a soma do holerite.
+        recebidoMes: colunas.recebidoMes !== undefined ? valor('recebidoMes') : adiantamento + aPagarHolerite,
+        descontos: valor('descontos'),
+        gratificacao: valor('gratificacao'),
+        // A maioria das abas não tem mais "CUSTO TOTAL" (ou vem "R$ -"): usa o ganho total.
+        custoTotal: custoTotal > 0 ? custoTotal : ganhosTotais,
+        observacao: idxObs !== undefined ? (cols[idxObs] || '').trim() : '',
+      },
     })
   }
 
@@ -244,10 +290,11 @@ export function useRhSheet() {
     const salvas = lerJson<AbaRH[]>(ABAS_STORAGE_KEY, [])
     return salvas.length > 0 ? salvas : ABAS_PADRAO
   })
-  const meses = mesesDasAbas(abas)
+  const [cache, setCache] = useState<Record<string, ColaboradorRH[]>>(() => lerJson(STORAGE_KEY, {}))
+  const mesesCache = ordenarMeses(Object.keys(cache))
+  const meses = mesesCache.length > 0 ? mesesCache : mesesDasAbas(abas)
   // Começa sempre no mês mais recente.
   const [mesSelecionado, setMesSelecionado] = useState<string>(() => meses[meses.length - 1] ?? '')
-  const [cache, setCache] = useState<Record<string, ColaboradorRH[]>>(() => lerJson(STORAGE_KEY, {}))
 
   const [loading, setLoading] = useState(false)
   const [isAutoSyncing, setIsAutoSyncing] = useState(false)
@@ -255,6 +302,8 @@ export function useRhSheet() {
   const [lastSync, setLastSync] = useState<string | null>(() => localStorage.getItem(LAST_SYNC_KEY))
 
   const isFetchingRef = useRef(false)
+  const cacheRef = useRef(cache)
+  cacheRef.current = cache
   const abasRef = useRef(abas)
   abasRef.current = abas
   const mesRef = useRef(mesSelecionado)
@@ -262,8 +311,6 @@ export function useRhSheet() {
   // Enquanto o usuário não escolher um mês, acompanha o mais novo
   // (ex.: o RH cria as abas de outubro e elas já abrem sozinhas).
   const escolhaManualRef = useRef(false)
-  const mesBuscadoRef = useRef<string | null>(null)
-  const fetchSheetRef = useRef<(silent?: boolean) => Promise<void>>(async () => {})
 
   const fetchSheet = useCallback(async (silent: boolean = false) => {
     if (isFetchingRef.current) return
@@ -278,7 +325,6 @@ export function useRhSheet() {
 
     try {
       let abasAtuais = abasRef.current
-      let mes = mesRef.current
       try {
         const resAbas = await fetch(`${URL_PUBHTML}?t=${Date.now()}`)
         const novasAbas = resAbas.ok ? parseAbasPublicadas(await resAbas.text()) : []
@@ -286,22 +332,15 @@ export function useRhSheet() {
           abasAtuais = novasAbas
           setAbas(novasAbas)
           salvarJson(ABAS_STORAGE_KEY, novasAbas)
-          const novosMeses = mesesDasAbas(novasAbas)
-          if (!escolhaManualRef.current || !novosMeses.includes(mes)) {
-            mes = novosMeses[novosMeses.length - 1]
-            mesRef.current = mes
-            setMesSelecionado(mes)
-          }
         }
       } catch (err) {
         // sem a lista de abas, segue com as que já conhece
         console.error('Erro ao listar abas da planilha RH:', err)
       }
-      mesBuscadoRef.current = mes
 
-      const abasDoMes = abasAtuais.filter((a) => a.mes === mes)
+      // Lê todas as abas: o mês vem da coluna "MÊS" de cada linha, não do nome da aba.
       const resultados = await Promise.allSettled(
-        abasDoMes.map(async ({ empresa, gid, formato }) => {
+        abasAtuais.map(async ({ empresa, gid, formato }) => {
           const res = await fetch(`${urlAba(gid)}&t=${Date.now()}`)
           if (!res.ok) throw new Error(`${empresa}: status ${res.status}`)
           const text = await res.text()
@@ -309,22 +348,46 @@ export function useRhSheet() {
         }),
       )
 
-      const parsed: ColaboradorRH[] = []
+      const lidas: { aba: AbaRH; linhas: LinhaRH[] }[] = []
       const falhas: string[] = []
       resultados.forEach((r, i) => {
-        if (r.status === 'fulfilled') parsed.push(...r.value)
-        else falhas.push(abasDoMes[i].empresa)
+        if (r.status === 'fulfilled') lidas.push({ aba: abasAtuais[i], linhas: r.value })
+        else falhas.push(abasAtuais[i].empresa)
       })
 
-      if (parsed.length === 0) {
+      const mesesDasLinhas = ordenarMeses(lidas.flatMap(({ linhas }) => linhas.map((l) => l.mes)).filter(Boolean))
+      const porMes: Record<string, ColaboradorRH[]> = {}
+      const adicionar = (mes: string, item: ColaboradorRH) => {
+        ;(porMes[mes] ??= []).push(item)
+      }
+      for (const { aba, linhas } of lidas) {
+        // Aba sem coluna "MÊS" (ex.: TERCEIROS): se a empresa tem uma aba por mês,
+        // vale o mês do nome; senão a lista vale para todos os meses da planilha.
+        const abaPorMes = abasAtuais.filter((a) => a.empresa === aba.empresa).length > 1
+        const mesesSemColuna = abaPorMes || mesesDasLinhas.length === 0 ? [aba.mes] : mesesDasLinhas
+        for (const { mes, item } of linhas) {
+          if (mes) adicionar(mes, item)
+          else mesesSemColuna.forEach((m) => adicionar(m, item))
+        }
+      }
+
+      if (Object.keys(porMes).length === 0) {
         throw new Error('Nenhum colaborador encontrado na planilha')
       }
 
-      setCache((anterior) => {
-        const novo = { ...anterior, [mes]: parsed }
-        salvarJson(STORAGE_KEY, novo)
-        return novo
-      })
+      // Empresa que falhou nesta leitura mantém o que já estava salvo.
+      for (const [mes, itens] of Object.entries(cacheRef.current)) {
+        itens.filter((it) => falhas.includes(it.empresa)).forEach((it) => adicionar(mes, it))
+      }
+      cacheRef.current = porMes
+      setCache(porMes)
+      salvarJson(STORAGE_KEY, porMes)
+      const novosMeses = ordenarMeses(Object.keys(porMes))
+      if (!escolhaManualRef.current || !novosMeses.includes(mesRef.current)) {
+        const maisRecente = novosMeses[novosMeses.length - 1]
+        mesRef.current = maisRecente
+        setMesSelecionado(maisRecente)
+      }
       const now = new Date()
       const nowStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       const fullSyncStr = `${now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ÀS ${nowStr}`
@@ -344,13 +407,8 @@ export function useRhSheet() {
       setLoading(false)
       setIsAutoSyncing(false)
       isFetchingRef.current = false
-      // Trocou de mês enquanto buscava o anterior: busca o novo agora.
-      if (mesBuscadoRef.current !== null && mesRef.current !== mesBuscadoRef.current) {
-        setTimeout(() => fetchSheetRef.current(true), 0)
-      }
     }
   }, [])
-  fetchSheetRef.current = fetchSheet
 
   useEffect(() => {
     fetchSheet(Boolean(cache[mesSelecionado]))
@@ -361,7 +419,8 @@ export function useRhSheet() {
       escolhaManualRef.current = true
       mesRef.current = mes
       setMesSelecionado(mes)
-      fetchSheet(Boolean(cache[mes]))
+      // Todas as abas já vêm em cada leitura: só busca se o mês ainda não estiver salvo.
+      if (!cache[mes]) fetchSheet()
     },
     [cache, fetchSheet],
   )
