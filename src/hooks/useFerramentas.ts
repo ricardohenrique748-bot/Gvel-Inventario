@@ -825,6 +825,12 @@ export interface RegistrarDevolucaoInput {
   observacoes_devolucao?: string
 }
 
+class DevolucaoNaoGravadaError extends Error {
+  constructor(motivo: string) {
+    super(`Devolução não foi gravada: ${motivo}. A ferramenta continua em uso.`)
+  }
+}
+
 export async function registrarDevolucaoFerramenta(input: RegistrarDevolucaoInput): Promise<void> {
   const statusDevolucao = input.status || 'devolvido'
 
@@ -836,7 +842,10 @@ export async function registrarDevolucaoFerramenta(input: RegistrarDevolucaoInpu
       .single()
 
     if (retirada) {
-      await supabase
+      // Erro aqui era ignorado: a tela mostrava a devolução feita e a
+      // ferramenta continuava "em uso" no banco. Sem permissão o update não
+      // dá erro, só não altera nenhuma linha — por isso confere o retorno.
+      const { data: atualizadas, error: erroDevolucao } = await supabase
         .from('ferramentas_retiradas')
         .update({
           status: statusDevolucao,
@@ -844,6 +853,11 @@ export async function registrarDevolucaoFerramenta(input: RegistrarDevolucaoInpu
           observacoes_devolucao: input.observacoes_devolucao?.trim() || null,
         })
         .eq('id', input.retiradaId)
+        .select('id')
+      if (erroDevolucao) throw new DevolucaoNaoGravadaError(erroDevolucao.message)
+      if (!atualizadas || atualizadas.length === 0) {
+        throw new DevolucaoNaoGravadaError('o banco não permitiu alterar esta retirada')
+      }
 
       const f = retirada.ferramenta as Ferramenta | undefined
       if (f) {
@@ -865,6 +879,7 @@ export async function registrarDevolucaoFerramenta(input: RegistrarDevolucaoInpu
       }
     }
   } catch (err) {
+    if (err instanceof DevolucaoNaoGravadaError) throw err
     console.warn('Erro ao atualizar devolução no Supabase:', err)
   }
 
