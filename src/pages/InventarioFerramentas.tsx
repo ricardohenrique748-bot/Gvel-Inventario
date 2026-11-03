@@ -553,6 +553,7 @@ export function InventarioFerramentas() {
   const [fotoModalUrl, setFotoModalUrl] = useState<{ url: string; titulo: string } | null>(null)
   const [ferramentaHistorico, setFerramentaHistorico] = useState<Ferramenta | null>(null)
   const [itemConsumoHistorico, setItemConsumoHistorico] = useState<ItemConsumo | null>(null)
+  const [detalheMetricaConsumo, setDetalheMetricaConsumo] = useState<'estoque_baixo' | 'baixas' | null>(null)
 
   // Mensagens de erro/sucesso
   const [mensagemErro, setMensagemErro] = useState<string | null>(null)
@@ -2485,7 +2486,18 @@ export function InventarioFerramentas() {
               <p className="text-[10px] text-secondary font-semibold mt-0.5">UNIDADES DISPONÍVEIS</p>
             </Card>
 
-            <Card className={`p-3.5 sm:p-4 ${metricasConsumo.emAlerta > 0 ? 'border-red-500/30 bg-red-500/5' : 'bg-surface/80'}`}>
+            <Card
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetalheMetricaConsumo('estoque_baixo')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setDetalheMetricaConsumo('estoque_baixo')
+                }
+              }}
+              className={`p-3.5 sm:p-4 cursor-pointer transition-all hover:scale-[1.02] hover:border-red-500/50 ${metricasConsumo.emAlerta > 0 ? 'border-red-500/30 bg-red-500/5' : 'bg-surface/80'}`}
+            >
               <div className="flex items-center justify-between text-secondary">
                 <span className={`text-[11px] font-bold uppercase tracking-wider ${metricasConsumo.emAlerta > 0 ? 'text-red-400' : ''}`}>
                   ESTOQUE BAIXO
@@ -2498,7 +2510,18 @@ export function InventarioFerramentas() {
               <p className="text-[10px] text-secondary font-semibold mt-0.5">PREVISTO REPOSIÇÃO</p>
             </Card>
 
-            <Card className="p-3.5 sm:p-4 bg-surface/80">
+            <Card
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetalheMetricaConsumo('baixas')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setDetalheMetricaConsumo('baixas')
+                }
+              }}
+              className="p-3.5 sm:p-4 bg-surface/80 cursor-pointer transition-all hover:scale-[1.02] hover:border-amber-500/50"
+            >
               <div className="flex items-center justify-between text-secondary">
                 <span className="text-[11px] font-bold uppercase tracking-wider">BAIXAS REGISTRADAS</span>
                 <TrendingDown className="h-4 w-4 text-amber-500" />
@@ -3360,6 +3383,20 @@ export function InventarioFerramentas() {
         />
       )}
 
+      {/* ==================== MODAL: DETALHE DOS CARDS DE MÉTRICA DE CONSUMO ==================== */}
+      {detalheMetricaConsumo && (
+        <ModalDetalheMetricaConsumo
+          tipo={detalheMetricaConsumo}
+          itens={itensConsumo}
+          baixas={baixasConsumo}
+          onClose={() => setDetalheMetricaConsumo(null)}
+          onAbrirItem={(it) => {
+            setDetalheMetricaConsumo(null)
+            setItemConsumoHistorico(it)
+          }}
+        />
+      )}
+
       {/* ==================== MODAL: HISTÓRICO DE BAIXAS DO BARRIL/INSUMO ==================== */}
       {itemConsumoHistorico && (
         <ModalHistoricoConsumo
@@ -3435,6 +3472,218 @@ export function InventarioFerramentas() {
           }}
         />
       )}
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------------------
+// Subcomponente: Detalhe dos cards "Estoque Baixo" e "Baixas Registradas"
+// ----------------------------------------------------------------------------------
+function ModalDetalheMetricaConsumo({
+  tipo,
+  itens,
+  baixas,
+  onClose,
+  onAbrirItem,
+}: {
+  tipo: 'estoque_baixo' | 'baixas'
+  itens: ItemConsumo[]
+  baixas: RegistroBaixaConsumo[]
+  onClose: () => void
+  onAbrirItem: (item: ItemConsumo) => void
+}) {
+  const [busca, setBusca] = useState('')
+  const termo = busca.trim().toLowerCase()
+
+  const itensBaixos = useMemo(() => {
+    return itens
+      .filter((it) => it.quantidade_atual <= it.quantidade_minima)
+      .filter(
+        (it) =>
+          !termo ||
+          it.nome.toLowerCase().includes(termo) ||
+          (it.codigo && it.codigo.toLowerCase().includes(termo)) ||
+          it.categoria.toLowerCase().includes(termo),
+      )
+      .sort((a, b) => a.quantidade_atual - a.quantidade_minima - (b.quantidade_atual - b.quantidade_minima))
+  }, [itens, termo])
+
+  const baixasFiltradas = useMemo(() => {
+    return baixas
+      .filter(
+        (b) =>
+          !termo ||
+          b.item_nome.toLowerCase().includes(termo) ||
+          (b.responsavel && b.responsavel.toLowerCase().includes(termo)) ||
+          (b.placa && b.placa.toLowerCase().includes(termo)) ||
+          (b.motivo && b.motivo.toLowerCase().includes(termo)),
+      )
+      .sort((a, b) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime())
+  }, [baixas, termo])
+
+  const [limite, setLimite] = useState(50)
+  const ehEstoqueBaixo = tipo === 'estoque_baixo'
+  const total = ehEstoqueBaixo ? itensBaixos.length : baixasFiltradas.length
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="relative flex flex-col max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-3xl border border-border/25 bg-surface shadow-2xl animate-scale-in uppercase"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border/15 p-5 bg-overlay/5">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div
+              className={`flex h-12 w-12 items-center justify-center rounded-2xl border shrink-0 ${
+                ehEstoqueBaixo
+                  ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                  : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+              }`}
+            >
+              {ehEstoqueBaixo ? <AlertTriangle className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base font-black text-foreground truncate">
+                {ehEstoqueBaixo ? 'ESTOQUE BAIXO' : 'BAIXAS REGISTRADAS'}
+              </h2>
+              <p className="text-[11px] text-secondary font-semibold">
+                {ehEstoqueBaixo
+                  ? `${total} ${total === 1 ? 'ITEM PRECISA' : 'ITENS PRECISAM'} DE REPOSIÇÃO`
+                  : `${total} ${total === 1 ? 'SAÍDA' : 'SAÍDAS'} DE CONSUMO`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-2 text-secondary hover:bg-overlay/10 hover:text-foreground transition-colors cursor-pointer"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-4 border-b border-border/10 bg-background/50">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
+            <input
+              type="text"
+              value={busca}
+              onChange={(e) => {
+                setBusca(e.target.value)
+                setLimite(50)
+              }}
+              placeholder={ehEstoqueBaixo ? 'BUSCAR ITEM, CÓDIGO OU CATEGORIA...' : 'BUSCAR ITEM, RESPONSÁVEL, PLACA OU MOTIVO...'}
+              className="w-full rounded-xl border border-border/30 bg-surface py-2.5 pl-9 pr-3 text-xs font-semibold text-foreground placeholder:text-secondary/60 focus:border-primary focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {total === 0 && (
+            <p className="py-10 text-center text-xs font-bold text-secondary">
+              {ehEstoqueBaixo ? 'NENHUM ITEM COM ESTOQUE BAIXO.' : 'NENHUMA BAIXA ENCONTRADA.'}
+            </p>
+          )}
+
+          {ehEstoqueBaixo &&
+            itensBaixos.map((it) => {
+              const zerado = it.quantidade_atual <= 0
+              const faltam = Math.max(0, it.quantidade_minima - it.quantidade_atual)
+              return (
+                <button
+                  key={it.id}
+                  type="button"
+                  onClick={() => onAbrirItem(it)}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-border/15 bg-background/40 p-3 text-left transition-colors hover:border-red-500/40 hover:bg-red-500/5 cursor-pointer"
+                >
+                  {it.foto_url ? (
+                    <img src={it.foto_url} alt={it.nome} className="h-10 w-10 rounded-xl object-cover border border-border/30 shrink-0" />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-overlay/5 border border-border/20 text-secondary shrink-0">
+                      <Package className="h-5 w-5" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-black text-foreground">{it.nome}</p>
+                    <p className="truncate text-[10px] font-semibold text-secondary">
+                      {it.codigo ? `${it.codigo} · ` : ''}
+                      {it.categoria}
+                      {it.localizacao ? ` · 📍 ${it.localizacao}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={`text-base font-black tabular-nums ${zerado ? 'text-red-500' : 'text-red-400'}`}>
+                      {it.quantidade_atual.toLocaleString('pt-BR')}{' '}
+                      <span className="text-[10px] text-secondary">{it.unidade}</span>
+                    </p>
+                    <p className="text-[10px] font-semibold text-secondary">
+                      MÍN {it.quantidade_minima.toLocaleString('pt-BR')}
+                      {faltam > 0 ? ` · FALTAM ${faltam.toLocaleString('pt-BR')}` : ''}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+
+          {!ehEstoqueBaixo &&
+            baixasFiltradas.slice(0, limite).map((b) => {
+              const item = itens.find((it) => it.id === b.item_id)
+              const data = new Date(b.data_hora)
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  disabled={!item}
+                  onClick={() => item && onAbrirItem(item)}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-border/15 bg-background/40 p-3 text-left transition-colors enabled:hover:border-amber-500/40 enabled:hover:bg-amber-500/5 enabled:cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-black text-foreground">
+                      {b.item_nome}
+                      {b.numero_tambor ? <span className="ml-1.5 text-[10px] text-secondary">GV {b.numero_tambor}</span> : null}
+                    </p>
+                    <p className="truncate text-[10px] font-semibold text-secondary">
+                      👤 {b.responsavel || '—'}
+                      {b.placa ? ` · 🚚 ${b.placa}` : ''}
+                      {b.motivo ? ` · ${b.motivo}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-base font-black tabular-nums text-amber-500">
+                      -{b.quantidade.toLocaleString('pt-BR')} <span className="text-[10px] text-secondary">{b.unidade}</span>
+                    </p>
+                    <p className="text-[10px] font-semibold text-secondary tabular-nums">
+                      {isNaN(data.getTime())
+                        ? '—'
+                        : data.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+
+          {!ehEstoqueBaixo && baixasFiltradas.length > limite && (
+            <button
+              type="button"
+              onClick={() => setLimite((l) => l + 50)}
+              className="w-full rounded-xl border border-border/20 py-2.5 text-xs font-bold text-secondary hover:bg-overlay/5 hover:text-foreground cursor-pointer"
+            >
+              CARREGAR MAIS ({baixasFiltradas.length - limite} RESTANTES)
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

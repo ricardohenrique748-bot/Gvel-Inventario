@@ -479,7 +479,27 @@ export function useRetiradasFerramentas(filtros: RetiradasFiltros = {}) {
         query = query.ilike('responsavel', `%${filtros.responsavel.trim()}%`)
       }
 
-      const { data, error: sbError } = await query
+      const { data: recentes, error: sbError } = await query
+
+      // As retiradas ainda em uso vêm SEMPRE, mesmo fora das 200 mais
+      // recentes. Antes uma retirada antiga (ou uma cópia duplicada pela
+      // sincronização) ficava fora da lista: não dava para dar baixa nela e
+      // ela segurava o estoque da ferramenta em 0 ("1 em uso").
+      let data = recentes
+      if (!sbError && recentes && (!filtros.status || filtros.status === 'todas' || filtros.status === 'em_uso')) {
+        let qEmUso = supabase
+          .from('ferramentas_retiradas')
+          .select('*, ferramenta:ferramentas(id,nome,codigo)')
+          .eq('status', 'em_uso')
+          .order('data_hora_retirada', { ascending: false })
+        if (filtros.placa) qEmUso = qEmUso.ilike('placa', `%${filtros.placa.trim()}%`)
+        if (filtros.responsavel) qEmUso = qEmUso.ilike('responsavel', `%${filtros.responsavel.trim()}%`)
+        const { data: emUso } = await qEmUso
+        if (emUso && emUso.length > 0) {
+          const ids = new Set(recentes.map((r) => r.id))
+          data = [...recentes, ...emUso.filter((r) => !ids.has(r.id))]
+        }
+      }
 
       if (!sbError && data && data.length > 0) {
         const formatadas = data.map(formatarRetiradaComFoto)
@@ -1224,11 +1244,39 @@ export async function sincronizarTudoParaSupabase(): Promise<{ sucesso: boolean;
         payload.ferramenta_id = r.ferramenta_id
       }
 
-      if (payload.ferramenta_id) {
-        const { error } = await supabase.from('ferramentas_retiradas').upsert(payload)
+      if (!payload.ferramenta_id) continue
+
+      if (isUUID) {
+        // Já existe no banco: só grava se faltar lá. Antes o upsert regravava
+        // o status da cópia do aparelho, que podia estar velha, e uma
+        // retirada já devolvida voltava a ficar "em uso".
+        const { error } = await supabase
+          .from('ferramentas_retiradas')
+          .upsert(payload, { onConflict: 'id', ignoreDuplicates: true })
         if (!error) gravadasRetiradas++
+      } else {
+        // Feita offline (id "ret_..."): insere uma vez e passa a usar o id do
+        // banco. Antes ela continuava com o id local e era inserida de novo a
+        // cada sincronização, criando cópias "em uso" que prendiam o estoque.
+        const { data: inserida, error } = await supabase
+          .from('ferramentas_retiradas')
+          .insert(payload)
+          .select('id')
+          .single()
+        if (!error && inserida) {
+          gravadasRetiradas++
+          const atuais = getRetiradasLocais()
+          const local = atuais.find((x) => x.id === r.id)
+          if (local) {
+            local.id = inserida.id
+            salvarRetiradasLocais(atuais)
+          }
+        }
       }
     }
+
+    // Recalcula o disponível de todas as ferramentas pelas retiradas em uso.
+    await fetchTodasFerramentasSupabase()
 
     return {
       sucesso: true,
