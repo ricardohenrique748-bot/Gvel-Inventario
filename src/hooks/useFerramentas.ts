@@ -243,7 +243,106 @@ export async function fetchTodasFerramentasSupabase(): Promise<Ferramenta[]> {
     }
   }
 
-  return todas.map(formatarFerramentaComFoto)
+  const formatadas = todas.map(formatarFerramentaComFoto)
+  await corrigirDisponivelPelasRetiradas(formatadas)
+  return formatadas
+}
+
+/**
+ * Soma, por ferramenta, as retiradas ainda em uso (no banco e as que só
+ * existem no aparelho por terem sido feitas offline).
+ */
+async function buscarEmUsoPorFerramenta(ferramentaId?: string): Promise<Map<string, number> | null> {
+  const emUso = new Map<string, number>()
+  let query = supabase.from('ferramentas_retiradas').select('ferramenta_id,quantidade').eq('status', 'em_uso')
+  if (ferramentaId) query = query.eq('ferramenta_id', ferramentaId)
+  const { data, error } = await query
+  if (error || !data) return null
+  for (const r of data) {
+    emUso.set(r.ferramenta_id, (emUso.get(r.ferramenta_id) || 0) + (Number(r.quantidade) || 1))
+  }
+  for (const r of getRetiradasLocais()) {
+    if (REGEX_UUID.test(r.id) || r.status !== 'em_uso') continue
+    if (ferramentaId && r.ferramenta_id !== ferramentaId) continue
+    emUso.set(r.ferramenta_id, (emUso.get(r.ferramenta_id) || 0) + (Number(r.quantidade) || 1))
+  }
+  return emUso
+}
+
+function disponivelCorreto(total: number, emUso: number): number {
+  return Math.max(0, (Number(total) || 0) - emUso)
+}
+
+/**
+ * O disponível gravado na ferramenta podia ficar errado (devolução que não
+ * somava de volta, sincronização que regravava um valor antigo do aparelho,
+ * ajuste feito sobre um valor lido antes). A fonte da verdade são as
+ * retiradas em uso: disponível = total − em uso. Corrige a lista recebida e
+ * grava no banco as que estavam divergentes.
+ */
+async function corrigirDisponivelPelasRetiradas(ferramentas: Ferramenta[]): Promise<void> {
+  try {
+    const emUso = await buscarEmUsoPorFerramenta()
+    if (!emUso) return
+    const divergentes: Ferramenta[] = []
+    for (const f of ferramentas) {
+      const correto = disponivelCorreto(f.quantidade_total, emUso.get(f.id) || 0)
+      if (f.quantidade_disponivel !== correto) {
+        f.quantidade_disponivel = correto
+        divergentes.push(f)
+      }
+    }
+    await Promise.all(
+      divergentes.map((f) =>
+        supabase.from('ferramentas').update({ quantidade_disponivel: f.quantidade_disponivel }).eq('id', f.id),
+      ),
+    )
+  } catch (err) {
+    console.warn('Erro ao conferir o disponível das ferramentas:', err)
+  }
+}
+
+/**
+ * Recalcula o disponível de uma ferramenta a partir das retiradas em uso, no
+ * banco e na cópia local. Usado depois de qualquer retirada, devolução,
+ * edição ou exclusão, no lugar de somar/subtrair sobre um valor que podia
+ * estar desatualizado.
+ */
+async function recalcularDisponivelFerramenta(ferramentaId: string): Promise<void> {
+  if (!ferramentaId) return
+  let total: number | null = null
+  let emUsoQtd: number | null = null
+  try {
+    const { data: f } = await supabase
+      .from('ferramentas')
+      .select('quantidade_total')
+      .eq('id', ferramentaId)
+      .maybeSingle()
+    const emUso = await buscarEmUsoPorFerramenta(ferramentaId)
+    if (f && emUso) {
+      total = Number(f.quantidade_total) || 0
+      emUsoQtd = emUso.get(ferramentaId) || 0
+      await supabase
+        .from('ferramentas')
+        .update({ quantidade_disponivel: disponivelCorreto(total, emUsoQtd) })
+        .eq('id', ferramentaId)
+    }
+  } catch (err) {
+    console.warn('Erro ao recalcular disponível da ferramenta no Supabase:', err)
+  }
+
+  const locais = getFerramentasLocais()
+  const local = locais.find((f) => f.id === ferramentaId)
+  if (local) {
+    if (total !== null) local.quantidade_total = total
+    if (emUsoQtd === null) {
+      emUsoQtd = getRetiradasLocais()
+        .filter((r) => r.ferramenta_id === ferramentaId && r.status === 'em_uso')
+        .reduce((s, r) => s + (Number(r.quantidade) || 1), 0)
+    }
+    local.quantidade_disponivel = disponivelCorreto(local.quantidade_total, emUsoQtd)
+    salvarFerramentasLocais(locais)
+  }
 }
 
 const REGEX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -755,25 +854,14 @@ export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput)
     if (!insertError && retirada) {
       retiradaRemota = formatarRetiradaComFoto(retirada)
 
+      // Saída definitiva tira a unidade do total; o disponível é recalculado
+      // no fim a partir das retiradas em uso.
       if (isDefinitiva) {
-        const { data: f } = await supabase.from('ferramentas').select('*').eq('id', input.ferramenta_id).single()
+        const { data: f } = await supabase.from('ferramentas').select('quantidade_total').eq('id', input.ferramenta_id).single()
         if (f) {
           await supabase
             .from('ferramentas')
-            .update({
-              quantidade_disponivel: Math.max(0, f.quantidade_disponivel - qtd),
-              quantidade_total: Math.max(0, f.quantidade_total - qtd),
-            })
-            .eq('id', input.ferramenta_id)
-        }
-      } else {
-        const { data: f } = await supabase.from('ferramentas').select('*').eq('id', input.ferramenta_id).single()
-        if (f) {
-          await supabase
-            .from('ferramentas')
-            .update({
-              quantidade_disponivel: Math.max(0, f.quantidade_disponivel - qtd),
-            })
+            .update({ quantidade_total: Math.max(0, (Number(f.quantidade_total) || 0) - qtd) })
             .eq('id', input.ferramenta_id)
         }
       }
@@ -803,18 +891,15 @@ export async function registrarRetiradaFerramenta(input: RegistrarRetiradaInput)
     ferramenta,
   }
 
-  if (ferramenta) {
-    if (isDefinitiva) {
-      ferramenta.quantidade_disponivel = Math.max(0, ferramenta.quantidade_disponivel - qtd)
-      ferramenta.quantidade_total = Math.max(0, ferramenta.quantidade_total - qtd)
-    } else {
-      ferramenta.quantidade_disponivel = Math.max(0, ferramenta.quantidade_disponivel - qtd)
-    }
+  if (ferramenta && isDefinitiva && !retiradaRemota) {
+    ferramenta.quantidade_total = Math.max(0, ferramenta.quantidade_total - qtd)
     salvarFerramentasLocais(locais)
   }
 
   const retiradas = getRetiradasLocais()
   salvarRetiradasLocais([novaRetirada, ...retiradas])
+
+  await recalcularDisponivelFerramenta(input.ferramenta_id)
 
   return novaRetirada
 }
@@ -833,6 +918,7 @@ class DevolucaoNaoGravadaError extends Error {
 
 export async function registrarDevolucaoFerramenta(input: RegistrarDevolucaoInput): Promise<void> {
   const statusDevolucao = input.status || 'devolvido'
+  let ferramentaId: string | null = null
 
   try {
     const { data: retirada } = await supabase
@@ -859,21 +945,19 @@ export async function registrarDevolucaoFerramenta(input: RegistrarDevolucaoInpu
         throw new DevolucaoNaoGravadaError('o banco não permitiu alterar esta retirada')
       }
 
-      const f = retirada.ferramenta as Ferramenta | undefined
-      if (f) {
-        if (statusDevolucao === 'devolvido') {
+      ferramentaId = retirada.ferramenta_id
+      // Perda/avaria: a unidade sai do total. Só desconta se a retirada
+      // estava em uso (se já tinha sido baixada antes, o total já caiu).
+      if (statusDevolucao === 'avaria_perda' && retirada.status === 'em_uso') {
+        const { data: f } = await supabase
+          .from('ferramentas')
+          .select('quantidade_total')
+          .eq('id', retirada.ferramenta_id)
+          .maybeSingle()
+        if (f) {
           await supabase
             .from('ferramentas')
-            .update({
-              quantidade_disponivel: Math.min(f.quantidade_total, f.quantidade_disponivel + retirada.quantidade),
-            })
-            .eq('id', retirada.ferramenta_id)
-        } else if (statusDevolucao === 'avaria_perda') {
-          await supabase
-            .from('ferramentas')
-            .update({
-              quantidade_total: Math.max(0, f.quantidade_total - retirada.quantidade),
-            })
+            .update({ quantidade_total: Math.max(0, (Number(f.quantidade_total) || 0) - (retirada.quantidade || 1)) })
             .eq('id', retirada.ferramenta_id)
         }
       }
@@ -886,28 +970,29 @@ export async function registrarDevolucaoFerramenta(input: RegistrarDevolucaoInpu
   const retiradas = getRetiradasLocais()
   const retirada = retiradas.find((r) => r.id === input.retiradaId)
   if (retirada) {
+    const estavaEmUso = retirada.status === 'em_uso'
     retirada.status = statusDevolucao
     retirada.data_hora_devolucao = new Date().toISOString()
     retirada.observacoes_devolucao = input.observacoes_devolucao?.trim() || null
     salvarRetiradasLocais(retiradas)
+    ferramentaId = ferramentaId || retirada.ferramenta_id
 
-    const locais = getFerramentasLocais()
-    const ferramenta = locais.find((f) => f.id === retirada.ferramenta_id)
-    if (ferramenta) {
-      if (statusDevolucao === 'devolvido') {
-        ferramenta.quantidade_disponivel = Math.min(
-          ferramenta.quantidade_total,
-          ferramenta.quantidade_disponivel + retirada.quantidade,
-        )
-      } else if (statusDevolucao === 'avaria_perda') {
+    // Só a cópia local (retirada feita offline): ajusta o total aqui.
+    if (statusDevolucao === 'avaria_perda' && estavaEmUso && !REGEX_UUID.test(retirada.id)) {
+      const locais = getFerramentasLocais()
+      const ferramenta = locais.find((f) => f.id === retirada.ferramenta_id)
+      if (ferramenta) {
         ferramenta.quantidade_total = Math.max(0, ferramenta.quantidade_total - retirada.quantidade)
+        salvarFerramentasLocais(locais)
       }
-      salvarFerramentasLocais(locais)
     }
   }
+
+  if (ferramentaId) await recalcularDisponivelFerramenta(ferramentaId)
 }
 
 export async function reverterDevolucaoFerramenta(retiradaId: string): Promise<void> {
+  let ferramentaId: string | null = null
   try {
     const { data: retirada } = await supabase
       .from('ferramentas_retiradas')
@@ -924,16 +1009,7 @@ export async function reverterDevolucaoFerramenta(retiradaId: string): Promise<v
           observacoes_devolucao: null,
         })
         .eq('id', retiradaId)
-
-      const f = retirada.ferramenta as Ferramenta | undefined
-      if (f) {
-        await supabase
-          .from('ferramentas')
-          .update({
-            quantidade_disponivel: Math.max(0, (f.quantidade_disponivel || 0) - (retirada.quantidade || 1)),
-          })
-          .eq('id', retirada.ferramenta_id)
-      }
+      ferramentaId = retirada.ferramenta_id
     }
   } catch (err) {
     console.warn('Erro ao reverter devolução no Supabase:', err)
@@ -946,14 +1022,10 @@ export async function reverterDevolucaoFerramenta(retiradaId: string): Promise<v
     retirada.data_hora_devolucao = null
     retirada.observacoes_devolucao = null
     salvarRetiradasLocais(retiradas)
-
-    const locais = getFerramentasLocais()
-    const ferramenta = locais.find((f) => f.id === retirada.ferramenta_id)
-    if (ferramenta) {
-      ferramenta.quantidade_disponivel = Math.max(0, (ferramenta.quantidade_disponivel || 0) - (retirada.quantidade || 1))
-      salvarFerramentasLocais(locais)
-    }
+    ferramentaId = ferramentaId || retirada.ferramenta_id
   }
+
+  if (ferramentaId) await recalcularDisponivelFerramenta(ferramentaId)
 }
 
 export interface AtualizarRetiradaInput {
@@ -1009,15 +1081,11 @@ export async function atualizarRetiradaFerramenta(input: AtualizarRetiradaInput)
     console.warn('Erro ao atualizar retirada no Supabase:', sbErr)
   }
 
-  if (
+  const mudouEstoque =
     anterior &&
     anterior.status === 'em_uso' &&
     (atualizouNoBanco || retiradaIndex >= 0) &&
     (anterior.ferramenta_id !== novaFerramentaId || (anterior.quantidade || 1) !== novaQtd)
-  ) {
-    await ajustarDisponivelFerramenta(anterior.ferramenta_id, anterior.quantidade || 1)
-    await ajustarDisponivelFerramenta(novaFerramentaId, -novaQtd)
-  }
 
   const locais = getFerramentasLocais()
   const atualizada: FerramentaRetirada = {
@@ -1044,37 +1112,12 @@ export async function atualizarRetiradaFerramenta(input: AtualizarRetiradaInput)
     salvarRetiradasLocais(retiradas)
   }
 
+  if (mudouEstoque && anterior) {
+    await recalcularDisponivelFerramenta(anterior.ferramenta_id)
+    if (novaFerramentaId !== anterior.ferramenta_id) await recalcularDisponivelFerramenta(novaFerramentaId)
+  }
+
   return atualizada
-}
-
-// Soma `delta` ao disponível da ferramenta (negativo = retirar), sempre entre
-// 0 e o total — no Supabase e na cópia local. Usado quando uma retirada em uso
-// é excluída ou editada, para o estoque não ficar descontado sem saída.
-async function ajustarDisponivelFerramenta(ferramentaId: string, delta: number): Promise<void> {
-  if (!ferramentaId || !delta) return
-  try {
-    const { data: f } = await supabase
-      .from('ferramentas')
-      .select('quantidade_total,quantidade_disponivel')
-      .eq('id', ferramentaId)
-      .maybeSingle()
-    if (f) {
-      const total = Number(f.quantidade_total) || 0
-      await supabase
-        .from('ferramentas')
-        .update({ quantidade_disponivel: Math.min(total, Math.max(0, (Number(f.quantidade_disponivel) || 0) + delta)) })
-        .eq('id', ferramentaId)
-    }
-  } catch (err) {
-    console.warn('Erro ao ajustar disponível da ferramenta no Supabase:', err)
-  }
-
-  const locais = getFerramentasLocais()
-  const local = locais.find((f) => f.id === ferramentaId)
-  if (local) {
-    local.quantidade_disponivel = Math.min(local.quantidade_total, Math.max(0, (local.quantidade_disponivel || 0) + delta))
-    salvarFerramentasLocais(locais)
-  }
 }
 
 /** Estado atual da retirada: o do banco tem prioridade sobre a cópia local. */
@@ -1098,9 +1141,6 @@ export async function excluirRetiradaFerramenta(retiradaId: string): Promise<voi
   // Antes só devolvia ao estoque na cópia local: no banco a ferramenta ficava
   // "em uso" sem nenhuma saída registrada.
   const retirada = await buscarRetiradaAtual(retiradaId)
-  if (retirada && retirada.status === 'em_uso') {
-    await ajustarDisponivelFerramenta(retirada.ferramenta_id, retirada.quantidade || 1)
-  }
 
   salvarRetiradasLocais(getRetiradasLocais().filter((r) => r.id !== retiradaId))
 
@@ -1108,6 +1148,10 @@ export async function excluirRetiradaFerramenta(retiradaId: string): Promise<voi
     await supabase.from('ferramentas_retiradas').delete().eq('id', retiradaId)
   } catch (sbErr) {
     console.warn('Retirada excluída localmente:', sbErr)
+  }
+
+  if (retirada && retirada.status === 'em_uso') {
+    await recalcularDisponivelFerramenta(retirada.ferramenta_id)
   }
 }
 
