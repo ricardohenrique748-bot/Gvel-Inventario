@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { extrairFotosExtras } from '@/lib/fotosExtras'
+import { GaleriaFotosModal, type FotoGaleria } from '@/components/GaleriaFotosModal'
 import type { VeiculoPublicoItem } from '@/lib/types'
 
 function StatusManutencaoBadgePublico({ status }: { status: string | null }) {
@@ -30,7 +31,7 @@ export function VeiculoPublico() {
   const [historico, setHistorico] = useState<VeiculoPublicoItem[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [fotoAmpliada, setFotoAmpliada] = useState<{ url: string; label: string } | null>(null)
+  const [galeria, setGaleria] = useState<{ fotos: FotoGaleria[]; indice: number } | null>(null)
 
   useEffect(() => {
     if (!token || !veiculoId) return
@@ -140,6 +141,22 @@ export function VeiculoPublico() {
                     const { textoLimpo, fotosExtras } = extrairFotosExtras(m.observacoes)
                     const temFotosPadrao = FOTOS_MOVIMENTACAO.some(({ campo }) => m[campo])
                     const temFotos = temFotosPadrao || fotosExtras.length > 0
+                    // Todas as fotos da movimentação, para passar entre elas no modal.
+                    const fotosGaleria: FotoGaleria[] = [
+                      ...FOTOS_MOVIMENTACAO.flatMap(({ campo, label }) => {
+                        const url = m[campo] as string | null
+                        return url ? [{ url, label }] : []
+                      }),
+                      ...fotosExtras.map((extra, idx) => ({
+                        url: extra.url,
+                        label: extra.label || `Foto extra ${idx + 1}`,
+                      })),
+                    ]
+                    const abrirGaleria = (url: string) =>
+                      setGaleria({
+                        fotos: fotosGaleria,
+                        indice: Math.max(0, fotosGaleria.findIndex((f) => f.url === url)),
+                      })
 
                     return (
                       <div key={m.movimentacao_id} className="rounded-xl bg-background px-4 py-3">
@@ -176,7 +193,7 @@ export function VeiculoPublico() {
                                 <button
                                   key={campo}
                                   type="button"
-                                  onClick={() => setFotoAmpliada({ url, label })}
+                                  onClick={() => abrirGaleria(url)}
                                   className="shrink-0"
                                   aria-label={`Ampliar foto — ${label}`}
                                 >
@@ -193,12 +210,7 @@ export function VeiculoPublico() {
                               <button
                                 key={`extra-${idx}-${extra.url}`}
                                 type="button"
-                                onClick={() =>
-                                  setFotoAmpliada({
-                                    url: extra.url,
-                                    label: extra.label || `Foto extra ${idx + 1}`,
-                                  })
-                                }
+                                onClick={() => abrirGaleria(extra.url)}
                                 className="shrink-0 relative group"
                                 aria-label={`Ampliar ${extra.label || `Foto extra ${idx + 1}`}`}
                               >
@@ -224,18 +236,12 @@ export function VeiculoPublico() {
         )}
       </div>
 
-      {fotoAmpliada && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setFotoAmpliada(null)}
-        >
-          <img
-            src={fotoAmpliada.url}
-            alt={fotoAmpliada.label}
-            className="max-h-[80vh] max-w-full rounded-xl object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+      {galeria && (
+        <GaleriaFotosModal
+          fotos={galeria.fotos}
+          indiceInicial={galeria.indice}
+          onClose={() => setGaleria(null)}
+        />
       )}
     </div>
   )

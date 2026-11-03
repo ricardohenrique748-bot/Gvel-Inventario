@@ -21,6 +21,7 @@ import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { extrairFotosExtras } from '@/lib/fotosExtras'
+import { GaleriaFotosModal, type FotoGaleria } from '@/components/GaleriaFotosModal'
 import type { Movimentacao } from '@/lib/types'
 
 function MecanicosAtividadesCard({ movimentacaoId }: { movimentacaoId: string }) {
@@ -129,7 +130,7 @@ export function VeiculoDetalhe() {
   const { veiculo, historico, loading, refetch } = useVeiculoDetalhe(id)
   const [confirmandoSaida, setConfirmandoSaida] = useState(false)
   const [erroSaida, setErroSaida] = useState<string | null>(null)
-  const [fotoAmpliada, setFotoAmpliada] = useState<{ url: string; label: string } | null>(null)
+  const [galeria, setGaleria] = useState<{ fotos: FotoGaleria[]; indice: number } | null>(null)
 
   const movimentacaoAtiva = historico.find((m) => m.status === 'no_patio')
 
@@ -329,6 +330,23 @@ export function VeiculoDetalhe() {
                       const { textoLimpo, fotosExtras } = extrairFotosExtras(m.observacoes)
                       const temFotosPadrao = FOTOS_MOVIMENTACAO.some(({ campo }) => m[campo])
                       const temFotos = temFotosPadrao || fotosExtras.length > 0
+                      // Todas as fotos da movimentação, na ordem das miniaturas,
+                      // para poder passar de uma para outra no modal.
+                      const fotosGaleria: FotoGaleria[] = [
+                        ...FOTOS_MOVIMENTACAO.flatMap(({ campo, label }) => {
+                          const url = m[campo] as string | null
+                          return url ? [{ url, label }] : []
+                        }),
+                        ...fotosExtras.map((extra, idx) => ({
+                          url: extra.url,
+                          label: extra.label || `Foto extra ${idx + 1}`,
+                        })),
+                      ]
+                      const abrirGaleria = (url: string) =>
+                        setGaleria({
+                          fotos: fotosGaleria,
+                          indice: Math.max(0, fotosGaleria.findIndex((f) => f.url === url)),
+                        })
 
                       return (
                         <>
@@ -343,7 +361,7 @@ export function VeiculoDetalhe() {
                                   <button
                                     key={campo}
                                     type="button"
-                                    onClick={() => setFotoAmpliada({ url, label })}
+                                    onClick={() => abrirGaleria(url)}
                                     className="shrink-0"
                                     aria-label={`Ampliar foto — ${label}`}
                                   >
@@ -365,12 +383,7 @@ export function VeiculoDetalhe() {
                                 <button
                                   key={`extra-${idx}-${extra.url}`}
                                   type="button"
-                                  onClick={() =>
-                                    setFotoAmpliada({
-                                      url: extra.url,
-                                      label: extra.label || `Foto extra ${idx + 1}`,
-                                    })
-                                  }
+                                  onClick={() => abrirGaleria(extra.url)}
                                   className="shrink-0 relative group"
                                   aria-label={`Ampliar ${extra.label || `Foto extra ${idx + 1}`}`}
                                 >
@@ -417,30 +430,13 @@ export function VeiculoDetalhe() {
         </div>
       )}
 
-      {/* — Modal de foto ampliada — */}
-      {fotoAmpliada && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setFotoAmpliada(null)}
-        >
-          <button
-            type="button"
-            onClick={() => setFotoAmpliada(null)}
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-surface text-foreground"
-            aria-label="Fechar"
-          >
-            <X className="h-5 w-5" />
-          </button>
-          <div className="flex max-h-full max-w-full flex-col items-center gap-2">
-            <img
-              src={fotoAmpliada.url}
-              alt={fotoAmpliada.label}
-              className="max-h-[80vh] max-w-full rounded-xl object-contain"
-              onClick={(e) => e.stopPropagation()}
-            />
-            <p className="text-sm text-secondary">{fotoAmpliada.label}</p>
-          </div>
-        </div>
+      {/* — Modal de fotos (passa entre todas as fotos da movimentação) — */}
+      {galeria && (
+        <GaleriaFotosModal
+          fotos={galeria.fotos}
+          indiceInicial={galeria.indice}
+          onClose={() => setGaleria(null)}
+        />
       )}
     </div>
   )
