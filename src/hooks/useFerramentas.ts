@@ -308,7 +308,7 @@ async function corrigirDisponivelPelasRetiradas(ferramentas: Ferramenta[]): Prom
  * edição ou exclusão, no lugar de somar/subtrair sobre um valor que podia
  * estar desatualizado.
  */
-async function recalcularDisponivelFerramenta(ferramentaId: string): Promise<void> {
+export async function recalcularDisponivelFerramenta(ferramentaId: string): Promise<void> {
   if (!ferramentaId) return
   let total: number | null = null
   let emUsoQtd: number | null = null

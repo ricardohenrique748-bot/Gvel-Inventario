@@ -1,3 +1,4 @@
+import { EmUsoFerramentaModal } from '@/components/EmUsoFerramentaModal'
 import { useMemo, useState, useEffect, useRef, useDeferredValue } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -552,6 +553,8 @@ export function InventarioFerramentas() {
   const [retiradaEditando, setRetiradaEditando] = useState<FerramentaRetirada | null>(null)
   const [fotoModalUrl, setFotoModalUrl] = useState<{ url: string; titulo: string } | null>(null)
   const [ferramentaHistorico, setFerramentaHistorico] = useState<Ferramenta | null>(null)
+  // Ferramenta cujas retiradas em uso estão abertas na janela de devolução rápida.
+  const [ferramentaEmUso, setFerramentaEmUso] = useState<Ferramenta | null>(null)
   const [itemConsumoHistorico, setItemConsumoHistorico] = useState<ItemConsumo | null>(null)
   const [detalheMetricaConsumo, setDetalheMetricaConsumo] = useState<'estoque_baixo' | 'baixas' | null>(null)
 
@@ -1400,9 +1403,17 @@ export function InventarioFerramentas() {
                               />
                             </div>
                             {emUsoQtd > 0 && (
-                              <span className="text-[9px] font-black text-amber-500 mt-0.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setFerramentaEmUso(f)
+                                }}
+                                title="Ver e devolver as retiradas em uso"
+                                className="text-[9px] font-black text-amber-500 mt-0.5 underline decoration-dotted underline-offset-2 hover:text-amber-400"
+                              >
                                 {emUsoQtd} em uso
-                              </span>
+                              </button>
                             )}
                           </div>
 
@@ -1527,9 +1538,17 @@ export function InventarioFerramentas() {
 
                       <div className="flex items-center justify-between pt-1 border-t border-border/10">
                         {emUsoQtd > 0 ? (
-                          <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                                  e.stopPropagation()
+                                  setFerramentaEmUso(f)
+                                }}
+                            title="Ver e devolver as retiradas em uso"
+                            className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 underline decoration-dotted underline-offset-2"
+                          >
                             {emUsoQtd} em uso
-                          </span>
+                          </button>
                         ) : (
                           <span className="text-[10px] font-bold text-emerald-500">Pronta no estoque</span>
                         )}
@@ -1680,9 +1699,17 @@ export function InventarioFerramentas() {
                             />
                           </div>
                           {emUsoQtd > 0 && (
-                            <p className="text-[10px] font-black text-amber-500 text-right">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                  e.stopPropagation()
+                                  setFerramentaEmUso(f)
+                                }}
+                              title="Ver e devolver as retiradas em uso"
+                              className="block w-full text-[10px] font-black text-amber-500 text-right underline decoration-dotted underline-offset-2"
+                            >
                               {emUsoQtd} em uso agora
-                            </p>
+                            </button>
                           )}
                         </div>
                       </div>
@@ -3291,6 +3318,15 @@ export function InventarioFerramentas() {
             setModalEditarRetiradaAberto(false)
             await recarregarDados()
           }}
+        />
+      )}
+
+      {/* ==================== MODAL: RETIRADAS EM USO DE UMA FERRAMENTA ==================== */}
+      {ferramentaEmUso && (
+        <EmUsoFerramentaModal
+          ferramenta={ferramentaEmUso}
+          onClose={() => setFerramentaEmUso(null)}
+          onAtualizado={recarregarDados}
         />
       )}
 
