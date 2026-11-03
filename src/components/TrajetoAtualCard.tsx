@@ -354,6 +354,8 @@ interface TrajetoAtualCardProps {
   className?: string
   onAtualizar?: () => void | Promise<void>
   disableHeaderActions?: boolean
+  /** Admin: abre a edição do lançamento de entrada (data, KM, pátio, motorista…). */
+  onEditarEntrada?: () => void
 }
 
 const ATIVIDADES_CHECKLIST_IGNORAR = [
@@ -381,6 +383,7 @@ export function TrajetoAtualCard({
   className,
   onAtualizar,
   disableHeaderActions = false,
+  onEditarEntrada,
 }: TrajetoAtualCardProps) {
   const { perfil, user } = useAuth()
   const isAdmin = isAdminUsuario(perfil, user?.email)
@@ -636,6 +639,18 @@ export function TrajetoAtualCard({
               ]
                 .filter(Boolean)
                 .join(' • ')}
+              actions={
+                isAdmin && onEditarEntrada && !disableHeaderActions ? (
+                  <button
+                    type="button"
+                    onClick={onEditarEntrada}
+                    className="rounded-lg p-1 text-secondary hover:bg-surface hover:text-foreground transition-colors"
+                    title="Editar entrada"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                ) : undefined
+              }
             />
 
             {/* Nós: Etapas intermediárias */}

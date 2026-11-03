@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { LogOut, X, User } from 'lucide-react'
+import { LogOut, X, User, Pencil } from 'lucide-react'
+import { EditarMovimentacaoForm } from '@/pages/Movimentacoes'
 import { PageHeader } from '@/components/layout/Header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -22,7 +23,7 @@ import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { extrairFotosExtras } from '@/lib/fotosExtras'
 import { GaleriaFotosModal, type FotoGaleria } from '@/components/GaleriaFotosModal'
-import type { Movimentacao } from '@/lib/types'
+import type { Movimentacao, MovimentacaoComVeiculo } from '@/lib/types'
 
 function MecanicosAtividadesCard({ movimentacaoId }: { movimentacaoId: string }) {
   const { osData, items, loading } = useChecklistOS(movimentacaoId)
@@ -131,6 +132,8 @@ export function VeiculoDetalhe() {
   const [confirmandoSaida, setConfirmandoSaida] = useState(false)
   const [erroSaida, setErroSaida] = useState<string | null>(null)
   const [galeria, setGaleria] = useState<{ fotos: FotoGaleria[]; indice: number } | null>(null)
+  const [editando, setEditando] = useState<MovimentacaoComVeiculo | null>(null)
+  const [erroEdicao, setErroEdicao] = useState<string | null>(null)
 
   const movimentacaoAtiva = historico.find((m) => m.status === 'no_patio')
 
@@ -288,6 +291,7 @@ export function VeiculoDetalhe() {
               movimentacao={movimentacaoAtiva}
               disableHeaderActions={confirmandoSaida}
               onAtualizar={refetch}
+              onEditarEntrada={isAdmin ? () => setEditando(movimentacaoAtiva) : undefined}
             />
           </div>
         )}
@@ -415,6 +419,17 @@ export function VeiculoDetalhe() {
                       <Badge tone="neutral">Saiu</Badge>
                     )}
                     <StatusManutencaoBadge status={m.status_manutencao} />
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setEditando(m)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg glass-btn text-secondary hover:text-foreground"
+                        aria-label="Editar lançamento"
+                        title="Editar lançamento"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -427,6 +442,42 @@ export function VeiculoDetalhe() {
       {isAdmin && movimentacaoAtiva && (
         <div className="mt-6">
           <MecanicosAtividadesCard movimentacaoId={movimentacaoAtiva.id} />
+        </div>
+      )}
+
+      {/* — Edição de lançamento (só admin) — */}
+      {isAdmin && editando && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setEditando(null)}
+        >
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-foreground">
+                Editar lançamento — {editando.veiculo?.placa ?? veiculo?.placa}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditando(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary hover:text-foreground"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {erroEdicao && <p className="mb-3 text-sm text-status-danger">{erroEdicao}</p>}
+            <EditarMovimentacaoForm
+              key={editando.id}
+              movimentacao={editando}
+              onCancel={() => setEditando(null)}
+              onSalvo={async () => {
+                setEditando(null)
+                setErroEdicao(null)
+                await refetch()
+              }}
+              onErro={setErroEdicao}
+            />
+          </Card>
         </div>
       )}
 

@@ -490,7 +490,7 @@ export function Movimentacoes() {
   )
 }
 
-function EditarMovimentacaoForm({
+export function EditarMovimentacaoForm({
   movimentacao,
   onCancel,
   onSalvo,
