@@ -47,7 +47,7 @@ export function GaleriaFotosModal({ fotos, indiceInicial, onClose }: Props) {
   if (!foto) return null
 
   const botaoSeta =
-    'absolute top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-surface/90 text-foreground shadow hover:bg-surface'
+    'absolute top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full glass-btn text-foreground'
 
   return (
     <div
@@ -66,7 +66,7 @@ export function GaleriaFotosModal({ fotos, indiceInicial, onClose }: Props) {
       <button
         type="button"
         onClick={onClose}
-        className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-surface text-foreground"
+        className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full glass-btn text-foreground"
         aria-label="Fechar"
       >
         <X className="h-5 w-5" />

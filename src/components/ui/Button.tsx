@@ -10,11 +10,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-white hover:bg-primary-hover',
-  secondary: 'bg-surface text-foreground border border-secondary/40 hover:border-secondary',
-  ghost: 'bg-transparent text-foreground hover:bg-surface',
-  danger: 'bg-status-danger text-white hover:brightness-110',
-  success: 'bg-status-success text-white hover:brightness-110',
+  primary: 'glass-tint bg-primary text-white hover:bg-primary-hover',
+  secondary: 'glass-btn text-foreground',
+  ghost: 'bg-transparent text-foreground transition-colors hover:bg-surface/60 hover:backdrop-blur-md',
+  danger: 'glass-tint bg-status-danger text-white hover:brightness-110',
+  success: 'glass-tint bg-status-success text-white hover:brightness-110',
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -25,7 +25,7 @@ const sizeClasses: Record<ButtonSize, string> = {
 
 export function buttonClasses(variant: ButtonVariant = 'primary', size: ButtonSize = 'lg', className?: string) {
   return cn(
-    'inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+    'inline-flex items-center justify-center gap-2 rounded-xl font-medium disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
     variantClasses[variant],
     sizeClasses[size],
     className,

@@ -4825,7 +4825,7 @@ export function Frotas() {
           </div>
 
           {/* Toggle Pátio / Histórico */}
-          <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm w-full sm:w-fit">
+          <div className="flex items-center gap-1.5 p-1.5 rounded-2xl glass-bar w-full sm:w-fit">
             <button
               type="button"
               onClick={() => setSubAbaPatio('ativos')}

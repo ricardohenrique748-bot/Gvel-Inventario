@@ -299,7 +299,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-64 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl md:border md:border-border/[0.06] bg-surface shadow-2xl shadow-black/50">
+    <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-64 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl glass-bar">
       <div className="flex h-14 items-center justify-between px-3 border-b border-border/[0.06] gap-2 relative z-30">
         <div className="flex-1 min-w-0">
           <CompanySwitcher />

@@ -969,7 +969,7 @@ export function InventarioFerramentas() {
       </div>
 
       {/* Barra de Abas Principal (5 Abas Originais do Fluxo de Trabalho do Estoque) */}
-      <ScrollContainer className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md">
+      <ScrollContainer className="flex items-center gap-1.5 p-1.5 rounded-2xl glass-bar">
         <button
           type="button"
           onClick={() => setAbaAtiva('estoque')}
@@ -1076,7 +1076,7 @@ export function InventarioFerramentas() {
             {/* Linha 1: 3 Abas de Tipos e Filtro de Categoria em destaque */}
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
               {/* 3 Abas de Tipos (Ferramentas, Ferramentas Especiais, Insumos) */}
-              <ScrollContainer className="flex items-center gap-1.5 p-1 rounded-2xl bg-surface/80 border border-border/20 shadow-sm shrink-0">
+              <ScrollContainer className="flex items-center gap-1.5 p-1 rounded-2xl glass-bar shrink-0">
                 <button
                   type="button"
                   onClick={() => {

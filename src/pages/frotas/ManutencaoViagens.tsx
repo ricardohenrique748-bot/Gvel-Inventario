@@ -213,7 +213,7 @@ export function ManutencaoViagens(props: ManutencaoViagensProps) {
       </div>
 
       {/* Sub-menu interno */}
-      <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm w-full sm:w-fit">
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl glass-bar w-full sm:w-fit">
         {(
           [
             { id: 'painel', label: 'PAINEL', icon: LayoutDashboard },

@@ -92,7 +92,7 @@ export function Configuracoes() {
       {allowedTabs.length > 1 && (
         <div className="w-full">
           <div
-            className="grid p-1 rounded-2xl bg-surface/90 border border-border/50 gap-1 shadow-sm"
+            className="grid p-1 rounded-2xl glass-bar gap-1"
             style={{
               gridTemplateColumns: `repeat(${allowedTabs.length}, minmax(0, 1fr))`,
             }}

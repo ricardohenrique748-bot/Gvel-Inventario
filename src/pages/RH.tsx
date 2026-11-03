@@ -2158,7 +2158,7 @@ export function RH() {
       )}
 
       {/* Barra de Abas */}
-      <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md w-full sm:w-fit">
+      <div className="flex items-center gap-1.5 p-1.5 rounded-2xl glass-bar w-full sm:w-fit">
         {podeDashboard && (
           <button
             type="button"

@@ -1167,7 +1167,7 @@ export function Financeiro() {
 
       {/* Barra de Abas */}
       {[podeVisaoGeral, podeFluxoCaixa].filter(Boolean).length > 1 && (
-      <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-surface/80 border border-border/25 shadow-sm backdrop-blur-md w-full sm:w-fit">
+      <div className="flex items-center gap-1.5 p-1.5 rounded-2xl glass-bar w-full sm:w-fit">
         {podeVisaoGeral && (
         <button
           type="button"
