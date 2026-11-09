@@ -16,6 +16,14 @@ export function isLocaliza(empresa: EmpresaRef): boolean {
   return empresa?.id === LOCALIZA_COMPANY_ID
 }
 
+/**
+ * Empresas que não aparecem no seletor de empresa do app (APK).
+ * VelContracker só é usada pela web, então fica fora do celular.
+ */
+export function ocultaNoApp(empresa: { nome?: string } | null | undefined): boolean {
+  return /velcontracker/i.test(empresa?.nome ?? '')
+}
+
 /** A empresa trabalha com clientes (dono do veículo)? Na Localiza, não. */
 export function empresaUsaClientes(empresa: EmpresaRef): boolean {
   return !isLocaliza(empresa)

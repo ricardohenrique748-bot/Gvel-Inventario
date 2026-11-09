@@ -8,7 +8,7 @@ import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
 import { navItems, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized, isRhAuthorized, isRelatoriosAuthorized, isEstoqueAuthorized, isModuloAuthorized } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa } from '@/contexts/EmpresaContext'
-import { useEmpresasVisiveis } from '@/hooks/useCompanies'
+import { useEmpresasDoSeletor } from '@/hooks/useCompanies'
 import { temAcessoModuloEmpresa } from '@/lib/permissoes'
 import { cn } from '@/lib/cn'
 import { isNativeApp } from '@/lib/isNativeApp'
@@ -17,7 +17,7 @@ import { RecortarFotoModal } from '@/components/RecortarFotoModal'
 
 function CompanySwitcher() {
   const { empresaAtiva, setEmpresaAtiva, trocandoEmpresa } = useEmpresa()
-  const empresas = useEmpresasVisiveis()
+  const empresas = useEmpresasDoSeletor()
   const { user, perfil, perfilLoading } = useAuth()
   const isAdmin = !perfilLoading && (perfil?.nivel === 'admin' || user?.email === 'ricardo_h.16@hotmail.com' || user?.email === 'victor@gveldiesel.com')
   const [open, setOpen] = useState(false)

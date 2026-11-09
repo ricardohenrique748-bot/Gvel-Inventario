@@ -3,6 +3,8 @@ import { supabase, FOTOS_BUCKET } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa, type Empresa } from '@/contexts/EmpresaContext'
 import type { Company, CompanyStatus } from '@/lib/types'
+import { isNativeApp } from '@/lib/isNativeApp'
+import { ocultaNoApp } from '@/lib/empresasEspeciais'
 
 // CRUD de empresas (tabela `companies`). O RLS decide o que cada chamada
 // realmente enxerga/altera (ver supabase/migrations/0072_multiempresa_companies.sql):
@@ -67,6 +69,12 @@ export function useEmpresasVisiveis(): Empresa[] {
   const { empresas: minhaEmpresa } = useEmpresa()
   const { empresas: todasEmpresas } = useCompanies()
   return isMasterAdmin ? todasEmpresas.map(empresaFromCompany) : minhaEmpresa
+}
+
+/** Igual useEmpresasVisiveis, mas no APK esconde as empresas que não usam o app (ver ocultaNoApp). */
+export function useEmpresasDoSeletor(): Empresa[] {
+  const empresas = useEmpresasVisiveis()
+  return isNativeApp() ? empresas.filter((e) => !ocultaNoApp(e)) : empresas
 }
 
 export interface CriarEmpresaInput {
