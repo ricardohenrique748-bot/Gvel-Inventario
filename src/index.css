@@ -443,3 +443,93 @@ html:not(.dark) .bezel-panel {
   .bezel-orb::after,
   .bezel-radar::before { animation: none; }
 }
+
+/* ------------------------------------------------------------
+   Gráficos de barras animados (Recharts): cada barra cresce a partir
+   do eixo, em cascata, quando o gráfico entra na tela (data-visible,
+   ver src/lib/chartReveal.ts). Os números entram por último.
+   ------------------------------------------------------------ */
+.recharts-bar-rectangle {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: barra-crescer-y 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.barras-horizontais .recharts-bar-rectangle {
+  transform-origin: 0% 50%;
+  animation-name: barra-crescer-x;
+}
+.recharts-bar .recharts-label-list {
+  animation: barra-rotulo 0.5s ease-out 0.6s both;
+}
+.recharts-wrapper:not([data-visible]) .recharts-bar-rectangle,
+.recharts-wrapper:not([data-visible]) .recharts-bar .recharts-label-list {
+  animation-play-state: paused;
+}
+html.graficos-sem-observer .recharts-wrapper .recharts-bar-rectangle,
+html.graficos-sem-observer .recharts-wrapper .recharts-bar .recharts-label-list {
+  animation-play-state: running;
+}
+/* Barra um pouco mais clara ao passar o mouse */
+.recharts-bar-rectangle path {
+  transition: filter 0.2s ease;
+}
+.recharts-bar-rectangle:hover path {
+  filter: brightness(1.15);
+}
+.recharts-bar-rectangle:nth-child(2) { --i: 1; }
+.recharts-bar-rectangle:nth-child(3) { --i: 2; }
+.recharts-bar-rectangle:nth-child(4) { --i: 3; }
+.recharts-bar-rectangle:nth-child(5) { --i: 4; }
+.recharts-bar-rectangle:nth-child(6) { --i: 5; }
+.recharts-bar-rectangle:nth-child(7) { --i: 6; }
+.recharts-bar-rectangle:nth-child(8) { --i: 7; }
+.recharts-bar-rectangle:nth-child(9) { --i: 8; }
+.recharts-bar-rectangle:nth-child(10) { --i: 9; }
+.recharts-bar-rectangle:nth-child(11) { --i: 10; }
+.recharts-bar-rectangle:nth-child(12) { --i: 11; }
+.recharts-bar-rectangle:nth-child(13) { --i: 12; }
+.recharts-bar-rectangle:nth-child(14) { --i: 13; }
+.recharts-bar-rectangle:nth-child(15) { --i: 14; }
+.recharts-bar-rectangle:nth-child(16) { --i: 15; }
+.recharts-bar-rectangle:nth-child(17) { --i: 16; }
+.recharts-bar-rectangle:nth-child(18) { --i: 17; }
+.recharts-bar-rectangle:nth-child(19) { --i: 18; }
+.recharts-bar-rectangle:nth-child(20) { --i: 19; }
+.recharts-bar-rectangle:nth-child(21) { --i: 20; }
+.recharts-bar-rectangle:nth-child(22) { --i: 21; }
+.recharts-bar-rectangle:nth-child(23) { --i: 22; }
+.recharts-bar-rectangle:nth-child(24) { --i: 23; }
+.recharts-bar-rectangle:nth-child(25) { --i: 24; }
+.recharts-bar-rectangle:nth-child(26) { --i: 25; }
+.recharts-bar-rectangle:nth-child(27) { --i: 26; }
+.recharts-bar-rectangle:nth-child(28) { --i: 27; }
+.recharts-bar-rectangle:nth-child(29) { --i: 28; }
+.recharts-bar-rectangle:nth-child(30) { --i: 29; }
+.recharts-bar-rectangle:nth-child(31) { --i: 30; }
+
+@keyframes barra-crescer-y {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes barra-crescer-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes barra-rotulo {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recharts-bar-rectangle,
+  .recharts-bar .recharts-label-list { animation: none; }
+}
+
+/* Barra do ranking (lista HTML do Dashboard): cresce da esquerda ao entrar. */
+.ranking-barra {
+  transform-origin: left center;
+  animation: barra-crescer-x 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ranking-barra { animation: none; }
+}

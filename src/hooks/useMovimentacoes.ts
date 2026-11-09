@@ -236,6 +236,59 @@ export async function uploadFotoEntrada(movimentacaoId: string, campo: string, f
 }
 
 /**
+ * Veículo já está no pátio (tem movimentação 'no_patio' aberta). Não é falha de
+ * conexão — quem chama não deve salvar como rascunho nem tentar de novo.
+ */
+export class EntradaDuplicadaError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'EntradaDuplicadaError'
+  }
+}
+
+const MSG_DUPLICADA_GENERICA =
+  'Este veículo já está no pátio. Registre a saída dele antes de dar uma nova entrada.'
+
+/** Violação do índice único uq_movimentacoes_veiculo_no_patio (migration 0101). */
+function ehViolacaoNoPatio(error: { code?: string; message?: string } | null): boolean {
+  return error?.code === '23505' && /uq_movimentacoes_veiculo_no_patio/.test(error.message ?? '')
+}
+
+/**
+ * Regra do pátio (Gvel e Localiza): uma placa só pode ter UMA entrada aberta.
+ * Enquanto não registrarem a saída, não deixa dar outra entrada da mesma placa.
+ */
+async function garantirVeiculoForaDoPatio(veiculoId: string, ignorarMovimentacaoId?: string) {
+  let query = supabase
+    .from('movimentacoes')
+    .select('id, data_hora_entrada, veiculo:veiculos(placa), patio:patios(nome)')
+    .eq('veiculo_id', veiculoId)
+    .eq('status', 'no_patio')
+    .limit(1)
+  if (ignorarMovimentacaoId) query = query.neq('id', ignorarMovimentacaoId)
+
+  const { data, error } = await query
+  if (error) throw error
+  const aberta = data?.[0] as unknown as
+    | { data_hora_entrada: string; veiculo: { placa: string } | null; patio: { nome: string } | null }
+    | undefined
+  if (!aberta) return
+
+  const placa = aberta.veiculo?.placa ?? 'Este veículo'
+  const patio = aberta.patio?.nome ? ` no pátio ${aberta.patio.nome}` : ' no pátio'
+  const quando = new Date(aberta.data_hora_entrada).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  throw new EntradaDuplicadaError(
+    `A placa ${placa} já está${patio} (entrada em ${quando}). Registre a saída dela antes de dar uma nova entrada.`,
+  )
+}
+
+/**
  * @param movimentacaoIdExistente Reaproveita o mesmo id entre tentativas do mesmo
  * rascunho (ver rascunhosEntrada.ts) — com internet fraca a inserção pode ter
  * sido bem-sucedida no servidor mesmo o cliente recebendo erro; sem um id
@@ -247,6 +300,23 @@ export async function registrarEntrada(
   fotos?: FotosEntrada,
   movimentacaoIdExistente?: string,
 ) {
+  // Checa ANTES de mexer no cadastro do veículo e de subir as fotos. Placa nova
+  // (sem cadastro) não tem como estar no pátio. O próprio id do rascunho é
+  // ignorado: um reenvio que já tinha gravado não conta como duplicata.
+  const veiculoIdExistente =
+    'veiculoId' in input
+      ? input.veiculoId
+      : (
+          await supabase
+            .from('veiculos')
+            .select('id')
+            .eq('placa', input.placa.trim().toUpperCase())
+            .maybeSingle()
+        ).data?.id
+  if (veiculoIdExistente) {
+    await garantirVeiculoForaDoPatio(veiculoIdExistente, movimentacaoIdExistente)
+  }
+
   const veiculoId =
     'veiculoId' in input
       ? input.veiculoId
@@ -325,6 +395,11 @@ export async function registrarEntrada(
     .select()
     .single()
 
+  if (ehViolacaoNoPatio(error)) {
+    // Outro aparelho deu entrada na mesma placa entre a checagem e a gravação.
+    await garantirVeiculoForaDoPatio(veiculoId, movimentacaoId)
+    throw new EntradaDuplicadaError(MSG_DUPLICADA_GENERICA)
+  }
   if (error) throw error
 
   if (typeof window !== 'undefined') {
@@ -406,6 +481,12 @@ export async function atualizarMovimentacao(id: string, input: AtualizarMoviment
     .eq('id', id)
     .select()
     .single()
+  if (ehViolacaoNoPatio(error)) {
+    // Apagou a saída de uma entrada antiga enquanto a placa já tem outra aberta.
+    throw new EntradaDuplicadaError(
+      'Esta placa já tem outra entrada aberta no pátio. Para reabrir esta, registre antes a saída da entrada atual.',
+    )
+  }
   if (error) throw new Error(error.message)
 
   if (typeof window !== 'undefined') {

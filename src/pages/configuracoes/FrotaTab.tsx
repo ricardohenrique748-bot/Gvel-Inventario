@@ -15,12 +15,16 @@ import { useVeiculosPorCliente, upsertVeiculo, atualizarVeiculo, excluirVeiculo 
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { useAuth } from '@/contexts/AuthContext'
 import { isAdminUsuario } from '@/lib/permissoes'
+import { empresaUsaClientes } from '@/lib/empresasEspeciais'
 import type { VeiculoComRelacoes } from '@/lib/types'
 
 const anoAtual = new Date().getFullYear()
 
+// O cliente é obrigatório só nas empresas que trabalham com clientes — a
+// validação fica no onSubmit. Na Localiza o veículo é da própria empresa e
+// é gravado sem cliente.
 const schema = z.object({
-  clienteId: z.string().min(1, 'Selecione o cliente').refine((val) => val !== 'todos', 'Selecione um cliente para o veículo'),
+  clienteId: z.string().optional(),
   placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
   tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
   cor: z.string().trim().min(1, 'Informe a cor'),
@@ -38,8 +42,9 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function FrotaTab() {
-  const { perfil, user } = useAuth()
+  const { perfil, user, empresa } = useAuth()
   const isAdmin = isAdminUsuario(perfil, user?.email)
+  const usaClientes = empresaUsaClientes(empresa)
   const { clientes } = useClientes()
   const { marcas, refetch: refetchMarcas } = useMarcas()
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -74,6 +79,11 @@ export function FrotaTab() {
   }, [veiculos, busca])
 
   async function onSubmit(values: FormValues) {
+    if (usaClientes && (!values.clienteId || values.clienteId === 'todos')) {
+      setError('clienteId', { message: 'Selecione um cliente para o veículo' })
+      return
+    }
+    const clienteVeiculo = usaClientes ? values.clienteId : null
     try {
       const operante = values.situacao === 'operante'
       if (editandoId) {
@@ -81,7 +91,7 @@ export function FrotaTab() {
           placa: values.placa,
           marcaId: values.marcaId,
           modeloId: values.modeloId,
-          clienteId: values.clienteId,
+          clienteId: clienteVeiculo,
           tipo: values.tipo,
           cor: values.cor,
           ano: values.ano,
@@ -94,7 +104,7 @@ export function FrotaTab() {
           placa: values.placa,
           marcaId: values.marcaId,
           modeloId: values.modeloId,
-          clienteId: values.clienteId,
+          clienteId: clienteVeiculo,
           tipo: values.tipo,
           cor: values.cor,
           ano: values.ano,
@@ -113,7 +123,7 @@ export function FrotaTab() {
   function handleEditar(v: VeiculoComRelacoes) {
     setEditandoId(v.id)
     setMostrarForm(true)
-    setValue('clienteId', v.cliente_id)
+    setValue('clienteId', v.cliente_id ?? '')
     setValue('placa', v.placa)
     setValue('tipo', v.tipo)
     setValue('cor', v.cor ?? '')
@@ -152,6 +162,7 @@ export function FrotaTab() {
 
   return (
     <div className="space-y-6">
+      {usaClientes && (
       <Card>
         <CardContent className="pt-6">
           <div>
@@ -168,6 +179,7 @@ export function FrotaTab() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {!mostrarForm ? (
         <Button type="button" onClick={() => setMostrarForm(true)}>

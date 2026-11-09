@@ -612,7 +612,7 @@ export function ControleDeHoras() {
                           ]
                         }}
                       />
-                      <Bar dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={48}>
+                      <Bar isAnimationActive={false} dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={48}>
                         <LabelList
                           dataKey="minutos"
                           position="top"
@@ -780,7 +780,7 @@ export function ControleDeHoras() {
                         `${props.payload.colaborador} • ${props.payload.placa}`,
                       ]}
                     />
-                    <Bar dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={44}>
+                    <Bar isAnimationActive={false} dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={44}>
                       <LabelList
                         dataKey="minutos"
                         position="top"
@@ -811,7 +811,7 @@ export function ControleDeHoras() {
               ) : (
                 <div style={{ height: Math.max(288, rankingMecanicoHoras.length * 36) }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart key={theme} data={rankingMecanicoHoras} layout="vertical" margin={{ left: 8, right: 65, top: 10, bottom: 10 }}>
+                    <BarChart key={theme} data={rankingMecanicoHoras} layout="vertical" className="barras-horizontais" margin={{ left: 8, right: 65, top: 10, bottom: 10 }}>
                       <CartesianGrid horizontal={false} stroke={gridColor} strokeDasharray="3 3" />
                       <XAxis
                         type="number"
@@ -840,7 +840,7 @@ export function ControleDeHoras() {
                           'Tempo Total',
                         ]}
                       />
-                      <Bar dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[0, 6, 6, 0]} maxBarSize={22}>
+                      <Bar isAnimationActive={false} dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[0, 6, 6, 0]} maxBarSize={22}>
                         <LabelList
                           dataKey="minutos"
                           position="right"
@@ -870,7 +870,7 @@ export function ControleDeHoras() {
               ) : (
                 <div style={{ height: Math.max(288, rankingSetorVeiculos.length * 36) }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart key={theme} data={rankingSetorVeiculos} layout="vertical" margin={{ left: 8, right: 45, top: 10, bottom: 10 }}>
+                    <BarChart key={theme} data={rankingSetorVeiculos} layout="vertical" className="barras-horizontais" margin={{ left: 8, right: 45, top: 10, bottom: 10 }}>
                       <CartesianGrid horizontal={false} stroke={gridColor} strokeDasharray="3 3" />
                       <XAxis
                         type="number"
@@ -891,7 +891,7 @@ export function ControleDeHoras() {
                         width={130}
                       />
                       <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }} />
-                      <Bar dataKey="value" name="Veículos" fill={CHART_SAIDA} radius={[0, 6, 6, 0]} maxBarSize={22}>
+                      <Bar isAnimationActive={false} dataKey="value" name="Veículos" fill={CHART_SAIDA} radius={[0, 6, 6, 0]} maxBarSize={22}>
                         <LabelList dataKey="value" position="right" fill={textColor} fontSize={11} fontWeight={800} offset={8} />
                       </Bar>
                     </BarChart>

@@ -15,7 +15,7 @@ import { useMarcas, useModelos, criarMarca, criarModelo } from '@/hooks/useMarca
 import { usePatios, criarPatio } from '@/hooks/usePatios'
 import { useStatusManutencao, criarStatusManutencao } from '@/hooks/useStatusManutencao'
 import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
-import { registrarEntrada, type FotosEntrada, type RegistrarEntradaInput } from '@/hooks/useMovimentacoes'
+import { registrarEntrada, EntradaDuplicadaError, type FotosEntrada, type RegistrarEntradaInput } from '@/hooks/useMovimentacoes'
 import { Plus, X, RotateCcw, Trash2, FileClock } from 'lucide-react'
 import { FotoInput } from '@/components/FotoInput'
 import { nowLocalInputValue } from '@/lib/format'
@@ -333,6 +333,11 @@ export function RegistrarEntrada() {
       const mov = await registrarEntrada(input, fotosEntrada, movimentacaoId)
       navigate(`/veiculos/${mov.veiculo_id}`)
     } catch (err) {
+      // Placa já no pátio: não é falha de conexão, então nada de rascunho.
+      if (err instanceof EntradaDuplicadaError) {
+        setSubmitError(err.message)
+        return
+      }
       const mensagem = err instanceof Error ? err.message : 'Não foi possível registrar a entrada.'
       try {
         const nomeCliente = clientes.find((c) => c.id === values.clienteId)?.nome

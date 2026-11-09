@@ -1773,7 +1773,7 @@ export function Financeiro() {
                   )
                 }}
               />
-              <Bar dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={56}>
+              <Bar isAnimationActive={false} dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={56}>
                 <LabelList
                   dataKey="Faturamento"
                   position="top"
@@ -1781,7 +1781,7 @@ export function Financeiro() {
                   style={{ fill: '#93c5fd', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}
                 />
               </Bar>
-              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={56}>
+              <Bar isAnimationActive={false} dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={56}>
                 <LabelList
                   dataKey="Despesas"
                   position="top"
@@ -1948,7 +1948,7 @@ export function Financeiro() {
                   )
                 }}
               />
-              <Bar dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={70}>
+              <Bar isAnimationActive={false} dataKey="Faturamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={70}>
                 <LabelList
                   dataKey="Faturamento"
                   position="top"
@@ -1956,7 +1956,7 @@ export function Financeiro() {
                   style={{ fill: '#93c5fd', fontSize: 11, fontWeight: 800, fontFamily: 'monospace' }}
                 />
               </Bar>
-              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={70}>
+              <Bar isAnimationActive={false} dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={70}>
                 <LabelList
                   dataKey="Despesas"
                   position="top"
@@ -2103,7 +2103,7 @@ export function Financeiro() {
                   )
                 }}
               />
-              <Bar dataKey="Receitas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={60}>
+              <Bar isAnimationActive={false} dataKey="Receitas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={60}>
                 <LabelList
                   dataKey="Receitas"
                   position="top"
@@ -2111,7 +2111,7 @@ export function Financeiro() {
                   style={{ fill: '#6ee7b7', fontSize: 11, fontWeight: 800, fontFamily: 'monospace' }}
                 />
               </Bar>
-              <Bar dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={60}>
+              <Bar isAnimationActive={false} dataKey="Despesas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={60}>
                 <LabelList
                   dataKey="Despesas"
                   position="top"
@@ -2733,8 +2733,8 @@ export function Financeiro() {
                   )
                 }}
               />
-              <Bar dataKey="Entradas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={56} />
-              <Bar dataKey="Saidas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={56} />
+              <Bar isAnimationActive={false} dataKey="Entradas" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={56} />
+              <Bar isAnimationActive={false} dataKey="Saidas" fill="#ef4444" radius={[6, 6, 0, 0]} maxBarSize={56} />
               <Line
                 type="monotone"
                 dataKey={campoLinha}

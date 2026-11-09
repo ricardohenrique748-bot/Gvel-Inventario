@@ -2909,7 +2909,7 @@ export function Frotas() {
                           )
                         }}
                       />
-                      <Bar dataKey="kmFaltante" radius={[6, 6, 0, 0]}>
+                      <Bar isAnimationActive={false} dataKey="kmFaltante" radius={[6, 6, 0, 0]}>
                         {dadosGraficoKmPreventiva.length <= 15 && (
                           <LabelList
                             dataKey="kmFaltante"
@@ -3059,7 +3059,7 @@ export function Frotas() {
                           )
                         }}
                       />
-                      <Bar dataKey="total" fill="#6366f1" radius={[6, 6, 0, 0]}>
+                      <Bar isAnimationActive={false} dataKey="total" fill="#6366f1" radius={[6, 6, 0, 0]}>
                         <LabelList
                           dataKey="total"
                           position="top"
@@ -3151,7 +3151,7 @@ export function Frotas() {
                             )
                           }}
                         />
-                        <Bar dataKey="dias" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                        <Bar isAnimationActive={false} dataKey="dias" radius={[6, 6, 0, 0]} maxBarSize={36}>
                           <LabelList
                             dataKey="dias"
                             position="top"
@@ -3246,7 +3246,7 @@ export function Frotas() {
                             )
                           }}
                         />
-                        <Bar dataKey="dias" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                        <Bar isAnimationActive={false} dataKey="dias" radius={[6, 6, 0, 0]} maxBarSize={36}>
                           <LabelList
                             dataKey="dias"
                             position="top"

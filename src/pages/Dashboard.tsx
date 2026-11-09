@@ -10,7 +10,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   PieChart,
   Pie,
   Cell,
@@ -19,6 +18,8 @@ import {
 import { format, isSameDay, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PageHeader } from '@/components/layout/Header'
+import { ChartTooltip } from '@/components/charts/ChartTooltip'
+import { cn } from '@/lib/cn'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { StatCard } from '@/components/ui/StatCard'
 import { Select } from '@/components/ui/Input'
@@ -195,6 +196,11 @@ export function Dashboard() {
     if (outras > 0) top.push({ name: 'Outras', value: outras })
     return top
   }, [noPatio])
+
+  const totaisPorDia = useMemo(
+    () => porDia.reduce((acc, d) => ({ entradas: acc.entradas + d.Entradas, saidas: acc.saidas + d['Saídas'] }), { entradas: 0, saidas: 0 }),
+    [porDia],
+  )
 
   const rankingPatios = useMemo(() => {
     const counts = new Map<string, number>()
@@ -640,27 +646,71 @@ export function Dashboard() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-wrap items-start justify-between gap-3">
             <CardTitle>Entradas x Saídas por dia</CardTitle>
+            {/* Totais do período — servem também de legenda (bolinha = cor da série) */}
+            <div className="flex items-center gap-4">
+              {[
+                { nome: 'Entradas', valor: totaisPorDia.entradas, cor: CHART_ENTRADA },
+                { nome: 'Saídas', valor: totaisPorDia.saidas, cor: CHART_SAIDA },
+              ].map((s) => (
+                <div key={s.nome} className="text-right">
+                  <p className="flex items-center justify-end gap-1.5 text-[10px] font-bold uppercase tracking-wider text-secondary">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.cor }} />
+                    {s.nome}
+                  </p>
+                  <p className="text-lg font-black tabular-nums text-foreground leading-tight">{s.valor}</p>
+                </div>
+              ))}
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-secondary">Saldo</p>
+                <p className="text-lg font-black tabular-nums text-foreground leading-tight">
+                  {totaisPorDia.entradas - totaisPorDia.saidas > 0 ? '+' : ''}
+                  {totaisPorDia.entradas - totaisPorDia.saidas}
+                </p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart key={theme} data={porDia} barGap={4}>
-                  <CartesianGrid vertical={false} stroke={gridColor} strokeDasharray="3 3" />
-                  <XAxis dataKey="dia" stroke={textColor} tick={{ fill: textColor, fontSize: 12, fontWeight: 600 }} tickLine={false} axisLine={{ stroke: axisLineColor }} />
+                <BarChart
+                  key={theme}
+                  data={porDia}
+                  barGap={6}
+                  barCategoryGap={porDia.length <= 3 ? '35%' : '22%'}
+                  margin={{ top: 22, right: 4, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} stroke={gridColor} />
+                  <XAxis
+                    dataKey="dia"
+                    tick={{ fill: textColor, fontSize: 11, fontWeight: 600 }}
+                    tickLine={false}
+                    axisLine={{ stroke: axisLineColor }}
+                    interval="preserveStartEnd"
+                    minTickGap={12}
+                  />
                   <YAxis
                     allowDecimals={false}
-                    stroke={textColor}
-                    tick={{ fill: textColor, fontSize: 12, fontWeight: 600 }}
+                    tick={{ fill: isDark ? '#9a9a9a' : '#6b7280', fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
                     width={28}
                   />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }} />
-                  <Legend wrapperStyle={{ fontSize: 12, color: textColor }} />
-                  <Bar dataKey="Entradas" fill={CHART_ENTRADA} radius={[4, 4, 0, 0]} maxBarSize={28} />
-                  <Bar dataKey="Saídas" fill={CHART_SAIDA} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                  <Tooltip
+                    content={<ChartTooltip />}
+                    cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', radius: 8 }}
+                  />
+                  <Bar isAnimationActive={false} dataKey="Entradas" fill={CHART_ENTRADA} radius={[6, 6, 0, 0]} maxBarSize={44}>
+                    {porDia.length <= 10 && (
+                      <LabelList dataKey="Entradas" position="top" fill={textColor} fontSize={11} fontWeight={700} offset={6} formatter={(v: unknown) => (Number(v) > 0 ? String(v) : '')} />
+                    )}
+                  </Bar>
+                  <Bar isAnimationActive={false} dataKey="Saídas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={44}>
+                    {porDia.length <= 10 && (
+                      <LabelList dataKey="Saídas" position="top" fill={textColor} fontSize={11} fontWeight={700} offset={6} formatter={(v: unknown) => (Number(v) > 0 ? String(v) : '')} />
+                    )}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -680,42 +730,50 @@ export function Dashboard() {
                 const corDe = (entry: (typeof porMarca)[number], i: number) =>
                   entry.name === 'Outras' ? CHART_OTHER : CHART_CATEGORICAL[i % CHART_CATEGORICAL.length]
                 return (
-                  <>
-                    <div className="h-52">
+                  <div className="flex flex-col items-center gap-5 sm:flex-row sm:gap-6">
+                    <div className="relative h-52 w-52 shrink-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart key={theme}>
-                          <Pie data={porMarca} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={2}>
+                          <Pie
+                            data={porMarca}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={66}
+                            outerRadius={96}
+                            paddingAngle={2}
+                            cornerRadius={4}
+                            startAngle={90}
+                            endAngle={-270}
+                          >
                             {porMarca.map((entry, i) => (
                               <Cell key={entry.name} fill={corDe(entry, i)} stroke={isDark ? '#1c1c1c' : '#ffffff'} strokeWidth={2} />
                             ))}
                           </Pie>
                           <Tooltip
-                            contentStyle={tooltipStyle}
-                            itemStyle={{ color: textColor }}
-                            formatter={(value, name) => [
-                              `${value} (${Math.round((Number(value) / total) * 100)}%)`,
-                              name,
-                            ]}
+                            content={<ChartTooltip titleFromName formatValue={(v) => `${v} (${Math.round((v / total) * 100)}%)`} />}
                           />
                         </PieChart>
                       </ResponsiveContainer>
+                      {/* Total no centro da rosca */}
+                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-3xl font-black tabular-nums text-foreground leading-none">{total}</span>
+                        <span className="mt-1 text-[10px] font-bold uppercase tracking-wider text-secondary">veículos</span>
+                      </div>
                     </div>
-                    <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
+                    <ul className="w-full min-w-0 flex-1 space-y-2">
                       {porMarca.map((entry, i) => {
                         const percent = Math.round((entry.value / total) * 100)
                         return (
-                          <div key={entry.name} className="flex items-center gap-1.5 text-xs">
-                            <span
-                              className="h-2.5 w-2.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: corDe(entry, i) }}
-                            />
-                            <span className="text-foreground font-bold">{entry.name}</span>
-                            <span className="text-secondary font-medium">{percent}%</span>
-                          </div>
+                          <li key={entry.name} className="flex items-center gap-2.5 text-xs">
+                            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: corDe(entry, i) }} />
+                            <span className="min-w-0 flex-1 truncate font-bold uppercase text-foreground">{entry.name}</span>
+                            <span className="tabular-nums font-bold text-foreground">{entry.value}</span>
+                            <span className="w-9 text-right tabular-nums text-secondary">{percent}%</span>
+                          </li>
                         )
                       })}
-                    </div>
-                  </>
+                    </ul>
+                  </div>
                 )
               })()
             )}
@@ -727,31 +785,46 @@ export function Dashboard() {
             <CardTitle>Ranking de pátios com mais veículos no período</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-72">
-              {rankingPatios.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-secondary">Sem dados</div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart key={theme} data={rankingPatios} layout="vertical" margin={{ left: 8, right: 35 }}>
-                    <CartesianGrid horizontal={false} stroke={gridColor} strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} stroke={textColor} tick={{ fill: textColor, fontSize: 12, fontWeight: 600 }} tickLine={false} axisLine={{ stroke: axisLineColor }} />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      stroke={textColor}
-                      tick={{ fill: textColor, fontSize: 12, fontWeight: 600 }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={120}
-                    />
-                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }} />
-                    <Bar dataKey="value" name="Veículos" fill={CHART_SAIDA} radius={[0, 4, 4, 0]} maxBarSize={22}>
-                      <LabelList dataKey="value" position="right" fill={textColor} fontSize={12} fontWeight={700} offset={6} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+            {rankingPatios.length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-sm text-secondary">Sem dados</div>
+            ) : (
+              (() => {
+                const maior = rankingPatios[0].value || 1
+                const totalPatios = rankingPatios.reduce((acc, p) => acc + p.value, 0)
+                return (
+                  <ol className="space-y-3">
+                    {rankingPatios.map((p, i) => (
+                      <li
+                        key={p.name}
+                        className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[1.75rem_12rem_minmax(0,1fr)_auto]"
+                      >
+                        <span
+                          className={cn(
+                            'flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black tabular-nums',
+                            i === 0 ? 'bg-primary/15 text-primary' : 'bg-overlay/[0.06] text-secondary',
+                          )}
+                        >
+                          {i + 1}
+                        </span>
+                        <span className="truncate text-xs font-bold uppercase text-foreground" title={p.name}>
+                          {p.name}
+                        </span>
+                        <span className="text-right text-xs tabular-nums sm:order-last">
+                          <span className="font-black text-foreground">{p.value}</span>
+                          <span className="ml-1.5 text-secondary">{Math.round((p.value / totalPatios) * 100)}%</span>
+                        </span>
+                        <div className="col-span-3 col-start-1 h-2.5 overflow-hidden rounded-full bg-overlay/[0.06] sm:col-span-1 sm:col-start-auto">
+                          <div
+                            className="ranking-barra h-full rounded-full"
+                            style={{ width: `${(p.value / maior) * 100}%`, backgroundColor: CHART_ENTRADA, animationDelay: `${i * 80}ms` }}
+                          />
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )
+              })()
+            )}
           </CardContent>
         </Card>
       </div>

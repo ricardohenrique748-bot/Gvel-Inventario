@@ -5,6 +5,9 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { Capacitor } from '@capacitor/core'
 import './index.css'
 import App from './App.tsx'
+import { iniciarRevelacaoGraficos } from './lib/chartReveal'
+
+iniciarRevelacaoGraficos()
 
 if (Capacitor.isNativePlatform()) {
   // No APK os arquivos já vêm dentro do app: o service worker do PWA só

@@ -504,7 +504,7 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
                     'Média',
                   ]}
                 />
-                <Bar dataKey="kmL" name="KM/L" fill={CHART_CATEGORICAL[0]} radius={[4, 4, 0, 0]} maxBarSize={48}>
+                <Bar isAnimationActive={false} dataKey="kmL" name="KM/L" fill={CHART_CATEGORICAL[0]} radius={[4, 4, 0, 0]} maxBarSize={48}>
                   <LabelList
                     dataKey="kmL"
                     position="top"

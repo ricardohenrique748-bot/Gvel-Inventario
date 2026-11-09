@@ -311,7 +311,7 @@ function BarRankingCard({
         ) : (
           <div style={{ height: Math.max(220, dados.length * 40) }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dados} layout="vertical" margin={{ left: 8, right: 56, top: 8, bottom: 8 }}>
+              <BarChart data={dados} layout="vertical" className="barras-horizontais" margin={{ left: 8, right: 56, top: 8, bottom: 8 }}>
                 <CartesianGrid horizontal={false} stroke={gridColor} strokeDasharray="3 3" />
                 <XAxis
                   type="number"
@@ -337,7 +337,7 @@ function BarRankingCard({
                   cursor={{ fill: 'rgba(128,128,128,0.08)' }}
                   formatter={(value) => [formatarValor(Number(value)), tooltipLabel]}
                 />
-                <Bar
+                <Bar isAnimationActive={false}
                   dataKey="value"
                   fill={cor}
                   radius={[0, 6, 6, 0]}
@@ -2647,10 +2647,10 @@ export function RH() {
                       <XAxis dataKey="mes" tick={{ fill: textColor, fontSize: 11 }} axisLine={{ stroke: axisLineColor }} tickLine={false} />
                       <YAxis allowDecimals={false} tick={{ fill: textColor, fontSize: 11 }} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
-                      <Bar dataKey="admissoes" name="Admissões" fill={CHART_ENTRADA} radius={[6, 6, 0, 0]} maxBarSize={36}>
+                      <Bar isAnimationActive={false} dataKey="admissoes" name="Admissões" fill={CHART_ENTRADA} radius={[6, 6, 0, 0]} maxBarSize={36}>
                         <LabelList dataKey="admissoes" position="top" style={{ fill: textColor, fontSize: 11, fontWeight: 700 }} />
                       </Bar>
-                      <Bar dataKey="desligamentos" name="Desligamentos" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={36}>
+                      <Bar isAnimationActive={false} dataKey="desligamentos" name="Desligamentos" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={36}>
                         <LabelList dataKey="desligamentos" position="top" style={{ fill: textColor, fontSize: 11, fontWeight: 700 }} />
                       </Bar>
                     </BarChart>
