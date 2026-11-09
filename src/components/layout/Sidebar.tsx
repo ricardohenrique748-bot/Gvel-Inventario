@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, Wrench, Check, Building2, Camera } from 'lucide-react'
+import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus, Wrench, Check, Building2, Camera } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
@@ -131,7 +131,28 @@ function CompanySwitcher() {
   )
 }
 
+const MENU_RECOLHIDO_KEY = 'gvel_menu_recolhido'
+
+function lerMenuRecolhido(): boolean {
+  try {
+    return localStorage.getItem(MENU_RECOLHIDO_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 export function Sidebar() {
+  const [recolhido, setRecolhido] = useState(lerMenuRecolhido)
+  const alternarRecolhido = () =>
+    setRecolhido((atual) => {
+      const novo = !atual
+      try {
+        localStorage.setItem(MENU_RECOLHIDO_KEY, novo ? '1' : '0')
+      } catch {
+        // sem storage (aba anônima etc.): só não lembra a escolha
+      }
+      return novo
+    })
   const { signOut, user, perfil, perfilLoading, refetchPerfil, empresa } = useAuth()
   const [search, setSearch] = useState('')
   const native = isNativeApp()
@@ -299,96 +320,151 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:w-64 md:shrink-0 md:flex-col md:self-start md:overflow-hidden md:rounded-2xl glass-bar">
-      <div className="flex h-14 items-center justify-between px-3 border-b border-border/[0.06] gap-2 relative z-30">
-        <div className="flex-1 min-w-0">
-          <CompanySwitcher />
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {temAcessoModuloEmpresa(empresa, 'config_notificacoes') && <NotificacoesDropdown />}
-        </div>
+    <aside
+      className={cn(
+        'group/menu relative hidden md:sticky md:top-3 md:m-3 md:flex md:h-[calc(100svh-1.5rem)] md:shrink-0 md:flex-col md:self-start md:rounded-[28px] glass-bar transition-[width] duration-300 ease-out',
+        recolhido ? 'md:w-[84px]' : 'md:w-[272px]',
+      )}
+    >
+      {/* Alça na borda: recolhe/expande o menu */}
+      <button
+        type="button"
+        onClick={alternarRecolhido}
+        aria-label={recolhido ? 'Expandir menu' : 'Recolher menu'}
+        title={recolhido ? 'Expandir menu' : 'Recolher menu'}
+        className="absolute -right-3 top-1/2 z-40 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full glass-btn text-secondary opacity-80 hover:text-foreground hover:opacity-100"
+      >
+        {recolhido ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+      </button>
+
+      {/* Cabeçalho */}
+      <div
+        className={cn(
+          'relative z-30 flex shrink-0 items-center border-b border-border/[0.06]',
+          recolhido ? 'h-[76px] flex-col justify-center gap-1' : 'h-[76px] gap-2 px-4',
+        )}
+      >
+        {recolhido ? (
+          <Logo size="sm" showText={false} className="w-auto justify-center" />
+        ) : (
+          <>
+            <div className="min-w-0 flex-1">
+              <CompanySwitcher />
+            </div>
+            {temAcessoModuloEmpresa(empresa, 'config_notificacoes') && <NotificacoesDropdown />}
+          </>
+        )}
       </div>
 
-      <div className="px-2.5 pt-2.5 pb-1.5">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-secondary" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar no menu..."
-            className="h-8 w-full rounded-lg border border-border/[0.06] bg-overlay/5 pl-8 pr-2.5 text-[13px] text-foreground placeholder:text-secondary/60 transition-all focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
-          />
+      {!recolhido && (
+        <div className="px-4 pt-4 pb-1">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-secondary" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar no menu..."
+              className="h-9 w-full rounded-full border border-border/[0.06] bg-overlay/5 pl-9 pr-3 text-[13px] text-foreground placeholder:text-secondary/60 transition-all focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
-      <nav className="flex-1 overflow-y-auto px-2.5 py-2">
-        <p className="px-2 pb-2 pt-2 text-[10px] font-semibold uppercase tracking-wider text-secondary/60">
-          Menu
-        </p>
-        <div className="space-y-1.5">
+      <nav className={cn('flex-1 overflow-y-auto py-4', recolhido ? 'px-0' : 'px-3')}>
+        {!recolhido && (
+          <p className="px-3 pb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary/60">Menu</p>
+        )}
+        <div className={cn('flex flex-col', recolhido ? 'items-center gap-2.5' : 'gap-1')}>
           {filteredNavItems.map((item) => {
             const hasChildren = 'children' in item && item.children && item.children.length > 0
-            const children = hasChildren ? (item as any).children as { to: string; label: string; icon: React.ElementType }[] : []
+            const children = hasChildren ? ((item as any).children as { to: string; label: string; icon: React.ElementType; end?: boolean }[]) : []
             const childActive = isGroupActive(children)
             const isOpen = openGroups[item.to] ?? childActive
+            const end = 'end' in item ? (item as any).end : false
+
+            // ---------- Recolhido: só o ícone ----------
+            if (recolhido) {
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={end}
+                  title={item.label}
+                  aria-label={item.label}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex h-11 w-11 items-center justify-center rounded-full transition-all',
+                      isLinkActive(item.to, isActive) || childActive
+                        ? 'bg-surface text-foreground shadow-[0_8px_20px_-8px_rgb(0_0_0/0.45)] ring-1 ring-border/10'
+                        : 'text-secondary hover:bg-overlay/5 hover:text-foreground',
+                    )
+                  }
+                >
+                  <item.icon className="h-[19px] w-[19px]" />
+                </NavLink>
+              )
+            }
+
+            // ---------- Expandido ----------
+            const pilula = (ativo: boolean) =>
+              cn(
+                'flex min-w-0 flex-1 items-center gap-3 rounded-full py-2.5 pl-3.5 pr-3 text-[13px] font-medium transition-all',
+                ativo
+                  ? 'bg-foreground text-background font-semibold shadow-[0_10px_24px_-10px_rgb(0_0_0/0.55)]'
+                  : 'text-secondary hover:bg-overlay/5 hover:text-foreground',
+              )
 
             if (hasChildren) {
+              const grupoAtivo = childActive
               return (
                 <div key={item.to}>
-                  {/* Parent row – links to /configuracoes and also toggles children */}
-                  <div className="flex items-center gap-1">
+                  <div className={cn('flex items-center rounded-full', grupoAtivo && 'bg-foreground shadow-[0_10px_24px_-10px_rgb(0_0_0/0.55)]')}>
                     <NavLink
                       to={item.to}
-                      end={'end' in item ? (item as any).end : false}
+                      end={end}
                       className={({ isActive }) =>
-                        cn(
-                          'flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-3 pr-3 text-sm font-medium transition-colors',
-                          isLinkActive(item.to, isActive)
-                            ? 'border-primary text-foreground font-semibold'
-                            : 'border-transparent text-secondary hover:bg-overlay/5 hover:text-foreground',
-                        )
+                        grupoAtivo
+                          ? 'flex min-w-0 flex-1 items-center gap-3 rounded-full py-2.5 pl-3.5 pr-1 text-[13px] font-semibold text-background'
+                          : pilula(isLinkActive(item.to, isActive))
                       }
-                      style={{ flex: 1 }}
                     >
-                      <item.icon className="h-5 w-5 shrink-0" />
-                      <span className="uppercase flex-1">{item.label}</span>
+                      <item.icon className="h-[18px] w-[18px] shrink-0" />
+                      <span className="flex-1 truncate">{item.label}</span>
                     </NavLink>
                     <button
+                      type="button"
                       onClick={() => toggleGroup(item.to)}
-                      aria-label="Expandir"
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-secondary transition-colors hover:bg-overlay/5 hover:text-foreground"
+                      aria-label={isOpen ? `Recolher ${item.label}` : `Expandir ${item.label}`}
+                      aria-expanded={isOpen}
+                      className={cn(
+                        'mr-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors',
+                        grupoAtivo ? 'text-background/80 hover:text-background' : 'text-secondary hover:bg-overlay/5 hover:text-foreground',
+                      )}
                     >
-                      <ChevronDown
-                        className={cn('h-4 w-4 transition-transform duration-200', isOpen && 'rotate-180')}
-                      />
+                      {isOpen ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                     </button>
                   </div>
 
-                  {/* Children */}
                   {isOpen && (
-                    <div className="mt-1 ml-4 space-y-1 border-l border-border/10 pl-3">
+                    <div className="relative ml-[26px] mt-1.5 mb-1 space-y-1 border-l border-border/15 pl-3">
                       {children
-                        .filter((c) =>
-                          search.trim()
-                            ? c.label.toLowerCase().includes(search.trim().toLowerCase())
-                            : true,
-                        )
+                        .filter((c) => (search.trim() ? c.label.toLowerCase().includes(search.trim().toLowerCase()) : true))
                         .map((child) => (
                           <NavLink
                             key={child.to}
                             to={child.to}
-                            end={'end' in child ? (child as any).end : false}
+                            end={child.end ?? false}
                             className={({ isActive }) =>
                               cn(
-                                'flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-3 pr-3 text-sm font-medium transition-colors',
+                                'flex items-center gap-3 rounded-full py-2 pl-3 pr-3 text-[13px] font-medium transition-all',
                                 isLinkActive(child.to, isActive)
-                                  ? 'border-primary text-foreground font-semibold'
-                                  : 'border-transparent text-secondary hover:bg-overlay/5 hover:text-foreground',
+                                  ? 'bg-surface text-foreground font-semibold shadow-[0_6px_18px_-8px_rgb(0_0_0/0.4)] ring-1 ring-border/10'
+                                  : 'text-secondary hover:bg-overlay/5 hover:text-foreground',
                               )
                             }
                           >
                             <child.icon className="h-4 w-4 shrink-0" />
-                            <span className="uppercase">{child.label}</span>
+                            <span className="truncate">{child.label}</span>
                           </NavLink>
                         ))}
                     </div>
@@ -398,77 +474,55 @@ export function Sidebar() {
             }
 
             return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={'end' in item ? (item as any).end : false}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-3 pr-3 text-sm font-medium transition-colors',
-                    isLinkActive(item.to, isActive)
-                      ? 'border-primary text-foreground font-semibold'
-                      : 'border-transparent text-secondary hover:bg-overlay/5 hover:text-foreground',
-                  )
-                }
-              >
-                <item.icon className="h-5 w-5 shrink-0" />
-                <span className="uppercase">{item.label}</span>
+              <NavLink key={item.to} to={item.to} end={end} className={({ isActive }) => pilula(isLinkActive(item.to, isActive))}>
+                <item.icon className="h-[18px] w-[18px] shrink-0" />
+                <span className="truncate">{item.label}</span>
               </NavLink>
             )
           })}
-          {filteredNavItems.length === 0 && (
-            <p className="px-2 py-1.5 text-xs text-secondary/60">Nenhum resultado.</p>
-          )}
+          {filteredNavItems.length === 0 && <p className="px-3 py-1.5 text-xs text-secondary/60">Nenhum resultado.</p>}
         </div>
       </nav>
 
-      <div className="border-t border-border/[0.06] p-2">
-        <div className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-overlay/5">
+      {/* Rodapé: usuário, tema e sair */}
+      <div className={cn('shrink-0 border-t border-border/[0.06] p-3', recolhido && 'flex flex-col items-center gap-2.5')}>
+        <div className={cn(recolhido ? 'flex flex-col items-center gap-2.5' : 'flex items-center gap-2.5 rounded-full px-1.5 py-1.5 transition-colors hover:bg-overlay/5')}>
           <button
             type="button"
             onClick={() => perfil && fotoInputRef.current?.click()}
             disabled={!perfil || enviandoFoto}
             aria-label="Alterar foto de perfil"
-            title={perfil ? 'Alterar foto de perfil' : undefined}
-            className="group relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/20 text-[11px] font-semibold text-primary disabled:cursor-default"
+            title={perfil ? (recolhido ? `${user?.email} — alterar foto` : 'Alterar foto de perfil') : undefined}
+            className="group relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/20 text-[11px] font-semibold text-primary disabled:cursor-default"
           >
-            {perfil?.foto_url ? (
-              <img src={perfil.foto_url} alt="" className="h-full w-full object-cover" />
-            ) : (
-              initials
-            )}
+            {perfil?.foto_url ? <img src={perfil.foto_url} alt="" className="h-full w-full object-cover" /> : initials}
             {perfil && (
               <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                 <Camera className={cn('h-3.5 w-3.5 text-white', enviandoFoto && 'animate-pulse')} />
               </span>
             )}
           </button>
-          <input
-            ref={fotoInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFotoPerfilChange}
-          />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium text-foreground">{user?.email}</p>
-            <p className="flex items-center gap-1.5 text-[11px] text-secondary">
-              <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
-              Online
-            </p>
-          </div>
+          <input ref={fotoInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoPerfilChange} />
+          {!recolhido && (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium text-foreground">{user?.email}</p>
+              <p className="flex items-center gap-1.5 text-[11px] text-secondary">
+                <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
+                Online
+              </p>
+            </div>
+          )}
           <ThemeToggleButton />
           <button
             onClick={() => signOut()}
             aria-label="Sair"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-secondary transition-colors hover:bg-overlay/10 hover:text-foreground"
+            title="Sair"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-secondary transition-colors hover:bg-overlay/10 hover:text-foreground"
           >
             <LogOut className="h-3.5 w-3.5" />
           </button>
         </div>
-        {erroFoto && (
-          <p className="mt-1 px-1.5 text-[11px] font-medium text-status-danger">{erroFoto}</p>
-        )}
+        {erroFoto && !recolhido && <p className="mt-1 px-1.5 text-[11px] font-medium text-status-danger">{erroFoto}</p>}
       </div>
 
       {arquivoParaRecortar && (
