@@ -75,6 +75,7 @@ import {
 import { differenceInDays, parseISO, isBefore, startOfDay, format } from 'date-fns'
 import { PageHeader } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Input, Label, FieldError, Select, Textarea } from '@/components/ui/Input'
@@ -3812,49 +3813,10 @@ export function Frotas() {
 
           {/* Métricas do Checklist */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            <Card className="p-4 sm:p-5 border-border/30 bg-surface/90">
-              <div className="flex items-center justify-between text-secondary">
-                <span className="text-[11px] font-black uppercase tracking-wider">TOTAL DE CHECKLISTS</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
-                  <ClipboardCheck className="h-4 w-4" />
-                </div>
-              </div>
-              <p className="mt-3 text-3xl font-black font-mono text-foreground">{metricasChecklistAba.total}</p>
-              <p className="mt-1 text-xs text-secondary font-medium">INSPEÇÕES REGISTRADAS</p>
-            </Card>
-
-            <Card className="p-4 sm:p-5 border-emerald-500/20 bg-surface/90">
-              <div className="flex items-center justify-between text-secondary">
-                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-500">APROVADOS</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                  <CheckCircle2 className="h-4 w-4" />
-                </div>
-              </div>
-              <p className="mt-3 text-3xl font-black font-mono text-emerald-500">{metricasChecklistAba.aprovados}</p>
-              <p className="mt-1 text-xs text-secondary font-medium">100% LIBERADOS</p>
-            </Card>
-
-            <Card className="p-4 sm:p-5 border-amber-500/20 bg-surface/90">
-              <div className="flex items-center justify-between text-secondary">
-                <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">COM RESSALVAS</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                  <Clock className="h-4 w-4" />
-                </div>
-              </div>
-              <p className="mt-3 text-3xl font-black font-mono text-amber-400">{metricasChecklistAba.comRessalvas}</p>
-              <p className="mt-1 text-xs text-secondary font-medium">PEQUENOS REPAROS</p>
-            </Card>
-
-            <Card className="p-4 sm:p-5 border-rose-600/20 bg-surface/90">
-              <div className="flex items-center justify-between text-secondary">
-                <span className="text-[11px] font-black uppercase tracking-wider text-rose-500">REPROVADOS</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600/10 text-rose-500 border border-rose-600/20">
-                  <AlertOctagon className="h-4 w-4" />
-                </div>
-              </div>
-              <p className="mt-3 text-3xl font-black font-mono text-rose-500">{metricasChecklistAba.reprovados}</p>
-              <p className="mt-1 text-xs text-secondary font-medium">NECESSITAM OFICINA</p>
-            </Card>
+            <StatCard tone="primary" icon={ClipboardCheck} label="Total de checklists" value={String(metricasChecklistAba.total)} hint="Inspeções registradas" />
+            <StatCard tone="success" icon={CheckCircle2} label="Aprovados" value={String(metricasChecklistAba.aprovados)} hint="100% liberados" />
+            <StatCard tone="warning" icon={Clock} label="Com ressalvas" value={String(metricasChecklistAba.comRessalvas)} hint="Pequenos reparos" />
+            <StatCard tone="danger" icon={AlertOctagon} label="Reprovados" value={String(metricasChecklistAba.reprovados)} hint="Necessitam oficina" />
           </div>
 
           {/* Filtros e Busca do Checklist */}

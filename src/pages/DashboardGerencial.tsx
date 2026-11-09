@@ -24,6 +24,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PageHeader } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
+import { StatCard } from '@/components/ui/StatCard'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/contexts/AuthContext'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
@@ -299,59 +300,13 @@ export function DashboardGerencial() {
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 uppercase">
         {temPatio && (
           <>
-            <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-secondary">NO PÁTIO</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
-                  <Truck className="h-4 w-4" />
-                </div>
-              </div>
-              <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
-                {loadingMovs ? '—' : metricas.noPatio}
-              </p>
-              <p className="mt-1 text-xs text-secondary uppercase font-medium">VEÍCULOS EM ATENDIMENTO</p>
-            </Card>
-
-            <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-secondary">MOVIMENTAÇÕES</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
-                  <Activity className="h-4 w-4" />
-                </div>
-              </div>
-              <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
-                {loadingMovs ? '—' : metricas.totalMovimentacoes}
-              </p>
-              <p className="mt-1 text-xs text-secondary uppercase font-medium">REGISTROS NO HISTÓRICO</p>
-            </Card>
+            <StatCard tone="info" icon={Truck} label="No pátio" value={loadingMovs ? '—' : String(metricas.noPatio)} hint="Veículos em atendimento" />
+            <StatCard tone="success" icon={Activity} label="Movimentações" value={loadingMovs ? '—' : String(metricas.totalMovimentacoes)} hint="Registros no histórico" />
           </>
         )}
 
-        <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-secondary">CLIENTES</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500">
-              <Users className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
-            {loadingClientes ? '—' : metricas.totalClientes}
-          </p>
-          <p className="mt-1 text-xs text-secondary uppercase font-medium">CADASTRADOS NO SISTEMA</p>
-        </Card>
-
-        <Card className="p-4 sm:p-5 transition-all hover:border-primary/40 hover:-translate-y-0.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-secondary">USUÁRIOS</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
-              <ShieldCheck className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-3 text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
-            {loadingUsuarios ? '—' : metricas.totalUsuarios}
-          </p>
-          <p className="mt-1 text-xs text-secondary uppercase font-medium">ACESSOS GERENCIADOS</p>
-        </Card>
+        <StatCard tone="purple" icon={Users} label="Clientes" value={loadingClientes ? '—' : String(metricas.totalClientes)} hint="Cadastrados no sistema" />
+        <StatCard tone="warning" icon={ShieldCheck} label="Usuários" value={loadingUsuarios ? '—' : String(metricas.totalUsuarios)} hint="Acessos gerenciados" />
       </div>
 
       {/* Atalhos Rápidos para os Módulos */}
