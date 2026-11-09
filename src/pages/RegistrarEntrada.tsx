@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm, Controller, type FieldErrors } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -33,13 +33,15 @@ import {
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { gerarUuid } from '@/lib/uuid'
+import { useAuth } from '@/contexts/AuthContext'
+import { empresaUsaClientes } from '@/lib/empresasEspeciais'
 
 const NOVO_VEICULO = '__novo__'
 const anoAtual = new Date().getFullYear()
 
 const schema = z
   .object({
-    clienteId: z.string().min(1, 'Selecione o cliente'),
+    clienteId: z.string().optional(),
     veiculoId: z.string().min(1, 'Selecione a placa'),
     placa: z.string().optional(),
     tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']).optional(),
@@ -177,7 +179,21 @@ export function RegistrarEntrada() {
     await carregarRascunhos()
   }
 
+  const { empresa } = useAuth()
+  const usaClientes = empresaUsaClientes(empresa)
   const { clientes, refetch: refetchClientes } = useClientes()
+  // Empresas com clientes exigem o cliente; a Localiza (frota própria) não.
+  const resolver = useMemo(
+    () =>
+      zodResolver(
+        usaClientes
+          ? schema.superRefine((values, ctx) => {
+              if (!values.clienteId) ctx.addIssue({ code: 'custom', path: ['clienteId'], message: 'Selecione o cliente' })
+            })
+          : schema,
+      ),
+    [usaClientes],
+  )
   const { marcas, refetch: refetchMarcas } = useMarcas()
   const { patios, refetch: refetchPatios } = usePatios()
   const { statusManutencao, refetch: refetchStatusManutencao } = useStatusManutencao()
@@ -190,7 +206,7 @@ export function RegistrarEntrada() {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver,
     defaultValues: {
       tipo: 'pesado',
       situacao: 'operante',
@@ -206,7 +222,7 @@ export function RegistrarEntrada() {
   const isPesadoOuLeve = tipoSelecionado === 'pesado' || tipoSelecionado === 'leve'
   const isTratorOuCarreta = tipoSelecionado === 'trator' || tipoSelecionado === 'carreta'
 
-  const { veiculos: frotaCliente, loading: loadingFrota } = useVeiculosPorCliente(clienteId)
+  const { veiculos: frotaCliente, loading: loadingFrota } = useVeiculosPorCliente(usaClientes ? clienteId : 'todos')
   const { modelos, refetch: refetchModelos } = useModelos(marcaId)
 
   useEffect(() => {
@@ -284,7 +300,7 @@ export function RegistrarEntrada() {
             placa: values.placa ?? `SEM-${Date.now()}`,
             marcaId: values.marcaId ?? '',
             modeloId: values.modeloId ?? '',
-            clienteId: values.clienteId,
+            clienteId: values.clienteId || null,
             tipo: values.tipo!,
             cor: values.cor ?? '',
             chassi: values.chassi,
@@ -413,6 +429,7 @@ export function RegistrarEntrada() {
             </div>
           )}
           <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-5" noValidate>
+            {usaClientes && (
             <Controller
               control={control}
               name="clienteId"
@@ -432,8 +449,9 @@ export function RegistrarEntrada() {
                 />
               )}
             />
+            )}
 
-            {clienteId && (
+            {(clienteId || !usaClientes) && (
               <Controller
                 control={control}
                 name="veiculoId"

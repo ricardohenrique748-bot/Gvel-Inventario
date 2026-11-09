@@ -1,3 +1,4 @@
+import { empresaUsaClientes } from '@/lib/empresasEspeciais'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
@@ -33,7 +34,7 @@ import type { MovimentacaoComVeiculo } from '@/lib/types'
 const anoAtual = new Date().getFullYear()
 
 const editSchema = z.object({
-  clienteId: z.string().min(1, 'Selecione o cliente'),
+  clienteId: z.string().optional(),
   placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
   tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
   cor: z.string().trim().min(1, 'Informe a cor'),
@@ -63,7 +64,9 @@ const LIMITE_INICIAL = 300
 
 export function Movimentacoes() {
   const navigate = useNavigate()
-  const { perfil, user } = useAuth()
+  const { perfil, user, empresa } = useAuth()
+  // Localiza não tem clientes: some a coluna/campo de cliente.
+  const usaClientes = empresaUsaClientes(empresa)
   const podeGerenciar =
     isAdminUsuario(perfil, user?.email) || (user?.email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
   const [filters, setFilters] = useState<FiltersValue>({})
@@ -198,9 +201,11 @@ export function Movimentacoes() {
         <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={`${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`}>
           {m.veiculo?.marca?.nome} {m.veiculo?.modelo?.nome}
         </td>
-        <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={m.veiculo?.cliente?.nome}>
-          {m.veiculo?.cliente?.nome}
-        </td>
+        {usaClientes && (
+          <td className="px-3 py-3 text-secondary max-w-[140px] truncate" title={m.veiculo?.cliente?.nome}>
+            {m.veiculo?.cliente?.nome}
+          </td>
+        )}
         <td className="px-3 py-3 text-secondary max-w-[100px] truncate">{m.patio?.nome || '—'}</td>
         <td className="px-3 py-3 text-secondary whitespace-nowrap">{formatDateTime(m.data_hora_entrada)}</td>
         <td className="px-3 py-3 text-secondary whitespace-nowrap">
@@ -280,7 +285,7 @@ export function Movimentacoes() {
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-secondary">
-            <p>Cliente: {m.veiculo?.cliente?.nome}</p>
+            {usaClientes && <p>Cliente: {m.veiculo?.cliente?.nome}</p>}
             <p>Pátio: {m.patio?.nome || '—'}</p>
             <p>Permanência: {formatPermanencia(m.data_hora_entrada, m.data_hora_saida)}</p>
             <p>Entrada: {formatDateTime(m.data_hora_entrada)}</p>
@@ -361,7 +366,7 @@ export function Movimentacoes() {
                       Placa
                     </th>
                     <th className="px-3 py-3 font-medium">Marca/Modelo</th>
-                    <th className="px-3 py-3 font-medium">Cliente</th>
+                    {usaClientes && <th className="px-3 py-3 font-medium">Cliente</th>}
                     <th className="px-3 py-3 font-medium">Pátio</th>
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Entrada</th>
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Saída</th>
@@ -504,6 +509,8 @@ export function EditarMovimentacaoForm({
   const { patios, refetch: refetchPatios } = usePatios()
   const { statusManutencao, refetch: refetchStatusManutencao } = useStatusManutencao()
   const { clientes, refetch: refetchClientes } = useClientes()
+  const { empresa } = useAuth()
+  const usaClientes = empresaUsaClientes(empresa)
   const { marcas, refetch: refetchMarcas } = useMarcas()
   const [fotos, setFotos] = useState<Partial<Record<AnguloFoto, { file: File; previewUrl: string }>>>({})
 
@@ -604,7 +611,7 @@ export function EditarMovimentacaoForm({
         placa: values.placa,
         marcaId: values.marcaId,
         modeloId: values.modeloId,
-        clienteId: values.clienteId,
+        clienteId: values.clienteId || null,
         tipo: values.tipo,
         cor: values.cor,
         ano: values.ano,
@@ -648,6 +655,7 @@ export function EditarMovimentacaoForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
+      {usaClientes && (
       <Controller
         control={control}
         name="clienteId"
@@ -667,6 +675,7 @@ export function EditarMovimentacaoForm({
           />
         )}
       />
+      )}
 
       <TipoVeiculoRadioGroup register={register} name="tipo" />
 

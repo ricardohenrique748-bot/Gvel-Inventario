@@ -1,3 +1,4 @@
+import { empresaUsaClientes } from '@/lib/empresasEspeciais'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Truck, LogIn, LogOut, Clock, FileSpreadsheet, AlertTriangle, X } from 'lucide-react'
@@ -160,8 +161,10 @@ function DuplicatasNoPatioModal({
 
 export function Dashboard() {
   const { theme } = useTheme()
-  const { perfil, user } = useAuth()
+  const { perfil, user, empresa } = useAuth()
   const isAdmin = isAdminUsuario(perfil, user?.email)
+  // Empresa sem clientes (Localiza): os grupos do dia são por pátio.
+  const usaClientes = empresaUsaClientes(empresa)
   const isDark = theme === 'dark'
   const textColor = isDark ? '#ffffff' : '#18181b'
   const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
@@ -331,23 +334,23 @@ export function Dashboard() {
     const lista = stats.entradasFiltradas
     const porCliente = new Map<string, typeof lista>()
     for (const m of lista) {
-      const nome = m.veiculo?.cliente?.nome ?? 'Sem cliente'
+      const nome = usaClientes ? (m.veiculo?.cliente?.nome ?? 'Sem cliente') : (m.patio?.nome ?? 'Sem pátio')
       if (!porCliente.has(nome)) porCliente.set(nome, [])
       porCliente.get(nome)!.push(m)
     }
     return [...porCliente.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [stats.entradasFiltradas])
+  }, [stats.entradasFiltradas, usaClientes])
 
   const saidasHojeAgrupadas = useMemo(() => {
     const lista = stats.saidasFiltradas
     const porCliente = new Map<string, typeof lista>()
     for (const m of lista) {
-      const nome = m.veiculo?.cliente?.nome ?? 'Sem cliente'
+      const nome = usaClientes ? (m.veiculo?.cliente?.nome ?? 'Sem cliente') : (m.patio?.nome ?? 'Sem pátio')
       if (!porCliente.has(nome)) porCliente.set(nome, [])
       porCliente.get(nome)!.push(m)
     }
     return [...porCliente.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [stats.saidasFiltradas])
+  }, [stats.saidasFiltradas, usaClientes])
 
   // Uma linha por veículo (mantém só a etapa mais recente do dia, caso tenha
   // mudado de setor mais de uma vez), agrupado por cliente igual às entradas.
@@ -362,12 +365,14 @@ export function Dashboard() {
     const lista = [...porVeiculo.values()]
     const porCliente = new Map<string, typeof lista>()
     for (const e of lista) {
-      const nome = e.movimentacao.veiculo?.cliente?.nome ?? 'Sem cliente'
+      const nome = usaClientes
+        ? (e.movimentacao.veiculo?.cliente?.nome ?? 'Sem cliente')
+        : (e.movimentacao.patio?.nome ?? 'Sem pátio')
       if (!porCliente.has(nome)) porCliente.set(nome, [])
       porCliente.get(nome)!.push(e)
     }
     return [...porCliente.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [etapasPeriodo])
+  }, [etapasPeriodo, usaClientes])
 
   const totalEtapasHoje = etapasHojeAgrupadas.reduce((acc, [, l]) => acc + l.length, 0)
 

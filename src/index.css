@@ -16,6 +16,7 @@
        EmpresaContext.tsx, que aplica a cor cadastrada em `companies.primary_color`. */
     --color-primary: 226 59 46;
     --color-primary-hover: 199 48 31;
+    --color-accent: 245 166 35;
     /* Altura da barra de navegação do Android embaixo da tela. Alguns WebViews
        (visto em Xiaomi) devolvem env() = 0 mesmo desenhando o app por baixo da
        barra; o Capacitor injeta o valor real em --safe-area-inset-bottom. */
@@ -31,6 +32,28 @@
     --color-secondary: 154 154 154;
     --color-border: 255 255 255;
     --color-overlay: 255 255 255;
+  }
+
+  /* Marca Localiza Pesados (empresa Localiza — ver EmpresaContext.tsx e
+     src/lib/empresasEspeciais.ts): verde #04662C, laranja #FC8226 e fundos
+     levemente esverdeados, iguais ao site próprio dela. */
+  html.marca-localiza:not(.dark) {
+    --color-background: 242 245 243;
+    --color-surface: 255 255 255;
+    --color-surface-hover: 234 240 236;
+    --color-primary: 4 102 44;
+    --color-primary-hover: 3 82 35;
+    --color-accent: 252 130 38;
+  }
+
+  html.marca-localiza.dark {
+    --color-background: 11 20 14;
+    --color-surface: 19 31 23;
+    --color-surface-hover: 27 42 32;
+    /* No escuro o verde da marca fica apagado; usa um tom mais vivo. */
+    --color-primary: 18 138 66;
+    --color-primary-hover: 12 115 54;
+    --color-accent: 252 130 38;
   }
 
   body {

@@ -39,6 +39,8 @@ Introduzido nas migrations 0072–0078.
 - `companies.modulos_habilitados = null` libera todos os módulos para a empresa. Preenchido, só os módulos listados aparecem no menu (`temAcessoModuloEmpresa` em `src/lib/permissoes.ts`). Configurações (empresas, clientes, usuários) nunca é escondido.
 - Uploads no Storage são prefixados com o id da empresa (`src/lib/tenant.ts`). Isso é só organização; a segurança é o RLS do Storage (0074).
 - O id da GVEL (`0923c894-85ca-45c1-ba1b-3124d19b4d65`) está fixo em `Financeiro.tsx`, `RH.tsx` e `components/ui/Logo.tsx` para liberar telas exclusivas da GVEL (Visão Geral do financeiro, Turnover) e a marca padrão.
+- **Localiza** (`81775591-b128-476e-b630-bc88f068c6ae`, migration 0098, `src/lib/empresasEspeciais.ts`): só o Inventário de Caminhões + Configurações de pátios e usuários. Não tem clientes (cliente opcional na entrada, dashboard agrupa por pátio, cadastro de Clientes escondido) e usa visual próprio: classe `marca-localiza` no `<html>` (cores em `index.css`), logo em `public/logo-localiza.png` e fonte Poppins (`font-display`). A tela de login continua com a marca padrão, porque a empresa só é conhecida depois do login.
+- Placa, nome de pátio e nome de situação são únicos **por empresa** (0098); antes eram únicos no banco inteiro.
 - **O apk é só da GVEL.** Não pode conectar em outras empresas (ex.: Pedrão Tacógrafos). Não há trava específica no código para isso: o isolamento hoje depende de quem faz login no app.
 
 ## Login e permissões

@@ -243,7 +243,7 @@ export function Sidebar() {
             if (c.to === '/inventario-ferramentas?aba=caixas') return isModuloAuthorized(userRef, 'estoque_caixas')
             if (c.to === '/inventario-ferramentas?aba=em_uso') return isModuloAuthorized(userRef, 'estoque_em_uso')
             if (c.to === '/inventario-ferramentas?aba=historico') return isModuloAuthorized(userRef, 'estoque_historico')
-            if (c.to === '/clientes') return isModuloAuthorized(userRef, 'config_clientes')
+            if (c.to === '/clientes') return isModuloAuthorized(userRef, 'config_clientes') && temAcessoModuloEmpresa(empresa, 'config_clientes')
             if (c.to === '/relatorios') return isModuloAuthorized(userRef, 'relatorios')
             return true
           })

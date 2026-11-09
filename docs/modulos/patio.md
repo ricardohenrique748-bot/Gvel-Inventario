@@ -23,6 +23,10 @@ Cadastrados em Configurações → Pátios ou pelo "+ Criar novo setor" nos form
 
 `clientes.share_token` gera o link `/publico/frota/:token`, que mostra a frota do cliente no pátio sem login. A leitura passa pelas funções `get_frota_publica` e `get_veiculo_publico` (security definer), que expõem só os campos permitidos.
 
+## Empresas sem clientes
+
+Na Localiza (`empresaUsaClientes` em `src/lib/empresasEspeciais.ts`) o cliente é opcional: a entrada lista a frota inteira, o campo e a coluna de cliente somem e o dashboard agrupa por pátio.
+
 ## Regras
 
 - Editar e excluir movimentações: admin ou `inventario@gveldiesel.com`.

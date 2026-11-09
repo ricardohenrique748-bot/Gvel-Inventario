@@ -1,3 +1,4 @@
+import { empresaUsaClientes } from '@/lib/empresasEspeciais'
 import type { Company, Usuario } from './types'
 
 export interface SubModuloSistema {
@@ -380,9 +381,11 @@ const MODULOS_SEMPRE_LIBERADOS_EMPRESA = [
  * (padrão de toda empresa nova/existente) significa "sem restrição".
  */
 export function temAcessoModuloEmpresa(
-  empresa: Pick<Company, 'modulos_habilitados'> | null | undefined,
+  empresa: (Pick<Company, 'modulos_habilitados'> & Partial<Pick<Company, 'id'>>) | null | undefined,
   moduloId: string,
 ): boolean {
+  // Empresa sem clientes (Localiza): some o cadastro de clientes.
+  if (moduloId === 'config_clientes' && empresa?.id && !empresaUsaClientes({ id: empresa.id })) return false
   if (MODULOS_SEMPRE_LIBERADOS_EMPRESA.includes(moduloId)) return true
   const habilitados = empresa?.modulos_habilitados
   if (!habilitados || habilitados.length === 0) return true
@@ -401,7 +404,7 @@ function subModuloFiltradoPorEmpresa(subId: string): boolean {
 }
 
 export function temAcessoSubModuloEmpresa(
-  empresa: Pick<Company, 'modulos_habilitados'> | null | undefined,
+  empresa: (Pick<Company, 'modulos_habilitados'> & Partial<Pick<Company, 'id'>>) | null | undefined,
   subId: string,
 ): boolean {
   return subModuloFiltradoPorEmpresa(subId) ? temAcessoModuloEmpresa(empresa, subId) : true

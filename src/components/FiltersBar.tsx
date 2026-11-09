@@ -1,3 +1,5 @@
+import { empresaUsaClientes } from '@/lib/empresasEspeciais'
+import { useAuth } from '@/contexts/AuthContext'
 import { Search, X } from 'lucide-react'
 import { Input, Select } from '@/components/ui/Input'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
@@ -26,6 +28,8 @@ interface FiltersBarProps {
 
 export function FiltersBar({ value, onChange, showSearch = false, showPeriod = true, onClear }: FiltersBarProps) {
   const { clientes } = useClientes()
+  const { empresa } = useAuth()
+  const usaClientes = empresaUsaClientes(empresa)
   const { marcas } = useMarcas()
   const { modelos } = useModelos(value.marcaId)
   const { patios } = usePatios()
@@ -79,7 +83,8 @@ export function FiltersBar({ value, onChange, showSearch = false, showPeriod = t
       )}
 
       {/* Linha 2: cliente + pátio + marca + modelo */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className={`grid grid-cols-2 gap-3 ${usaClientes ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
+        {usaClientes && (
         <SearchableSelect
           value={value.clienteId ?? ''}
           onChange={(id) => patch({ clienteId: id || undefined })}
@@ -87,6 +92,7 @@ export function FiltersBar({ value, onChange, showSearch = false, showPeriod = t
           placeholder="Todos os clientes"
           emptyMessage="Nenhum cliente encontrado."
         />
+        )}
 
         <Select
           value={value.patioId ?? ''}

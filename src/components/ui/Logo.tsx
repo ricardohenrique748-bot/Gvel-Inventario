@@ -1,6 +1,7 @@
 import { cn } from '@/lib/cn'
 import logoIcon from '@/assets/logo-icon.png'
 import { useEmpresa } from '@/contexts/EmpresaContext'
+import { isLocaliza } from '@/lib/empresasEspeciais'
 
 interface LogoProps {
   className?: string
@@ -35,6 +36,25 @@ export function Logo({ className, showText = true, size = 'md', stacked = false 
   // marca padrão (é a dela mesmo); qualquer outra empresa usa um selo
   // genérico com a cor cadastrada, em vez de herdar a marca da GVEL.
   const usaMarcaPadraoGvel = !empresaAtiva || empresaAtiva.id === GVEL_COMPANY_ID
+
+  // Localiza: marca própria, igual ao site dela (símbolo + "localiza pesados").
+  if (isLocaliza(empresaAtiva)) {
+    return (
+      <div className={cn(stacked ? 'flex flex-col items-center' : 'flex items-center min-w-0 w-full overflow-hidden', s.gap, className)}>
+        <img src="/logo-localiza.png" alt="Localiza" className={cn(s.icon, 'shrink-0 object-contain rounded-lg')} />
+        {showText && (
+          <div className={cn('flex flex-col leading-tight min-w-0 flex-1 overflow-hidden max-w-full', stacked ? 'items-center text-center' : 'justify-center text-left')}>
+            <p className={cn('font-display font-bold lowercase tracking-tight text-foreground truncate block max-w-full', s.title)}>
+              localiza <span className="font-medium text-primary">pesados</span>
+            </p>
+            <p className={cn('mt-0.5 font-semibold uppercase tracking-wider text-accent truncate block max-w-full', s.subtitle)}>
+              Inventário de Caminhões
+            </p>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className={cn(stacked ? 'flex flex-col items-center' : 'flex items-center min-w-0 w-full overflow-hidden', s.gap, className)}>

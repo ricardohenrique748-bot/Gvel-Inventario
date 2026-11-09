@@ -137,7 +137,7 @@ export type RegistrarEntradaInput =
       placa: string
       marcaId: string
       modeloId: string
-      clienteId: string
+      clienteId?: string | null
       tipo: TipoVeiculo
       cor: string
       chassi?: string

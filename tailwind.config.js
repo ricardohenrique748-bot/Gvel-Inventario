@@ -16,6 +16,8 @@ export default {
         foreground: 'rgb(var(--color-foreground) / <alpha-value>)',
         border: 'rgb(var(--color-border) / <alpha-value>)',
         overlay: 'rgb(var(--color-overlay) / <alpha-value>)',
+        // Cor de destaque (laranja na marca Localiza; âmbar no padrão).
+        accent: 'rgb(var(--color-accent) / <alpha-value>)',
         status: {
           success: '#2E7D32',
           danger: '#E23B2E',
@@ -24,6 +26,8 @@ export default {
         },
       },
       fontFamily: {
+        // Títulos da marca Localiza (ver .marca-localiza em index.css).
+        display: ['Poppins', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: [
           'Inter',
           'ui-sans-serif',

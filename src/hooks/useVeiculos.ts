@@ -64,7 +64,8 @@ interface UpsertVeiculoInput {
   placa: string
   marcaId: string
   modeloId: string
-  clienteId: string
+  /** Opcional: empresas sem clientes (Localiza) gravam o veículo sem dono. */
+  clienteId?: string | null
   tipo: TipoVeiculo
   cor?: string
   ano?: number
@@ -85,7 +86,7 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
     const updatePayload: Record<string, unknown> = {
       marca_id: input.marcaId || null,
       modelo_id: input.modeloId || null,
-      cliente_id: input.clienteId,
+      cliente_id: input.clienteId || null,
       tipo: input.tipo,
     }
     // Só sobrescreve cor/ano quando informados, para não apagar esses dados
@@ -111,7 +112,7 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
       placa,
       marca_id: input.marcaId || null,
       modelo_id: input.modeloId || null,
-      cliente_id: input.clienteId,
+      cliente_id: input.clienteId || null,
       tipo: input.tipo,
       cor: up(input.cor) || null,
       ano: input.ano ?? null,
@@ -131,7 +132,7 @@ export async function atualizarVeiculo(id: string, input: UpsertVeiculoInput) {
       placa: input.placa.trim().toUpperCase(),
       marca_id: input.marcaId || null,
       modelo_id: input.modeloId || null,
-      cliente_id: input.clienteId,
+      cliente_id: input.clienteId || null,
       tipo: input.tipo,
       cor: up(input.cor) || null,
       ano: input.ano ?? null,

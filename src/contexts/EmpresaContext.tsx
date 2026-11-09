@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 import { hexEscurecidoParaRgbString, hexParaRgbString } from '@/lib/color'
 import { useAuth } from './AuthContext'
+import { isLocaliza } from '@/lib/empresasEspeciais'
 
 // Fase 1 do multi-empresa: a "empresa ativa" vem sempre do banco, resolvida
 // a partir do usuário autenticado (AuthContext → tabela `companies` via
@@ -55,12 +56,22 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
   // via CSS var — ver --color-primary em src/index.css e tailwind.config.js.
   // Sem empresa (ex.: tela de login), fica a cor padrão já definida no CSS.
   useEffect(() => {
+    const raiz = document.documentElement
+    // Localiza usa o tema próprio (classe marca-localiza em index.css), com
+    // verde diferente no claro e no escuro — não aplica a cor única por cima.
+    const localiza = isLocaliza(empresaAtiva)
+    raiz.classList.toggle('marca-localiza', localiza)
+    if (localiza) {
+      raiz.style.removeProperty('--color-primary')
+      raiz.style.removeProperty('--color-primary-hover')
+      return
+    }
     if (!empresaAtiva?.cor) return
     const rgb = hexParaRgbString(empresaAtiva.cor)
     const rgbHover = hexEscurecidoParaRgbString(empresaAtiva.cor)
     if (rgb) document.documentElement.style.setProperty('--color-primary', rgb)
     if (rgbHover) document.documentElement.style.setProperty('--color-primary-hover', rgbHover)
-  }, [empresaAtiva?.cor])
+  }, [empresaAtiva])
 
   const setEmpresaAtiva = useCallback(
     async (id: string) => {

@@ -1,3 +1,4 @@
+import { empresaUsaClientes } from '@/lib/empresasEspeciais'
 import { useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -126,7 +127,7 @@ function agoraInputValue() {
 
 export function VeiculoDetalhe() {
   const { id } = useParams<{ id: string }>()
-  const { perfil, user } = useAuth()
+  const { perfil, user, empresa } = useAuth()
   const isAdmin = isAdminUsuario(perfil, user?.email)
   const { veiculo, historico, loading, refetch } = useVeiculoDetalhe(id)
   const [confirmandoSaida, setConfirmandoSaida] = useState(false)
@@ -280,7 +281,7 @@ export function VeiculoDetalhe() {
             <Row label="Ano">{veiculo.ano || '—'}</Row>
             <Row label="Cor">{veiculo.cor || '—'}</Row>
             <Row label="Chassi">{veiculo.chassi || '—'}</Row>
-            <Row label="Cliente">{veiculo.cliente?.nome}</Row>
+            {empresaUsaClientes(empresa) && <Row label="Cliente">{veiculo.cliente?.nome}</Row>}
           </CardContent>
         </Card>
 
