@@ -2,12 +2,8 @@ import { format, parseISO } from 'date-fns'
 import { generatePdfFromHtml, reportFooterHtml, reportHeaderHtml, REPORT_STYLES } from '@/lib/pdf'
 import type { RegistroChecklist } from '@/lib/types'
 
-/** Só estas placas podem emitir o checklist em PDF. */
-export const PLACAS_CHECKLIST_PDF = ['GDT0I01', 'GDT0H04', 'CUL2E24', 'GDT0I02', 'GDT0I03', 'ERA9G01']
-
-export function podeEmitirPdfChecklist(placa: string): boolean {
-  return PLACAS_CHECKLIST_PDF.includes(placa.toUpperCase().trim())
-}
+// Quem pode emitir o PDF é decidido na tela (Frotas.tsx): todo checklist de
+// veículo da Rodocaçamba (pesado / trator / carreta).
 
 const RESULTADO: Record<RegistroChecklist['resultado'], { label: string; cor: string }> = {
   aprovado: { label: 'APROVADO', cor: '#15803d' },
@@ -114,9 +110,8 @@ function htmlChecklist(chk: RegistroChecklist): string {
   </div>`
 }
 
-/** Gera e baixa o PDF do checklist (só para as placas liberadas). */
+/** Gera e baixa o PDF do checklist. */
 export async function baixarPdfChecklist(chk: RegistroChecklist): Promise<void> {
-  if (!podeEmitirPdfChecklist(chk.placa)) throw new Error('Esta placa não está liberada para emitir o checklist em PDF.')
   const doc = await generatePdfFromHtml(htmlChecklist(chk))
   doc.save(`checklist-${chk.placa}-${format(parseISO(chk.dataHora), 'yyyy-MM-dd-HHmm')}.pdf`)
 }

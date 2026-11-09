@@ -193,7 +193,7 @@ import { ManutencaoViagens } from '@/pages/frotas/ManutencaoViagens'
 import { ConciliacaoViagens } from '@/pages/frotas/ConciliacaoViagens'
 import { ConsumoCombustivel } from '@/pages/frotas/ConsumoCombustivel'
 import { formatarNomeSobrenome } from '@/constants/equipe'
-import { baixarPdfChecklist, podeEmitirPdfChecklist } from '@/pages/frotas/pdfChecklist'
+import { baixarPdfChecklist } from '@/pages/frotas/pdfChecklist'
 
 export function isFrotaEmbarcado(v: { placa?: string; tipo?: string }): boolean {
   const placa = (v.placa || '').toUpperCase().trim()
@@ -1086,6 +1086,7 @@ export function Frotas() {
   const zoomPinchScaleRef = useRef(1)
   const zoomDragRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null)
   const [buscaChecklist, setBuscaChecklist] = useState('')
+  const [categoriaListaChecklist, setCategoriaListaChecklist] = useState<'todos' | 'leve' | 'rodocacamba'>('todos')
   const [filtroResultadoChecklist, setFiltroResultadoChecklist] = useState<string>('todos')
 
   // Form State para Novo Checklist
@@ -1881,9 +1882,35 @@ export function Frotas() {
     })
   }, [frotasCategoria, categoriaFrota, tipoFiltro, alertaFiltro, busca, ultimasKmsPorPlaca])
 
+  // Aba da listagem de checklists: separa Frota Leve de Rodocaçamba pelo tipo do
+  // veículo cadastrado (mesma regra do seletor do "Novo Checklist").
+  const checklistEhLeve = useMemo(() => {
+    const tipoPorId = new Map(frotas.map((f) => [f.id, f.tipo]))
+    const tipoPorPlaca = new Map(frotas.map((f) => [f.placa.toUpperCase().trim(), f.tipo]))
+    return (c: { veiculoId: string; placa: string; modeloNome?: string }) => {
+      const tipo = tipoPorId.get(c.veiculoId) ?? tipoPorPlaca.get((c.placa || '').toUpperCase().trim())
+      return tipo ? tipo === 'leve' : isFrotaLeve({ placa: c.placa, modeloNome: c.modeloNome })
+    }
+  }, [frotas])
+
+  const checklistsDaCategoria = useMemo(() => {
+    if (categoriaListaChecklist === 'todos') return checklists
+    return checklists.filter((c) => (categoriaListaChecklist === 'leve' ? checklistEhLeve(c) : !checklistEhLeve(c)))
+  }, [checklists, checklistEhLeve, categoriaListaChecklist])
+
+  const metricasChecklistAba = useMemo(() => {
+    const lista = checklistsDaCategoria
+    return {
+      total: lista.length,
+      aprovados: lista.filter((c) => c.resultado === 'aprovado').length,
+      comRessalvas: lista.filter((c) => c.resultado === 'aprovado_com_ressalvas').length,
+      reprovados: lista.filter((c) => c.resultado === 'reprovado').length,
+    }
+  }, [checklistsDaCategoria])
+
   // Filtro de Checklists
   const checklistsFiltrados = useMemo(() => {
-    return checklists.filter((c) => {
+    return checklistsDaCategoria.filter((c) => {
       if (filtroResultadoChecklist !== 'todos' && c.resultado !== filtroResultadoChecklist) return false
       if (!buscaChecklist.trim()) return true
       const termo = buscaChecklist.toLowerCase().trim()
@@ -1894,7 +1921,7 @@ export function Frotas() {
         (c.modeloNome && c.modeloNome.toLowerCase().includes(termo))
       )
     })
-  }, [checklists, filtroResultadoChecklist, buscaChecklist])
+  }, [checklistsDaCategoria, filtroResultadoChecklist, buscaChecklist])
 
   // Filtro de Viagens
   const STATUS_ATIVAS: StatusViagem[] = ['cotada', 'confirmada', 'em_transito']
@@ -3750,6 +3777,39 @@ export function Frotas() {
             </span>
           </div>
 
+          {/* Abas: separa os checklists da Frota Leve e do Rodocaçamba */}
+          {(() => {
+            const abasCategoria: ['todos' | 'leve' | 'rodocacamba', string][] = [
+              ['todos', 'TODOS'],
+              ['leve', '🚗 FROTA LEVE'],
+              ['rodocacamba', '🚛 RODOCAÇAMBA'],
+            ]
+            const indiceAtivo = abasCategoria.findIndex(([valor]) => valor === categoriaListaChecklist)
+            return (
+              <div className="relative flex items-center rounded-full bg-surface/90 border border-border/25 p-1 w-full max-w-lg shadow-inner">
+                <div
+                  className="absolute inset-1 rounded-full bg-primary shadow-md shadow-primary/30 transition-transform duration-300 ease-out"
+                  style={{
+                    width: `calc((100% - 0.5rem) / 3)`,
+                    transform: `translateX(${indiceAtivo * 100}%)`,
+                  }}
+                />
+                {abasCategoria.map(([valor, label]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    onClick={() => setCategoriaListaChecklist(valor)}
+                    className={`relative z-10 flex-1 rounded-full px-3 py-2 text-[11px] font-black uppercase whitespace-nowrap transition-colors duration-300 cursor-pointer ${
+                      categoriaListaChecklist === valor ? 'text-white' : 'text-secondary hover:text-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
+
           {/* Métricas do Checklist */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <Card className="p-4 sm:p-5 border-border/30 bg-surface/90">
@@ -3759,7 +3819,7 @@ export function Frotas() {
                   <ClipboardCheck className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-foreground">{metricasChecklist.total}</p>
+              <p className="mt-3 text-3xl font-black font-mono text-foreground">{metricasChecklistAba.total}</p>
               <p className="mt-1 text-xs text-secondary font-medium">INSPEÇÕES REGISTRADAS</p>
             </Card>
 
@@ -3770,7 +3830,7 @@ export function Frotas() {
                   <CheckCircle2 className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-emerald-500">{metricasChecklist.aprovados}</p>
+              <p className="mt-3 text-3xl font-black font-mono text-emerald-500">{metricasChecklistAba.aprovados}</p>
               <p className="mt-1 text-xs text-secondary font-medium">100% LIBERADOS</p>
             </Card>
 
@@ -3781,7 +3841,7 @@ export function Frotas() {
                   <Clock className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-amber-400">{metricasChecklist.comRessalvas}</p>
+              <p className="mt-3 text-3xl font-black font-mono text-amber-400">{metricasChecklistAba.comRessalvas}</p>
               <p className="mt-1 text-xs text-secondary font-medium">PEQUENOS REPAROS</p>
             </Card>
 
@@ -3792,7 +3852,7 @@ export function Frotas() {
                   <AlertOctagon className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-3xl font-black font-mono text-rose-500">{metricasChecklist.reprovados}</p>
+              <p className="mt-3 text-3xl font-black font-mono text-rose-500">{metricasChecklistAba.reprovados}</p>
               <p className="mt-1 text-xs text-secondary font-medium">NECESSITAM OFICINA</p>
             </Card>
           </div>
@@ -4004,7 +4064,7 @@ export function Frotas() {
                               >
                                 <Eye className="h-4 w-4" />
                               </button>
-                              {podeEmitirPdfChecklist(chk.placa) && (
+                              {!checklistEhLeve(chk) && (
                                 <button
                                   type="button"
                                   onClick={() => handleBaixarPdfChecklist(chk)}
