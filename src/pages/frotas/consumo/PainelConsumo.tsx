@@ -1,3 +1,4 @@
+import { BarraPilula } from '@/components/charts/BarraPilula'
 import { useCallback, useMemo, useState } from 'react'
 import { Fuel, Gauge, DollarSign, Droplets, Target, Clock, Route, Weight } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
@@ -504,7 +505,7 @@ export function PainelConsumo({ veiculos, ciclosPorPlaca, abastecimentos, viagen
                     'Média',
                   ]}
                 />
-                <Bar isAnimationActive={false} dataKey="kmL" name="KM/L" fill={CHART_CATEGORICAL[0]} radius={[4, 4, 0, 0]} maxBarSize={48}>
+                <Bar isAnimationActive={false} dataKey="kmL" name="KM/L" fill={CHART_CATEGORICAL[0]} shape={<BarraPilula />} maxBarSize={48}>
                   <LabelList
                     dataKey="kmL"
                     position="top"

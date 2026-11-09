@@ -1,3 +1,4 @@
+import { BarraPilula } from '@/components/charts/BarraPilula'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -340,7 +341,7 @@ function BarRankingCard({
                 <Bar isAnimationActive={false}
                   dataKey="value"
                   fill={cor}
-                  radius={[0, 6, 6, 0]}
+                  shape={<BarraPilula />}
                   maxBarSize={22}
                   cursor={onBarClick ? 'pointer' : undefined}
                   onClick={(data: any) => onBarClick?.(data?.payload ?? data)}
@@ -2647,10 +2648,10 @@ export function RH() {
                       <XAxis dataKey="mes" tick={{ fill: textColor, fontSize: 11 }} axisLine={{ stroke: axisLineColor }} tickLine={false} />
                       <YAxis allowDecimals={false} tick={{ fill: textColor, fontSize: 11 }} axisLine={false} tickLine={false} />
                       <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
-                      <Bar isAnimationActive={false} dataKey="admissoes" name="Admissões" fill={CHART_ENTRADA} radius={[6, 6, 0, 0]} maxBarSize={36}>
+                      <Bar isAnimationActive={false} dataKey="admissoes" name="Admissões" fill={CHART_ENTRADA} shape={<BarraPilula />} maxBarSize={36}>
                         <LabelList dataKey="admissoes" position="top" style={{ fill: textColor, fontSize: 11, fontWeight: 700 }} />
                       </Bar>
-                      <Bar isAnimationActive={false} dataKey="desligamentos" name="Desligamentos" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={36}>
+                      <Bar isAnimationActive={false} dataKey="desligamentos" name="Desligamentos" fill={CHART_SAIDA} shape={<BarraPilula />} maxBarSize={36}>
                         <LabelList dataKey="desligamentos" position="top" style={{ fill: textColor, fontSize: 11, fontWeight: 700 }} />
                       </Bar>
                     </BarChart>

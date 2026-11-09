@@ -1,3 +1,4 @@
+import { BarraPilula } from '@/components/charts/BarraPilula'
 import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Clock, Truck, Timer, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, Check, CheckCircle2, Award } from 'lucide-react'
@@ -612,7 +613,7 @@ export function ControleDeHoras() {
                           ]
                         }}
                       />
-                      <Bar isAnimationActive={false} dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={48}>
+                      <Bar isAnimationActive={false} dataKey="horas" name="Horas" fill={CHART_SAIDA} shape={<BarraPilula />} maxBarSize={48}>
                         <LabelList
                           dataKey="minutos"
                           position="top"
@@ -780,7 +781,7 @@ export function ControleDeHoras() {
                         `${props.payload.colaborador} • ${props.payload.placa}`,
                       ]}
                     />
-                    <Bar isAnimationActive={false} dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={44}>
+                    <Bar isAnimationActive={false} dataKey="horas" name="Horas" fill={CHART_SAIDA} shape={<BarraPilula />} maxBarSize={44}>
                       <LabelList
                         dataKey="minutos"
                         position="top"
@@ -840,7 +841,7 @@ export function ControleDeHoras() {
                           'Tempo Total',
                         ]}
                       />
-                      <Bar isAnimationActive={false} dataKey="horas" name="Horas" fill={CHART_SAIDA} radius={[0, 6, 6, 0]} maxBarSize={22}>
+                      <Bar isAnimationActive={false} dataKey="horas" name="Horas" fill={CHART_SAIDA} shape={<BarraPilula />} maxBarSize={22}>
                         <LabelList
                           dataKey="minutos"
                           position="right"
@@ -891,7 +892,7 @@ export function ControleDeHoras() {
                         width={130}
                       />
                       <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }} />
-                      <Bar isAnimationActive={false} dataKey="value" name="Veículos" fill={CHART_SAIDA} radius={[0, 6, 6, 0]} maxBarSize={22}>
+                      <Bar isAnimationActive={false} dataKey="value" name="Veículos" fill={CHART_SAIDA} shape={<BarraPilula />} maxBarSize={22}>
                         <LabelList dataKey="value" position="right" fill={textColor} fontSize={11} fontWeight={800} offset={8} />
                       </Bar>
                     </BarChart>

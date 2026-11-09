@@ -1,3 +1,4 @@
+import { BarraPilula } from '@/components/charts/BarraPilula'
 import { empresaUsaClientes } from '@/lib/empresasEspeciais'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -701,12 +702,12 @@ export function Dashboard() {
                     content={<ChartTooltip />}
                     cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', radius: 8 }}
                   />
-                  <Bar isAnimationActive={false} dataKey="Entradas" fill={CHART_ENTRADA} radius={[6, 6, 0, 0]} maxBarSize={44}>
+                  <Bar isAnimationActive={false} dataKey="Entradas" fill={CHART_ENTRADA} shape={<BarraPilula />} maxBarSize={44}>
                     {porDia.length <= 10 && (
                       <LabelList dataKey="Entradas" position="top" fill={textColor} fontSize={11} fontWeight={700} offset={6} formatter={(v: unknown) => (Number(v) > 0 ? String(v) : '')} />
                     )}
                   </Bar>
-                  <Bar isAnimationActive={false} dataKey="Saídas" fill={CHART_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={44}>
+                  <Bar isAnimationActive={false} dataKey="Saídas" fill={CHART_SAIDA} shape={<BarraPilula />} maxBarSize={44}>
                     {porDia.length <= 10 && (
                       <LabelList dataKey="Saídas" position="top" fill={textColor} fontSize={11} fontWeight={700} offset={6} formatter={(v: unknown) => (Number(v) > 0 ? String(v) : '')} />
                     )}

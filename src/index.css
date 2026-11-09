@@ -471,10 +471,12 @@ html.graficos-sem-observer .recharts-wrapper .recharts-bar .recharts-label-list 
   animation-play-state: running;
 }
 /* Barra um pouco mais clara ao passar o mouse */
-.recharts-bar-rectangle path {
+.recharts-bar-rectangle path,
+.recharts-bar-rectangle rect {
   transition: filter 0.2s ease;
 }
-.recharts-bar-rectangle:hover path {
+.recharts-bar-rectangle:hover path,
+.recharts-bar-rectangle:hover rect {
   filter: brightness(1.15);
 }
 .recharts-bar-rectangle:nth-child(2) { --i: 1; }
@@ -523,6 +525,126 @@ html.graficos-sem-observer .recharts-wrapper .recharts-bar .recharts-label-list 
 @media (prefers-reduced-motion: reduce) {
   .recharts-bar-rectangle,
   .recharts-bar .recharts-label-list { animation: none; }
+}
+
+/* ------------------------------------------------------------
+   Cards de "Módulos & Acesso Rápido" (DashboardGerencial):
+   entram em cascata e cada ícone tem uma animação própria,
+   ligada ao tema do módulo, que roda enquanto o mouse está em cima.
+   ------------------------------------------------------------ */
+.modulo-card {
+  /* backwards (não both) pra não travar o hover:-translate-y-1 depois da entrada */
+  animation: modulo-entrar 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.modulo-anim-dirigir,
+.modulo-anim-subir { overflow: hidden; }
+@keyframes modulo-entrar {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.modulo-icone {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.modulo-icone svg {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.group:hover .modulo-icone {
+  transform: scale(1.08);
+  box-shadow: 0 0 18px -4px currentColor;
+}
+
+/* Relógio: ponteiro dá a volta */
+.group:hover .modulo-anim-relogio svg { animation: mod-girar 1.6s linear infinite; }
+/* Inventário: caminhão sai andando e volta */
+.group:hover .modulo-anim-dirigir svg { animation: mod-dirigir 1.4s ease-in-out infinite; }
+/* Frotas: caminhão balança na suspensão */
+.group:hover .modulo-anim-suspensao svg { animation: mod-suspensao 0.6s ease-in-out infinite; }
+/* Movimentações: setas vão e voltam */
+.group:hover .modulo-anim-vaivem svg { animation: mod-vaivem 1s ease-in-out infinite; }
+/* Estoque: martelo batendo */
+.modulo-anim-martelo svg { transform-origin: 20% 80%; }
+.group:hover .modulo-anim-martelo svg { animation: mod-martelo 0.7s ease-in infinite; }
+/* Financeiro: moeda girando */
+.group:hover .modulo-anim-moeda svg { animation: mod-moeda 1.2s ease-in-out infinite; }
+/* Kanban Localiza: colunas se reorganizando */
+.group:hover .modulo-anim-colunas svg { animation: mod-colunas 1s ease-in-out infinite; }
+/* Kanban Vamos: gelatina */
+.group:hover .modulo-anim-gelatina svg { animation: mod-gelatina 1s ease-in-out infinite; }
+/* RH: batimento */
+.group:hover .modulo-anim-pulso svg { animation: mod-pulso 1.1s ease-in-out infinite; }
+/* Manutenção: chave apertando */
+.group:hover .modulo-anim-chave svg { animation: mod-chave 0.9s ease-in-out infinite; }
+/* Liberação: carimbo de aprovado */
+.group:hover .modulo-anim-carimbo svg { animation: mod-carimbo 1s cubic-bezier(0.3, 0, 0.3, 1) infinite; }
+/* Relatórios: documento subindo */
+.group:hover .modulo-anim-subir svg { animation: mod-subir 1s ease-in-out infinite; }
+/* Configurações: engrenagem girando devagar */
+.group:hover .modulo-anim-engrenagem svg { animation: mod-girar 3s linear infinite; }
+
+@keyframes mod-girar { to { transform: rotate(360deg); } }
+@keyframes mod-dirigir {
+  0% { transform: translateX(0); opacity: 1; }
+  45% { transform: translateX(140%); opacity: 0; }
+  50% { transform: translateX(-140%); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+@keyframes mod-suspensao {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  25% { transform: translateY(-2px) rotate(-3deg); }
+  75% { transform: translateY(1px) rotate(2deg); }
+}
+@keyframes mod-vaivem {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+@keyframes mod-martelo {
+  0%, 100% { transform: rotate(0); }
+  40% { transform: rotate(-35deg); }
+  70% { transform: rotate(8deg); }
+  85% { transform: rotate(0); }
+}
+@keyframes mod-moeda {
+  from { transform: perspective(80px) rotateY(0); }
+  to { transform: perspective(80px) rotateY(360deg); }
+}
+@keyframes mod-colunas {
+  0%, 100% { transform: scaleX(1); }
+  30% { transform: scaleX(0.75); }
+  60% { transform: scaleX(1.12); }
+}
+@keyframes mod-gelatina {
+  0%, 100% { transform: scale(1, 1); }
+  30% { transform: scale(1.2, 0.8); }
+  45% { transform: scale(0.85, 1.15); }
+  60% { transform: scale(1.08, 0.92); }
+  75% { transform: scale(0.97, 1.03); }
+}
+@keyframes mod-pulso {
+  0%, 40%, 100% { transform: scale(1); }
+  15% { transform: scale(1.22); }
+  28% { transform: scale(1.08); }
+}
+@keyframes mod-chave {
+  0%, 100% { transform: rotate(0); }
+  50% { transform: rotate(-45deg); }
+}
+@keyframes mod-carimbo {
+  0% { transform: translateY(-6px) scale(1.25); opacity: 0.4; }
+  35% { transform: translateY(0) scale(0.9); opacity: 1; }
+  50% { transform: scale(1.05); }
+  65%, 100% { transform: scale(1); }
+}
+@keyframes mod-subir {
+  0% { transform: translateY(0); opacity: 1; }
+  45% { transform: translateY(-120%); opacity: 0; }
+  55% { transform: translateY(120%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modulo-card,
+  .group:hover .modulo-icone svg { animation: none !important; }
 }
 
 /* Barra do ranking (lista HTML do Dashboard): cresce da esquerda ao entrar. */

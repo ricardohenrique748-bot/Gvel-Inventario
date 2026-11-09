@@ -115,6 +115,7 @@ export function DashboardGerencial() {
   const atalhos = [
     {
       to: '/controle-horas',
+      anim: 'relogio',
       title: 'INDICADOR DE PERFORMANCE',
       desc: 'APONTAMENTOS E TEMPO DE TRABALHO DA EQUIPE',
       icon: Clock,
@@ -123,6 +124,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/inventario-caminhoes',
+      anim: 'dirigir',
       title: 'INVENTÁRIO DE CAMINHÕES',
       desc: 'STATUS, FLUXO DO PÁTIO E FROTA ATIVA',
       icon: Truck,
@@ -131,6 +133,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/frotas',
+      anim: 'suspensao',
       title: 'GESTÃO DE FROTAS',
       desc: 'CADASTRO DE CAMINHÕES, CARRETAS E CLIENTES',
       icon: Truck,
@@ -139,6 +142,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/movimentacoes',
+      anim: 'vaivem',
       title: 'MOVIMENTAÇÕES',
       desc: 'ENTRADAS, SAÍDAS E INSPEÇÕES DE VEÍCULOS',
       icon: ArrowLeftRight,
@@ -147,6 +151,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/inventario-ferramentas',
+      anim: 'martelo',
       title: 'ESTOQUE',
       desc: 'CONTROLE DE PATRIMÔNIO, FERRAMENTAS E CONSUMÍVEIS',
       icon: Hammer,
@@ -155,6 +160,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/financeiro',
+      anim: 'moeda',
       title: 'FINANCEIRO',
       desc: 'RECEITAS, DESPESAS, CONCILIAÇÃO E DRE',
       icon: DollarSign,
@@ -163,6 +169,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/kanban',
+      anim: 'colunas',
       title: 'KANBAN LOCALIZA',
       desc: 'FLUXO DE PROCESSOS, ETAPAS E ORDENS EM TEMPO REAL',
       icon: Columns3,
@@ -171,6 +178,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/kanban-vamos',
+      anim: 'gelatina',
       title: 'KANBAN VAMOS',
       desc: 'FLUXO DE ORÇAMENTOS DA FROTA VAMOS EM TEMPO REAL',
       icon: Columns3,
@@ -179,6 +187,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/rh',
+      anim: 'pulso',
       title: 'RECURSOS HUMANOS (RH)',
       desc: 'QUADRO DE EQUIPE, MECÂNICOS E ESCALAS',
       icon: UserCheck,
@@ -187,6 +196,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/manutencao',
+      anim: 'chave',
       title: 'MANUTENÇÃO',
       desc: 'ORDENS DE SERVIÇO E REVISÕES PREVENTIVAS',
       icon: Wrench,
@@ -195,6 +205,7 @@ export function DashboardGerencial() {
     },
     {
       to: ROTA_LIBERACOES_FINALIZADAS,
+      anim: 'carimbo',
       title: 'LIBERAÇÃO DE VEÍCULOS',
       desc: 'CHECKLISTS FINALIZADOS, APROVAÇÕES E PDFS',
       icon: ClipboardCheck,
@@ -203,6 +214,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/relatorios',
+      anim: 'subir',
       title: 'RELATÓRIOS & EXPORTAÇÕES',
       desc: 'MÉTRICAS ANALÍTICAS, PDFS E PLANILHAS',
       icon: FileBarChart,
@@ -211,6 +223,7 @@ export function DashboardGerencial() {
     },
     {
       to: '/configuracoes',
+      anim: 'engrenagem',
       title: 'CONFIGURAÇÕES DO SISTEMA',
       desc: 'GESTÃO DE USUÁRIOS, CLIENTES E PARÂMETROS',
       icon: Settings,
@@ -320,14 +333,15 @@ export function DashboardGerencial() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 uppercase">
-          {atalhosExibidos.map((item) => (
+          {atalhosExibidos.map((item, i) => (
             <Link
               key={item.to}
               to={item.to}
-              className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/10 bg-surface p-5 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-black/50 uppercase"
+              style={{ animationDelay: `${i * 60}ms` }}
+              className="modulo-card group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/10 bg-surface p-5 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-black/50 uppercase"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-gradient-to-br ${item.tone}`}>
+                <div className={`modulo-icone modulo-anim-${item.anim} flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-gradient-to-br ${item.tone}`}>
                   <item.icon className="h-5 w-5" />
                 </div>
                 <div className="flex items-center gap-1.5">

@@ -1,3 +1,4 @@
+import { BarraPilula } from '@/components/charts/BarraPilula'
 import { useMemo, useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams, useNavigate } from 'react-router-dom'
@@ -2909,7 +2910,7 @@ export function Frotas() {
                           )
                         }}
                       />
-                      <Bar isAnimationActive={false} dataKey="kmFaltante" radius={[6, 6, 0, 0]}>
+                      <Bar isAnimationActive={false} dataKey="kmFaltante" shape={<BarraPilula />}>
                         {dadosGraficoKmPreventiva.length <= 15 && (
                           <LabelList
                             dataKey="kmFaltante"
@@ -3059,7 +3060,7 @@ export function Frotas() {
                           )
                         }}
                       />
-                      <Bar isAnimationActive={false} dataKey="total" fill="#6366f1" radius={[6, 6, 0, 0]}>
+                      <Bar isAnimationActive={false} dataKey="total" fill="#6366f1" shape={<BarraPilula />}>
                         <LabelList
                           dataKey="total"
                           position="top"
@@ -3151,7 +3152,7 @@ export function Frotas() {
                             )
                           }}
                         />
-                        <Bar isAnimationActive={false} dataKey="dias" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                        <Bar isAnimationActive={false} dataKey="dias" shape={<BarraPilula />} maxBarSize={36}>
                           <LabelList
                             dataKey="dias"
                             position="top"
@@ -3246,7 +3247,7 @@ export function Frotas() {
                             )
                           }}
                         />
-                        <Bar isAnimationActive={false} dataKey="dias" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                        <Bar isAnimationActive={false} dataKey="dias" shape={<BarraPilula />} maxBarSize={36}>
                           <LabelList
                             dataKey="dias"
                             position="top"
