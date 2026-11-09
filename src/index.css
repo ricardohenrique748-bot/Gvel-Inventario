@@ -651,7 +651,40 @@ html.graficos-sem-observer .recharts-wrapper .recharts-bar .recharts-label-list 
 .ranking-barra {
   transform-origin: left center;
   animation: barra-crescer-x 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* mesmas listras diagonais das barras/rosca pílula */
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.14) 0 3px,
+    transparent 3px 8px
+  );
+  overflow: hidden;
+  transition: filter 0.2s ease;
+}
+.ranking-linha:hover .ranking-barra {
+  filter: brightness(1.15);
+}
+.ranking-linha {
+  animation: modulo-entrar 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.ranking-valor {
+  animation: barra-rotulo 0.4s ease-out both;
+}
+/* Brilho passando na barra do 1º lugar */
+.ranking-barra-lider::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: ranking-brilho 2.8s ease-in-out 1.2s infinite;
+}
+@keyframes ranking-brilho {
+  0% { transform: translateX(-100%); }
+  45%, 100% { transform: translateX(100%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ranking-barra { animation: none; }
+  .ranking-barra,
+  .ranking-linha,
+  .ranking-valor,
+  .ranking-barra-lider::after { animation: none; }
 }

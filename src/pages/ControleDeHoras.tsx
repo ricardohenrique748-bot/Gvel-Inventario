@@ -1,4 +1,5 @@
 import { BarraPilula } from '@/components/charts/BarraPilula'
+import { RoscaPilula } from '@/components/charts/RoscaPilula'
 import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Clock, Truck, Timer, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, Check, CheckCircle2, Award } from 'lucide-react'
@@ -11,9 +12,7 @@ import {
   CartesianGrid,
   Tooltip,
   LabelList,
-  PieChart,
-  Pie,
-  Cell,
+
 } from 'recharts'
 import { PageHeader } from '@/components/layout/Header'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
@@ -646,36 +645,12 @@ export function ControleDeHoras() {
                   entry.name === 'Outras' ? CHART_OTHER : CHART_CATEGORICAL[i % CHART_CATEGORICAL.length]
                 return (
                   <>
-                    <div className="h-52">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart key={theme}>
-                          <Pie
-                            data={porSetor}
-                            dataKey="value"
-                            nameKey="name"
-                            innerRadius={60}
-                            outerRadius={90}
-                            paddingAngle={2}
-                          >
-                            {porSetor.map((entry, i) => (
-                              <Cell
-                                key={entry.name}
-                                fill={corDe(entry, i)}
-                                stroke={isDark ? '#1c1c1c' : '#ffffff'}
-                                strokeWidth={2}
-                              />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={tooltipStyle}
-                            itemStyle={{ color: textColor }}
-                            formatter={(value, name) => [
-                              `${value} (${Math.round((Number(value) / total) * 100)}%)`,
-                              name,
-                            ]}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                    <div className="flex justify-center">
+                      <RoscaPilula
+                        dados={porSetor.map((entry, i) => ({ name: entry.name, value: entry.value, cor: corDe(entry, i) }))}
+                        centroValor={total}
+                        centroLegenda="total"
+                      />
                     </div>
                     <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
                       {porSetor.map((entry, i) => {

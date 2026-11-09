@@ -1,4 +1,5 @@
 import { BarraPilula } from '@/components/charts/BarraPilula'
+import { RoscaPilula } from '@/components/charts/RoscaPilula'
 import { empresaUsaClientes } from '@/lib/empresasEspeciais'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -11,9 +12,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  PieChart,
-  Pie,
-  Cell,
   LabelList,
 } from 'recharts'
 import { format, isSameDay, parseISO } from 'date-fns'
@@ -260,6 +258,8 @@ export function Dashboard() {
   }, [etapasPeriodo, usaClientes])
 
   const totalEtapasHoje = etapasHojeAgrupadas.reduce((acc, [, l]) => acc + l.length, 0)
+
+  const [marcaAtiva, setMarcaAtiva] = useState<number | null>(null)
 
   const [painelAberto, setPainelAberto] = useState<'no_patio' | 'entradas_hoje' | 'saidas_hoje' | null>(null)
 
@@ -732,40 +732,24 @@ export function Dashboard() {
                   entry.name === 'Outras' ? CHART_OTHER : CHART_CATEGORICAL[i % CHART_CATEGORICAL.length]
                 return (
                   <div className="flex flex-col items-center gap-5 sm:flex-row sm:gap-6">
-                    <div className="relative h-52 w-52 shrink-0">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart key={theme}>
-                          <Pie
-                            data={porMarca}
-                            dataKey="value"
-                            nameKey="name"
-                            innerRadius={66}
-                            outerRadius={96}
-                            paddingAngle={2}
-                            cornerRadius={4}
-                            startAngle={90}
-                            endAngle={-270}
-                          >
-                            {porMarca.map((entry, i) => (
-                              <Cell key={entry.name} fill={corDe(entry, i)} stroke={isDark ? '#1c1c1c' : '#ffffff'} strokeWidth={2} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            content={<ChartTooltip titleFromName formatValue={(v) => `${v} (${Math.round((v / total) * 100)}%)`} />}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      {/* Total no centro da rosca */}
-                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-3xl font-black tabular-nums text-foreground leading-none">{total}</span>
-                        <span className="mt-1 text-[10px] font-bold uppercase tracking-wider text-secondary">veículos</span>
-                      </div>
-                    </div>
-                    <ul className="w-full min-w-0 flex-1 space-y-2">
+                    <RoscaPilula
+                      dados={porMarca.map((entry, i) => ({ name: entry.name, value: entry.value, cor: corDe(entry, i) }))}
+                      centroValor={total}
+                      centroLegenda="veículos"
+                      ativo={marcaAtiva}
+                      onAtivo={setMarcaAtiva}
+                    />
+                    <ul className="w-full min-w-0 flex-1 space-y-1" onMouseLeave={() => setMarcaAtiva(null)}>
                       {porMarca.map((entry, i) => {
                         const percent = Math.round((entry.value / total) * 100)
                         return (
-                          <li key={entry.name} className="flex items-center gap-2.5 text-xs">
+                          <li
+                            key={entry.name}
+                            onMouseEnter={() => setMarcaAtiva(i)}
+                            className={`flex cursor-default items-center gap-2.5 rounded-lg px-2 py-1 text-xs transition-all duration-200 ${
+                              marcaAtiva === i ? 'bg-foreground/5' : marcaAtiva != null ? 'opacity-40' : ''
+                            }`}
+                          >
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: corDe(entry, i) }} />
                             <span className="min-w-0 flex-1 truncate font-bold uppercase text-foreground">{entry.name}</span>
                             <span className="tabular-nums font-bold text-foreground">{entry.value}</span>
@@ -793,35 +777,32 @@ export function Dashboard() {
                 const maior = rankingPatios[0].value || 1
                 const totalPatios = rankingPatios.reduce((acc, p) => acc + p.value, 0)
                 return (
-                  <ol className="space-y-3">
-                    {rankingPatios.map((p, i) => (
-                      <li
-                        key={p.name}
-                        className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[1.75rem_12rem_minmax(0,1fr)_auto]"
-                      >
-                        <span
-                          className={cn(
-                            'flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black tabular-nums',
-                            i === 0 ? 'bg-primary/15 text-primary' : 'bg-overlay/[0.06] text-secondary',
-                          )}
+                  <ol className="space-y-1">
+                    {rankingPatios.map((p, i) => {
+                      const percent = Math.round((p.value / totalPatios) * 100)
+                      return (
+                        <li
+                          key={p.name}
+                          className="ranking-linha grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl px-2 py-2 transition-colors hover:bg-overlay/[0.05] sm:grid-cols-[12rem_minmax(0,1fr)_3rem]"
+                          style={{ animationDelay: `${i * 70}ms` }}
                         >
-                          {i + 1}
-                        </span>
-                        <span className="truncate text-xs font-bold uppercase text-foreground" title={p.name}>
-                          {p.name}
-                        </span>
-                        <span className="text-right text-xs tabular-nums sm:order-last">
-                          <span className="font-black text-foreground">{p.value}</span>
-                          <span className="ml-1.5 text-secondary">{Math.round((p.value / totalPatios) * 100)}%</span>
-                        </span>
-                        <div className="col-span-3 col-start-1 h-2.5 overflow-hidden rounded-full bg-overlay/[0.06] sm:col-span-1 sm:col-start-auto">
-                          <div
-                            className="ranking-barra h-full rounded-full"
-                            style={{ width: `${(p.value / maior) * 100}%`, backgroundColor: CHART_ENTRADA, animationDelay: `${i * 80}ms` }}
-                          />
-                        </div>
-                      </li>
-                    ))}
+                          <span className="truncate text-xs font-bold uppercase text-foreground" title={p.name}>
+                            {p.name}
+                          </span>
+                          <span className="text-right text-xs font-bold tabular-nums text-secondary sm:order-last">{percent}%</span>
+                          <div className="col-span-2 col-start-1 h-7 rounded-full bg-overlay/[0.06] sm:col-span-1 sm:col-start-auto">
+                            <div
+                              className={cn('ranking-barra relative flex h-full min-w-[2.5rem] items-center justify-end rounded-full pr-3', i === 0 && 'ranking-barra-lider')}
+                              style={{ width: `${(p.value / maior) * 100}%`, backgroundColor: CHART_ENTRADA, animationDelay: `${i * 90}ms` }}
+                            >
+                              <span className="ranking-valor relative text-xs font-black tabular-nums text-white" style={{ animationDelay: `${i * 90 + 500}ms` }}>
+                                {p.value}
+                              </span>
+                            </div>
+                          </div>
+                        </li>
+                      )
+                    })}
                   </ol>
                 )
               })()

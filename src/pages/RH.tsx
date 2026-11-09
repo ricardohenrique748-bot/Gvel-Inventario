@@ -1,4 +1,5 @@
 import { BarraPilula } from '@/components/charts/BarraPilula'
+import { RoscaPilula } from '@/components/charts/RoscaPilula'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -36,7 +37,7 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react'
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from 'recharts'
+import { ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from 'recharts'
 import { PageHeader } from '@/components/layout/Header'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
@@ -87,34 +88,6 @@ function corFatia(nome: string, i: number) {
   return nome === 'Outras' ? CHART_OTHER : CHART_CATEGORICAL[i % CHART_CATEGORICAL.length]
 }
 
-/** Rótulo de porcentagem cravado no meio de cada fatia — só usado quando há poucas categorias (<=4), pra não virar sopa de números. */
-function renderLabelPorcentagem(props: any) {
-  const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props
-  if (percent < 0.06) return null
-  const RADIAN = Math.PI / 180
-  const raio = innerRadius + (outerRadius - innerRadius) * 0.5
-  const x = cx + raio * Math.cos(-midAngle * RADIAN)
-  const y = cy + raio * Math.sin(-midAngle * RADIAN)
-  return (
-    <text
-      x={x}
-      y={y}
-      textAnchor="middle"
-      dominantBaseline="central"
-      style={{
-        fill: '#ffffff',
-        stroke: 'rgba(0,0,0,0.35)',
-        strokeWidth: 3,
-        paintOrder: 'stroke',
-        fontSize: 12,
-        fontWeight: 800,
-      }}
-    >
-      {Math.round(percent * 100)}%
-    </text>
-  )
-}
-
 interface DonutCardProps {
   titulo: string
   icone: React.ElementType
@@ -122,13 +95,10 @@ interface DonutCardProps {
   formatarValor: (v: number) => string
   centroValor: string
   centroLegenda: string
-  tooltipStyle: React.CSSProperties
-  isDark: boolean
 }
 
-function DonutCard({ titulo, icone: Icone, dados, formatarValor, centroValor, centroLegenda, tooltipStyle, isDark }: DonutCardProps) {
+function DonutCard({ titulo, icone: Icone, dados, formatarValor, centroValor, centroLegenda }: DonutCardProps) {
   const total = dados.reduce((acc, d) => acc + d.value, 0)
-  const comLabelDireto = dados.length > 0 && dados.length <= 4
 
   return (
     <Card>
@@ -143,36 +113,14 @@ function DonutCard({ titulo, icone: Icone, dados, formatarValor, centroValor, ce
           <div className="flex h-56 items-center justify-center text-sm text-secondary">Sem dados</div>
         ) : (
           <>
-            <div className="relative h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={dados}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={64}
-                    outerRadius={92}
-                    paddingAngle={3}
-                    label={comLabelDireto ? renderLabelPorcentagem : undefined}
-                    labelLine={false}
-                  >
-                    {dados.map((entry, i) => (
-                      <Cell key={entry.name} fill={corFatia(entry.name, i)} stroke={isDark ? '#1c1c1c' : '#ffffff'} strokeWidth={2} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    formatter={(value, name) => [
-                      `${formatarValor(Number(value))} (${Math.round((Number(value) / total) * 100)}%)`,
-                      name,
-                    ]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                <span className="w-full text-xl font-black text-foreground leading-tight truncate">{centroValor}</span>
-                <span className="w-full text-[10px] font-bold text-secondary tracking-wide">{centroLegenda}</span>
-              </div>
+            <div className="flex justify-center">
+              <RoscaPilula
+                dados={dados.map((entry, i) => ({ name: entry.name, value: entry.value, cor: corFatia(entry.name, i) }))}
+                centroValor={<span className="text-xl">{centroValor}</span>}
+                centroLegenda={centroLegenda}
+                formatarValor={formatarValor}
+                tamanho={216}
+              />
             </div>
             <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2">
               {dados.map((entry, i) => {
@@ -2382,8 +2330,6 @@ export function RH() {
               formatarValor={formatMoeda}
               centroValor={fmtCompacto(totaisGerais.custoTotal)}
               centroLegenda="CUSTO TOTAL"
-              tooltipStyle={tooltipStyle}
-              isDark={isDark}
             />
             <BarRankingCard
               titulo="Colaboradores por Função"
@@ -2478,8 +2424,6 @@ export function RH() {
               formatarValor={(v) => `${v} ${v === 1 ? 'registro' : 'registros'}`}
               centroValor={String(atestados.length)}
               centroLegenda="REGISTROS"
-              tooltipStyle={tooltipStyle}
-              isDark={isDark}
             />
           </div>
 
@@ -2530,8 +2474,6 @@ export function RH() {
               formatarValor={(v) => `${v} ${v === 1 ? 'falta' : 'faltas'}`}
               centroValor={String(totaisFaltas.total)}
               centroLegenda="FALTAS"
-              tooltipStyle={tooltipStyle}
-              isDark={isDark}
             />
           </div>
 
