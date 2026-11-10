@@ -299,26 +299,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
         const placa = veic?.placa ? veic.placa.toUpperCase().trim() : 'VEÍCULO'
         const patioNome = (m.patio as { nome?: string } | null)?.nome || 'PÁTIO'
 
-        // A) Tempo no Pátio Excedido
-        if (config.alertaPatioAtivo && m.status === 'no_patio' && m.data_hora_entrada) {
-          const dEntrada = new Date(m.data_hora_entrada)
-          const horasNoPatio = Math.floor((agora.getTime() - dEntrada.getTime()) / (1000 * 3600))
-          if (horasNoPatio >= (config.alertaPatioHoras || 24)) {
-            lista.push({
-              id: `patio_${m.id}`,
-              tipo: 'patio_tempo',
-              titulo: `⏰ TEMPO NO PÁTIO EXCEDIDO (${horasNoPatio}H): ${placa}`,
-              mensagem: `Veículo ultrapassou o limite de ${config.alertaPatioHoras || 24}h no pátio ${patioNome}.`,
-              dataHora: m.data_hora_entrada,
-              link: `/movimentacoes`,
-              lida: false,
-              prioridade: 'urgente',
-              icone: '⏰',
-            })
-          }
-        }
-
-        // B) Entradas de hoje
+        // A) Entradas de hoje
         if (config.alertaEntradaAtivo && m.data_hora_entrada) {
           const dEntrada = new Date(m.data_hora_entrada)
           if (dEntrada >= inicioHoje) {
@@ -336,7 +317,7 @@ export function NotificacoesProvider({ children }: { children: React.ReactNode }
           }
         }
 
-        // C) Saídas de hoje
+        // B) Saídas de hoje
         if (config.alertaSaidaAtivo && m.data_hora_saida) {
           const dSaida = new Date(m.data_hora_saida)
           if (dSaida >= inicioHoje) {

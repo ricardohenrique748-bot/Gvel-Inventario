@@ -110,8 +110,6 @@ export function NotificacoesTab() {
     setTimeout(() => setComunicadoEnviado(false), 3000)
   }
 
-  const patioBloqueado = !formConfig.pushAtivo || !formConfig.alertaPatioAtivo
-
   const [permissaoStatus, setPermissaoStatus] = useState<string>('default')
   const isNativo = Capacitor.isNativePlatform()
 
@@ -301,46 +299,6 @@ export function NotificacoesTab() {
               onChange={(v) => update('alertaSaidaAtivo', v)}
               disabled={!formConfig.pushAtivo}
             />
-          </div>
-
-          {/* Alerta de Tempo Excedido no Pátio */}
-          <div className="rounded-lg border border-border/20 bg-background/50 p-3.5 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">⏰ Alerta de Tempo no Pátio</p>
-                <p className="text-[11px] text-secondary mt-0.5 normal-case">
-                  Alerta crítico quando um veículo ultrapassar o limite de horas no pátio
-                </p>
-              </div>
-              <Toggle
-                checked={formConfig.alertaPatioAtivo}
-                onChange={(v) => update('alertaPatioAtivo', v)}
-                disabled={!formConfig.pushAtivo}
-              />
-            </div>
-
-            {formConfig.alertaPatioAtivo && (
-              <div className="border-t border-border/20 pt-3 flex items-center gap-3">
-                <div className="w-36">
-                  <Label htmlFor="horas-patio" className="!text-[11px] !mb-1 text-secondary uppercase">
-                    Limite Máximo
-                  </Label>
-                  <Input
-                    id="horas-patio"
-                    type="number"
-                    min={1}
-                    max={720}
-                    value={formConfig.alertaPatioHoras}
-                    onChange={(e) => update('alertaPatioHoras', Math.max(1, Number(e.target.value)))}
-                    disabled={patioBloqueado}
-                    className="!h-9 !text-xs !px-3"
-                  />
-                </div>
-                <div className="pt-4">
-                  <span className="text-xs font-bold text-secondary">HORAS NO PÁTIO</span>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </Card>
