@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react'
-import { Camera, X } from 'lucide-react'
+import { Camera, Image as ImageIcon, X } from 'lucide-react'
 import { comprimirImagem } from '@/lib/imagem'
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
 
 export function FotoInput({ label, previewUrl, onSelect, onRemove }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const galeriaInputRef = useRef<HTMLInputElement>(null)
   const [comprimindo, setComprimindo] = useState(false)
 
   async function handleFile(e: ChangeEvent<HTMLInputElement>) {
@@ -30,20 +31,41 @@ export function FotoInput({ label, previewUrl, onSelect, onRemove }: Props) {
     <div className="rounded-xl bg-background p-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-foreground">{label}</p>
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={comprimindo}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary hover:text-foreground disabled:opacity-50"
-          aria-label={comprimindo ? `Processando foto — ${label}` : `Anexar foto — ${label}`}
-        >
-          <Camera className={comprimindo ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
-        </button>
+        {/* Dois botões: no APK, `capture` abre só a câmera e sem ele abre só a galeria. */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={comprimindo}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface text-secondary hover:text-foreground disabled:opacity-50"
+            aria-label={comprimindo ? `Processando foto — ${label}` : `Tirar foto — ${label}`}
+            title="Câmera"
+          >
+            <Camera className={comprimindo ? 'h-4 w-4 animate-pulse' : 'h-4 w-4'} />
+          </button>
+          <button
+            type="button"
+            onClick={() => galeriaInputRef.current?.click()}
+            disabled={comprimindo}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface text-secondary hover:text-foreground disabled:opacity-50"
+            aria-label={`Escolher da galeria — ${label}`}
+            title="Galeria"
+          >
+            <ImageIcon className="h-4 w-4" />
+          </button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
           capture="environment"
+          className="hidden"
+          onChange={handleFile}
+        />
+        <input
+          ref={galeriaInputRef}
+          type="file"
+          accept="image/*"
           className="hidden"
           onChange={handleFile}
         />

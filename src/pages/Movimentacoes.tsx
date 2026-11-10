@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Pencil, Trash2, X, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, ChevronDown, Image as ImageIcon } from 'lucide-react'
 import { PageHeader } from '@/components/layout/Header'
 import { FiltersBar, type FiltersValue } from '@/components/FiltersBar'
 import { LinkButton } from '@/components/ui/LinkButton'
@@ -526,6 +526,7 @@ export function EditarMovimentacaoForm({
     })),
   )
   const inputFotoExtraRef = useRef<HTMLInputElement>(null)
+  const inputGaleriaExtraRef = useRef<HTMLInputElement>(null)
   const [comprimindoExtra, setComprimindoExtra] = useState(false)
 
   async function handleAdicionarFotoExtra(e: React.ChangeEvent<HTMLInputElement>) {
@@ -877,6 +878,14 @@ export function EditarMovimentacaoForm({
           >
             <Plus className="h-3.5 w-3.5" /> Adicionar foto
           </button>
+          <button
+            type="button"
+            onClick={() => inputGaleriaExtraRef.current?.click()}
+            disabled={comprimindoExtra}
+            className="ml-1.5 flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+          >
+            <ImageIcon className="h-3.5 w-3.5" /> Galeria
+          </button>
         </div>
 
         <input
@@ -884,6 +893,14 @@ export function EditarMovimentacaoForm({
           type="file"
           accept="image/*"
           capture="environment"
+          className="hidden"
+          onChange={handleAdicionarFotoExtra}
+        />
+        {/* Sem `capture`: no APK abre a galeria. */}
+        <input
+          ref={inputGaleriaExtraRef}
+          type="file"
+          accept="image/*"
           className="hidden"
           onChange={handleAdicionarFotoExtra}
         />

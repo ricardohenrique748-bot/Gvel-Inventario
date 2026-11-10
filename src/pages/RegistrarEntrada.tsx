@@ -16,7 +16,7 @@ import { usePatios, criarPatio } from '@/hooks/usePatios'
 import { useStatusManutencao, criarStatusManutencao } from '@/hooks/useStatusManutencao'
 import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
 import { registrarEntrada, EntradaDuplicadaError, type FotosEntrada, type RegistrarEntradaInput } from '@/hooks/useMovimentacoes'
-import { Plus, X, RotateCcw, Trash2, FileClock } from 'lucide-react'
+import { Plus, X, RotateCcw, Trash2, FileClock, Image as ImageIcon } from 'lucide-react'
 import { FotoInput } from '@/components/FotoInput'
 import { nowLocalInputValue } from '@/lib/format'
 import { ANGULOS_FOTO, type AnguloFoto } from '@/lib/fotos'
@@ -108,6 +108,7 @@ export function RegistrarEntrada() {
   const [fotos, setFotos] = useState<Partial<Record<AnguloFoto, { file: File; previewUrl: string }>>>({})
   const [fotosExtras, setFotosExtras] = useState<FotoExtraItem[]>([])
   const inputFotoExtraRef = useRef<HTMLInputElement>(null)
+  const inputGaleriaExtraRef = useRef<HTMLInputElement>(null)
   const [comprimindoExtra, setComprimindoExtra] = useState(false)
 
   const [rascunhos, setRascunhos] = useState<RascunhoEntrada[]>([])
@@ -746,6 +747,14 @@ export function RegistrarEntrada() {
                 >
                   <Plus className="h-3.5 w-3.5" /> Adicionar foto
                 </button>
+                <button
+                  type="button"
+                  onClick={() => inputGaleriaExtraRef.current?.click()}
+                  disabled={comprimindoExtra}
+                  className="ml-1.5 flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  <ImageIcon className="h-3.5 w-3.5" /> Galeria
+                </button>
               </div>
 
               <input
@@ -753,6 +762,14 @@ export function RegistrarEntrada() {
                 type="file"
                 accept="image/*"
                 capture="environment"
+                className="hidden"
+                onChange={handleAdicionarFotoExtra}
+              />
+              {/* Sem `capture`: no APK abre a galeria. */}
+              <input
+                ref={inputGaleriaExtraRef}
+                type="file"
+                accept="image/*"
                 className="hidden"
                 onChange={handleAdicionarFotoExtra}
               />
