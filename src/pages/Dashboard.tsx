@@ -47,14 +47,6 @@ export function Dashboard() {
   const textColor = isDark ? '#ffffff' : '#18181b'
   const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
   const axisLineColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'
-  const tooltipStyle = {
-    backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
-    border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
-    borderRadius: 12,
-    color: isDark ? '#ffffff' : '#18181b',
-    fontSize: 13,
-    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-  }
 
   const filtroInicial = useMemo(() => ({
     dataInicio: format(new Date(), 'yyyy-MM-dd'),
