@@ -229,6 +229,19 @@ export function RegistrarEntrada() {
     setValue('veiculoId', '')
   }, [clienteId, setValue])
 
+  // Placa digitada em "Cadastrar veículo novo" que já está na frota: usa o
+  // veículo cadastrado (traz marca, modelo, cor etc.) em vez de duplicar.
+  const placaDigitada = watch('placa')
+  useEffect(() => {
+    if (!modoNovoVeiculo) return
+    const normalizada = (placaDigitada ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+    if (normalizada.length < 7) return
+    const existente = frotaCliente.find(
+      (v) => v.placa.replace(/[^A-Za-z0-9]/g, '').toUpperCase() === normalizada,
+    )
+    if (existente) setValue('veiculoId', existente.id, { shouldValidate: true })
+  }, [placaDigitada, modoNovoVeiculo, frotaCliente, setValue])
+
   function handleSelecionarFoto(campo: AnguloFoto, file: File, previewUrl: string) {
     setFotos((prev) => ({ ...prev, [campo]: { file, previewUrl } }))
   }
@@ -481,11 +494,35 @@ export function RegistrarEntrada() {
             )}
 
             {veiculoSelecionado && (
-              <p className="text-sm text-secondary">
-                {tipoVeiculoLabel(veiculoSelecionado.tipo)}
-                {veiculoSelecionado.cor ? ` · ${veiculoSelecionado.cor}` : ''}
-                {veiculoSelecionado.ano ? ` · ${veiculoSelecionado.ano}` : ''}
-              </p>
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">
+                  Dados da frota
+                </p>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm sm:grid-cols-3">
+                  {[
+                    ['Placa', veiculoSelecionado.placa],
+                    ['Marca', veiculoSelecionado.marca?.nome],
+                    ['Modelo', veiculoSelecionado.modelo?.nome],
+                    ['Tipo', tipoVeiculoLabel(veiculoSelecionado.tipo)],
+                    ['Cor', veiculoSelecionado.cor],
+                    ['Ano', veiculoSelecionado.ano],
+                    ['Chassi', veiculoSelecionado.chassi],
+                    ['Situação', veiculoSelecionado.operante ? 'Operante' : 'Inoperante'],
+                    ...(usaClientes ? [['Cliente', veiculoSelecionado.cliente?.nome]] : []),
+                  ].map(([rotulo, valor]) => (
+                    <div key={String(rotulo)} className="min-w-0">
+                      <dt className="text-xs text-secondary">{rotulo}</dt>
+                      <dd
+                        className={`truncate font-medium ${
+                          rotulo === 'Situação' && !veiculoSelecionado.operante ? 'text-status-danger' : 'text-foreground'
+                        }`}
+                      >
+                        {valor || '—'}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
             )}
 
             {modoNovoVeiculo && (
