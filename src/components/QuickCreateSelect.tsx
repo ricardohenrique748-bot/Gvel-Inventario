@@ -13,7 +13,8 @@ interface QuickCreateSelectProps {
   value: string | undefined
   onChange: (id: string) => void
   options: Option[]
-  onCreate: (nome: string) => Promise<Option>
+  /** Sem onCreate, o select não oferece "+ Adicionar novo…". */
+  onCreate?: (nome: string) => Promise<Option>
   placeholder: string
   disabled?: boolean
   error?: string
@@ -36,7 +37,7 @@ export function QuickCreateSelect({
   const [saving, setSaving] = useState(false)
 
   async function handleConfirmCreate() {
-    if (!newName.trim()) return
+    if (!newName.trim() || !onCreate) return
     setSaving(true)
     try {
       const created = await onCreate(newName.trim())
@@ -93,7 +94,7 @@ export function QuickCreateSelect({
             {o.nome}
           </option>
         ))}
-        <option value={CREATE_VALUE}>+ Adicionar novo…</option>
+        {onCreate && <option value={CREATE_VALUE}>+ Adicionar novo…</option>}
       </Select>
       <FieldError message={error} />
     </div>

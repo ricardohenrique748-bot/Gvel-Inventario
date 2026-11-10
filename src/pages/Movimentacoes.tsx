@@ -1,4 +1,4 @@
-import { empresaUsaClientes } from '@/lib/empresasEspeciais'
+import { empresaUsaClientes, isLocaliza } from '@/lib/empresasEspeciais'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
@@ -800,11 +800,16 @@ export function EditarMovimentacaoForm({
               value={field.value}
               onChange={field.onChange}
               options={statusManutencao}
-              onCreate={async (nome) => {
-                const created = await criarStatusManutencao(nome)
-                await refetchStatusManutencao()
-                return created
-              }}
+              // Localiza: status fixos (Corretiva/Preventiva) — locais são cadastrados como pátio.
+              onCreate={
+                isLocaliza(empresa)
+                  ? undefined
+                  : async (nome) => {
+                      const created = await criarStatusManutencao(nome)
+                      await refetchStatusManutencao()
+                      return created
+                    }
+              }
               placeholder="Sem manutenção"
               error={errors.statusId?.message}
             />

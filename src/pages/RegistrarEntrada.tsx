@@ -34,7 +34,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { gerarUuid } from '@/lib/uuid'
 import { useAuth } from '@/contexts/AuthContext'
-import { empresaUsaClientes } from '@/lib/empresasEspeciais'
+import { empresaUsaClientes, isLocaliza } from '@/lib/empresasEspeciais'
 
 const NOVO_VEICULO = '__novo__'
 const anoAtual = new Date().getFullYear()
@@ -685,11 +685,16 @@ export function RegistrarEntrada() {
                   value={field.value}
                   onChange={field.onChange}
                   options={statusManutencao}
-                  onCreate={async (nome) => {
-                    const created = await criarStatusManutencao(nome)
-                    await refetchStatusManutencao()
-                    return created
-                  }}
+                  // Localiza: status fixos (Corretiva/Preventiva) — locais são cadastrados como pátio.
+                  onCreate={
+                    isLocaliza(empresa)
+                      ? undefined
+                      : async (nome) => {
+                          const created = await criarStatusManutencao(nome)
+                          await refetchStatusManutencao()
+                          return created
+                        }
+                  }
                   placeholder="Sem manutenção"
                   error={errors.statusId?.message}
                 />
