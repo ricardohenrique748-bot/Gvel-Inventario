@@ -17,6 +17,8 @@ Frota própria da GVEL (caminhões que fazem viagens). Não confundir com os ve�
 
 As placas `IXF4J63` e `QXS9G97` usam checklist de ida e volta (`PLACAS_CHECKLIST_IDA_VOLTA`).
 
+Alerta diário no WhatsApp com a Rodocaçamba que ficou sem checklist: ver [alerta-whatsapp-checklist.md](../alerta-whatsapp-checklist.md). Ao mexer na lista oficial, rode `node scripts/gerar-frota-oficial-edge.mjs` e republique a função.
+
 ## Sub-menu de Viagens
 
 Agrupado em `GRUPOS_MENU_VIAGENS`:

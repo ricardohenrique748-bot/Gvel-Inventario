@@ -1,0 +1,463 @@
+{
+  "leve": [
+    {
+      "id": "frota_IXF4J63",
+      "placa": "IXF4J63",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "MORINI"
+    },
+    {
+      "id": "frota_DLQ7E49",
+      "placa": "DLQ7E49",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "TIAGO"
+    },
+    {
+      "id": "frota_FXM8D26",
+      "placa": "FXM8D26",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "DIRETORIA"
+    },
+    {
+      "id": "frota_FKR7I65",
+      "placa": "FKR7I65",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "DIRETORIA"
+    },
+    {
+      "id": "frota_SIG5C47",
+      "placa": "SIG5C47",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "TIAGO"
+    },
+    {
+      "id": "frota_SIN2E49",
+      "placa": "SIN2E49",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "ANDERSON"
+    },
+    {
+      "id": "frota_RNO5I21",
+      "placa": "RNO5I21",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "MYQUEIAS"
+    },
+    {
+      "id": "frota_RVP2I03",
+      "placa": "RVP2I03",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "JULIO"
+    },
+    {
+      "id": "frota_EHQ1E59",
+      "placa": "EHQ1E59",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "DIRETORIA"
+    },
+    {
+      "id": "frota_EPZ0G91",
+      "placa": "EPZ0G91",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "TIAGO"
+    },
+    {
+      "id": "frota_CVK3D23",
+      "placa": "CVK3D23",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "DIRETORIA"
+    },
+    {
+      "id": "frota_BTG2E36",
+      "placa": "BTG2E36",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "DIRETORIA"
+    },
+    {
+      "id": "frota_BKA3B95",
+      "placa": "BKA3B95",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "DIRETORIA"
+    },
+    {
+      "id": "frota_GJI8A04",
+      "placa": "GJI8A04",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "DIRETORIA"
+    },
+    {
+      "id": "frota_GKD4G03",
+      "placa": "GKD4G03",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "VALTER"
+    },
+    {
+      "id": "frota_FEI9I97",
+      "placa": "FEI9I97",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "TIAGO"
+    },
+    {
+      "id": "frota_DTD3225",
+      "placa": "DTD3225",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "JOÃO"
+    },
+    {
+      "id": "frota_FWF9J29",
+      "placa": "FWF9J29",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "RAÍ"
+    },
+    {
+      "id": "frota_RMI8E54",
+      "placa": "RMI8E54",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "CRISTIANO"
+    },
+    {
+      "id": "frota_GDT8H64",
+      "placa": "GDT8H64",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "ANDRÉ"
+    },
+    {
+      "id": "frota_QXS9G97",
+      "placa": "QXS9G97",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "MORINI"
+    },
+    {
+      "id": "frota_BVL7I92",
+      "placa": "BVL7I92",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "DIRETORIA"
+    },
+    {
+      "id": "frota_EGS5E60",
+      "placa": "EGS5E60",
+      "tipo": "leve",
+      "situacao": "operante",
+      "responsavel": "TIAGO"
+    }
+  ],
+  "pesado": [
+    {
+      "id": "pesado_DEE2C60",
+      "placa": "DEE2C60",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_EDJ8C00",
+      "placa": "EDJ8C00",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GBL1D31",
+      "placa": "GBL1D31",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GBY0H76",
+      "placa": "GBY0H76",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GBF4E16",
+      "placa": "GBF4E16",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GCF8A72",
+      "placa": "GCF8A72",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GKG0G83",
+      "placa": "GKG0G83",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GAQ5D96",
+      "placa": "GAQ5D96",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_SHF8G62",
+      "placa": "SHF8G62",
+      "tipo": "pesado",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_FDR9J73",
+      "placa": "FDR9J73",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GJV9F04",
+      "placa": "GJV9F04",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_BTB4G69",
+      "placa": "BTB4G69",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GEI6D74",
+      "placa": "GEI6D74",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GDT0I03",
+      "placa": "GDT0I03",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_ERA9G01",
+      "placa": "ERA9G01",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GDT0I01",
+      "placa": "GDT0I01",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GDT0I02",
+      "placa": "GDT0I02",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_QHK3I19",
+      "placa": "QHK3I19",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_RHS3J46",
+      "placa": "RHS3J46",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_RHS3J47",
+      "placa": "RHS3J47",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_RHS3J48",
+      "placa": "RHS3J48",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_RYQ6H35",
+      "placa": "RYQ6H35",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_RYQ6G35",
+      "placa": "RYQ6G35",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_RYQ7C95",
+      "placa": "RYQ7C95",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_ECI8C91",
+      "placa": "ECI8C91",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_FPM8J61",
+      "placa": "FPM8J61",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GFT7H72",
+      "placa": "GFT7H72",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_FOY5J14",
+      "placa": "FOY5J14",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GFG8A53",
+      "placa": "GFG8A53",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_FKC7A53",
+      "placa": "FKC7A53",
+      "tipo": "carreta",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_GDT0H04",
+      "placa": "GDT0H04",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_CUL2E24",
+      "placa": "CUL2E24",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "pesado_FXM9D74",
+      "placa": "FXM9D74",
+      "tipo": "trator",
+      "situacao": "operante",
+      "responsavel": null
+    }
+  ],
+  "embarcado": [
+    {
+      "id": "embarcado_LTI0A94",
+      "placa": "LTI0A94",
+      "tipo": "embarcado",
+      "situacao": "operante",
+      "responsavel": "DIRETORIA"
+    },
+    {
+      "id": "embarcado_EOF5C76",
+      "placa": "EOF5C76",
+      "tipo": "embarcado",
+      "situacao": "operante",
+      "responsavel": "MORINI"
+    },
+    {
+      "id": "embarcado_ECM2F55",
+      "placa": "ECM2F55",
+      "tipo": "embarcado",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "embarcado_KPU3C30",
+      "placa": "KPU3C30",
+      "tipo": "embarcado",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "embarcado_BYY9E06",
+      "placa": "BYY9E06",
+      "tipo": "embarcado",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "embarcado_DBC2G16",
+      "placa": "DBC2G16",
+      "tipo": "embarcado",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "embarcado_MDO3F03",
+      "placa": "MDO3F03",
+      "tipo": "embarcado",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "embarcado_BWN5G39",
+      "placa": "BWN5G39",
+      "tipo": "embarcado",
+      "situacao": "operante",
+      "responsavel": null
+    },
+    {
+      "id": "embarcado_AEQ2E60",
+      "placa": "AEQ2E60",
+      "tipo": "embarcado",
+      "situacao": "operante",
+      "responsavel": null
+    }
+  ]
+}
