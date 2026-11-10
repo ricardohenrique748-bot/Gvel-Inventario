@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -41,28 +41,27 @@ export function ClientesTab() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  const { onBlur: cnpjOnBlur, onChange: cnpjOnChange, ...cnpjField } = register('cnpj')
+  const { onChange: cnpjOnChange, ...cnpjField } = register('cnpj')
+  const ultimoCnpjBuscado = useRef<string | null>(null)
 
-  function handleCpfCnpjChange(e: React.ChangeEvent<HTMLInputElement>) {
+  // Busca assim que o CNPJ fica completo (14 dígitos), sem precisar sair do campo.
+  async function handleCpfCnpjChange(e: React.ChangeEvent<HTMLInputElement>) {
     e.target.value = formatCpfCnpj(e.target.value)
     cnpjOnChange(e)
-  }
-
-  async function handleCpfCnpjBlur(e: React.FocusEvent<HTMLInputElement>) {
-    cnpjOnBlur(e)
     const digits = (getValues('cnpj') ?? '').replace(/\D/g, '')
     if (digits.length !== 14) {
-      if (digits.length === 11) {
-        setCnpjInfo(null)
-      }
+      ultimoCnpjBuscado.current = null
+      setCnpjInfo(null)
       return
     }
+    if (ultimoCnpjBuscado.current === digits) return
+    ultimoCnpjBuscado.current = digits
 
     setBuscandoCnpj(true)
     setCnpjInfo(null)
     try {
       const info = await buscarCnpj(digits)
-      if (info.nome) setValue('nome', info.nome)
+      if (info.nome) setValue('nome', info.nome, { shouldValidate: true })
       if (info.endereco) setValue('endereco', info.endereco)
       if (info.telefone) setValue('telefone', info.telefone)
       setCnpjInfo('Dados da empresa preenchidos automaticamente via CNPJ.')
@@ -129,7 +128,6 @@ export function ClientesTab() {
                     maxLength={18}
                     {...cnpjField}
                     onChange={handleCpfCnpjChange}
-                    onBlur={handleCpfCnpjBlur}
                   />
                   {buscandoCnpj && <p className="mt-1 text-xs text-secondary">Buscando dados da empresa…</p>}
                   {!buscandoCnpj && cnpjInfo && <p className="mt-1 text-xs text-secondary">{cnpjInfo}</p>}
@@ -247,6 +245,8 @@ function EditarClienteForm({
   const {
     register,
     handleSubmit,
+    setValue,
+    getValues,
     formState: { isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -257,12 +257,38 @@ function EditarClienteForm({
       endereco: cliente.endereco ?? '',
     },
   })
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false)
+  const [cnpjInfo, setCnpjInfo] = useState<string | null>(null)
+  // Começa com o CNPJ já salvo, pra abrir a edição não sobrescrever nada.
+  const ultimoCnpjBuscado = useRef<string | null>((cliente.cnpj ?? '').replace(/\D/g, '') || null)
 
   const { onChange: cnpjOnChange, ...cnpjField } = register('cnpj')
 
-  function handleCpfCnpjChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleCpfCnpjChange(e: React.ChangeEvent<HTMLInputElement>) {
     e.target.value = formatCpfCnpj(e.target.value)
     cnpjOnChange(e)
+    const digits = (getValues('cnpj') ?? '').replace(/\D/g, '')
+    if (digits.length !== 14) {
+      ultimoCnpjBuscado.current = null
+      setCnpjInfo(null)
+      return
+    }
+    if (ultimoCnpjBuscado.current === digits) return
+    ultimoCnpjBuscado.current = digits
+
+    setBuscandoCnpj(true)
+    setCnpjInfo(null)
+    try {
+      const info = await buscarCnpj(digits)
+      if (info.nome) setValue('nome', info.nome)
+      if (info.endereco) setValue('endereco', info.endereco)
+      if (info.telefone) setValue('telefone', info.telefone)
+      setCnpjInfo('Dados preenchidos via CNPJ.')
+    } catch (err) {
+      setCnpjInfo(err instanceof Error ? err.message : 'Não foi possível buscar o CNPJ.')
+    } finally {
+      setBuscandoCnpj(false)
+    }
   }
 
   async function onSubmit(values: FormValues) {
@@ -294,6 +320,8 @@ function EditarClienteForm({
             {...cnpjField}
             onChange={handleCpfCnpjChange}
           />
+          {buscandoCnpj && <p className="mt-1 text-xs text-secondary">Buscando dados da empresa…</p>}
+          {!buscandoCnpj && cnpjInfo && <p className="mt-1 text-xs text-secondary">{cnpjInfo}</p>}
         </div>
         <div>
           <Label htmlFor={`telefone-${cliente.id}`}>Telefone</Label>
