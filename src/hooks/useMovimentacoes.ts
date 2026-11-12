@@ -145,7 +145,7 @@ export type RegistrarEntradaInput =
       ano: number
     })
 
-import { embutirFotosExtras } from '@/lib/fotosExtras'
+import { embutirFotosExtras, observacoesEmMaiusculas } from '@/lib/fotosExtras'
 
 export interface FotosEntrada {
   frente?: File
@@ -381,7 +381,7 @@ export async function registrarEntrada(
         motorista: up(input.motorista),
         data_hora_entrada: input.dataHoraEntrada,
         km_entrada: input.kmEntrada,
-        observacoes: up(observacoesComExtras),
+        observacoes: observacoesEmMaiusculas(observacoesComExtras),
         status: 'no_patio',
         foto_frente_url: fotoFrenteUrl,
         foto_lado_esquerdo_url: fotoLadoEsquerdoUrl,
@@ -470,7 +470,7 @@ export async function atualizarMovimentacao(id: string, input: AtualizarMoviment
       status_id: input.statusId || null,
       motorista: up(input.motorista),
       destino: up(input.destino),
-      observacoes: up(observacoesParaSalvar),
+      observacoes: observacoesEmMaiusculas(observacoesParaSalvar),
       data_hora_entrada: input.dataHoraEntrada,
       data_hora_saida: input.dataHoraSaida || null,
       km_entrada: input.kmEntrada,

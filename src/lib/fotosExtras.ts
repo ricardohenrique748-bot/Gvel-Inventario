@@ -14,16 +14,19 @@ export function extrairFotosExtras(observacoes?: string | null): {
   const fotosExtras: { url: string; label?: string }[] = []
 
   // Formato 1: [FOTOS_EXTRAS:[{"url":"...","label":"..."}]]
-  const matchJson = observacoes.match(/\[FOTOS_EXTRAS:(.*?)\]/)
+  const matchJson = observacoes.match(RE_BLOCO_JSON)
   if (matchJson) {
     try {
       const parsed = JSON.parse(matchJson[1])
       if (Array.isArray(parsed)) {
         parsed.forEach((f) => {
-          if (typeof f === 'string' && f.trim()) {
-            fotosExtras.push({ url: f.trim() })
-          } else if (f && typeof f.url === 'string' && f.url.trim()) {
-            fotosExtras.push({ url: f.url.trim(), label: f.label })
+          // Registros antigos foram gravados em maiúsculas (chaves e links). Os
+          // caminhos das fotos são sempre minúsculos, então dá para recuperar.
+          const url = typeof f === 'string' ? f : (f?.url ?? f?.URL)
+          const label = typeof f === 'string' ? undefined : (f?.label ?? f?.LABEL)
+          if (typeof url === 'string' && url.trim()) {
+            const limpa = url.trim()
+            fotosExtras.push({ url: /^HTTPS?:\/\//.test(limpa) ? limpa.toLowerCase() : limpa, label })
           }
         })
       }
@@ -45,22 +48,33 @@ export function extrairFotosExtras(observacoes?: string | null): {
     }
   }
 
-  const textoLimpo = observacoes
-    .replace(/\[FOTOS_EXTRAS:.*?\]/g, '')
-    .replace(/\[FOTO_EXTRA:.*?\]/g, '')
-    .trim()
+  return { textoLimpo: removerBlocos(observacoes), fotosExtras }
+}
 
-  return { textoLimpo, fotosExtras }
+// O JSON é uma lista ("[...]"), então o bloco termina em "]]". Um ".*?\]" pararia
+// no primeiro "]" e cortaria o JSON ao meio.
+const RE_BLOCO_JSON = /\[FOTOS_EXTRAS:(\[.*?\])\]/
+const RE_BLOCO_JSON_G = /\[FOTOS_EXTRAS:\[.*?\]\]/g
+const RE_FOTO_EXTRA_G = /\[FOTO_EXTRA:.*?\]/g
+
+function removerBlocos(texto: string): string {
+  return texto.replace(RE_BLOCO_JSON_G, '').replace(RE_FOTO_EXTRA_G, '').trim()
+}
+
+/** Observações em maiúsculas sem tocar nos links das fotos extras embutidas. */
+export function observacoesEmMaiusculas(observacoes: string | undefined | null): string | null {
+  if (!observacoes) return observacoes ?? null
+  const bloco = observacoes.match(RE_BLOCO_JSON)?.[0]
+  const texto = removerBlocos(observacoes).toUpperCase()
+  if (!bloco) return texto
+  return texto ? `${texto}\n${bloco}` : bloco
 }
 
 export function embutirFotosExtras(
   observacoesTexto: string | undefined | null,
   fotosExtras: { url: string; label?: string }[],
 ): string {
-  const texto = (observacoesTexto || '')
-    .replace(/\[FOTOS_EXTRAS:.*?\]/g, '')
-    .replace(/\[FOTO_EXTRA:.*?\]/g, '')
-    .trim()
+  const texto = removerBlocos(observacoesTexto || '')
 
   if (fotosExtras.length === 0) return texto
 
