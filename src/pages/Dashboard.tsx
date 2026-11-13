@@ -28,7 +28,6 @@ import { Badge } from '@/components/ui/Badge'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { isAdminUsuario } from '@/lib/permissoes'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useStatusManutencao } from '@/hooks/useStatusManutencao'
 import { useOSStatusBatch } from '@/hooks/useOSStatusBatch'
@@ -39,8 +38,7 @@ import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib
 
 export function Dashboard() {
   const { theme } = useTheme()
-  const { perfil, user, empresa } = useAuth()
-  const isAdmin = isAdminUsuario(perfil, user?.email)
+  const { empresa } = useAuth()
   // Empresa sem clientes (Localiza): os grupos do dia são por pátio.
   const usaClientes = empresaUsaClientes(empresa)
   const isDark = theme === 'dark'
@@ -299,14 +297,11 @@ export function Dashboard() {
         title="Dashboard"
         subtitle="Visão geral do pátio"
         actions={
-          isAdmin && (
-            <>
-              <Button variant="secondary" onClick={handleExportarExcel} disabled={loadingNoPatio || noPatio.length === 0}>
-                <FileSpreadsheet className="h-4 w-4" />
-                Exportar Excel
-              </Button>
-            </>
-          )
+          // Liberado para todos que veem o Dashboard (permissão caminhoes_dashboard).
+          <Button variant="secondary" onClick={handleExportarExcel} disabled={loadingNoPatio || noPatio.length === 0}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Exportar Excel
+          </Button>
         }
       />
 
