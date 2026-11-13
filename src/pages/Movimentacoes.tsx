@@ -37,16 +37,17 @@ const editSchema = z.object({
   clienteId: z.string().optional(),
   placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
   tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
-  cor: z.string().trim().min(1, 'Informe a cor'),
+  // Cor, ano, marca e modelo são opcionais: boa parte da frota (Localiza) foi
+  // importada sem esses dados, e exigir tudo impedia salvar qualquer edição.
+  cor: z.string().trim().optional(),
   chassi: z.string().trim().optional(),
   situacao: z.enum(['operante', 'inoperante']),
+  // Campo numérico vazio chega como NaN.
   ano: z
-    .number({ message: 'Informe o ano' })
-    .int('Ano inválido')
-    .min(1950, 'Ano inválido')
-    .max(anoAtual + 1, 'Ano inválido'),
-  marcaId: z.string().min(1, 'Selecione a marca'),
-  modeloId: z.string().min(1, 'Selecione o modelo'),
+    .union([z.nan(), z.number().int('Ano inválido').min(1950, 'Ano inválido').max(anoAtual + 1, 'Ano inválido')])
+    .optional(),
+  marcaId: z.string().optional(),
+  modeloId: z.string().optional(),
   patioId: z.string().min(1, 'Selecione o pátio'),
   statusId: z.string().optional(),
   motorista: z.string().optional(),
@@ -610,12 +611,12 @@ export function EditarMovimentacaoForm({
     try {
       await atualizarVeiculo(movimentacao.veiculo_id, {
         placa: values.placa,
-        marcaId: values.marcaId,
-        modeloId: values.modeloId,
+        marcaId: values.marcaId ?? '',
+        modeloId: values.modeloId ?? '',
         clienteId: values.clienteId || null,
         tipo: values.tipo,
         cor: values.cor,
-        ano: values.ano,
+        ano: values.ano === undefined || Number.isNaN(values.ano) ? undefined : values.ano,
         chassi: values.chassi,
         operante: values.situacao === 'operante',
       })
@@ -760,7 +761,7 @@ export function EditarMovimentacaoForm({
               options={modelos}
               disabled={!marcaId}
               onCreate={async (nome) => {
-                const created = await criarModelo(marcaId, nome)
+                const created = await criarModelo(marcaId ?? '', nome)
                 await refetchModelos()
                 return created
               }}
