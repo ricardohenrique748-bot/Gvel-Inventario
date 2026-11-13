@@ -27,16 +27,17 @@ const schema = z.object({
   clienteId: z.string().optional(),
   placa: z.string().trim().min(7, 'Placa inválida').max(8, 'Placa inválida'),
   tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']),
-  cor: z.string().trim().min(1, 'Informe a cor'),
+  // Cor, ano, marca e modelo são opcionais: boa parte da frota foi importada sem
+  // esses dados, e exigir tudo travava edições simples (ex.: marcar inoperante).
+  cor: z.string().trim().optional(),
   chassi: z.string().trim().optional(),
   situacao: z.enum(['operante', 'inoperante']),
+  // Campo numérico vazio chega como NaN.
   ano: z
-    .number({ message: 'Informe o ano' })
-    .int('Ano inválido')
-    .min(1950, 'Ano inválido')
-    .max(anoAtual + 1, 'Ano inválido'),
-  marcaId: z.string().min(1, 'Selecione a marca'),
-  modeloId: z.string().min(1, 'Selecione o modelo'),
+    .union([z.nan(), z.number().int('Ano inválido').min(1950, 'Ano inválido').max(anoAtual + 1, 'Ano inválido')])
+    .optional(),
+  marcaId: z.string().optional(),
+  modeloId: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -84,17 +85,18 @@ export function FrotaTab() {
       return
     }
     const clienteVeiculo = usaClientes ? values.clienteId : null
+    const ano = values.ano === undefined || Number.isNaN(values.ano) ? undefined : values.ano
     try {
       const operante = values.situacao === 'operante'
       if (editandoId) {
         await atualizarVeiculo(editandoId, {
           placa: values.placa,
-          marcaId: values.marcaId,
-          modeloId: values.modeloId,
+          marcaId: values.marcaId ?? '',
+          modeloId: values.modeloId ?? '',
           clienteId: clienteVeiculo,
           tipo: values.tipo,
           cor: values.cor,
-          ano: values.ano,
+          ano,
           chassi: values.chassi,
           operante,
         })
@@ -102,12 +104,12 @@ export function FrotaTab() {
       } else {
         await upsertVeiculo({
           placa: values.placa,
-          marcaId: values.marcaId,
-          modeloId: values.modeloId,
+          marcaId: values.marcaId ?? '',
+          modeloId: values.modeloId ?? '',
           clienteId: clienteVeiculo,
           tipo: values.tipo,
           cor: values.cor,
-          ano: values.ano,
+          ano,
           chassi: values.chassi,
           operante,
         })
@@ -272,7 +274,8 @@ export function FrotaTab() {
                   options={modelos}
                   disabled={!marcaId}
                   onCreate={async (nome) => {
-                    const created = await criarModelo(marcaId, nome)
+                    // Só chega aqui com marca escolhida (o campo fica desabilitado sem ela).
+                    const created = await criarModelo(marcaId ?? '', nome)
                     await refetchModelos()
                     return created
                   }}
