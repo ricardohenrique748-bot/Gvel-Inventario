@@ -1293,11 +1293,12 @@ export function InventarioFerramentas() {
 
                   <div className="divide-y divide-border/10">
                     {ferramentasFiltradas.slice(0, limiteExibicao).map((f) => {
-                      const total = f.quantidade_total || 1
+                      // Total 0 = item todo baixado (consumo). Antes virava 1 e mostrava "1 em uso" falso.
+                      const total = Math.max(0, Number(f.quantidade_total) || 0)
                       const disp = f.quantidade_disponivel || 0
-                      const emUsoQtd = total - disp
+                      const emUsoQtd = Math.max(0, total - disp)
                       const semEstoque = disp <= 0
-                      const percentualDisp = Math.max(0, Math.min(100, Math.round((disp / total) * 100)))
+                      const percentualDisp = Math.max(0, Math.min(100, total > 0 ? Math.round((disp / total) * 100) : 0))
                       const isItemSelecionado = selecionados.includes(f.id)
 
                       return (
@@ -1470,9 +1471,10 @@ export function InventarioFerramentas() {
               {/* Mobile: Lista Compacta e Fluida */}
               <div className="md:hidden space-y-2.5">
                 {ferramentasFiltradas.slice(0, limiteExibicao).map((f) => {
-                  const total = f.quantidade_total || 1
+                  // Total 0 = item todo baixado (consumo). Antes virava 1 e mostrava "1 em uso" falso.
+                  const total = Math.max(0, Number(f.quantidade_total) || 0)
                   const disp = f.quantidade_disponivel || 0
-                  const emUsoQtd = total - disp
+                  const emUsoQtd = Math.max(0, total - disp)
                   const semEstoque = disp <= 0
                   const isItemSelecionado = selecionados.includes(f.id)
 
@@ -1618,11 +1620,12 @@ export function InventarioFerramentas() {
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {ferramentasFiltradas.slice(0, limiteExibicao).map((f) => {
-                  const total = f.quantidade_total || 1
+                  // Total 0 = item todo baixado (consumo). Antes virava 1 e mostrava "1 em uso" falso.
+                  const total = Math.max(0, Number(f.quantidade_total) || 0)
                   const disp = f.quantidade_disponivel || 0
-                  const emUsoQtd = total - disp
+                  const emUsoQtd = Math.max(0, total - disp)
                   const semEstoque = disp <= 0
-                  const percentualDisp = Math.max(0, Math.min(100, Math.round((disp / total) * 100)))
+                  const percentualDisp = Math.max(0, Math.min(100, total > 0 ? Math.round((disp / total) * 100) : 0))
                   const isItemSelecionado = selecionados.includes(f.id)
 
                   return (
@@ -3308,7 +3311,7 @@ export function InventarioFerramentas() {
       )}
 
       {/* ==================== MODAL: EDITAR RETIRADA ==================== */}
-      {modalEditarRetiradaAberto && retiradaEditando && (
+      {!ferramentaHistorico && modalEditarRetiradaAberto && retiradaEditando && (
         <ModalEditarRetirada
           retirada={retiradaEditando}
           ferramentas={ferramentas}
@@ -3415,6 +3418,24 @@ export function InventarioFerramentas() {
           onRetirar={(f) => {
             setFerramentaSelecionadaParaRetirada(f)
             setModalRetiradaAberto(true)
+          }}
+          onEditar={(r) => {
+            setRetiradaEditando(r)
+            setModalEditarRetiradaAberto(true)
+          }}
+        />
+      )}
+
+      {/* Edição aberta a partir do histórico do item: fica por cima dele. */}
+      {ferramentaHistorico && modalEditarRetiradaAberto && retiradaEditando && (
+        <ModalEditarRetirada
+          retirada={retiradaEditando}
+          ferramentas={ferramentas}
+          veiculos={veiculosLista}
+          onClose={() => setModalEditarRetiradaAberto(false)}
+          onSucesso={async () => {
+            setModalEditarRetiradaAberto(false)
+            await recarregarDados()
           }}
         />
       )}
@@ -3732,11 +3753,14 @@ function ModalHistoricoFerramenta({
   retiradas,
   onClose,
   onRetirar,
+  onEditar,
 }: {
   ferramenta: Ferramenta
   retiradas: FerramentaRetirada[]
   onClose: () => void
   onRetirar: (f: Ferramenta) => void
+  /** Abre a edição do lançamento (data, quantidade, responsável...). */
+  onEditar?: (r: FerramentaRetirada) => void
 }) {
   const [busca, setBusca] = useState('')
 
@@ -3853,6 +3877,7 @@ function ModalHistoricoFerramenta({
             <div className="space-y-2.5">
               {filtrado.map((r) => {
                 const emUsoAgora = r.status === 'em_uso'
+                const saidaDefinitiva = r.status === 'avaria_perda'
                 return (
                   <div
                     key={r.id}
@@ -3874,16 +3899,33 @@ function ModalHistoricoFerramenta({
                         </span>
                       </div>
 
-                      {/* Status */}
-                      {emUsoAgora ? (
-                        <span className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-[10px] font-black text-amber-400 uppercase tracking-wider">
-                          ● EM USO NO MOMENTO
-                        </span>
-                      ) : (
-                        <span className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 text-[10px] font-black text-emerald-400 uppercase tracking-wider">
-                          ✓ DEVOLVIDA
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {/* Status */}
+                        {emUsoAgora ? (
+                          <span className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-[10px] font-black text-amber-400 uppercase tracking-wider">
+                            ● EM USO NO MOMENTO
+                          </span>
+                        ) : saidaDefinitiva ? (
+                          <span className="rounded-lg bg-red-500/10 border border-red-500/30 px-2.5 py-1 text-[10px] font-black text-red-400 uppercase tracking-wider">
+                            SAÍDA DEFINITIVA
+                          </span>
+                        ) : (
+                          <span className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 text-[10px] font-black text-emerald-400 uppercase tracking-wider">
+                            ✓ DEVOLVIDA
+                          </span>
+                        )}
+                        {onEditar && (
+                          <button
+                            type="button"
+                            onClick={() => onEditar(r)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border/30 text-secondary hover:text-foreground hover:border-primary/40 transition-colors"
+                            aria-label="Editar lançamento"
+                            title="Editar lançamento (data, quantidade, responsável...)"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Quem Solicitou Retirada */}
@@ -3909,7 +3951,7 @@ function ModalHistoricoFerramenta({
                     </div>
 
                     {/* Data de Devolução se houver */}
-                    {r.data_hora_devolucao && (
+                    {r.data_hora_devolucao && !saidaDefinitiva && (
                       <div className="text-[11px] text-emerald-400 font-medium bg-emerald-500/5 rounded-xl px-2.5 py-1.5 border border-emerald-500/15 flex items-center justify-between">
                         <span>Devolvido em:</span>
                         <span className="font-mono font-bold">

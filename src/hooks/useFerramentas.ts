@@ -1093,6 +1093,12 @@ export async function atualizarRetiradaFerramenta(input: AtualizarRetiradaInput)
   // estava retirado e desconta o novo (antes o estoque não era ajustado).
   const anterior = await buscarRetiradaAtual(input.id)
 
+  // Saída definitiva é baixada no mesmo instante da saída: mudou a data da
+  // saída, a data da baixa acompanha (senão a baixa ficaria antes da saída).
+  const novaDataBaixa =
+    input.data_hora_retirada && anterior?.status === 'avaria_perda' ? input.data_hora_retirada : undefined
+  if (novaDataBaixa) payload.data_hora_devolucao = novaDataBaixa
+
   let atualizouNoBanco = false
   try {
     const { error } = await supabase.from('ferramentas_retiradas').update(payload).eq('id', input.id)
@@ -1123,7 +1129,7 @@ export async function atualizarRetiradaFerramenta(input: AtualizarRetiradaInput)
     ferramenta: locais.find((f) => f.id === novaFerramentaId) || atual?.ferramenta,
     status: atual?.status || 'em_uso',
     created_at: atual?.created_at || new Date().toISOString(),
-    data_hora_devolucao: atual?.data_hora_devolucao || null,
+    data_hora_devolucao: novaDataBaixa || atual?.data_hora_devolucao || null,
     observacoes_devolucao: atual?.observacoes_devolucao || null,
   }
 
