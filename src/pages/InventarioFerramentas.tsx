@@ -71,6 +71,7 @@ import {
   registrarDevolucaoFerramenta,
   reverterDevolucaoFerramenta,
   uploadFotoFerramenta,
+  reporEstoqueFerramenta,
 } from '@/hooks/useFerramentas'
 import { comprimirImagem } from '@/lib/imagem'
 import { supabase } from '@/lib/supabase'
@@ -3423,6 +3424,12 @@ export function InventarioFerramentas() {
             setRetiradaEditando(r)
             setModalEditarRetiradaAberto(true)
           }}
+          onRepor={async (f, quantidade) => {
+            const atualizada = await reporEstoqueFerramenta(f.id, quantidade)
+            await recarregarDados()
+            // O modal mostra a ferramenta guardada aqui: atualiza os números na hora.
+            setFerramentaHistorico((atual) => (atual && atual.id === f.id ? { ...atual, ...atualizada } : atual))
+          }}
         />
       )}
 
@@ -3754,6 +3761,7 @@ function ModalHistoricoFerramenta({
   onClose,
   onRetirar,
   onEditar,
+  onRepor,
 }: {
   ferramenta: Ferramenta
   retiradas: FerramentaRetirada[]
@@ -3761,6 +3769,8 @@ function ModalHistoricoFerramenta({
   onRetirar: (f: Ferramenta) => void
   /** Abre a edição do lançamento (data, quantidade, responsável...). */
   onEditar?: (r: FerramentaRetirada) => void
+  /** Soma `quantidade` unidades ao estoque do item. */
+  onRepor?: (f: Ferramenta, quantidade: number) => Promise<void>
 }) {
   const [busca, setBusca] = useState('')
 
@@ -3780,9 +3790,33 @@ function ModalHistoricoFerramenta({
     })
   }, [historico, busca])
 
-  const total = ferramenta.quantidade_total || 1
+  // Total 0 = item todo baixado. Antes virava 1 e mostrava "1 em uso" falso.
+  const total = Math.max(0, Number(ferramenta.quantidade_total) || 0)
   const disp = ferramenta.quantidade_disponivel || 0
   const emUso = Math.max(0, total - disp)
+  const [reporAberto, setReporAberto] = useState(false)
+  const [qtdRepor, setQtdRepor] = useState(1)
+  const [repondo, setRepondo] = useState(false)
+  const [erroRepor, setErroRepor] = useState<string | null>(null)
+
+  async function confirmarRepor() {
+    if (!onRepor) return
+    if (!Number.isInteger(qtdRepor) || qtdRepor < 1) {
+      setErroRepor('INFORME UMA QUANTIDADE A PARTIR DE 1.')
+      return
+    }
+    setRepondo(true)
+    setErroRepor(null)
+    try {
+      await onRepor(ferramenta, qtdRepor)
+      setReporAberto(false)
+      setQtdRepor(1)
+    } catch (err) {
+      setErroRepor(err instanceof Error ? err.message.toUpperCase() : 'ERRO AO REPOR O ESTOQUE.')
+    } finally {
+      setRepondo(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in">
@@ -3973,8 +4007,55 @@ function ModalHistoricoFerramenta({
           )}
         </div>
 
+        {/* Reposição: soma unidades ao estoque do item */}
+        {reporAberto && (
+          <div className="border-t border-border/15 px-4 pt-3 space-y-2">
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <label htmlFor="qtdRepor" className="block text-[10px] font-bold text-secondary uppercase mb-1">
+                  Quantidade que chegou
+                </label>
+                <Input
+                  id="qtdRepor"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={qtdRepor}
+                  onChange={(e) => setQtdRepor(parseInt(e.target.value, 10) || 0)}
+                  className="!h-9 text-sm font-bold"
+                  autoFocus
+                />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setReporAberto(false)
+                  setErroRepor(null)
+                }}
+                className="!h-9 px-3 text-xs font-bold uppercase"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={confirmarRepor}
+                disabled={repondo}
+                className="!h-9 px-4 text-xs font-black uppercase gap-1.5 bg-emerald-600 hover:bg-emerald-500"
+              >
+                <Plus className="h-4 w-4" />
+                {repondo ? 'Salvando…' : 'Confirmar'}
+              </Button>
+            </div>
+            <p className="text-[11px] text-secondary">
+              Estoque passa de {total} para {total + (qtdRepor > 0 ? qtdRepor : 0)}.
+            </p>
+            {erroRepor && <p className="text-[11px] font-bold text-status-danger">{erroRepor}</p>}
+          </div>
+        )}
+
         {/* Rodapé */}
-        <div className="flex items-center justify-between border-t border-border/15 p-4 bg-overlay/5">
+        <div className="flex items-center justify-between gap-2 border-t border-border/15 p-4 bg-overlay/5">
           <Button
             type="button"
             variant="secondary"
@@ -3983,6 +4064,20 @@ function ModalHistoricoFerramenta({
           >
             Fechar
           </Button>
+
+          <div className="flex items-center gap-2">
+          {onRepor && !reporAberto && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setReporAberto(true)}
+              className="!h-9 px-4 text-xs font-black uppercase gap-1.5 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+              title="Adicionar unidades ao estoque deste item"
+            >
+              <Plus className="h-4 w-4" />
+              Repor
+            </Button>
+          )}
 
           {disp > 0 && (
             <Button
@@ -3997,6 +4092,7 @@ function ModalHistoricoFerramenta({
               Retirar Esta Ferramenta
             </Button>
           )}
+          </div>
         </div>
       </div>
     </div>

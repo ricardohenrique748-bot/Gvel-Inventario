@@ -345,7 +345,42 @@ export async function recalcularDisponivelFerramenta(ferramentaId: string): Prom
   }
 }
 
-const REGEX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/**
+ * Reposição: soma `quantidade` unidades ao total do item e recalcula o
+ * disponível (total − em uso). Lê o total do banco na hora, para não somar
+ * sobre um valor antigo da tela.
+ */
+export async function reporEstoqueFerramenta(
+  ferramentaId: string,
+  quantidade: number,
+): Promise<{ quantidade_total: number; quantidade_disponivel: number }> {
+  const qtd = Math.floor(Number(quantidade) || 0)
+  if (qtd < 1) throw new Error('Informe uma quantidade a partir de 1.')
+
+  const { data: f, error: erroLeitura } = await supabase
+    .from('ferramentas')
+    .select('quantidade_total')
+    .eq('id', ferramentaId)
+    .maybeSingle()
+  if (erroLeitura) throw new Error(erroLeitura.message)
+  if (!f) throw new Error('Item não encontrado no banco (pode ter sido criado sem internet e ainda não sincronizado).')
+
+  const novoTotal = (Number(f.quantidade_total) || 0) + qtd
+  const { data: atualizadas, error } = await supabase
+    .from('ferramentas')
+    .update({ quantidade_total: novoTotal })
+    .eq('id', ferramentaId)
+    .select('id')
+  if (error) throw new Error(error.message)
+  if (!atualizadas || atualizadas.length === 0) throw new Error('O banco não permitiu alterar este item.')
+
+  await recalcularDisponivelFerramenta(ferramentaId)
+  const emUso = (await buscarEmUsoPorFerramenta(ferramentaId))?.get(ferramentaId) || 0
+  window.dispatchEvent(new Event('ferramentas_updated'))
+  return { quantidade_total: novoTotal, quantidade_disponivel: Math.max(0, novoTotal - emUso) }
+}
+
+const REGEX_UUID =/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export function mesclarRemotasComLocais(remotas: Ferramenta[], locais: Ferramenta[]): Ferramenta[] {
   const excluidos = getIdsExcluidos()
