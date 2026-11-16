@@ -1,4 +1,5 @@
 import type { SyntheticEvent } from 'react'
+import { extrairFotosExtras } from './fotosExtras'
 
 /**
  * Converte a URL pública de uma foto do Storage numa URL de miniatura
@@ -36,6 +37,7 @@ export function primeiraFotoMovimentacao(m: {
   foto_lado_direito_url?: string | null
   foto_traseira_url?: string | null
   foto_painel_url?: string | null
+  observacoes?: string | null
 }): string | null {
   return (
     m.foto_frente_url ||
@@ -43,6 +45,17 @@ export function primeiraFotoMovimentacao(m: {
     m.foto_lado_direito_url ||
     m.foto_traseira_url ||
     m.foto_painel_url ||
+    // Entradas feitas só pela Galeria/"Adicionar foto" têm apenas fotos extras,
+    // que ficam embutidas nas observações.
+    fotoFrenteDasExtras(extrairFotosExtras(m.observacoes).fotosExtras) ||
     null
   )
+}
+
+/**
+ * Pela Galeria a equipe fotografa na ordem painel → frente → laterais → traseira,
+ * então a frente é a 2ª extra. Com uma só foto, usa ela mesma.
+ */
+function fotoFrenteDasExtras(extras: { url: string }[]): string | undefined {
+  return (extras.length >= 2 ? extras[1] : extras[0])?.url
 }
