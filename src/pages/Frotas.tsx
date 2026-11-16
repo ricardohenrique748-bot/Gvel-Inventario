@@ -2289,6 +2289,11 @@ export function Frotas() {
       alert('Informe o nome do motorista ou condutor.')
       return
     }
+    // Só o primeiro nome ("MATEUS") não identifica o motorista nos relatórios.
+    if (motoristaChecklist.trim().split(/\s+/).filter((p) => p.replace(/[^A-ZÀ-Ú]/gi, '').length >= 2).length < 2) {
+      alert('Informe o nome completo do motorista (nome e sobrenome).')
+      return
+    }
     const implementos = implementosDoChecklist(veiculoChecklistSelecionado)
     const fotosFaltando = [
       ...fotosExigidasChecklist(veiculoChecklistSelecionado)
@@ -5722,12 +5727,27 @@ export function Frotas() {
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
                       <Input
                         id="chkMotorista"
-                        placeholder="Nome do motorista"
+                        placeholder="Nome e sobrenome do motorista"
+                        list="chkMotoristaSugestoes"
                         value={motoristaChecklist}
                         onChange={(e) => setMotoristaChecklist(e.target.value.toUpperCase())}
                         className="pl-9 text-xs uppercase font-bold"
                         required
                       />
+                      {/* Sugere os nomes completos já usados em checklists anteriores. */}
+                      <datalist id="chkMotoristaSugestoes">
+                        {Array.from(
+                          new Set(
+                            checklists
+                              .map((c) => (c.motoristaNome || '').trim().toUpperCase())
+                              .filter((n) => n.split(/\s+/).length >= 2),
+                          ),
+                        )
+                          .sort()
+                          .map((n) => (
+                            <option key={n} value={n} />
+                          ))}
+                      </datalist>
                     </div>
                   </div>
 
