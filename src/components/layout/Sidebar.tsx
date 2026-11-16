@@ -5,7 +5,7 @@ import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, ChevronLef
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
-import { navItems, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized, isRhAuthorized, isRelatoriosAuthorized, isEstoqueAuthorized, isModuloAuthorized } from './nav'
+import { navItems, isKanbanAuthorized, isDashboardGerencialAuthorized, isFinanceiroAuthorized, isRhAuthorized, isRelatoriosAuthorized, isEstoqueAuthorized, isModuloAuthorized, INDICADOR_PERFORMANCE_OCULTO, MANUTENCAO_OCULTA } from './nav'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmpresa } from '@/contexts/EmpresaContext'
 import { useEmpresasDoSeletor } from '@/hooks/useCompanies'
@@ -200,7 +200,7 @@ export function Sidebar() {
   const canAccessRh = isRhAuthorized(userRef) && temAcessoModuloEmpresa(empresa, 'rh')
   const canAccessRelatorios = isRelatoriosAuthorized(userRef)
   const canAccessEstoque = isEstoqueAuthorized(userRef, native) && temAcessoModuloEmpresa(empresa, 'estoque')
-  const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao') && temAcessoModuloEmpresa(empresa, 'manutencao')
+  const canAccessManutencao = !MANUTENCAO_OCULTA && isModuloAuthorized(userRef, 'manutencao') && temAcessoModuloEmpresa(empresa, 'manutencao')
   const canAccessInventarioCaminhoes = isModuloAuthorized(userRef, 'inventario_caminhoes') && temAcessoModuloEmpresa(empresa, 'inventario_caminhoes')
   const canAccessFrotas = isModuloAuthorized(userRef, 'frotas') && temAcessoModuloEmpresa(empresa, 'frotas')
   const canAccessConfiguracoes = isAdmin || isModuloAuthorized(userRef, 'configuracoes')
@@ -251,7 +251,7 @@ export function Sidebar() {
       .map((item) => {
         if ('children' in item && item.children && (item as any).children.length > 0) {
           const filteredChildren = ((item as any).children as any[]).filter((c: any) => {
-            if (c.to === '/controle-horas') return isModuloAuthorized(userRef, 'dashboard_controle_horas') && temAcessoModuloEmpresa(empresa, 'dashboard_controle_horas')
+            if (c.to === '/controle-horas') return !INDICADOR_PERFORMANCE_OCULTO && isModuloAuthorized(userRef, 'dashboard_controle_horas') && temAcessoModuloEmpresa(empresa, 'dashboard_controle_horas')
             if (c.to === '/') return isModuloAuthorized(userRef, 'caminhoes_dashboard')
             if (c.to === '/movimentacoes') return isModuloAuthorized(userRef, 'caminhoes_movimentacoes')
             if (c.to === '/frotas') return isModuloAuthorized(userRef, 'frotas_dashboard')

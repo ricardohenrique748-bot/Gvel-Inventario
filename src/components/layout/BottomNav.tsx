@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
 import { temAcessoModuloEmpresa } from '@/lib/permissoes'
 
-import { isEstoqueAuthorized, isModuloAuthorized } from './nav'
+import { isEstoqueAuthorized, isModuloAuthorized, MANUTENCAO_OCULTA } from './nav'
 
 export function BottomNav() {
   const { signOut, user, perfil, perfilLoading, empresa } = useAuth()
@@ -19,7 +19,7 @@ export function BottomNav() {
   // Cada botão do app segue a sub-aba que ele abre, não só o módulo inteiro.
   const canAccessChecklist = isModuloAuthorized(userRef, 'frotas_checklist') && temAcessoModuloEmpresa(empresa, 'frotas')
   // Liberação é uma aba dentro da Manutenção, então basta ter uma das duas sub-abas.
-  const canAccessManutencao = isModuloAuthorized(userRef, 'manutencao') && temAcessoModuloEmpresa(empresa, 'manutencao')
+  const canAccessManutencao = !MANUTENCAO_OCULTA && isModuloAuthorized(userRef, 'manutencao') && temAcessoModuloEmpresa(empresa, 'manutencao')
   const canAccessPatio =
     isModuloAuthorized(userRef, 'caminhoes_movimentacoes') && temAcessoModuloEmpresa(empresa, 'inventario_caminhoes')
   const canAccessConfiguracoes =

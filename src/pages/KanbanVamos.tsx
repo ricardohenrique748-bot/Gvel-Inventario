@@ -28,6 +28,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
 import { isKanbanAuthorized, isDashboardGerencialAuthorized } from '@/components/layout/nav'
 import { useVamosSheet, type VamosItem } from '@/hooks/useVamosSheet'
+import { useSaidasInventario, normalizarPlaca } from '@/hooks/useSaidasInventario'
 
 type ViewMode = 'kanban' | 'tabela'
 
@@ -127,7 +128,7 @@ export function KanbanVamos({ embedded = false }: { embedded?: boolean } = {}) {
       : user?.email?.split('@')[0]?.toUpperCase() || 'USUÁRIO')
 
   const {
-    items,
+    items: itemsPlanilha,
     historico,
     loading,
     isAutoSyncing,
@@ -137,6 +138,23 @@ export function KanbanVamos({ embedded = false }: { embedded?: boolean } = {}) {
     lastSync,
     fetchSheet,
   } = useVamosSheet(nomeUsuario)
+
+  // Veículo que saiu do pátio no inventário conta como ENTREGUE, mesmo que a
+  // planilha ainda não tenha sido atualizada.
+  const saidasInventario = useSaidasInventario(itemsPlanilha.map((i) => i.placa))
+  const items = useMemo(
+    () =>
+      itemsPlanilha.map((item) => {
+        const saida = saidasInventario.get(normalizarPlaca(item.placa))
+        if (!saida || item.orcamento.toUpperCase() === 'ENTREGUE') return item
+        return {
+          ...item,
+          orcamento: 'ENTREGUE',
+          previsaoEntrega: `SAÍDA ${new Date(saida).toLocaleDateString('pt-BR')}`,
+        }
+      }),
+    [itemsPlanilha, saidasInventario],
+  )
 
   // Bloqueio no APK mobile (apenas em acesso direto por rota)
   if (!embedded && isNativeApp()) {

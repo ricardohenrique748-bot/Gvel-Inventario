@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { isModuloAuthorized } from '@/components/layout/nav'
+import { isModuloAuthorized, MANUTENCAO_OCULTA } from '@/components/layout/nav'
 import { temAcessoModuloEmpresa } from '@/lib/permissoes'
 
 // A rota "/" sempre foi o Dashboard do Pátio (parte do módulo Inventário de
@@ -14,7 +14,7 @@ const ORDEM_FALLBACK: { moduloId: string; rota: string | null }[] = [
   { moduloId: 'inventario_caminhoes', rota: null }, // null = fica no próprio Dashboard do Pátio
   { moduloId: 'dashboard_gerencial', rota: '/dashboard-gerencial' },
   { moduloId: 'financeiro', rota: '/financeiro' },
-  { moduloId: 'manutencao', rota: '/manutencao' },
+  ...(MANUTENCAO_OCULTA ? [] : [{ moduloId: 'manutencao', rota: '/manutencao' }]),
   { moduloId: 'frotas', rota: '/frotas' },
   { moduloId: 'estoque', rota: '/inventario-ferramentas' },
   { moduloId: 'rh', rota: '/rh' },

@@ -30,7 +30,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useMovimentacoes } from '@/hooks/useMovimentacoes'
 import { useClientes } from '@/hooks/useClientes'
 import { useUsuarios } from '@/hooks/useUsuarios'
-import { isDashboardGerencialAuthorized, isEstoqueAuthorized } from '@/components/layout/nav'
+import { isDashboardGerencialAuthorized, isEstoqueAuthorized, INDICADOR_PERFORMANCE_OCULTO, MANUTENCAO_OCULTA } from '@/components/layout/nav'
 import { temAcessoModuloEmpresa } from '@/lib/permissoes'
 import { useLiberacoes } from '@/hooks/useLiberacoes'
 
@@ -249,6 +249,8 @@ export function DashboardGerencial() {
 
   const atalhosExibidos = useMemo(() => {
     return atalhos.filter((item) => {
+      if (item.to === '/controle-horas' && INDICADOR_PERFORMANCE_OCULTO) return false
+      if (item.to === '/manutencao' && MANUTENCAO_OCULTA) return false
       const moduloId = MODULO_POR_ATALHO[item.to]
       if (moduloId && !temAcessoModuloEmpresa(empresa, moduloId)) return false
       if (item.to === '/inventario-ferramentas') {

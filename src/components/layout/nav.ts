@@ -20,6 +20,19 @@ import {
   Fuel,
 } from 'lucide-react'
 
+/**
+ * Esconde o Indicador de Performance (/controle-horas) do menu e dos atalhos do
+ * Dashboard Gerencial. A tela continua existindo; volte para false para mostrar.
+ */
+export const INDICADOR_PERFORMANCE_OCULTO = true
+
+/**
+ * Esconde a Manutenção (/manutencao) do menu (web e app), dos atalhos do
+ * Dashboard Gerencial e do redirecionamento inicial. A tela continua existindo;
+ * volte para false para mostrar.
+ */
+export const MANUTENCAO_OCULTA = true
+
 export const navItems = [
   {
     to: '/dashboard-gerencial',
