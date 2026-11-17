@@ -435,6 +435,13 @@ export function TrajetoAtualCard({
     })
   }, [historico])
 
+  // As fotos só são exigidas uma vez por passagem no pátio: depois que uma
+  // etapa já tem fotos, as próximas podem ser salvas sem tirar de novo.
+  const etapaComFotos = useMemo(
+    () => historico.find((etapa) => (etapa.fotos?.length ?? 0) > 0) ?? null,
+    [historico],
+  )
+
   const {
     register: regEtapa,
     handleSubmit: handleEtapa,
@@ -457,7 +464,7 @@ export function TrajetoAtualCard({
 
   async function onAdicionarEtapa(values: EtapaFormValues) {
     setErroEtapa(null)
-    const erroFotos = fotosFaltando(tipoVeiculo, fotosEtapa)
+    const erroFotos = etapaComFotos ? null : fotosFaltando(tipoVeiculo, fotosEtapa)
     if (erroFotos) {
       setErroEtapa(erroFotos)
       return
@@ -646,6 +653,9 @@ export function TrajetoAtualCard({
               tipo={tipoVeiculo}
               fotos={fotosEtapa}
               onChange={setFotosEtapa}
+              avisoOpcional={
+                etapaComFotos ? `opcional — já tiradas na etapa ${etapaComFotos.descricao}` : undefined
+              }
             />
 
             <FieldError message={erroEtapa ?? undefined} />

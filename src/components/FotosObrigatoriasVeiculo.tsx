@@ -18,16 +18,22 @@ interface Props {
   tipo: TipoVeiculo | null | undefined
   fotos: FotosSelecionadas
   onChange: (fotos: FotosSelecionadas) => void
+  /** Texto no lugar de "(obrigatório)" quando as fotos não são exigidas. */
+  avisoOpcional?: string
 }
 
 /** Fotos obrigatórias do veículo (frente, laterais, traseira e painel — carreta sem painel). */
-export function FotosObrigatoriasVeiculo({ titulo, tipo, fotos, onChange }: Props) {
+export function FotosObrigatoriasVeiculo({ titulo, tipo, fotos, onChange, avisoOpcional }: Props) {
   const obrigatorios = angulosObrigatoriosSaida(tipo)
   return (
     <div>
       <Label>
         {titulo}
-        <span className="ml-1.5 text-xs text-status-danger font-semibold normal-case">(obrigatório)</span>
+        {avisoOpcional ? (
+          <span className="ml-1.5 text-xs text-secondary font-semibold normal-case">({avisoOpcional})</span>
+        ) : (
+          <span className="ml-1.5 text-xs text-status-danger font-semibold normal-case">(obrigatório)</span>
+        )}
       </Label>
       <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {ANGULOS_FOTO.filter(({ campo }) => obrigatorios.includes(campo)).map(({ campo, label }) => (
