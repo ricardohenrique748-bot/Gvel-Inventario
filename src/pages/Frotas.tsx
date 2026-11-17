@@ -22,6 +22,7 @@ import {
   Gauge,
   User,
   ShieldCheck,
+  ShieldOff,
   Eye,
   Camera,
   Disc,
@@ -341,6 +342,7 @@ const schemaVeiculo = z.object({
   modeloId: z.string().min(1, 'Selecione o modelo'),
   vencimentoDocumento: z.string().optional(),
   vencimentoSeguro: z.string().optional(),
+  semSeguro: z.boolean().optional(),
   numeroTacografo: z.string().optional(),
   emissaoTacografo: z.string().optional(),
   vencimentoTacografo: z.string().optional(),
@@ -375,6 +377,7 @@ export interface ItemFrotaCadastrada {
   crlvPago?: boolean // Marcado manualmente quando o CRLV já foi pago, mas o sistema ainda mostra vencido/a vencer (a data nova ainda não foi atualizada)
   vencimentoSeguro?: string // YYYY-MM-DD (Seguro da Frota / Apólice)
   seguroOk?: boolean // Marcado manualmente quando ainda não há data de vencimento cadastrada, mas o seguro já está regularizado
+  semSeguro?: boolean // Veículo não tem mais seguro — sai do controle/alertas de seguro
   numeroTacografo?: string // Número do Certificado / Selo do Tacógrafo
   emissaoTacografo?: string // Data de Emissão / Ensaio do Tacógrafo
   vencimentoTacografo?: string // Data de Vencimento do Tacógrafo
@@ -1278,7 +1281,8 @@ export function Frotas() {
   }
 
   // Helper para status do seguro (Apólice)
-  function getStatusSeguro(dataStr?: string) {
+  function getStatusSeguro(dataStr?: string, semSeguro?: boolean) {
+    if (semSeguro) return { status: 'sem_seguro', label: 'SEM SEGURO', dias: null }
     if (!dataStr) return { status: 'nao_informado', label: 'SEM SEGURO INFORMADO', dias: null }
     try {
       const dataSeg = parseISO(dataStr)
@@ -1672,7 +1676,7 @@ export function Frotas() {
       else if (statusDoc.status === 'a_vencer') docAVencer++
       else if (statusDoc.status === 'em_dia') docEmDia++
 
-      const statusSeg = getStatusSeguro(v.vencimentoSeguro)
+      const statusSeg = getStatusSeguro(v.vencimentoSeguro, v.semSeguro)
       if (statusSeg.status === 'vencido') seguroVencido++
       else if (statusSeg.status === 'a_vencer') seguroAVencer++
       else if (statusSeg.status === 'em_dia') seguroEmDia++
@@ -1848,10 +1852,10 @@ export function Frotas() {
         const st = getStatusDocumento(v.vencimentoDocumento)
         if (v.crlvPago || st.status !== 'vencido') return false
       } else if (alertaFiltro === 'seguro_a_vencer') {
-        const st = getStatusSeguro(v.vencimentoSeguro)
+        const st = getStatusSeguro(v.vencimentoSeguro, v.semSeguro)
         if (st.status !== 'a_vencer') return false
       } else if (alertaFiltro === 'seguro_vencido') {
-        const st = getStatusSeguro(v.vencimentoSeguro)
+        const st = getStatusSeguro(v.vencimentoSeguro, v.semSeguro)
         if (st.status !== 'vencido') return false
       } else if (alertaFiltro === 'tacografo_a_vencer') {
         if (isFrotaLeve(v)) return false
@@ -2032,6 +2036,7 @@ export function Frotas() {
       modeloId: '',
       vencimentoDocumento: '',
       vencimentoSeguro: '',
+      semSeguro: false,
       numeroTacografo: '',
       emissaoTacografo: '',
       vencimentoTacografo: '',
@@ -2065,6 +2070,7 @@ export function Frotas() {
       modeloId: '',
       vencimentoDocumento: v.vencimentoDocumento || '',
       vencimentoSeguro: v.vencimentoSeguro || '',
+      semSeguro: Boolean(v.semSeguro),
       numeroTacografo: v.numeroTacografo || '',
       emissaoTacografo: v.emissaoTacografo || '',
       vencimentoTacografo: v.vencimentoTacografo || '',
@@ -2109,6 +2115,8 @@ export function Frotas() {
       modeloNome: modeloObj?.nome || '',
       vencimentoDocumento: values.vencimentoDocumento || undefined,
       vencimentoSeguro: values.vencimentoSeguro || undefined,
+      // Desmarcado grava false (não undefined) para sobrescrever o que estava salvo.
+      semSeguro: Boolean(values.semSeguro),
       numeroTacografo: values.numeroTacografo?.trim() || undefined,
       emissaoTacografo: values.emissaoTacografo || undefined,
       vencimentoTacografo: values.vencimentoTacografo || undefined,
@@ -3522,7 +3530,7 @@ export function Frotas() {
                       const estaNoPatio = placasNoPatio.has(v.placa.toUpperCase().trim())
                       const statusPrev = getStatusPreventiva(v)
                       const statusDoc = getStatusDocumento(v.vencimentoDocumento)
-                      const statusSeg = getStatusSeguro(v.vencimentoSeguro)
+                      const statusSeg = getStatusSeguro(v.vencimentoSeguro, v.semSeguro)
                       const statusTac = getStatusTacografo(v.vencimentoTacografo)
 
                       return (
@@ -3665,7 +3673,15 @@ export function Frotas() {
                               {/* Seguro */}
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[9px] font-bold text-secondary w-9">SEG:</span>
-                                {v.seguroOk ? (
+                                {v.semSeguro ? (
+                                  <span
+                                    title="Veículo marcado como sem seguro — fora do controle de seguro"
+                                    className="inline-flex items-center gap-1 rounded-md bg-zinc-500/15 border border-zinc-500/30 px-1.5 py-0.5 text-[9px] font-black text-secondary"
+                                  >
+                                    <ShieldOff className="h-2.5 w-2.5" />
+                                    SEM SEGURO
+                                  </span>
+                                ) : v.seguroOk ? (
                                   <button
                                     type="button"
                                     onClick={() => alternarSeguroOk(v.id)}
@@ -5359,6 +5375,16 @@ export function Frotas() {
                       {...register('vencimentoSeguro')}
                       className="mt-1 text-xs font-mono"
                     />
+                    <label className="mt-2 flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-border/60 text-primary focus:ring-primary/40"
+                        {...register('semSeguro')}
+                      />
+                      <span className="text-[11px] font-bold text-foreground uppercase">
+                        Veículo sem seguro (tirar do controle de seguro)
+                      </span>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -6317,7 +6343,7 @@ export function Frotas() {
           const v = veiculoDetalhando
           const statusPrev = getStatusPreventiva(v)
           const statusDoc = getStatusDocumento(v.vencimentoDocumento)
-          const statusSeg = getStatusSeguro(v.vencimentoSeguro)
+          const statusSeg = getStatusSeguro(v.vencimentoSeguro, v.semSeguro)
           const statusTac = getStatusTacografo(v.vencimentoTacografo)
           const kmAtualVeiculo = ultimasKmsPorPlaca.get(v.placa.toUpperCase().trim()) || 0
 
@@ -6433,7 +6459,7 @@ export function Frotas() {
                         {v.vencimentoDocumento ? format(parseISO(v.vencimentoDocumento), 'dd/MM/yyyy') : '—'}
                       </DetalheCampo>
                       <DetalheCampo label="SEGURO">
-                        {v.seguroOk ? (
+                        {!v.semSeguro && v.seguroOk ? (
                           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-black text-emerald-400">OK</span>
                         ) : (
                           <span className="text-[10px] font-bold">{statusSeg.label}</span>
