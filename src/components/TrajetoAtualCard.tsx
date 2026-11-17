@@ -22,6 +22,10 @@ import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
 import { isAdminUsuario } from '@/lib/permissoes'
 import type { MovimentacaoComVeiculo, Movimentacao } from '@/lib/types'
+import { FotosObrigatoriasVeiculo, fotosFaltando, type FotosSelecionadas } from '@/components/FotosObrigatoriasVeiculo'
+import { GaleriaFotosModal, type FotoGaleria } from '@/components/GaleriaFotosModal'
+import { ANGULOS_FOTO } from '@/lib/fotos'
+import { urlMiniatura, aoFalharMiniatura } from '@/lib/thumb'
 
 const SETOR_CRIAR = '__criar_setor__'
 
@@ -163,9 +167,11 @@ interface TimelineNodeProps {
   detail?: string
   osAberta?: boolean
   actions?: ReactNode
+  fotos?: FotoGaleria[]
+  onAbrirFoto?: (indice: number) => void
 }
 
-function TimelineNode({ icon, color, label, dateTime, duration, detail, osAberta, actions }: TimelineNodeProps) {
+function TimelineNode({ icon, color, label, dateTime, duration, detail, osAberta, actions, fotos, onAbrirFoto }: TimelineNodeProps) {
   const colorMap = {
     success: 'bg-status-success/20 border-status-success text-status-success',
     primary: 'bg-primary/20 border-primary text-primary',
@@ -204,6 +210,30 @@ function TimelineNode({ icon, color, label, dateTime, duration, detail, osAberta
           {actions && <div className="flex items-center gap-1 shrink-0">{actions}</div>}
         </div>
         {detail && <p className="text-xs text-secondary/80 mt-1 uppercase">{detail}</p>}
+        {fotos && fotos.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {fotos.map((f, idx) => (
+              <button
+                key={f.url}
+                type="button"
+                onClick={() => onAbrirFoto?.(idx)}
+                className="shrink-0"
+                aria-label={`Ampliar foto — ${f.label}`}
+              >
+                <img
+                  src={urlMiniatura(f.url, 96)}
+                  onError={aoFalharMiniatura(f.url)}
+                  alt={f.label}
+                  loading="lazy"
+                  decoding="async"
+                  width={48}
+                  height={48}
+                  className="h-12 w-12 rounded-lg object-cover border border-border/10 hover:opacity-80"
+                />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -390,6 +420,9 @@ export function TrajetoAtualCard({
   const [adicionandoEtapa, setAdicionandoEtapa] = useState(false)
   const [editandoEtapaId, setEditandoEtapaId] = useState<string | null>(null)
   const [erroEtapa, setErroEtapa] = useState<string | null>(null)
+  const [fotosEtapa, setFotosEtapa] = useState<FotosSelecionadas>({})
+  const [galeria, setGaleria] = useState<{ fotos: FotoGaleria[]; indice: number } | null>(null)
+  const tipoVeiculo = 'veiculo' in movimentacao ? movimentacao.veiculo?.tipo : undefined
 
   const { historico, refetch: refetchEtapas } = useHistoricoMovimentacao(movimentacao.id)
   const { statusManutencao } = useStatusManutencao()
@@ -424,6 +457,11 @@ export function TrajetoAtualCard({
 
   async function onAdicionarEtapa(values: EtapaFormValues) {
     setErroEtapa(null)
+    const erroFotos = fotosFaltando(tipoVeiculo, fotosEtapa)
+    if (erroFotos) {
+      setErroEtapa(erroFotos)
+      return
+    }
     try {
       const dataHoraEtapa = new Date(`${values.data}T${values.horario}`).toISOString()
       const desc = values.setor || values.descricao || 'MOVIMENTAÇÃO DE PÁTIO'
@@ -433,7 +471,12 @@ export function TrajetoAtualCard({
         setor: values.setor,
         dataHoraAbertura: dataHoraEtapa,
         osCriada: values.osAberta ?? false,
+        fotos: ANGULOS_FOTO.flatMap(({ campo, label }) => {
+          const f = fotosEtapa[campo]
+          return f ? [{ campo, label, file: f.file }] : []
+        }),
       })
+      setFotosEtapa({})
       if ((values.statusId || '') !== (movimentacao.status_id ?? '')) {
         await atualizarStatusMovimentacao(movimentacao.id, values.statusId || null)
       }
@@ -487,6 +530,7 @@ export function TrajetoAtualCard({
             onClick={() => {
               setAdicionandoEtapa(true)
               setErroEtapa(null)
+              setFotosEtapa({})
               resetEtapa({
                 descricao: '',
                 mecanicoExecutor: '',
@@ -597,6 +641,13 @@ export function TrajetoAtualCard({
               </label>
             </div>
 
+            <FotosObrigatoriasVeiculo
+              titulo="Fotos do veículo nesta etapa"
+              tipo={tipoVeiculo}
+              fotos={fotosEtapa}
+              onChange={setFotosEtapa}
+            />
+
             <FieldError message={erroEtapa ?? undefined} />
             <div className="flex justify-end gap-2">
               <Button
@@ -606,6 +657,7 @@ export function TrajetoAtualCard({
                 onClick={() => {
                   setAdicionandoEtapa(false)
                   setErroEtapa(null)
+                  setFotosEtapa({})
                   resetEtapa()
                 }}
                 className="uppercase"
@@ -686,6 +738,13 @@ export function TrajetoAtualCard({
                   dateTime={formatDateTime(etapa.data_hora)}
                   duration={duracaoTexto}
                   osAberta={etapa.os_criada}
+                  fotos={(etapa.fotos ?? []).map((f) => ({ url: f.url, label: `${etapa.descricao} · ${f.label}` }))}
+                  onAbrirFoto={(indice) =>
+                    setGaleria({
+                      fotos: (etapa.fotos ?? []).map((f) => ({ url: f.url, label: `${etapa.descricao} · ${f.label}` })),
+                      indice,
+                    })
+                  }
                   detail={[
                     etapa.mecanico_executor ? `Responsável: ${etapa.mecanico_executor}` : null,
                     etapa.funcao ? `Função: ${etapa.funcao}` : null,
@@ -723,6 +782,9 @@ export function TrajetoAtualCard({
           </div>
         </div>
       </CardContent>
+      {galeria && (
+        <GaleriaFotosModal fotos={galeria.fotos} indiceInicial={galeria.indice} onClose={() => setGaleria(null)} />
+      )}
     </Card>
   )
 }
