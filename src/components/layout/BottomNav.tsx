@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck } from 'lucide-react'
+import { LogOut, Home, ArrowLeftRight, Settings, Wrench, Hammer, ClipboardCheck, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useAuth } from '@/contexts/AuthContext'
 import { isNativeApp } from '@/lib/isNativeApp'
@@ -20,6 +20,9 @@ export function BottomNav() {
   const canAccessChecklist = isModuloAuthorized(userRef, 'frotas_checklist') && temAcessoModuloEmpresa(empresa, 'frotas')
   // Liberação é uma aba dentro da Manutenção, então basta ter uma das duas sub-abas.
   const canAccessManutencao = !MANUTENCAO_OCULTA && isModuloAuthorized(userRef, 'manutencao') && temAcessoModuloEmpresa(empresa, 'manutencao')
+  // Com a Manutenção escondida, o checklist de Liberação segue no app como item próprio.
+  const canAccessLiberacao =
+    MANUTENCAO_OCULTA && isModuloAuthorized(userRef, 'manutencao_liberacao') && temAcessoModuloEmpresa(empresa, 'manutencao')
   const canAccessPatio =
     isModuloAuthorized(userRef, 'caminhoes_movimentacoes') && temAcessoModuloEmpresa(empresa, 'inventario_caminhoes')
   const canAccessConfiguracoes =
@@ -35,6 +38,7 @@ export function BottomNav() {
     { to: '/', label: 'INÍCIO', icon: Home, end: true },
     ...(canAccessChecklist ? [{ to: '/frotas', label: 'CHECKLIST', icon: ClipboardCheck }] : []),
     ...(canAccessManutencao ? [{ to: '/manutencao', label: 'MANUTENÇÃO', icon: Wrench }] : []),
+    ...(canAccessLiberacao ? [{ to: '/manutencao?secao=liberacao', label: 'LIBERAÇÃO', icon: ShieldCheck }] : []),
     ...(canAccessPatio ? [{ to: '/movimentacoes', label: 'PÁTIO', icon: ArrowLeftRight }] : []),
     ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'ESTOQUE', icon: Hammer }] : []),
     ...(canAccessConfiguracoes ? [{ to: '/configuracoes', label: 'CONFIGURAÇÃO', icon: Settings }] : []),

@@ -31,7 +31,7 @@ import { usePatios } from '@/hooks/usePatios'
 import { useOSStatusBatch } from '@/hooks/useOSStatusBatch'
 import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
 import { useAuth } from '@/contexts/AuthContext'
-import { isManutencaoAuthorized, isModuloAuthorized } from '@/components/layout/nav'
+import { isManutencaoAuthorized, isModuloAuthorized, MANUTENCAO_OCULTA } from '@/components/layout/nav'
 
 type AbaManutencao = 'controle_os' | 'liberacao'
 
@@ -46,7 +46,10 @@ export function Manutencao() {
   const { user, perfil } = useAuth()
   const userRef = perfil || { email: user?.email }
   // Só as abas marcadas em Usuários & Permissões.
-  const abas = ABAS_MANUTENCAO.filter((a) => isModuloAuthorized(userRef, a.moduloId))
+  // Com a Manutenção escondida do menu, só a Liberação do Veículo continua acessível.
+  const abas = ABAS_MANUTENCAO.filter(
+    (a) => isModuloAuthorized(userRef, a.moduloId) && (!MANUTENCAO_OCULTA || a.id === 'liberacao'),
+  )
   const pedida: AbaManutencao = searchParams.get('secao') === 'liberacao' ? 'liberacao' : 'controle_os'
   const aba: AbaManutencao = abas.some((a) => a.id === pedida) ? pedida : (abas[0]?.id ?? pedida)
 

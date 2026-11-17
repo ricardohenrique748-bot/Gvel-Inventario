@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation } from 'react-router-dom'
-import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus, Wrench, Check, Building2, Camera } from 'lucide-react'
+import { LogOut, Search, Home, ArrowLeftRight, Settings, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus, Wrench, Check, Building2, Camera, ShieldCheck } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { NotificacoesDropdown } from '@/components/NotificacoesDropdown'
@@ -201,6 +201,8 @@ export function Sidebar() {
   const canAccessRelatorios = isRelatoriosAuthorized(userRef)
   const canAccessEstoque = isEstoqueAuthorized(userRef, native) && temAcessoModuloEmpresa(empresa, 'estoque')
   const canAccessManutencao = !MANUTENCAO_OCULTA && isModuloAuthorized(userRef, 'manutencao') && temAcessoModuloEmpresa(empresa, 'manutencao')
+  const canAccessLiberacao =
+    MANUTENCAO_OCULTA && isModuloAuthorized(userRef, 'manutencao_liberacao') && temAcessoModuloEmpresa(empresa, 'manutencao')
   const canAccessInventarioCaminhoes = isModuloAuthorized(userRef, 'inventario_caminhoes') && temAcessoModuloEmpresa(empresa, 'inventario_caminhoes')
   const canAccessFrotas = isModuloAuthorized(userRef, 'frotas') && temAcessoModuloEmpresa(empresa, 'frotas')
   const canAccessConfiguracoes = isAdmin || isModuloAuthorized(userRef, 'configuracoes')
@@ -228,6 +230,7 @@ export function Sidebar() {
           ...(canAccessEstoque ? [{ to: '/inventario-ferramentas', label: 'Estoque', icon: Wrench }] : []),
           // Liberação do Veículo fica como aba dentro da Manutenção.
           ...(canAccessManutencao ? [{ to: '/manutencao', label: 'Manutenção', icon: Wrench }] : []),
+          ...(canAccessLiberacao ? [{ to: '/manutencao?secao=liberacao', label: 'Liberação', icon: ShieldCheck }] : []),
           ...(canAccessInventarioCaminhoes && isModuloAuthorized(userRef, 'caminhoes_movimentacoes')
             ? [{ to: '/movimentacoes', label: 'Movimentação', icon: ArrowLeftRight }]
             : []),
