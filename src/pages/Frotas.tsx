@@ -167,6 +167,7 @@ import {
   atualizarClienteViagem,
   excluirClienteViagem,
 } from '@/hooks/useCadastrosViagem'
+import { useTurnover } from '@/hooks/useTurnover'
 import {
   useViagensFrota,
   criarViagemFrota,
@@ -845,14 +846,18 @@ export function Frotas() {
     refetch: refetchEnderecosFrequentes,
   } = useEnderecosFrequentes()
   const { pessoas, loading: carregandoPessoas, refetch: refetchPessoas } = usePessoas()
+  const { items: colaboradoresRh } = useTurnover()
 
   // Checklists antigos foram gravados só com o primeiro nome ("MATEUS"). Mostra
-  // o nome completo quando ele é conhecido sem ambiguidade (cadastro de Pessoas
-  // ou outro checklist com nome e sobrenome).
+  // o nome completo quando ele é conhecido sem ambiguidade (cadastro de Pessoas,
+  // RH ou outro checklist com nome e sobrenome). Se houver mais de um nome com
+  // o mesmo primeiro nome, desempata pelos motoristas do RH.
   const checklists = useMemo(() => {
     const completosPorPrimeiroNome = new Map<string, Set<string>>()
+    const motoristasRh = new Set<string>()
+    const normalizar = (nome: string | null | undefined) => (nome || '').trim().toUpperCase().replace(/\s+/g, ' ')
     const registrar = (nome: string | null | undefined) => {
-      const n = (nome || '').trim().toUpperCase().replace(/\s+/g, ' ')
+      const n = normalizar(nome)
       const partes = n.split(' ')
       if (partes.length < 2) return
       const set = completosPorPrimeiroNome.get(partes[0]) ?? new Set<string>()
@@ -860,15 +865,25 @@ export function Frotas() {
       completosPorPrimeiroNome.set(partes[0], set)
     }
     pessoas.forEach((p) => registrar(p.nome))
+    colaboradoresRh.forEach((c) => {
+      registrar(c.nome)
+      if (/MOTORISTA/i.test(c.cargo || '')) motoristasRh.add(normalizar(c.nome))
+    })
     checklistsGravados.forEach((c) => registrar(c.motoristaNome))
 
     return checklistsGravados.map((c) => {
       const nome = (c.motoristaNome || '').trim().toUpperCase()
       if (!nome || nome.includes(' ')) return c
-      const candidatos = completosPorPrimeiroNome.get(nome)
-      return candidatos && candidatos.size === 1 ? { ...c, motoristaNome: [...candidatos][0] } : c
+      const candidatos = [...(completosPorPrimeiroNome.get(nome) ?? [])]
+      const unico =
+        candidatos.length === 1
+          ? candidatos[0]
+          : candidatos.filter((n) => motoristasRh.has(n)).length === 1
+            ? candidatos.find((n) => motoristasRh.has(n))
+            : undefined
+      return unico ? { ...c, motoristaNome: unico } : c
     })
-  }, [checklistsGravados, pessoas])
+  }, [checklistsGravados, pessoas, colaboradoresRh])
   const { clientesViagem, loading: carregandoClientesViagem, refetch: refetchClientesViagem } = useClientesViagem()
   const { formasPagamento, loading: carregandoFormasPagamento, refetch: refetchFormasPagamento } = useFormasPagamento()
   const { tiposLancamento, loading: carregandoTiposLancamento, refetch: refetchTiposLancamento } = useTiposLancamento()
