@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   PackagePlus,
   TrendingDown,
+  MessageSquareText,
   Laptop,
   Sparkles,
   ShieldAlert,
@@ -46,6 +47,7 @@ import { EQUIPE_GVEL, obterNomeCompletoMembro } from '@/constants/equipe'
 import { useEquipeConhecida } from '@/hooks/useEquipeConhecida'
 import { percentualBarril } from '@/lib/barril'
 import { estoqueDisponivel } from '@/lib/tambores'
+import { ModalBaixasWhatsapp } from '@/pages/estoque/ModalBaixasWhatsapp'
 import { BarrilOleoSVG } from '@/components/BarrilOleoSVG'
 import { CilindroGasSVG } from '@/components/CilindroGasSVG'
 import { isAdminUsuario } from '@/lib/permissoes'
@@ -471,6 +473,7 @@ export function InventarioFerramentas() {
   const [modalItemConsumoAberto, setModalItemConsumoAberto] = useState(false)
   const [itemConsumoEditando, setItemConsumoEditando] = useState<ItemConsumo | null>(null)
   const [modalBaixaConsumoAberto, setModalBaixaConsumoAberto] = useState(false)
+  const [modalBaixasWhatsappAberto, setModalBaixasWhatsappAberto] = useState(false)
   const [itemConsumoParaBaixa, setItemConsumoParaBaixa] = useState<ItemConsumo | null>(null)
   const [modalEntradaConsumoAberto, setModalEntradaConsumoAberto] = useState(false)
   const [itemConsumoParaEntrada, setItemConsumoParaEntrada] = useState<ItemConsumo | null>(null)
@@ -2581,6 +2584,15 @@ export function InventarioFerramentas() {
               </Button>
               <Button
                 type="button"
+                variant="secondary"
+                onClick={() => setModalBaixasWhatsappAberto(true)}
+                className="gap-2 text-xs font-bold uppercase border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+              >
+                <MessageSquareText className="h-4 w-4" />
+                COLAR DO WHATSAPP
+              </Button>
+              <Button
+                type="button"
                 onClick={() => {
                   setItemConsumoEditando(null)
                   setModalItemConsumoAberto(true)
@@ -3232,6 +3244,28 @@ export function InventarioFerramentas() {
             } catch (err) {
               setMensagemErro(err instanceof Error ? err.message : 'Erro ao registrar baixa de consumo.')
             }
+          }}
+        />
+      )}
+
+      {/* ==================== MODAL: BAIXAS COLADAS DO WHATSAPP ==================== */}
+      {modalBaixasWhatsappAberto && (
+        <ModalBaixasWhatsapp
+          itens={itensConsumo}
+          placas={veiculosLista.map((v) => v.placa)}
+          onClose={() => setModalBaixasWhatsappAberto(false)}
+          onConfirmar={async (baixas) => {
+            // Em sequência, usando o estoque já atualizado pela baixa anterior
+            // (o mesmo insumo pode aparecer em várias linhas).
+            const estoqueAtual = new Map(itensConsumo.map((it) => [it.id, it]))
+            for (const baixa of baixas) {
+              const item = estoqueAtual.get(baixa.item_id)
+              if (!item) throw new Error(`Insumo não encontrado: ${baixa.item_nome}`)
+              const { item: atualizado } = await registrarBaixaConsumo(item, baixa)
+              estoqueAtual.set(item.id, atualizado)
+            }
+            await Promise.all([refetchInsumos(), refetchBaixasConsumo()])
+            setModalBaixasWhatsappAberto(false)
           }}
         />
       )}
