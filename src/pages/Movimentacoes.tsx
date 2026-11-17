@@ -15,7 +15,8 @@ import { Button } from '@/components/ui/Button'
 import { Input, Label, FieldError, Textarea } from '@/components/ui/Input'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
-import { FotoInput } from '@/components/FotoInput'
+import { FotoInput, usarWebcam } from '@/components/FotoInput'
+import { CameraWebcamModal } from '@/components/CameraWebcamModal'
 import { TipoVeiculoRadioGroup } from '@/components/TipoVeiculoRadioGroup'
 import { useMovimentacoes, atualizarMovimentacao, excluirMovimentacao, type FotosEntrada } from '@/hooks/useMovimentacoes'
 import { usePatios, criarPatio } from '@/hooks/usePatios'
@@ -530,10 +531,21 @@ export function EditarMovimentacaoForm({
   const inputGaleriaExtraRef = useRef<HTMLInputElement>(null)
   const [comprimindoExtra, setComprimindoExtra] = useState(false)
 
+  const [webcamExtraAberta, setWebcamExtraAberta] = useState(false)
+
+  function abrirCameraExtra() {
+    if (usarWebcam()) setWebcamExtraAberta(true)
+    else inputFotoExtraRef.current?.click()
+  }
+
   async function handleAdicionarFotoExtra(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    await adicionarFotoExtra(file)
+  }
+
+  async function adicionarFotoExtra(file: File) {
     setComprimindoExtra(true)
     try {
       const comprimida = await comprimirImagem(file)
@@ -878,7 +890,7 @@ export function EditarMovimentacaoForm({
           <Label className="mb-0">Fotos do veículo</Label>
           <button
             type="button"
-            onClick={() => inputFotoExtraRef.current?.click()}
+            onClick={abrirCameraExtra}
             disabled={comprimindoExtra}
             className="flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
           >
@@ -902,6 +914,16 @@ export function EditarMovimentacaoForm({
           className="hidden"
           onChange={handleAdicionarFotoExtra}
         />
+        {webcamExtraAberta && (
+          <CameraWebcamModal
+            titulo="Foto extra"
+            subtitulo="Enquadre o veículo e clique em Capturar Foto"
+            textoMoldura="Enquadre o veículo aqui"
+            espelhar={false}
+            onCapture={(file) => void adicionarFotoExtra(file)}
+            onClose={() => setWebcamExtraAberta(false)}
+          />
+        )}
         {/* Sem `capture`: no APK abre a galeria. */}
         <input
           ref={inputGaleriaExtraRef}
@@ -949,7 +971,7 @@ export function EditarMovimentacaoForm({
 
           <button
             type="button"
-            onClick={() => inputFotoExtraRef.current?.click()}
+            onClick={abrirCameraExtra}
             disabled={comprimindoExtra}
             className="rounded-xl border-2 border-dashed border-border/40 hover:border-primary/60 bg-background/50 hover:bg-primary/5 p-3 flex flex-col items-center justify-center gap-1.5 text-secondary hover:text-primary transition-all min-h-[96px] cursor-pointer group disabled:opacity-50"
           >

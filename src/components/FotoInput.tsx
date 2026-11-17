@@ -7,10 +7,12 @@ import { CameraWebcamModal } from '@/components/CameraWebcamModal'
 // No computador o navegador ignora `capture` e o botão de câmera só abria a
 // janela de arquivos; ali usamos a webcam direto. Celular/APK seguem com a
 // câmera nativa.
-function usarWebcam(): boolean {
+// Detecta celular/tablet pelo navegador (não pela tela de toque: notebook com
+// touch também precisa da webcam).
+export function usarWebcam(): boolean {
   if (typeof window === 'undefined' || isNativeApp()) return false
-  const toque = window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
-  return !toque && Boolean(navigator.mediaDevices?.getUserMedia)
+  const celular = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  return !celular && Boolean(navigator.mediaDevices?.getUserMedia)
 }
 
 interface Props {

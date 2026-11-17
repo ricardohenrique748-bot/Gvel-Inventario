@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Camera, X, RefreshCw, AlertCircle, Check } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 
@@ -203,8 +204,12 @@ export function CameraWebcamModal({
     onClose()
   }
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
+  // Portal no body: dentro de outro modal (com rolagem/blur) o `fixed` ficava
+  // preso e cortado dentro dele.
+  return createPortal(
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
       <div className="w-full max-w-lg rounded-2xl border border-border/20 bg-surface shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between border-b border-border/10 px-5 py-3.5 bg-surface/90">
@@ -339,6 +344,7 @@ export function CameraWebcamModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
