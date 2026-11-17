@@ -58,7 +58,15 @@ export interface InspecaoWizardState {
  */
 export const APROVADOR_LIBERACAO_EMAIL = 'inventario@gveldiesel.com'
 
+/**
+ * false = quem faz o checklist já define o status e assina (sem aprovação).
+ * true = só APROVADOR_LIBERACAO_EMAIL dá o OK. Mudou? Ajuste também o trigger
+ * trava_aprovacao_liberacao (migration 0105).
+ */
+export const APROVACAO_LIBERACAO_OBRIGATORIA = false
+
 export function podeAprovarLiberacao(email: string | null | undefined) {
+  if (!APROVACAO_LIBERACAO_OBRIGATORIA) return true
   return (email ?? '').trim().toLowerCase() === APROVADOR_LIBERACAO_EMAIL
 }
 
