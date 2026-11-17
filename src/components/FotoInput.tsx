@@ -1,6 +1,17 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Camera, Image as ImageIcon, X } from 'lucide-react'
 import { comprimirImagem } from '@/lib/imagem'
+import { isNativeApp } from '@/lib/isNativeApp'
+import { CameraWebcamModal } from '@/components/CameraWebcamModal'
+
+// No computador o navegador ignora `capture` e o botão de câmera só abria a
+// janela de arquivos; ali usamos a webcam direto. Celular/APK seguem com a
+// câmera nativa.
+function usarWebcam(): boolean {
+  if (typeof window === 'undefined' || isNativeApp()) return false
+  const toque = window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
+  return !toque && Boolean(navigator.mediaDevices?.getUserMedia)
+}
 
 interface Props {
   label: string
@@ -13,11 +24,16 @@ export function FotoInput({ label, previewUrl, onSelect, onRemove }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const galeriaInputRef = useRef<HTMLInputElement>(null)
   const [comprimindo, setComprimindo] = useState(false)
+  const [webcamAberta, setWebcamAberta] = useState(false)
 
   async function handleFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    await processar(file)
+  }
+
+  async function processar(file: File) {
     setComprimindo(true)
     try {
       const comprimida = await comprimirImagem(file)
@@ -35,7 +51,7 @@ export function FotoInput({ label, previewUrl, onSelect, onRemove }: Props) {
         <div className="flex shrink-0 items-center gap-1.5">
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => (usarWebcam() ? setWebcamAberta(true) : fileInputRef.current?.click())}
             disabled={comprimindo}
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface text-secondary hover:text-foreground disabled:opacity-50"
             aria-label={comprimindo ? `Processando foto — ${label}` : `Tirar foto — ${label}`}
@@ -89,6 +105,17 @@ export function FotoInput({ label, previewUrl, onSelect, onRemove }: Props) {
             <X className="h-3 w-3" />
           </button>
         </div>
+      )}
+
+      {webcamAberta && (
+        <CameraWebcamModal
+          titulo={label}
+          subtitulo="Enquadre o veículo e clique em Capturar Foto"
+          textoMoldura="Enquadre o veículo aqui"
+          espelhar={false}
+          onCapture={(file) => void processar(file)}
+          onClose={() => setWebcamAberta(false)}
+        />
       )}
     </div>
   )

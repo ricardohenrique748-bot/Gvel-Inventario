@@ -7,11 +7,17 @@ interface CameraWebcamModalProps {
   subtitulo?: string
   onCapture: (file: File, url: string) => void
   onClose: () => void
+  /** Texto no centro da moldura de enquadramento. */
+  textoMoldura?: string
+  /** Espelha a câmera frontal (bom para rosto; ruim para placa/veículo). */
+  espelhar?: boolean
 }
 
 export function CameraWebcamModal({
   titulo = 'Câmera',
   subtitulo = 'Posicione a pessoa ou item no centro e clique em Capturar Foto',
+  textoMoldura = 'Enquadre o rosto / pessoa aqui',
+  espelhar = true,
   onCapture,
   onClose,
 }: CameraWebcamModalProps) {
@@ -148,7 +154,7 @@ export function CameraWebcamModal({
     if (!ctx) return
 
     // Se for câmera frontal (user), espelha horizontalmente para visualização natural
-    if (facingMode === 'user') {
+    if (espelhar && facingMode === 'user') {
       ctx.translate(width, 0)
       ctx.scale(-1, 1)
     }
@@ -253,7 +259,7 @@ export function CameraWebcamModal({
                 autoPlay
                 playsInline
                 muted
-                className={`w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
+                className={`w-full h-full object-cover ${espelhar && facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
               />
               {iniciando && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-xs font-bold text-white uppercase">
@@ -263,7 +269,7 @@ export function CameraWebcamModal({
               {/* Moldura de enquadramento */}
               <div className="absolute inset-4 border-2 border-white/20 border-dashed rounded-xl pointer-events-none flex items-center justify-center">
                 <span className="text-[10px] font-black text-white/50 bg-black/40 px-2 py-0.5 rounded uppercase">
-                  Enquadre o rosto / pessoa aqui
+                  {textoMoldura}
                 </span>
               </div>
             </div>
