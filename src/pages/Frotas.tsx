@@ -368,7 +368,9 @@ export interface ItemFrotaCadastrada {
   chassi?: string
   renavam?: string
   categoria?: string
-  situacao: 'operante' | 'inoperante'
+  // 'excluido' só existe no Supabase, para veículos da lista oficial que foram
+  // excluídos pela tela (ver handleExcluirVeiculo) — nunca aparece na lista.
+  situacao: 'operante' | 'inoperante' | 'excluido'
   vencimentoDocumento?: string // YYYY-MM-DD (Licenciamento CRLV)
   crlvPago?: boolean // Marcado manualmente quando o CRLV já foi pago, mas o sistema ainda mostra vencido/a vencer (a data nova ainda não foi atualizada)
   vencimentoSeguro?: string // YYYY-MM-DD (Seguro da Frota / Apólice)
@@ -758,12 +760,18 @@ function reconciliarFrotas(overrides: ItemFrotaCadastrada[]): ItemFrotaCadastrad
     }
   })
 
-  return Array.from(mapa.values()).map((item) => ({
-    ...item,
-    clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
-    clienteId: 'cliente_gvel_diesel_transportes',
-  }))
+  return Array.from(mapa.values())
+    .filter((item) => item.situacao !== 'excluido')
+    .map((item) => ({
+      ...item,
+      clienteNome: 'G VEL DIESEL & TRANSPORTES LTDA',
+      clienteId: 'cliente_gvel_diesel_transportes',
+    }))
 }
+
+const IDS_FROTA_OFICIAL = new Set(
+  [...FROTA_LEVE_OFICIAL, ...FROTA_PESADA_OFICIAL, ...FROTA_EMBARCADO_OFICIAL].map((v) => v.id),
+)
 
 export function Frotas() {
   const { user, perfil } = useAuth()
@@ -2051,7 +2059,7 @@ export function Frotas() {
       setor: v.setor || '',
       responsavel: v.responsavel || '',
       chassi: v.chassi ?? '',
-      situacao: v.situacao,
+      situacao: v.situacao === 'excluido' ? 'inoperante' : v.situacao,
       ano: v.ano || anoAtual,
       marcaId: marcaObj?.id || '',
       modeloId: '',
@@ -2129,7 +2137,14 @@ export function Frotas() {
     }
     if (!confirm('Deseja realmente excluir este veículo da frota?')) return
     try {
-      await excluirVeiculoFrotaOverride(id)
+      const item = frotas.find((v) => v.id === id)
+      if (item && IDS_FROTA_OFICIAL.has(id)) {
+        // Veículo da lista oficial (fixa em código): apagar o override não
+        // adianta, ele voltaria na próxima mesclagem. Grava como excluído.
+        await upsertVeiculoFrota({ ...item, situacao: 'excluido' })
+      } else {
+        await excluirVeiculoFrotaOverride(id)
+      }
       await refetchVeiculosFrota()
     } catch (err) {
       setErroLista(err instanceof Error ? err.message : 'Erro ao excluir veículo.')
