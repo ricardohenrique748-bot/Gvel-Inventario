@@ -21,13 +21,13 @@ import {
   type LiberacaoComVeiculo,
 } from '@/hooks/useLiberacoes'
 import type { InspecaoItem, StatusLiberacao } from '@/lib/types'
-import { podeAprovarLiberacao, STATUS_LIBERACAO_COR, STATUS_LIBERACAO_LABEL } from './types'
+import { APROVACAO_LIBERACAO_OBRIGATORIA, podeAprovarLiberacao, STATUS_LIBERACAO_COR, STATUS_LIBERACAO_LABEL } from './types'
 
 type Filtro = 'todos' | 'aguardando' | StatusLiberacao
 
 const FILTROS: { value: Filtro; label: string }[] = [
   { value: 'todos', label: 'Todos' },
-  { value: 'aguardando', label: 'Aguardando aprovação' },
+  ...(APROVACAO_LIBERACAO_OBRIGATORIA ? [{ value: 'aguardando' as Filtro, label: 'Aguardando aprovação' }] : []),
   { value: 'liberado', label: 'Liberados' },
   { value: 'liberado_restricao', label: 'Com restrição' },
   { value: 'nao_liberado', label: 'Não liberados' },
@@ -40,7 +40,7 @@ export function LiberacoesFinalizadas() {
   const admin = isAdminUsuario(perfil, user?.email)
   const [busca, setBusca] = useState('')
   // O aprovador já abre direto no que falta aprovar.
-  const [filtro, setFiltro] = useState<Filtro>(aprovador ? 'aguardando' : 'todos')
+  const [filtro, setFiltro] = useState<Filtro>(aprovador && APROVACAO_LIBERACAO_OBRIGATORIA ? 'aguardando' : 'todos')
   const [abertaId, setAbertaId] = useState<string | null>(null)
   const qtdAguardando = liberacoes.filter((l) => !l.status_liberacao).length
 
@@ -178,7 +178,7 @@ function LiberacaoCard({
             className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white"
             style={{ background: cor }}
           >
-            {status ? STATUS_LIBERACAO_LABEL[status] : 'Aguardando aprovação'}
+            {status ? STATUS_LIBERACAO_LABEL[status] : APROVACAO_LIBERACAO_OBRIGATORIA ? 'Aguardando aprovação' : 'Concluída'}
           </span>
           <p className="text-xl font-bold tracking-wide text-foreground">{l.veiculo?.placa ?? '—'}</p>
           <p className="text-sm font-medium text-foreground/80">
@@ -197,7 +197,7 @@ function LiberacaoCard({
         <ChevronDown className={cn('mt-1 h-5 w-5 shrink-0 text-secondary transition-transform', aberta && 'rotate-180')} />
       </button>
 
-      {status ? (
+      {status || !APROVACAO_LIBERACAO_OBRIGATORIA ? (
         <AcoesPdf liberacao={l} />
       ) : aprovador ? (
         <div className="px-4 pb-4">
