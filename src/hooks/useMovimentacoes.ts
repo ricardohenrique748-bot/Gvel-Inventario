@@ -536,8 +536,26 @@ interface RegistrarSaidaInput {
   kmSaida?: number
 }
 
-export async function registrarSaida(movimentacaoId: string, input?: RegistrarSaidaInput) {
-  const usuarioId = await getUsuarioAtualId()
+export type FotosSaida = Pick<FotosEntrada, 'frente' | 'ladoEsquerdo' | 'ladoDireito' | 'traseira' | 'painel'>
+
+export async function registrarSaida(movimentacaoId: string, input?: RegistrarSaidaInput, fotos?: FotosSaida) {
+  // Sobe as fotos da saída antes de marcar como "saiu": se o upload falhar,
+  // a saída não é registrada sem elas.
+  const [usuarioId, frente, ladoEsquerdo, ladoDireito, traseira, painel] = await Promise.all([
+    getUsuarioAtualId(),
+    fotos?.frente ? uploadFotoEntrada(movimentacaoId, 'saida-frente', fotos.frente) : null,
+    fotos?.ladoEsquerdo ? uploadFotoEntrada(movimentacaoId, 'saida-lado-esquerdo', fotos.ladoEsquerdo) : null,
+    fotos?.ladoDireito ? uploadFotoEntrada(movimentacaoId, 'saida-lado-direito', fotos.ladoDireito) : null,
+    fotos?.traseira ? uploadFotoEntrada(movimentacaoId, 'saida-traseira', fotos.traseira) : null,
+    fotos?.painel ? uploadFotoEntrada(movimentacaoId, 'saida-painel', fotos.painel) : null,
+  ])
+  const fotoUpdates: Record<string, string> = {}
+  if (frente) fotoUpdates.foto_saida_frente_url = frente
+  if (ladoEsquerdo) fotoUpdates.foto_saida_lado_esquerdo_url = ladoEsquerdo
+  if (ladoDireito) fotoUpdates.foto_saida_lado_direito_url = ladoDireito
+  if (traseira) fotoUpdates.foto_saida_traseira_url = traseira
+  if (painel) fotoUpdates.foto_saida_painel_url = painel
+
   const { data, error } = await supabase
     .from('movimentacoes')
     .update({
@@ -547,6 +565,7 @@ export async function registrarSaida(movimentacaoId: string, input?: RegistrarSa
       km_saida: input?.kmSaida,
       status: 'saiu',
       usuario_saida_id: usuarioId,
+      ...fotoUpdates,
     })
     .eq('id', movimentacaoId)
     .select()

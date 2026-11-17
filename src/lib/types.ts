@@ -112,6 +112,11 @@ export interface Movimentacao {
   foto_lado_direito_url: string | null
   foto_traseira_url: string | null
   foto_painel_url: string | null
+  foto_saida_frente_url?: string | null
+  foto_saida_lado_esquerdo_url?: string | null
+  foto_saida_lado_direito_url?: string | null
+  foto_saida_traseira_url?: string | null
+  foto_saida_painel_url?: string | null
   usuario_entrada_id: string | null
   usuario_saida_id: string | null
   created_at: string

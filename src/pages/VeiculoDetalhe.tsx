@@ -15,6 +15,8 @@ import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { TrajetoAtualCard } from '@/components/TrajetoAtualCard'
 import { useVeiculoDetalhe } from '@/hooks/useVeiculos'
 import { registrarSaida } from '@/hooks/useMovimentacoes'
+import { FotoInput } from '@/components/FotoInput'
+import { ANGULOS_FOTO, angulosObrigatoriosSaida, type AnguloFoto } from '@/lib/fotos'
 import { useChecklistOS } from '@/hooks/useChecklistOS'
 import { obterNomeCompletoMembro, formatarNomeSobrenome } from '@/constants/equipe'
 import { useAuth } from '@/contexts/AuthContext'
@@ -101,6 +103,11 @@ const FOTOS_MOVIMENTACAO: { campo: keyof Movimentacao; label: string }[] = [
   { campo: 'foto_lado_direito_url', label: 'Lado direito' },
   { campo: 'foto_traseira_url', label: 'Traseira' },
   { campo: 'foto_painel_url', label: 'Painel' },
+  { campo: 'foto_saida_frente_url', label: 'Saída · Frente' },
+  { campo: 'foto_saida_lado_esquerdo_url', label: 'Saída · Lado esquerdo' },
+  { campo: 'foto_saida_lado_direito_url', label: 'Saída · Lado direito' },
+  { campo: 'foto_saida_traseira_url', label: 'Saída · Traseira' },
+  { campo: 'foto_saida_painel_url', label: 'Saída · Painel' },
 ]
 
 const saidaSchema = z.object({
@@ -132,6 +139,7 @@ export function VeiculoDetalhe() {
   const { veiculo, historico, loading, refetch } = useVeiculoDetalhe(id)
   const [confirmandoSaida, setConfirmandoSaida] = useState(false)
   const [erroSaida, setErroSaida] = useState<string | null>(null)
+  const [fotosSaida, setFotosSaida] = useState<Partial<Record<AnguloFoto, { file: File; previewUrl: string }>>>({})
   const [galeria, setGaleria] = useState<{ fotos: FotoGaleria[]; indice: number } | null>(null)
   const [editando, setEditando] = useState<MovimentacaoComVeiculo | null>(null)
   const [erroEdicao, setErroEdicao] = useState<string | null>(null)
@@ -157,14 +165,31 @@ export function VeiculoDetalhe() {
   async function onConfirmarSaida(values: SaidaFormValues) {
     if (!movimentacaoAtiva) return
     setErroSaida(null)
+    const faltando = angulosObrigatoriosSaida(veiculo?.tipo).filter((campo) => !fotosSaida[campo])
+    if (faltando.length > 0) {
+      const nomes = ANGULOS_FOTO.filter((a) => faltando.includes(a.campo)).map((a) => a.label.toLowerCase())
+      setErroSaida(`Tire as fotos da saída: ${nomes.join(', ')}.`)
+      return
+    }
     try {
-      await registrarSaida(movimentacaoAtiva.id, {
-        motorista: values.motorista,
-        destino: values.destino,
-        dataHoraSaida: new Date(`${values.data}T${values.horario}`).toISOString(),
-        kmSaida: values.km,
-      })
+      await registrarSaida(
+        movimentacaoAtiva.id,
+        {
+          motorista: values.motorista,
+          destino: values.destino,
+          dataHoraSaida: new Date(`${values.data}T${values.horario}`).toISOString(),
+          kmSaida: values.km,
+        },
+        {
+          frente: fotosSaida.frente?.file,
+          ladoEsquerdo: fotosSaida.ladoEsquerdo?.file,
+          ladoDireito: fotosSaida.ladoDireito?.file,
+          traseira: fotosSaida.traseira?.file,
+          painel: fotosSaida.painel?.file,
+        },
+      )
       setConfirmandoSaida(false)
+      setFotosSaida({})
       await refetch()
     } catch (err) {
       setErroSaida(err instanceof Error ? err.message : 'Não foi possível registrar a saída.')
@@ -235,6 +260,31 @@ export function VeiculoDetalhe() {
                   <FieldError message={errSaida.km?.message} />
                 </div>
               </div>
+              <div>
+                <Label>
+                  Fotos da saída
+                  <span className="ml-1.5 text-xs text-status-danger font-semibold">(obrigatório)</span>
+                </Label>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {ANGULOS_FOTO.filter(({ campo }) => angulosObrigatoriosSaida(veiculo.tipo).includes(campo)).map(
+                    ({ campo, label }) => (
+                      <FotoInput
+                        key={campo}
+                        label={label}
+                        previewUrl={fotosSaida[campo]?.previewUrl}
+                        onSelect={(file, previewUrl) => setFotosSaida((prev) => ({ ...prev, [campo]: { file, previewUrl } }))}
+                        onRemove={() =>
+                          setFotosSaida((prev) => {
+                            const next = { ...prev }
+                            delete next[campo]
+                            return next
+                          })
+                        }
+                      />
+                    ),
+                  )}
+                </div>
+              </div>
               <FieldError message={erroSaida ?? undefined} />
               <div className="flex justify-end gap-2">
                 <Button
@@ -243,6 +293,7 @@ export function VeiculoDetalhe() {
                   onClick={() => {
                     setConfirmandoSaida(false)
                     setErroSaida(null)
+                    setFotosSaida({})
                   }}
                 >
                   <X className="h-4 w-4" />
