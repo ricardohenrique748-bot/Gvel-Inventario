@@ -831,7 +831,7 @@ export function Frotas() {
 
   // Lista de Checklists realizados (Supabase — com migração automática dos
   // registros antigos que ficavam só no localStorage)
-  const { checklists, loading: carregandoChecklists, refetch: refetchChecklists } = useChecklistsFrota()
+  const { checklists: checklistsGravados, loading: carregandoChecklists, refetch: refetchChecklists } = useChecklistsFrota()
   const [salvandoChecklist, setSalvandoChecklist] = useState(false)
 
   // Controle de Viagens (Supabase)
@@ -845,6 +845,30 @@ export function Frotas() {
     refetch: refetchEnderecosFrequentes,
   } = useEnderecosFrequentes()
   const { pessoas, loading: carregandoPessoas, refetch: refetchPessoas } = usePessoas()
+
+  // Checklists antigos foram gravados só com o primeiro nome ("MATEUS"). Mostra
+  // o nome completo quando ele é conhecido sem ambiguidade (cadastro de Pessoas
+  // ou outro checklist com nome e sobrenome).
+  const checklists = useMemo(() => {
+    const completosPorPrimeiroNome = new Map<string, Set<string>>()
+    const registrar = (nome: string | null | undefined) => {
+      const n = (nome || '').trim().toUpperCase().replace(/\s+/g, ' ')
+      const partes = n.split(' ')
+      if (partes.length < 2) return
+      const set = completosPorPrimeiroNome.get(partes[0]) ?? new Set<string>()
+      set.add(n)
+      completosPorPrimeiroNome.set(partes[0], set)
+    }
+    pessoas.forEach((p) => registrar(p.nome))
+    checklistsGravados.forEach((c) => registrar(c.motoristaNome))
+
+    return checklistsGravados.map((c) => {
+      const nome = (c.motoristaNome || '').trim().toUpperCase()
+      if (!nome || nome.includes(' ')) return c
+      const candidatos = completosPorPrimeiroNome.get(nome)
+      return candidatos && candidatos.size === 1 ? { ...c, motoristaNome: [...candidatos][0] } : c
+    })
+  }, [checklistsGravados, pessoas])
   const { clientesViagem, loading: carregandoClientesViagem, refetch: refetchClientesViagem } = useClientesViagem()
   const { formasPagamento, loading: carregandoFormasPagamento, refetch: refetchFormasPagamento } = useFormasPagamento()
   const { tiposLancamento, loading: carregandoTiposLancamento, refetch: refetchTiposLancamento } = useTiposLancamento()
