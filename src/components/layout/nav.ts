@@ -18,6 +18,7 @@ import {
   UserCheck,
   Route,
   Fuel,
+  ShieldCheck,
 } from 'lucide-react'
 
 /**
@@ -43,6 +44,9 @@ export const navItems = [
     ],
   },
   { to: '/manutencao', label: 'Manutenção', icon: Wrench },
+  // Aparece só enquanto a Manutenção está oculta (MANUTENCAO_OCULTA): dá acesso
+  // direto ao checklist de Liberação do Veículo.
+  { to: '/manutencao?secao=liberacao', label: 'Liberação do Veículo', icon: ShieldCheck },
   {
     to: '/inventario-caminhoes',
     label: 'Inventário de Caminhões',
