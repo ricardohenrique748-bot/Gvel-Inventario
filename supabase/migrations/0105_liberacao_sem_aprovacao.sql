@@ -12,7 +12,9 @@ language plpgsql
 as $$
 declare
   v_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
-  v_pode_alterar boolean := v_email = 'inventario@gveldiesel.com' or is_admin_empresa_user();
+  -- Admin conferido direto em usuarios (is_admin_empresa_user não existe em produção).
+  v_pode_alterar boolean := v_email = 'inventario@gveldiesel.com'
+    or exists (select 1 from usuarios u where u.id = auth.uid() and u.nivel = 'admin');
 begin
   if new.modelo is distinct from 'liberacao' then
     return new;
