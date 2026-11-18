@@ -71,8 +71,8 @@ export function Movimentacoes() {
   const usaClientes = empresaUsaClientes(empresa)
   const podeGerenciar =
     isAdminUsuario(perfil, user?.email) || (user?.email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
-  // Excluir é só para administrador (o banco também bloqueia — migration 0109).
-  const podeExcluir = isAdminUsuario(perfil, user?.email)
+  // Excluir: administrador + conta do inventário (o banco também trava — migrations 0109/0110).
+  const podeExcluir = podeGerenciar
   const [filters, setFilters] = useState<FiltersValue>({})
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
@@ -172,7 +172,7 @@ export function Movimentacoes() {
 
   async function handleExcluir(id: string, placa: string | undefined) {
     if (!podeExcluir) {
-      setErroLista('Só administradores podem excluir movimentações.')
+      setErroLista('Você não tem permissão para excluir movimentações.')
       return
     }
     if (!confirm(`Excluir a movimentação de "${placa ?? 'veículo'}"? Essa ação não pode ser desfeita.`)) return
