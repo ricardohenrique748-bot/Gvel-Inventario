@@ -14,6 +14,11 @@ export interface MovimentacoesFilters {
   clienteId?: string
   patioId?: string
   status?: StatusMovimentacao
+  /**
+   * Só entradas ou só saídas. Com período, "entradas" considera só a data de
+   * entrada e "saidas" só a data de saída (sem isso vale entrada OU saída).
+   */
+  tipo?: 'entradas' | 'saidas'
   dataInicio?: string
   dataFim?: string
   /** Limite de linhas buscadas no servidor (paginação simples via "carregar mais"). */
@@ -30,17 +35,26 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
 
   const refetch = useCallback(async () => {
     setLoading(true)
+    const soSaidas = filters.tipo === 'saidas'
     let query = supabase
       .from('movimentacoes')
       .select(MOVIMENTACAO_COM_VEICULO)
-      .order('data_hora_entrada', { ascending: false })
+      // Saídas: as mais recentes primeiro pela data de saída.
+      .order(soSaidas ? 'data_hora_saida' : 'data_hora_entrada', { ascending: false })
 
     if (filters.status) query = query.eq('status', filters.status)
     if (filters.patioId) query = query.eq('patio_id', filters.patioId)
-    // Uma movimentação "pertence" ao período se a entrada OU a saída caiu dentro dele —
-    // senão um veículo que entrou antes do período e só saiu durante ele desaparecia
-    // da consulta (a saída nunca era considerada, só a entrada).
-    if (filters.dataInicio && filters.dataFim) {
+    if (soSaidas) query = query.not('data_hora_saida', 'is', null)
+
+    if (filters.tipo) {
+      // Só entradas / só saídas: o período vale só para a data daquele movimento.
+      const coluna = soSaidas ? 'data_hora_saida' : 'data_hora_entrada'
+      if (filters.dataInicio) query = query.gte(coluna, filters.dataInicio)
+      if (filters.dataFim) query = query.lte(coluna, filters.dataFim)
+    } else if (filters.dataInicio && filters.dataFim) {
+      // Uma movimentação "pertence" ao período se a entrada OU a saída caiu dentro dele —
+      // senão um veículo que entrou antes do período e só saiu durante ele desaparecia
+      // da consulta (a saída nunca era considerada, só a entrada).
       query = query.or(
         `and(data_hora_entrada.gte.${filters.dataInicio},data_hora_entrada.lte.${filters.dataFim}),and(data_hora_saida.gte.${filters.dataInicio},data_hora_saida.lte.${filters.dataFim})`,
       )
@@ -63,7 +77,7 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
     setError(null)
     setRaw((data as unknown as MovimentacaoComVeiculo[]) ?? [])
     setLoading(false)
-  }, [filters.patioId, filters.status, filters.dataInicio, filters.dataFim, filters.limit, temBusca])
+  }, [filters.patioId, filters.status, filters.tipo, filters.dataInicio, filters.dataFim, filters.limit, temBusca])
 
   useEffect(() => {
     refetch()

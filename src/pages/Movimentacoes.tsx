@@ -12,7 +12,7 @@ import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Input, Label, FieldError, Textarea } from '@/components/ui/Input'
+import { Input, Label, FieldError, Textarea, Select } from '@/components/ui/Input'
 import { QuickCreateSelect } from '@/components/QuickCreateSelect'
 import { StatusManutencaoBadge } from '@/components/StatusManutencaoBadge'
 import { FotoInput, usarWebcam } from '@/components/FotoInput'
@@ -74,6 +74,8 @@ export function Movimentacoes() {
   // Excluir: administrador + conta do inventário (o banco também trava — migrations 0109/0110).
   const podeExcluir = podeGerenciar
   const [filters, setFilters] = useState<FiltersValue>({})
+  // Filtro de movimento: todas, só entradas, só saídas ou só quem está no pátio.
+  const [movimento, setMovimento] = useState<'' | 'entradas' | 'saidas' | 'no_patio'>('')
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [erroLista, setErroLista] = useState<string | null>(null)
@@ -81,7 +83,7 @@ export function Movimentacoes() {
 
   useEffect(() => {
     setLimite(LIMITE_INICIAL)
-  }, [filters.patioId, filters.dataInicio, filters.dataFim])
+  }, [filters.patioId, filters.dataInicio, filters.dataFim, movimento])
 
   const { movimentacoes, loading, error: erroBusca, podeTerMais, refetch } = useMovimentacoes({
     search: filters.search,
@@ -89,6 +91,8 @@ export function Movimentacoes() {
     marcaId: filters.marcaId,
     modeloId: filters.modeloId,
     patioId: filters.patioId,
+    status: movimento === 'no_patio' ? 'no_patio' : undefined,
+    tipo: movimento === 'entradas' || movimento === 'saidas' ? movimento : undefined,
     dataInicio: filters.dataInicio ? `${filters.dataInicio}T00:00:00` : undefined,
     dataFim: filters.dataFim ? `${filters.dataFim}T23:59:59` : undefined,
     limit: limite,
@@ -337,6 +341,25 @@ export function Movimentacoes() {
 
       <div className="mb-6">
         <FiltersBar value={filters} onChange={setFilters} showSearch />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase text-secondary">Movimento:</span>
+          <Select
+            value={movimento}
+            onChange={(e) => setMovimento(e.target.value as typeof movimento)}
+            className="w-auto min-w-[200px]"
+            aria-label="Filtrar por entradas ou saídas"
+          >
+            <option value="">Todas</option>
+            <option value="entradas">Entradas</option>
+            <option value="saidas">Saídas</option>
+            <option value="no_patio">No pátio agora</option>
+          </Select>
+          {movimento && (filters.dataInicio || filters.dataFim) && movimento !== 'no_patio' && (
+            <span className="text-xs text-secondary">
+              {movimento === 'entradas' ? 'Que entraram' : 'Que saíram'} no período selecionado
+            </span>
+          )}
+        </div>
       </div>
 
       {erroLista && <p className="mb-4 text-sm text-status-danger">{erroLista}</p>}
