@@ -1,7 +1,7 @@
 import { BarraPilula } from '@/components/charts/BarraPilula'
 import { RoscaPilula } from '@/components/charts/RoscaPilula'
 import { empresaUsaClientes } from '@/lib/empresasEspeciais'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Truck, LogIn, LogOut, Clock, FileSpreadsheet } from 'lucide-react'
 import {
@@ -66,6 +66,13 @@ export function Dashboard() {
     patioId: searchParams.get('patioId') || undefined,
   }))
   const [statusFiltro, setStatusFiltro] = useState(() => searchParams.get('statusFiltro') || '')
+  // '' = todos | 'operante' | 'inoperante' (campo veiculos.operante)
+  const [situacaoFiltro, setSituacaoFiltro] = useState(() => searchParams.get('situacao') || '')
+  const passaSituacao = useCallback(
+    (operante: boolean | undefined) =>
+      !situacaoFiltro || (situacaoFiltro === 'operante' ? operante !== false : operante === false),
+    [situacaoFiltro],
+  )
   const { statusManutencao } = useStatusManutencao()
 
   useEffect(() => {
@@ -78,9 +85,10 @@ export function Dashboard() {
     if (filters.modeloId) params.set('modeloId', filters.modeloId)
     if (filters.patioId) params.set('patioId', filters.patioId)
     if (statusFiltro) params.set('statusFiltro', statusFiltro)
+    if (situacaoFiltro) params.set('situacao', situacaoFiltro)
     setSearchParams(params, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, statusFiltro])
+  }, [filters, statusFiltro, situacaoFiltro])
 
   const { movimentacoes: noPatioBruto, loading: loadingNoPatio } = useMovimentacoes({
     status: 'no_patio',
@@ -94,11 +102,14 @@ export function Dashboard() {
   // Já vem filtrado por "no_patio" (nunca inclui veículos com status SAIU) —
   // aqui só restringe ao setor/oficina escolhido (pesada, leve, funilaria, estética...).
   const noPatio = useMemo(
-    () => (statusFiltro ? noPatioBruto.filter((m) => m.status_id === statusFiltro) : noPatioBruto),
-    [noPatioBruto, statusFiltro],
+    () =>
+      noPatioBruto.filter(
+        (m) => (!statusFiltro || m.status_id === statusFiltro) && passaSituacao(m.veiculo?.operante),
+      ),
+    [noPatioBruto, statusFiltro, passaSituacao],
   )
 
-  const { movimentacoes: periodo, loading: loadingPeriodo } = useMovimentacoes({
+  const { movimentacoes: periodoBruto, loading: loadingPeriodo } = useMovimentacoes({
     dataInicio: filters.dataInicio ? `${filters.dataInicio}T00:00:00` : undefined,
     dataFim: filters.dataFim ? `${filters.dataFim}T23:59:59` : undefined,
     search: filters.search,
@@ -110,9 +121,18 @@ export function Dashboard() {
 
   // Mudanças de etapa (setor/trajeto) registradas dentro do mesmo período —
   // mostradas separadamente das entradas novas no pátio.
-  const { etapas: etapasPeriodo, loading: loadingEtapas } = useEtapasNoPeriodo(
+  const periodo = useMemo(
+    () => periodoBruto.filter((m) => passaSituacao(m.veiculo?.operante)),
+    [periodoBruto, passaSituacao],
+  )
+
+  const { etapas: etapasPeriodoBruto, loading: loadingEtapas } = useEtapasNoPeriodo(
     filters.dataInicio ? `${filters.dataInicio}T00:00:00` : undefined,
     filters.dataFim ? `${filters.dataFim}T23:59:59` : undefined,
+  )
+  const etapasPeriodo = useMemo(
+    () => etapasPeriodoBruto.filter((e) => passaSituacao(e.movimentacao?.veiculo?.operante)),
+    [etapasPeriodoBruto, passaSituacao],
   )
 
   // Determina se o filtro representa um único dia ou um intervalo
@@ -313,6 +333,7 @@ export function Dashboard() {
           onClear={() => {
             setFilters(filtroInicial)
             setStatusFiltro('')
+            setSituacaoFiltro('')
           }}
         />
 
@@ -328,6 +349,16 @@ export function Dashboard() {
                   {s.nome}
                 </option>
               ))}
+            </Select>
+          </div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-secondary sm:ml-2">
+            Situação:
+          </span>
+          <div className="w-full sm:w-48">
+            <Select value={situacaoFiltro} onChange={(e) => setSituacaoFiltro(e.target.value)}>
+              <option value="">Todos</option>
+              <option value="operante">Operante</option>
+              <option value="inoperante">Inoperante</option>
             </Select>
           </div>
         </div>
