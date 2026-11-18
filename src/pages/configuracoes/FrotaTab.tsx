@@ -209,7 +209,11 @@ export function FrotaTab() {
 
             <div>
               <Label>Situação</Label>
-              <div className="flex gap-3">
+              {/* Veículo já cadastrado: só admin muda a situação (o banco também trava — migration 0109). */}
+              <div
+                className={`flex gap-3 ${editandoId && !isAdmin ? 'pointer-events-none opacity-60' : ''}`}
+                aria-disabled={Boolean(editandoId && !isAdmin)}
+              >
                 <label className="flex-1">
                   <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
                   <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-foreground cursor-pointer">
@@ -223,6 +227,9 @@ export function FrotaTab() {
                   </div>
                 </label>
               </div>
+              {editandoId && !isAdmin && (
+                <p className="mt-1 text-[11px] text-secondary">Só o administrador pode mudar a situação.</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">

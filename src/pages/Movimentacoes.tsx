@@ -71,6 +71,8 @@ export function Movimentacoes() {
   const usaClientes = empresaUsaClientes(empresa)
   const podeGerenciar =
     isAdminUsuario(perfil, user?.email) || (user?.email || '').toLowerCase().trim() === 'inventario@gveldiesel.com'
+  // Excluir é só para administrador (o banco também bloqueia — migration 0109).
+  const podeExcluir = isAdminUsuario(perfil, user?.email)
   const [filters, setFilters] = useState<FiltersValue>({})
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
@@ -169,8 +171,8 @@ export function Movimentacoes() {
   }
 
   async function handleExcluir(id: string, placa: string | undefined) {
-    if (!podeGerenciar) {
-      setErroLista('Você não tem permissão para excluir movimentações.')
+    if (!podeExcluir) {
+      setErroLista('Só administradores podem excluir movimentações.')
       return
     }
     if (!confirm(`Excluir a movimentação de "${placa ?? 'veículo'}"? Essa ação não pode ser desfeita.`)) return
@@ -247,7 +249,7 @@ export function Movimentacoes() {
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
             )}
-            {podeGerenciar && (
+            {podeExcluir && (
               <Button
                 type="button"
                 variant="danger"
@@ -303,7 +305,7 @@ export function Movimentacoes() {
               <Pencil className="h-4 w-4" />
             </Button>
           )}
-          {podeGerenciar && (
+          {podeExcluir && (
             <Button
               type="button"
               variant="danger"
@@ -511,8 +513,10 @@ export function EditarMovimentacaoForm({
   const { patios, refetch: refetchPatios } = usePatios()
   const { statusManutencao, refetch: refetchStatusManutencao } = useStatusManutencao()
   const { clientes, refetch: refetchClientes } = useClientes()
-  const { empresa } = useAuth()
+  const { empresa, perfil, user } = useAuth()
   const usaClientes = empresaUsaClientes(empresa)
+  // Situação operante/inoperante só muda por administrador (o banco também trava — migration 0109).
+  const podeMudarSituacao = isAdminUsuario(perfil, user?.email)
   const { marcas, refetch: refetchMarcas } = useMarcas()
   const [fotos, setFotos] = useState<Partial<Record<AnguloFoto, { file: File; previewUrl: string }>>>({})
 
@@ -708,20 +712,36 @@ export function EditarMovimentacaoForm({
 
       <div>
         <Label>Situação</Label>
-        <div className="flex gap-3">
-          <label className="flex-1">
-            <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
-            <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-foreground cursor-pointer">
-              Operante
+        {podeMudarSituacao ? (
+          <div className="flex gap-3">
+            <label className="flex-1">
+              <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
+              <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-foreground cursor-pointer">
+                Operante
+              </div>
+            </label>
+            <label className="flex-1">
+              <input type="radio" value="inoperante" className="peer sr-only" {...register('situacao')} />
+              <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-danger peer-checked:bg-status-danger/10 peer-checked:text-foreground cursor-pointer">
+                Inoperante
+              </div>
+            </label>
+          </div>
+        ) : (
+          <>
+            <div
+              className={cn(
+                'h-12 flex items-center justify-center rounded-xl border',
+                movimentacao.veiculo?.operante === false
+                  ? 'border-status-danger bg-status-danger/10 text-foreground'
+                  : 'border-status-success bg-status-success/10 text-foreground',
+              )}
+            >
+              {movimentacao.veiculo?.operante === false ? 'Inoperante' : 'Operante'}
             </div>
-          </label>
-          <label className="flex-1">
-            <input type="radio" value="inoperante" className="peer sr-only" {...register('situacao')} />
-            <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-danger peer-checked:bg-status-danger/10 peer-checked:text-foreground cursor-pointer">
-              Inoperante
-            </div>
-          </label>
-        </div>
+            <p className="mt-1 text-[11px] text-secondary">Só o administrador pode mudar a situação.</p>
+          </>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
