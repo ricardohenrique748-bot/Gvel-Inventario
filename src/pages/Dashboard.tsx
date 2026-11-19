@@ -74,6 +74,11 @@ export function Dashboard() {
     [situacaoFiltro],
   )
   const { statusManutencao } = useStatusManutencao()
+  // Lista aberta embaixo dos cards — também é o filtro "Movimento" (fica na URL).
+  const [painelAberto, setPainelAberto] = useState<'no_patio' | 'entradas_hoje' | 'saidas_hoje' | null>(() => {
+    const m = searchParams.get('movimento')
+    return m === 'no_patio' || m === 'entradas_hoje' || m === 'saidas_hoje' ? m : null
+  })
 
   useEffect(() => {
     const params = new URLSearchParams()
@@ -86,9 +91,10 @@ export function Dashboard() {
     if (filters.patioId) params.set('patioId', filters.patioId)
     if (statusFiltro) params.set('statusFiltro', statusFiltro)
     if (situacaoFiltro) params.set('situacao', situacaoFiltro)
+    if (painelAberto) params.set('movimento', painelAberto)
     setSearchParams(params, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, statusFiltro, situacaoFiltro])
+  }, [filters, statusFiltro, situacaoFiltro, painelAberto])
 
   const { movimentacoes: noPatioBruto, loading: loadingNoPatio } = useMovimentacoes({
     status: 'no_patio',
@@ -271,7 +277,6 @@ export function Dashboard() {
 
   const [marcaAtiva, setMarcaAtiva] = useState<number | null>(null)
 
-  const [painelAberto, setPainelAberto] = useState<'no_patio' | 'entradas_hoje' | 'saidas_hoje' | null>(null)
 
   const loading = loadingNoPatio || loadingPeriodo
 
@@ -284,16 +289,24 @@ export function Dashboard() {
   // setor/oficina) com quantos dias cada um já está parado — só admin vê o botão.
   // Gera CSV (abre direto no Excel) em vez de puxar uma lib de .xlsx: evita
   // dependência com CVE conhecida no pacote npm e não precisamos de formatação.
+  // Com o filtro "Movimento" em Entradas/Saídas, exporta essa lista; senão, o pátio.
+  const listaExportacao =
+    painelAberto === 'entradas_hoje' ? stats.entradasFiltradas : painelAberto === 'saidas_hoje' ? stats.saidasFiltradas : noPatio
   function handleExportarExcel() {
-    const cabecalho = ['Placa', 'Marca/Modelo', 'Cliente', 'Pátio', 'Setor/Oficina', 'Data de entrada', 'Dias na oficina', 'Mecânico(s)']
-    const linhas = noPatio.map((m) => [
+    const comSaida = painelAberto === 'entradas_hoje' || painelAberto === 'saidas_hoje'
+    const cabecalho = [
+      'Placa', 'Marca/Modelo', 'Cliente', 'Pátio', 'Setor/Oficina', 'Data de entrada',
+      ...(comSaida ? ['Data de saída'] : []), 'Dias na oficina', 'Mecânico(s)',
+    ]
+    const linhas = listaExportacao.map((m) => [
       m.veiculo?.placa ?? '',
       `${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`.trim(),
       m.veiculo?.cliente?.nome ?? '',
       m.patio?.nome ?? '',
       m.status_manutencao?.nome ?? '',
       formatDate(m.data_hora_entrada),
-      String(Math.floor(permanenciaEmMinutos(m.data_hora_entrada) / 1440)),
+      ...(comSaida ? [m.data_hora_saida ? formatDate(m.data_hora_saida) : ''] : []),
+      String(Math.floor(permanenciaEmMinutos(m.data_hora_entrada, m.data_hora_saida) / 1440)),
       getStatusOS(m.id).mecanico ?? '',
     ])
 
@@ -304,7 +317,8 @@ export function Dashboard() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `patio_${format(new Date(), 'yyyy-MM-dd')}.csv`
+    const prefixo = painelAberto === 'entradas_hoje' ? 'entradas' : painelAberto === 'saidas_hoje' ? 'saidas' : 'patio'
+    a.download = `${prefixo}_${format(new Date(), 'yyyy-MM-dd')}.csv`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -318,7 +332,7 @@ export function Dashboard() {
         subtitle="Visão geral do pátio"
         actions={
           // Liberado para todos que veem o Dashboard (permissão caminhoes_dashboard).
-          <Button variant="secondary" onClick={handleExportarExcel} disabled={loadingNoPatio || noPatio.length === 0}>
+          <Button variant="secondary" onClick={handleExportarExcel} disabled={loading || listaExportacao.length === 0}>
             <FileSpreadsheet className="h-4 w-4" />
             Exportar Excel
           </Button>
@@ -334,6 +348,7 @@ export function Dashboard() {
             setFilters(filtroInicial)
             setStatusFiltro('')
             setSituacaoFiltro('')
+            setPainelAberto(null)
           }}
         />
 
@@ -359,6 +374,21 @@ export function Dashboard() {
               <option value="">Todos</option>
               <option value="operante">Operante</option>
               <option value="inoperante">Inoperante</option>
+            </Select>
+          </div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-secondary sm:ml-2">
+            Movimento:
+          </span>
+          <div className="w-full sm:w-52">
+            <Select
+              value={painelAberto ?? ''}
+              onChange={(e) => setPainelAberto((e.target.value || null) as typeof painelAberto)}
+              aria-label="Filtrar por entradas ou saídas"
+            >
+              <option value="">Nenhum</option>
+              <option value="no_patio">No pátio agora</option>
+              <option value="entradas_hoje">Entradas</option>
+              <option value="saidas_hoje">Saídas</option>
             </Select>
           </div>
         </div>
