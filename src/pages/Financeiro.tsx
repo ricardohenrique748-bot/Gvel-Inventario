@@ -120,42 +120,6 @@ const MESES_ANO = [
   { id: 'novembro', label: 'Novembro', curto: 'NOV' },
   { id: 'dezembro', label: 'Dezembro', curto: 'DEZ' },
 ]
-const ORDEM_MESES = MESES_ANO.map((m) => m.id)
-// Saldo de caixa apurado e fechado até junho/2026 — valor congelado, não recalculado.
-// A partir de julho/2026 o saldo passa a se movimentar de fato, somando as
-// receitas - despesas reais de cada mês em cima dessa base.
-const SALDO_CAIXA_BASE_JUNHO = -350000.0
-
-function calcularSaldoCaixa(
-  mesFiltroAtual: string,
-  empresaFiltroAtual: string,
-  dadosMeses: Record<string, MesFinanceiroData>,
-  empresasExcluidas?: Set<string>,
-): number {
-  const ultimoMesComDados = [...ORDEM_MESES].reverse().find((m) => dadosMeses[m]) ?? 'agosto'
-  const mesAlvo = mesFiltroAtual === 'todos' ? ultimoMesComDados : mesFiltroAtual
-  const idxMes = ORDEM_MESES.indexOf(mesAlvo)
-  const idxJulho = ORDEM_MESES.indexOf('julho')
-  if (idxMes < 0 || idxMes < idxJulho) return SALDO_CAIXA_BASE_JUNHO
-
-  let saldo = SALDO_CAIXA_BASE_JUNHO
-  for (let i = idxJulho; i <= idxMes; i++) {
-    const dataMes = dadosMeses[ORDEM_MESES[i]]
-    if (!dataMes) continue
-    let empresas =
-      empresaFiltroAtual === 'TODAS'
-        ? dataMes.empresas
-        : dataMes.empresas.filter((e) => e.nome === empresaFiltroAtual || e.id === empresaFiltroAtual)
-    if (empresasExcluidas && empresasExcluidas.size > 0) {
-      empresas = empresas.filter((e) => !empresasExcluidas.has(e.id))
-    }
-    const receitas = empresas.reduce((acc, e) => acc + e.receitas, 0)
-    const despesas = empresas.reduce((acc, e) => acc + e.despesas, 0)
-    saldo += receitas - despesas
-  }
-  return saldo
-}
-
 const DADOS_MESES: Record<string, MesFinanceiroData> = {
   agosto: {
     empresas: [
@@ -630,7 +594,9 @@ export function Financeiro() {
     const faturamento = empresasTabela.reduce((acc, e) => acc + e.faturamento, 0)
     const receitas = empresasTabela.reduce((acc, e) => acc + e.receitas, 0)
     const despesas = empresasTabela.reduce((acc, e) => acc + e.despesas, 0)
-    const saldoCaixa = calcularSaldoCaixa(mesFiltro, empresaFiltro, dadosMesesComOverrides, empresasOcultasTabela)
+    // Igual à planilha (Result. Caixa): receitas − despesas do período filtrado,
+    // e não um saldo acumulado desde junho.
+    const saldoCaixa = receitas - despesas
     const resultadoFaturamento = faturamento - despesas
 
     return {
@@ -640,7 +606,7 @@ export function Financeiro() {
       saldoCaixa,
       resultadoFaturamento,
     }
-  }, [empresasTabela, mesFiltro, empresaFiltro, empresasOcultasTabela, dadosMesesComOverrides])
+  }, [empresasTabela])
 
   // Dados para o Gráfico Recharts
   const chartData = useMemo(() => {
