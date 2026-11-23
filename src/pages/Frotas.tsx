@@ -355,6 +355,19 @@ const schemaVeiculo = z.object({
 
 type FormVeiculoValues = z.infer<typeof schemaVeiculo>
 
+const ROTULOS_CAMPOS_VEICULO: Record<string, string> = {
+  clienteId: 'Proprietário',
+  placa: 'Placa',
+  tipo: 'Tipo',
+  cor: 'Cor',
+  ano: 'Ano',
+  marcaId: 'Marca',
+  modeloId: 'Modelo',
+  situacao: 'Situação',
+  kmUltimaPreventiva: 'KM da última preventiva',
+  intervaloPreventivaKm: 'Intervalo da preventiva',
+}
+
 export interface ItemFrotaCadastrada {
   id: string
   placa: string
@@ -2088,6 +2101,7 @@ export function Frotas() {
   }
 
   function iniciarEdicaoVeiculo(v: ItemFrotaCadastrada) {
+    setErroLista(null)
     setEditandoId(v.id)
     // Resolve a marca já cadastrada (por nome) pra pré-selecionar o dropdown
     // — sem isso o formulário sempre abria pedindo "selecione a marca" de
@@ -5485,6 +5499,23 @@ export function Frotas() {
                   <option value="inoperante">Inoperante (Parado / Manutenção)</option>
                 </Select>
               </div>
+
+              {/* Erros perto do botão: a mensagem de falha ao salvar (erroLista)
+                  aparecia só na página atrás do modal, e os avisos de campo
+                  obrigatório ficam no topo do formulário — nos dois casos o
+                  usuário clicava em Salvar e "nada acontecia". */}
+              {(erroLista || Object.keys(errors).length > 0) && (
+                <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs font-semibold text-red-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    {erroLista
+                      ? `Não foi possível salvar: ${erroLista}`
+                      : `Corrija os campos: ${Object.keys(errors)
+                          .map((campo) => ROTULOS_CAMPOS_VEICULO[campo] ?? campo)
+                          .join(', ')}`}
+                  </span>
+                </div>
+              )}
 
               {/* Rodapé */}
               <div className="flex justify-end gap-2.5 pt-3 border-t border-border/15">
