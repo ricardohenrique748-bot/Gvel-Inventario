@@ -62,6 +62,23 @@ const editSchema = z.object({
 
 type EditFormValues = z.infer<typeof editSchema>
 
+const ROTULOS_CAMPOS_EDICAO: Record<string, string> = {
+  clienteId: 'Cliente',
+  placa: 'Placa',
+  tipo: 'Tipo',
+  cor: 'Cor',
+  chassi: 'Chassi',
+  ano: 'Ano',
+  marcaId: 'Marca',
+  modeloId: 'Modelo',
+  patioId: 'Pátio',
+  statusId: 'Situação de manutenção',
+  dataHoraEntrada: 'Data/hora de entrada',
+  dataHoraSaida: 'Data/hora de saída',
+  kmEntrada: 'KM entrada',
+  kmSaida: 'KM saída',
+}
+
 const LIMITE_INICIAL = 300
 
 export function Movimentacoes() {
@@ -559,6 +576,7 @@ export function EditarMovimentacaoForm({
   const [comprimindoExtra, setComprimindoExtra] = useState(false)
 
   const [webcamExtraAberta, setWebcamExtraAberta] = useState(false)
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null)
 
   function abrirCameraExtra() {
     if (usarWebcam()) setWebcamExtraAberta(true)
@@ -647,6 +665,7 @@ export function EditarMovimentacaoForm({
   }
 
   async function onSubmit(values: EditFormValues) {
+    setErroSalvar(null)
     try {
       await atualizarVeiculo(movimentacao.veiculo_id, {
         placa: values.placa,
@@ -690,7 +709,9 @@ export function EditarMovimentacaoForm({
       )
       await onSalvo()
     } catch (err) {
-      onErro(err instanceof Error ? err.message : 'Não foi possível salvar as alterações.')
+      const mensagem = err instanceof Error ? err.message : 'Não foi possível salvar as alterações.'
+      setErroSalvar(mensagem)
+      onErro(mensagem)
     }
   }
 
@@ -898,7 +919,7 @@ export function EditarMovimentacaoForm({
             type="number"
             inputMode="numeric"
             placeholder="Opcional"
-            {...register('kmEntrada', { valueAsNumber: true })}
+            {...register('kmEntrada', { setValueAs: (v) => (v === '' || v === null || v === undefined || Number.isNaN(Number(v)) ? undefined : Number(v)) })}
           />
           <FieldError message={errors.kmEntrada?.message} />
         </div>
@@ -910,7 +931,7 @@ export function EditarMovimentacaoForm({
               type="number"
               inputMode="numeric"
               placeholder="Opcional"
-              {...register('kmSaida', { valueAsNumber: true })}
+              {...register('kmSaida', { setValueAs: (v) => (v === '' || v === null || v === undefined || Number.isNaN(Number(v)) ? undefined : Number(v)) })}
             />
             <FieldError message={errors.kmSaida?.message} />
           </div>
@@ -1027,6 +1048,19 @@ export function EditarMovimentacaoForm({
           </button>
         </div>
       </div>
+
+      {/* Erro perto do botão: o formulário é comprido e o aviso de campo
+          inválido (ou a falha ao salvar) ficava fora da tela — clicava em
+          Salvar e "nada acontecia". */}
+      {(erroSalvar || Object.keys(errors).length > 0) && (
+        <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs font-semibold text-red-400">
+          {erroSalvar
+            ? `Não foi possível salvar: ${erroSalvar}`
+            : `Corrija os campos: ${Object.keys(errors)
+                .map((campo) => ROTULOS_CAMPOS_EDICAO[campo] ?? campo)
+                .join(', ')}`}
+        </p>
+      )}
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="icon" onClick={onCancel} aria-label="Cancelar edição">

@@ -142,7 +142,16 @@ export async function atualizarVeiculo(id: string, input: UpsertVeiculoInput) {
     .eq('id', id)
     .select()
     .single()
-  if (error) throw new Error(error.message)
+  if (error) {
+    // Placa nova já pertence a outro veículo da empresa (índice uq_veiculos_empresa_placa)
+    // — geralmente uma entrada feita com a placa digitada errado criou um cadastro duplicado.
+    if (error.code === '23505') {
+      throw new Error(
+        `Já existe outro veículo cadastrado com a placa ${input.placa.trim().toUpperCase()}. Os dois cadastros precisam ser unificados por um administrador.`,
+      )
+    }
+    throw new Error(error.message)
+  }
   return data
 }
 
