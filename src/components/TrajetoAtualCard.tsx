@@ -417,7 +417,7 @@ export function TrajetoAtualCard({
 }: TrajetoAtualCardProps) {
   const { perfil, user } = useAuth()
   const isAdmin = isAdminUsuario(perfil, user?.email)
-  const semFotoObrigatoria = dispensaFotosEtapa(perfil)
+  const semFotoObrigatoria = dispensaFotosEtapa(perfil ?? { email: user?.email ?? '' })
   const [adicionandoEtapa, setAdicionandoEtapa] = useState(false)
   const [editandoEtapaId, setEditandoEtapaId] = useState<string | null>(null)
   const [erroEtapa, setErroEtapa] = useState<string | null>(null)

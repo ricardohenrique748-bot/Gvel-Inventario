@@ -214,16 +214,15 @@ export function isAdminUsuario(usuario?: Partial<Usuario> | null, emailFallback?
  * precisam anexar as fotos obrigatórias para salvar a etapa do trajeto.
  * Identificadas pelo primeiro nome do perfil.
  */
-const NOMES_SEM_FOTO_OBRIGATORIA_ETAPA = ['beatriz', 'giovana']
+const NOMES_SEM_FOTO_OBRIGATORIA_ETAPA = ['beatriz', 'giovana', 'giovanna', 'geovana', 'geovanna']
 
 export function dispensaFotosEtapa(usuario?: Partial<Usuario> | null): boolean {
-  const primeiroNome = (usuario?.nome || '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .split(/\s+/)[0]
-    ?.toLowerCase()
-  return !!primeiroNome && NOMES_SEM_FOTO_OBRIGATORIA_ETAPA.includes(primeiroNome)
+  // Confere qualquer palavra do nome (ex.: "ANA BEATRIZ") e também o e-mail
+  // (ex.: giovana.silva@...) — o perfil às vezes vem com nome composto ou vazio.
+  const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const palavrasNome = normalizar(usuario?.nome || '').split(/[^a-z]+/).filter(Boolean)
+  const palavrasEmail = normalizar((usuario?.email || '').split('@')[0]).split(/[^a-z]+/).filter(Boolean)
+  return [...palavrasNome, ...palavrasEmail].some((p) => NOMES_SEM_FOTO_OBRIGATORIA_ETAPA.includes(p))
 }
 
 /**
