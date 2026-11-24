@@ -1,6 +1,8 @@
 import type { SyntheticEvent } from 'react'
 import { extrairFotosExtras } from './fotosExtras'
 
+const USAR_TRANSFORMACAO_SUPABASE = false
+
 /**
  * Converte a URL pública de uma foto do Storage numa URL de miniatura
  * (usa a transformação de imagem do Supabase, que redimensiona sob demanda sem
@@ -12,6 +14,12 @@ import { extrairFotosExtras } from './fotosExtras'
  * que volta pra URL original (ver `aoFalharMiniatura`).
  */
 export function urlMiniatura(url: string, tamanho: number, qualidade = 60): string {
+  // Desligado: a transformação de imagem do Supabase passou muito da cota do
+  // plano Pro (2.557 de 100 imagens no ciclo de nov/2026) e, com o spend cap
+  // ligado, o Supabase passou a restringir — as miniaturas falhavam no app.
+  // As fotos já são comprimidas no upload e o egress tem folga, então servir
+  // o original direto é mais barato. Para religar, troque para `true`.
+  if (!USAR_TRANSFORMACAO_SUPABASE) return url
   if (!url.includes('/storage/v1/object/public/')) return url
   const base = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
   const separador = base.includes('?') ? '&' : '?'
