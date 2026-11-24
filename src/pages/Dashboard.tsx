@@ -305,12 +305,13 @@ export function Dashboard() {
   function handleExportarExcel() {
     const comSaida = painelAberto === 'entradas_hoje' || painelAberto === 'saidas_hoje'
     const cabecalho = [
-      'Placa', 'Marca/Modelo', 'Cliente', 'Pátio', 'Setor/Oficina', 'Data de entrada',
+      'Placa', 'Marca/Modelo', 'Situação', 'Cliente', 'Pátio', 'Setor/Oficina', 'Data de entrada',
       ...(comSaida ? ['Data de saída'] : []), 'Dias na oficina', 'Mecânico(s)',
     ]
     const linhas = listaExportacao.map((m) => [
       m.veiculo?.placa ?? '',
       `${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`.trim(),
+      m.veiculo?.operante === false ? 'INOPERANTE' : 'OPERANTE',
       m.veiculo?.cliente?.nome ?? '',
       m.patio?.nome ?? '',
       m.status_manutencao?.nome ?? '',
