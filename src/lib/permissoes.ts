@@ -210,6 +210,23 @@ export function isAdminUsuario(usuario?: Partial<Usuario> | null, emailFallback?
 }
 
 /**
+ * Usuárias que só mudam a etapa do veículo (ex.: marcando O.S aberta) e não
+ * precisam anexar as fotos obrigatórias para salvar a etapa do trajeto.
+ * Identificadas pelo primeiro nome do perfil.
+ */
+const NOMES_SEM_FOTO_OBRIGATORIA_ETAPA = ['beatriz', 'giovana']
+
+export function dispensaFotosEtapa(usuario?: Partial<Usuario> | null): boolean {
+  const primeiroNome = (usuario?.nome || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .split(/\s+/)[0]
+    ?.toLowerCase()
+  return !!primeiroNome && NOMES_SEM_FOTO_OBRIGATORIA_ETAPA.includes(primeiroNome)
+}
+
+/**
  * Excluir abastecimento é restrito a uma única conta (nem admins comuns
  * podem). O banco reforça a mesma regra — ver migration 0093.
  */

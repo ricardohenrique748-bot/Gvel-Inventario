@@ -20,7 +20,7 @@ import { atualizarPatioMovimentacao, atualizarStatusMovimentacao } from '@/hooks
 import { supabase } from '@/lib/supabase'
 import { formatDateTime, formatPermanencia } from '@/lib/format'
 import { useAuth } from '@/contexts/AuthContext'
-import { isAdminUsuario } from '@/lib/permissoes'
+import { dispensaFotosEtapa, isAdminUsuario } from '@/lib/permissoes'
 import type { MovimentacaoComVeiculo, Movimentacao } from '@/lib/types'
 import { FotosObrigatoriasVeiculo, fotosFaltando, type FotosSelecionadas } from '@/components/FotosObrigatoriasVeiculo'
 import { GaleriaFotosModal, type FotoGaleria } from '@/components/GaleriaFotosModal'
@@ -417,6 +417,7 @@ export function TrajetoAtualCard({
 }: TrajetoAtualCardProps) {
   const { perfil, user } = useAuth()
   const isAdmin = isAdminUsuario(perfil, user?.email)
+  const semFotoObrigatoria = dispensaFotosEtapa(perfil)
   const [adicionandoEtapa, setAdicionandoEtapa] = useState(false)
   const [editandoEtapaId, setEditandoEtapaId] = useState<string | null>(null)
   const [erroEtapa, setErroEtapa] = useState<string | null>(null)
@@ -464,7 +465,7 @@ export function TrajetoAtualCard({
 
   async function onAdicionarEtapa(values: EtapaFormValues) {
     setErroEtapa(null)
-    const erroFotos = etapaComFotos ? null : fotosFaltando(tipoVeiculo, fotosEtapa)
+    const erroFotos = etapaComFotos || semFotoObrigatoria ? null : fotosFaltando(tipoVeiculo, fotosEtapa)
     if (erroFotos) {
       setErroEtapa(erroFotos)
       return
@@ -654,7 +655,11 @@ export function TrajetoAtualCard({
               fotos={fotosEtapa}
               onChange={setFotosEtapa}
               avisoOpcional={
-                etapaComFotos ? `opcional — já tiradas na etapa ${etapaComFotos.descricao}` : undefined
+                etapaComFotos
+                  ? `opcional — já tiradas na etapa ${etapaComFotos.descricao}`
+                  : semFotoObrigatoria
+                    ? 'opcional para o seu usuário'
+                    : undefined
               }
             />
 

@@ -446,6 +446,12 @@ export async function registrarEntrada(
     await garantirVeiculoForaDoPatio(veiculoId, movimentacaoId)
     throw new EntradaDuplicadaError(MSG_DUPLICADA_GENERICA)
   }
+  if (error?.code === 'P0001') {
+    // Regra do banco recusou (ex.: entrada antes da última saída — migration
+    // 0111). Não é falha de conexão: tentar de novo dá o mesmo erro, então o
+    // usuário precisa ver a mensagem e corrigir a data, não virar rascunho.
+    throw new EntradaDuplicadaError(error.message)
+  }
   if (error) throw new Error(error.message)
 
   if (typeof window !== 'undefined') {
