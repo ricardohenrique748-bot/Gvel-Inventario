@@ -704,6 +704,7 @@ export function EditarMovimentacaoForm({
           dataHoraSaida: jaSaiu && values.dataHoraSaida ? new Date(values.dataHoraSaida).toISOString() : undefined,
           kmEntrada: values.kmEntrada || undefined,
           kmSaida: jaSaiu ? (values.kmSaida || undefined) : undefined,
+          abertoSemSaida: !jaSaiu,
         },
         fotosEntrada,
       )

@@ -314,6 +314,21 @@ export async function registrarEntrada(
   fotos?: FotosEntrada,
   movimentacaoIdExistente?: string,
 ) {
+  // Reenvio de rascunho: se a tentativa anterior JÁ tinha gravado essa
+  // movimentação no servidor (cliente recebeu erro, mas o banco salvou), não
+  // regrava nada. Antes isso fazia um upsert com status 'no_patio' por cima da
+  // linha — se nesse meio-tempo alguém tivesse registrado a saída, o veículo
+  // "voltava" para o pátio sozinho quando o rascunho era reenviado.
+  if (movimentacaoIdExistente) {
+    const { data: jaGravada, error: erroBusca } = await supabase
+      .from('movimentacoes')
+      .select()
+      .eq('id', movimentacaoIdExistente)
+      .maybeSingle()
+    if (erroBusca) throw new Error(erroBusca.message)
+    if (jaGravada) return jaGravada
+  }
+
   // Checa ANTES de mexer no cadastro do veículo e de subir as fotos. Placa nova
   // (sem cadastro) não tem como estar no pátio. O próprio id do rascunho é
   // ignorado: um reenvio que já tinha gravado não conta como duplicata.
@@ -381,12 +396,13 @@ export async function registrarEntrada(
   const extrasValidas = (fotosExtrasProcessadas || []).filter((f): f is { url: string; label: string | undefined } => f !== null)
   const observacoesComExtras = embutirFotosExtras(input.observacoes, extrasValidas)
 
-  // upsert (não insert) — se essa mesma movimentacaoId já foi gravada numa
-  // tentativa anterior que pareceu falhar pro cliente, reenviar só reescreve
-  // a mesma linha em vez de criar uma segunda entrada "no pátio".
+  // insert (não upsert) com id fixo — se essa mesma movimentacaoId já foi
+  // gravada numa tentativa anterior que pareceu falhar pro cliente, o banco
+  // recusa a duplicata (chave primária) e devolvemos a linha que já existe,
+  // SEM sobrescrevê-la (ela pode até já ter a saída registrada).
   const { data, error } = await supabase
     .from('movimentacoes')
-    .upsert(
+    .insert(
       {
         id: movimentacaoId,
         veiculo_id: veiculoId,
@@ -404,11 +420,19 @@ export async function registrarEntrada(
         foto_painel_url: fotoPainelUrl,
         usuario_entrada_id: usuarioId,
       },
-      { onConflict: 'id' },
     )
     .select()
     .single()
 
+  if (error?.code === '23505' && /movimentacoes_pkey/.test(error.message ?? '')) {
+    const { data: existente, error: erroBusca } = await supabase
+      .from('movimentacoes')
+      .select()
+      .eq('id', movimentacaoId)
+      .single()
+    if (erroBusca) throw new Error(erroBusca.message)
+    return existente
+  }
   if (ehViolacaoNoPatio(error)) {
     // Outro aparelho deu entrada na mesma placa entre a checagem e a gravação.
     await garantirVeiculoForaDoPatio(veiculoId, movimentacaoId)
@@ -433,9 +457,29 @@ interface AtualizarMovimentacaoInput {
   dataHoraSaida?: string
   kmEntrada?: number
   kmSaida?: number
+  /**
+   * O formulário foi aberto com a movimentação ainda no pátio (sem saída).
+   * Se nesse meio-tempo alguém registrou a saída, salvar a edição apagaria
+   * essa saída e devolveria o veículo ao pátio — então recusamos.
+   */
+  abertoSemSaida?: boolean
 }
 
 export async function atualizarMovimentacao(id: string, input: AtualizarMovimentacaoInput, fotos?: FotosEntrada) {
+  if (input.abertoSemSaida) {
+    const { data: atual, error: erroAtual } = await supabase
+      .from('movimentacoes')
+      .select('status, data_hora_saida')
+      .eq('id', id)
+      .single()
+    if (erroAtual) throw new Error(erroAtual.message)
+    if (atual.status === 'saiu' || atual.data_hora_saida) {
+      throw new Error(
+        'A saída deste veículo foi registrada enquanto você editava. Feche e abra a edição de novo para não apagar a saída.',
+      )
+    }
+  }
+
   const fotoUpdates: Record<string, string> = {}
   let observacoesParaSalvar = input.observacoes
 
