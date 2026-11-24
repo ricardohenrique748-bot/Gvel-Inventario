@@ -14,6 +14,8 @@ import { formatDateTime } from '@/lib/format'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import type { InspecaoWizardState } from './types'
 import { supabase } from '@/lib/supabase'
+import { VEICULO_COM_RELACOES } from '@/lib/queries'
+import type { VeiculoComRelacoes } from '@/lib/types'
 
 const NOVO_VEICULO = '__novo__'
 
@@ -92,22 +94,28 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
 
   // Liberação é de veículo que está no pátio agora: sem esse filtro a lista
   // mostrava toda a frota do cliente, inclusive o que já tinha saído.
-  const [idsNoPatio, setIdsNoPatio] = useState<Set<string> | null>(null)
+  // Os veículos no pátio de OUTRO cliente (ou sem cliente) também entram, num
+  // grupo separado — um cadastro com o cliente errado escondia o veículo.
+  const [veiculosNoPatio, setVeiculosNoPatio] = useState<VeiculoComRelacoes[] | null>(null)
   useEffect(() => {
     if (!liberacao) return
     let ativo = true
     supabase
       .from('movimentacoes')
-      .select('veiculo_id')
+      .select(`veiculo:veiculos(${VEICULO_COM_RELACOES})`)
       .eq('status', 'no_patio')
       .then(({ data, error }) => {
         if (!ativo) return
         if (error) {
           console.error('[DadosVeiculoStep] veículos no pátio', error)
-          setIdsNoPatio(new Set())
+          setVeiculosNoPatio([])
           return
         }
-        setIdsNoPatio(new Set((data ?? []).map((m) => m.veiculo_id as string)))
+        const porId = new Map<string, VeiculoComRelacoes>()
+        for (const m of (data ?? []) as unknown as { veiculo: VeiculoComRelacoes | null }[]) {
+          if (m.veiculo) porId.set(m.veiculo.id, m.veiculo)
+        }
+        setVeiculosNoPatio(Array.from(porId.values()).sort((a, b) => a.placa.localeCompare(b.placa)))
       })
     return () => {
       ativo = false
@@ -115,17 +123,25 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
   }, [liberacao])
 
   const frotaCliente = useMemo(
-    () => (liberacao && idsNoPatio ? frotaTodaCliente.filter((v) => idsNoPatio.has(v.id)) : frotaTodaCliente),
-    [liberacao, idsNoPatio, frotaTodaCliente],
+    () =>
+      liberacao
+        ? (veiculosNoPatio ?? []).filter((v) => v.cliente_id === clienteId)
+        : frotaTodaCliente,
+    [liberacao, veiculosNoPatio, frotaTodaCliente, clienteId],
   )
-  const loadingFrota = loadingFrotaCliente || (liberacao && idsNoPatio === null)
+  const outrosNoPatio = useMemo(
+    () => (liberacao ? (veiculosNoPatio ?? []).filter((v) => v.cliente_id !== clienteId) : []),
+    [liberacao, veiculosNoPatio, clienteId],
+  )
+  const loadingFrota = liberacao ? veiculosNoPatio === null : loadingFrotaCliente
   const { modelos, refetch: refetchModelos } = useModelos(marcaId)
 
   useEffect(() => {
     setValue('veiculoId', '')
   }, [clienteId, setValue])
 
-  const veiculoSelecionado = frotaCliente.find((v) => v.id === veiculoId)
+  const veiculoSelecionado =
+    frotaCliente.find((v) => v.id === veiculoId) ?? outrosNoPatio.find((v) => v.id === veiculoId)
 
   function onSubmit(values: FormValues) {
     const dados =
@@ -191,12 +207,21 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
                     {v.placa} — {v.marca?.nome} {v.modelo?.nome}
                   </option>
                 ))}
+                {outrosNoPatio.length > 0 && (
+                  <optgroup label="Outros veículos no pátio">
+                    {outrosNoPatio.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.placa} — {v.marca?.nome} {v.modelo?.nome} · {v.cliente?.nome ?? 'sem cliente'}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
                 {/* Liberação é sempre de veículo que já passou pela manutenção: não cadastra placa nova aqui. */}
                 {!liberacao && <option value={NOVO_VEICULO}>+ Cadastrar veículo novo</option>}
               </Select>
               <FieldError message={errors.veiculoId?.message} />
-              {liberacao && !loadingFrota && frotaCliente.length === 0 && (
-                <p className="mt-1 text-xs text-secondary">Nenhum veículo deste cliente está no pátio agora.</p>
+              {liberacao && !loadingFrota && frotaCliente.length === 0 && outrosNoPatio.length === 0 && (
+                <p className="mt-1 text-xs text-secondary">Nenhum veículo está no pátio agora.</p>
               )}
             </div>
           )}
