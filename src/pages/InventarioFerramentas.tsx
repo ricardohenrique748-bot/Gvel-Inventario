@@ -93,6 +93,7 @@ import {
   atualizarBaixaConsumo,
   excluirBaixaConsumo,
 } from '@/hooks/useInsumos'
+import { buscarCaixasSupabase, salvarCaixasSupabase, excluirCaixasSupabase } from '@/hooks/useCaixasFerramentas'
 
 export interface ItemCaixa {
   id: string
@@ -122,6 +123,10 @@ export interface CaixaFerramenta {
 }
 
 const STORAGE_CAIXAS_KEY = 'gvel_inventario_caixas_v1'
+// Marca que as caixas que existiam só neste aparelho já foram enviadas pro
+// Supabase — depois disso o aparelho não reenvia (senão ressuscitaria caixas
+// que outra pessoa excluiu).
+const STORAGE_CAIXAS_MIGRADO_KEY = 'gvel_caixas_migrado_supabase_v1'
 
 const REGEX_UUID_INSUMO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -427,41 +432,90 @@ export function InventarioFerramentas() {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        const rawCaixas = localStorage.getItem(STORAGE_CAIXAS_KEY)
-        if (rawCaixas) {
-          const parsed: CaixaFerramenta[] = JSON.parse(rawCaixas)
-          setCaixas(parsed)
-          migrarFotosBase64(
-            parsed,
-            (c) => c.foto_url,
-            (c, url) => ({ ...c, foto_url: url }),
-          ).then(({ lista, alterou }) => {
-            if (alterou) {
-              setCaixas(lista)
-              try {
-                localStorage.setItem(STORAGE_CAIXAS_KEY, JSON.stringify(lista))
-              } catch (err) {
-                console.warn('Ainda sem espaço no localStorage após migrar fotos de caixas:', err)
-              }
-            }
-          })
-        }
+        carregarCaixas()
       } catch {}
       migrarFotosMecanicos()
     }, 50)
     return () => clearTimeout(timer)
   }, [])
 
+  // Caixas vêm do Supabase (compartilhadas). O localStorage fica só como
+  // cópia para abrir sem internet. Na primeira vez, as caixas que existiam só
+  // neste aparelho são enviadas pro banco.
+  async function carregarCaixas() {
+    let locais: CaixaFerramenta[] = []
+    try {
+      const raw = localStorage.getItem(STORAGE_CAIXAS_KEY)
+      if (raw) locais = JSON.parse(raw)
+    } catch {}
+
+    let doBanco: CaixaFerramenta[]
+    try {
+      doBanco = await buscarCaixasSupabase()
+    } catch (err) {
+      console.warn('Falha ao buscar caixas no Supabase, usando cópia do aparelho:', err)
+      if (locais.length > 0) setCaixas(locais)
+      return
+    }
+
+    let jaMigrou = false
+    try {
+      jaMigrou = localStorage.getItem(STORAGE_CAIXAS_MIGRADO_KEY) === 'true'
+    } catch {}
+
+    let lista = doBanco
+    if (!jaMigrou && locais.length > 0) {
+      const idsBanco = new Set(doBanco.map((c) => c.id))
+      const faltando = locais.filter((c) => !idsBanco.has(c.id))
+      if (faltando.length > 0) {
+        try {
+          const { lista: comFotos } = await migrarFotosBase64(
+            faltando,
+            (c) => c.foto_url,
+            (c, url) => ({ ...c, foto_url: url }),
+          )
+          await salvarCaixasSupabase(comFotos)
+          lista = [...doBanco, ...comFotos]
+        } catch (err) {
+          // Não marca como migrado: tenta de novo na próxima vez que abrir.
+          console.error('Falha ao enviar caixas deste aparelho pro Supabase:', err)
+          setCaixas([...doBanco, ...faltando])
+          return
+        }
+      }
+    }
+    try {
+      localStorage.setItem(STORAGE_CAIXAS_MIGRADO_KEY, 'true')
+    } catch {}
+
+    lista.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
+    setCaixas(lista)
+    try {
+      localStorage.setItem(STORAGE_CAIXAS_KEY, JSON.stringify(lista))
+    } catch {}
+  }
+
   function salvarCaixas(novasCaixas: CaixaFerramenta[]) {
+    const anteriores = new Map(caixas.map((c) => [c.id, JSON.stringify(c)]))
+    const alteradas = novasCaixas.filter((c) => anteriores.get(c.id) !== JSON.stringify(c))
+    const idsNovos = new Set(novasCaixas.map((c) => c.id))
+    const removidas = caixas.filter((c) => !idsNovos.has(c.id)).map((c) => c.id)
+
     setCaixas(novasCaixas)
     try {
       localStorage.setItem(STORAGE_CAIXAS_KEY, JSON.stringify(novasCaixas))
-    } catch (err) {
-      console.error('Erro ao salvar caixas de ferramentas no localStorage:', err)
+    } catch {}
+
+    Promise.all([salvarCaixasSupabase(alteradas), excluirCaixasSupabase(removidas)]).catch((err) => {
+      console.error('Erro ao salvar caixas de ferramentas no Supabase:', err)
       alert(
-        `NÃO FOI POSSÍVEL SALVAR A CAIXA DE FERRAMENTAS.\n\nO ARMAZENAMENTO LOCAL DO NAVEGADOR ESTÁ CHEIO (ISSO ACONTECE QUANDO MUITAS FOTOS FICAM GUARDADAS LOCALMENTE). LIMPE O CACHE/DADOS DO SITE OU LIBERE ESPAÇO E TENTE NOVAMENTE.\n\nDETALHE TÉCNICO: ${err instanceof Error ? err.message : String(err)}`,
+        `NÃO FOI POSSÍVEL SALVAR A CAIXA DE FERRAMENTAS NO SERVIDOR.
+
+VERIFIQUE A INTERNET E TENTE DE NOVO.
+
+DETALHE TÉCNICO: ${err instanceof Error ? err.message : String(err)}`,
       )
-    }
+    })
   }
 
   const [buscaConsumo, setBuscaConsumo] = useState('')
