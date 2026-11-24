@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,6 +13,7 @@ import { useVeiculosPorCliente } from '@/hooks/useVeiculos'
 import { formatDateTime } from '@/lib/format'
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import type { InspecaoWizardState } from './types'
+import { supabase } from '@/lib/supabase'
 
 const NOVO_VEICULO = '__novo__'
 
@@ -87,7 +88,37 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
   const marcaId = watch('marcaId')
   const modoNovoVeiculo = veiculoId === NOVO_VEICULO
 
-  const { veiculos: frotaCliente, loading: loadingFrota } = useVeiculosPorCliente(clienteId)
+  const { veiculos: frotaTodaCliente, loading: loadingFrotaCliente } = useVeiculosPorCliente(clienteId)
+
+  // Liberação é de veículo que está no pátio agora: sem esse filtro a lista
+  // mostrava toda a frota do cliente, inclusive o que já tinha saído.
+  const [idsNoPatio, setIdsNoPatio] = useState<Set<string> | null>(null)
+  useEffect(() => {
+    if (!liberacao) return
+    let ativo = true
+    supabase
+      .from('movimentacoes')
+      .select('veiculo_id')
+      .eq('status', 'no_patio')
+      .then(({ data, error }) => {
+        if (!ativo) return
+        if (error) {
+          console.error('[DadosVeiculoStep] veículos no pátio', error)
+          setIdsNoPatio(new Set())
+          return
+        }
+        setIdsNoPatio(new Set((data ?? []).map((m) => m.veiculo_id as string)))
+      })
+    return () => {
+      ativo = false
+    }
+  }, [liberacao])
+
+  const frotaCliente = useMemo(
+    () => (liberacao && idsNoPatio ? frotaTodaCliente.filter((v) => idsNoPatio.has(v.id)) : frotaTodaCliente),
+    [liberacao, idsNoPatio, frotaTodaCliente],
+  )
+  const loadingFrota = loadingFrotaCliente || (liberacao && idsNoPatio === null)
   const { modelos, refetch: refetchModelos } = useModelos(marcaId)
 
   useEffect(() => {
@@ -165,7 +196,7 @@ export function DadosVeiculoStep({ state, onPatch, onNext }: Props) {
               </Select>
               <FieldError message={errors.veiculoId?.message} />
               {liberacao && !loadingFrota && frotaCliente.length === 0 && (
-                <p className="mt-1 text-xs text-secondary">Nenhum veículo cadastrado para este cliente.</p>
+                <p className="mt-1 text-xs text-secondary">Nenhum veículo deste cliente está no pátio agora.</p>
               )}
             </div>
           )}
