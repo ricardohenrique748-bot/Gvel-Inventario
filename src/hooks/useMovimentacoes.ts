@@ -414,7 +414,7 @@ export async function registrarEntrada(
     await garantirVeiculoForaDoPatio(veiculoId, movimentacaoId)
     throw new EntradaDuplicadaError(MSG_DUPLICADA_GENERICA)
   }
-  if (error) throw error
+  if (error) throw new Error(error.message)
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('movimentacao_updated'))
@@ -584,7 +584,7 @@ export async function registrarSaida(movimentacaoId: string, input?: RegistrarSa
     .eq('id', movimentacaoId)
     .select()
     .single()
-  if (error) throw error
+  if (error) throw new Error(error.message)
 
   await finalizarOSAoSair(movimentacaoId)
 
