@@ -125,6 +125,16 @@ export function Dashboard() {
     patioId: filters.patioId,
   })
 
+  // Busca por placa: mostra TODO o histórico da placa (entradas e saídas),
+  // sem depender do período — senão um veículo que já saiu em outro dia some
+  // do inventário (não está no pátio nem nas saídas do período selecionado).
+  const buscaPlaca = filters.search?.trim() ?? ''
+  const { movimentacoes: historicoBusca, loading: loadingHistoricoBusca } = useMovimentacoes({
+    search: buscaPlaca,
+    patioId: filters.patioId,
+    desativado: buscaPlaca.length < 3,
+  })
+
   // Mudanças de etapa (setor/trajeto) registradas dentro do mesmo período —
   // mostradas separadamente das entradas novas no pátio.
   const periodo = useMemo(
@@ -422,6 +432,52 @@ export function Dashboard() {
           value={stats.tempoMedio > 0 ? formatMinutosParaTexto(stats.tempoMedio) : '—'}
         />
       </div>
+
+      {buscaPlaca.length >= 3 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>
+              {loadingHistoricoBusca
+                ? 'Carregando histórico…'
+                : `Histórico da placa — ${historicoBusca.length} movimentação(ões)`}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!loadingHistoricoBusca && historicoBusca.length === 0 ? (
+              <p className="text-sm text-secondary">Nenhuma movimentação encontrada para “{buscaPlaca.toUpperCase()}”.</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {historicoBusca.map((m) => (
+                  <Link
+                    key={m.id}
+                    to={`/veiculos/${m.veiculo_id}`}
+                    className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
+                  >
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
+                      <Truck className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-foreground font-medium">{m.veiculo?.placa}</p>
+                        {m.status === 'saiu' ? (
+                          <Badge tone="neutral">Saiu</Badge>
+                        ) : (
+                          <Badge tone="success">No pátio</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-secondary">
+                        Entrada: {formatDate(m.data_hora_entrada)}
+                        {m.data_hora_saida ? ` · Saída: ${formatDate(m.data_hora_saida)}` : ''}
+                      </p>
+                      <p className="text-sm text-secondary">Pátio: {m.patio?.nome || '—'}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {painelAberto === 'no_patio' && (
         <Card className="mb-6">

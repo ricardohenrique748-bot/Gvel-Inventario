@@ -23,6 +23,8 @@ export interface MovimentacoesFilters {
   dataFim?: string
   /** Limite de linhas buscadas no servidor (paginação simples via "carregar mais"). */
   limit?: number
+  /** Não busca nada (lista vazia) — para consultas que só valem em certas condições. */
+  desativado?: boolean
 }
 
 export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
@@ -34,6 +36,12 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
   const temBusca = Boolean(filters.search?.trim())
 
   const refetch = useCallback(async () => {
+    if (filters.desativado) {
+      setRaw([])
+      setError(null)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const soSaidas = filters.tipo === 'saidas'
     let query = supabase
@@ -77,7 +85,7 @@ export function useMovimentacoes(filters: MovimentacoesFilters = {}) {
     setError(null)
     setRaw((data as unknown as MovimentacaoComVeiculo[]) ?? [])
     setLoading(false)
-  }, [filters.patioId, filters.status, filters.tipo, filters.dataInicio, filters.dataFim, filters.limit, temBusca])
+  }, [filters.patioId, filters.status, filters.tipo, filters.dataInicio, filters.dataFim, filters.limit, filters.desativado, temBusca])
 
   useEffect(() => {
     refetch()
