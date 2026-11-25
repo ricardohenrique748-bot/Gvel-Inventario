@@ -164,6 +164,7 @@ export type RegistrarEntradaInput =
       cor: string
       chassi?: string
       operante?: boolean
+      sinistro?: boolean
       ano: number
     })
 
@@ -367,6 +368,7 @@ export async function registrarEntrada(
             cor: input.cor,
             chassi: input.chassi,
             operante: input.operante,
+            sinistro: input.sinistro,
             ano: input.ano,
           })
         ).id

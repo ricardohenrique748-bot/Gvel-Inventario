@@ -15,7 +15,9 @@ import { useVeiculosPorCliente, upsertVeiculo, atualizarVeiculo, excluirVeiculo 
 import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { useAuth } from '@/contexts/AuthContext'
 import { isAdminUsuario } from '@/lib/permissoes'
-import { empresaUsaClientes } from '@/lib/empresasEspeciais'
+import { empresaUsaClientes, isLocaliza } from '@/lib/empresasEspeciais'
+import { camposSituacao, ROTULO_SITUACAO, situacaoDoVeiculo, TOM_SITUACAO } from '@/lib/situacaoVeiculo'
+import { SituacaoVeiculoRadios } from '@/components/SituacaoVeiculoRadios'
 import type { VeiculoComRelacoes } from '@/lib/types'
 
 const anoAtual = new Date().getFullYear()
@@ -31,7 +33,7 @@ const schema = z.object({
   // esses dados, e exigir tudo travava edições simples (ex.: marcar inoperante).
   cor: z.string().trim().optional(),
   chassi: z.string().trim().optional(),
-  situacao: z.enum(['operante', 'inoperante']),
+  situacao: z.enum(['operante', 'inoperante', 'sinistro']),
   // Campo numérico vazio chega como NaN.
   ano: z
     .union([z.nan(), z.number().int('Ano inválido').min(1950, 'Ano inválido').max(anoAtual + 1, 'Ano inválido')])
@@ -87,7 +89,7 @@ export function FrotaTab() {
     const clienteVeiculo = usaClientes ? values.clienteId : null
     const ano = values.ano === undefined || Number.isNaN(values.ano) ? undefined : values.ano
     try {
-      const operante = values.situacao === 'operante'
+      const situacao = camposSituacao(values.situacao)
       if (editandoId) {
         await atualizarVeiculo(editandoId, {
           placa: values.placa,
@@ -98,7 +100,7 @@ export function FrotaTab() {
           cor: values.cor,
           ano,
           chassi: values.chassi,
-          operante,
+          ...situacao,
         })
         setEditandoId(null)
       } else {
@@ -111,7 +113,7 @@ export function FrotaTab() {
           cor: values.cor,
           ano,
           chassi: values.chassi,
-          operante,
+          ...situacao,
         })
       }
       await refetchVeiculos()
@@ -130,7 +132,7 @@ export function FrotaTab() {
     setValue('tipo', v.tipo)
     setValue('cor', v.cor ?? '')
     setValue('chassi', v.chassi ?? '')
-    setValue('situacao', v.operante ? 'operante' : 'inoperante')
+    setValue('situacao', situacaoDoVeiculo(v))
     setValue('ano', v.ano ?? (undefined as unknown as number))
     setValue('marcaId', v.marca_id ?? '')
     setValue('modeloId', v.modelo_id ?? '')
@@ -211,21 +213,10 @@ export function FrotaTab() {
               <Label>Situação</Label>
               {/* Veículo já cadastrado: só admin muda a situação (o banco também trava — migration 0109). */}
               <div
-                className={`flex gap-3 ${editandoId && !isAdmin ? 'pointer-events-none opacity-60' : ''}`}
+                className={`${editandoId && !isAdmin ? 'pointer-events-none opacity-60' : ''}`}
                 aria-disabled={Boolean(editandoId && !isAdmin)}
               >
-                <label className="flex-1">
-                  <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
-                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-foreground cursor-pointer">
-                    Operante
-                  </div>
-                </label>
-                <label className="flex-1">
-                  <input type="radio" value="inoperante" className="peer sr-only" {...register('situacao')} />
-                  <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-danger peer-checked:bg-status-danger/10 peer-checked:text-foreground cursor-pointer">
-                    Inoperante
-                  </div>
-                </label>
+                <SituacaoVeiculoRadios registro={register('situacao')} comSinistro={isLocaliza(empresa)} />
               </div>
               {editandoId && !isAdmin && (
                 <p className="mt-1 text-[11px] text-secondary">Só o administrador pode mudar a situação.</p>
@@ -368,7 +359,7 @@ export function FrotaTab() {
                   {v.chassi && <p className="text-sm text-secondary">Chassi: {v.chassi}</p>}
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <Badge tone="neutral">{tipoVeiculoLabel(v.tipo)}</Badge>
-                    <Badge tone={v.operante ? 'success' : 'danger'}>{v.operante ? 'Operante' : 'Inoperante'}</Badge>
+                    <Badge tone={TOM_SITUACAO[situacaoDoVeiculo(v)]}>{ROTULO_SITUACAO[situacaoDoVeiculo(v)]}</Badge>
                   </div>
                 </div>
               ))}

@@ -26,6 +26,7 @@ import { tipoVeiculoLabel } from '@/lib/tipoVeiculo'
 import { extrairFotosExtras } from '@/lib/fotosExtras'
 import { GaleriaFotosModal, type FotoGaleria } from '@/components/GaleriaFotosModal'
 import type { Movimentacao, MovimentacaoComVeiculo } from '@/lib/types'
+import { ROTULO_SITUACAO, situacaoDoVeiculo, TOM_SITUACAO } from '@/lib/situacaoVeiculo'
 
 function MecanicosAtividadesCard({ movimentacaoId }: { movimentacaoId: string }) {
   const { osData, items, loading } = useChecklistOS(movimentacaoId)
@@ -302,8 +303,8 @@ export function VeiculoDetalhe() {
             </Row>
             <Row label="Tipo">{tipoVeiculoLabel(veiculo.tipo)}</Row>
             <Row label="Situação">
-              <Badge tone={veiculo.operante ? 'success' : 'danger'}>
-                {veiculo.operante ? 'Operante' : 'Inoperante'}
+              <Badge tone={TOM_SITUACAO[situacaoDoVeiculo(veiculo)]}>
+                {ROTULO_SITUACAO[situacaoDoVeiculo(veiculo)]}
               </Badge>
             </Row>
             <Row label="Marca">{veiculo.marca?.nome}</Row>

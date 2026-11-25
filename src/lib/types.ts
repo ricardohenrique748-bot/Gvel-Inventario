@@ -85,6 +85,8 @@ export interface Veiculo {
   ano: number | null
   chassi: string | null
   operante: boolean
+  /** Veículo sinistrado (migration 0114). Sempre vem com operante = false. */
+  sinistro?: boolean
   created_at: string
 }
 

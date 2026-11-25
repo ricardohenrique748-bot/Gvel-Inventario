@@ -32,6 +32,7 @@ import { useOSStatusBatch } from '@/hooks/useOSStatusBatch'
 import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
 import { useAuth } from '@/contexts/AuthContext'
 import { isManutencaoAuthorized, isModuloAuthorized, MANUTENCAO_OCULTA } from '@/components/layout/nav'
+import { ROTULO_SITUACAO, situacaoDoVeiculo, TOM_SITUACAO } from '@/lib/situacaoVeiculo'
 
 type AbaManutencao = 'controle_os' | 'liberacao'
 
@@ -645,8 +646,8 @@ function ControleOS() {
                           <h2 className="text-2xl font-black tracking-wider text-foreground font-mono">
                             {selecionado.veiculo?.placa}
                           </h2>
-                          <Badge tone={selecionado.veiculo?.operante ? 'success' : 'danger'} className="uppercase font-bold">
-                            {selecionado.veiculo?.operante ? 'OPERANTE' : 'INOPERANTE'}
+                          <Badge tone={TOM_SITUACAO[situacaoDoVeiculo(selecionado.veiculo)]} className="uppercase font-bold">
+                            {ROTULO_SITUACAO[situacaoDoVeiculo(selecionado.veiculo)].toUpperCase()}
                           </Badge>
                           <StatusManutencaoBadge status={selecionado.status_manutencao} />
                         </div>

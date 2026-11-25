@@ -1,6 +1,6 @@
 import { BarraPilula } from '@/components/charts/BarraPilula'
 import { RoscaPilula } from '@/components/charts/RoscaPilula'
-import { empresaUsaClientes } from '@/lib/empresasEspeciais'
+import { empresaUsaClientes, isLocaliza } from '@/lib/empresasEspeciais'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Truck, LogIn, LogOut, Clock, FileSpreadsheet } from 'lucide-react'
@@ -35,6 +35,7 @@ import { useEtapasNoPeriodo } from '@/hooks/useHistoricoMovimentacao'
 import { permanenciaEmMinutos, formatMinutosParaTexto, formatDate } from '@/lib/format'
 import { CHART_ENTRADA, CHART_SAIDA, CHART_CATEGORICAL, CHART_OTHER } from '@/lib/chartColors'
 import { urlMiniatura, aoFalharMiniatura, primeiraFotoMovimentacao } from '@/lib/thumb'
+import { ROTULO_SITUACAO, situacaoDoVeiculo } from '@/lib/situacaoVeiculo'
 
 export function Dashboard() {
   const { theme } = useTheme()
@@ -66,11 +67,12 @@ export function Dashboard() {
     patioId: searchParams.get('patioId') || undefined,
   }))
   const [statusFiltro, setStatusFiltro] = useState(() => searchParams.get('statusFiltro') || '')
-  // '' = todos | 'operante' | 'inoperante' (campo veiculos.operante)
+  // '' = todos | 'operante' | 'inoperante' | 'sinistro' (ver lib/situacaoVeiculo)
   const [situacaoFiltro, setSituacaoFiltro] = useState(() => searchParams.get('situacao') || '')
+  // Cada opção do filtro é exclusiva: "inoperante" não traz os sinistrados.
   const passaSituacao = useCallback(
-    (operante: boolean | undefined) =>
-      !situacaoFiltro || (situacaoFiltro === 'operante' ? operante !== false : operante === false),
+    (veiculo: { operante?: boolean | null; sinistro?: boolean | null } | null | undefined) =>
+      !situacaoFiltro || situacaoDoVeiculo(veiculo) === situacaoFiltro,
     [situacaoFiltro],
   )
   const { statusManutencao } = useStatusManutencao()
@@ -110,7 +112,7 @@ export function Dashboard() {
   const noPatio = useMemo(
     () =>
       noPatioBruto.filter(
-        (m) => (!statusFiltro || m.status_id === statusFiltro) && passaSituacao(m.veiculo?.operante),
+        (m) => (!statusFiltro || m.status_id === statusFiltro) && passaSituacao(m.veiculo),
       ),
     [noPatioBruto, statusFiltro, passaSituacao],
   )
@@ -138,7 +140,7 @@ export function Dashboard() {
   // Mudanças de etapa (setor/trajeto) registradas dentro do mesmo período —
   // mostradas separadamente das entradas novas no pátio.
   const periodo = useMemo(
-    () => periodoBruto.filter((m) => passaSituacao(m.veiculo?.operante)),
+    () => periodoBruto.filter((m) => passaSituacao(m.veiculo)),
     [periodoBruto, passaSituacao],
   )
 
@@ -147,7 +149,7 @@ export function Dashboard() {
     filters.dataFim ? `${filters.dataFim}T23:59:59` : undefined,
   )
   const etapasPeriodo = useMemo(
-    () => etapasPeriodoBruto.filter((e) => passaSituacao(e.movimentacao?.veiculo?.operante)),
+    () => etapasPeriodoBruto.filter((e) => passaSituacao(e.movimentacao?.veiculo)),
     [etapasPeriodoBruto, passaSituacao],
   )
 
@@ -311,7 +313,7 @@ export function Dashboard() {
     const linhas = listaExportacao.map((m) => [
       m.veiculo?.placa ?? '',
       `${m.veiculo?.marca?.nome ?? ''} ${m.veiculo?.modelo?.nome ?? ''}`.trim(),
-      m.veiculo?.operante === false ? 'INOPERANTE' : 'OPERANTE',
+      ROTULO_SITUACAO[situacaoDoVeiculo(m.veiculo)].toUpperCase(),
       m.veiculo?.cliente?.nome ?? '',
       m.patio?.nome ?? '',
       m.status_manutencao?.nome ?? '',
@@ -385,6 +387,7 @@ export function Dashboard() {
               <option value="">Todos</option>
               <option value="operante">Operante</option>
               <option value="inoperante">Inoperante</option>
+              {isLocaliza(empresa) && <option value="sinistro">Sinistro</option>}
             </Select>
           </div>
           <span className="text-xs font-semibold uppercase tracking-wider text-secondary sm:ml-2">

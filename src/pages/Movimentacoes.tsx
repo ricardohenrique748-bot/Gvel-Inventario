@@ -1,4 +1,6 @@
 import { empresaUsaClientes, isLocaliza } from '@/lib/empresasEspeciais'
+import { camposSituacao, ROTULO_SITUACAO, situacaoDoVeiculo } from '@/lib/situacaoVeiculo'
+import { SituacaoVeiculoRadios } from '@/components/SituacaoVeiculoRadios'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
@@ -42,7 +44,7 @@ const editSchema = z.object({
   // importada sem esses dados, e exigir tudo impedia salvar qualquer edição.
   cor: z.string().trim().optional(),
   chassi: z.string().trim().optional(),
-  situacao: z.enum(['operante', 'inoperante']),
+  situacao: z.enum(['operante', 'inoperante', 'sinistro']),
   // Campo numérico vazio chega como NaN.
   ano: z
     .union([z.nan(), z.number().int('Ano inválido').min(1950, 'Ano inválido').max(anoAtual + 1, 'Ano inválido')])
@@ -624,7 +626,7 @@ export function EditarMovimentacaoForm({
       tipo: movimentacao.veiculo?.tipo ?? 'pesado',
       cor: movimentacao.veiculo?.cor ?? '',
       chassi: movimentacao.veiculo?.chassi ?? '',
-      situacao: movimentacao.veiculo?.operante === false ? 'inoperante' : 'operante',
+      situacao: situacaoDoVeiculo(movimentacao.veiculo),
       ano: movimentacao.veiculo?.ano ?? (undefined as unknown as number),
       marcaId: movimentacao.veiculo?.marca_id ?? '',
       modeloId: movimentacao.veiculo?.modelo_id ?? '',
@@ -676,7 +678,7 @@ export function EditarMovimentacaoForm({
         cor: values.cor,
         ano: values.ano === undefined || Number.isNaN(values.ano) ? undefined : values.ano,
         chassi: values.chassi,
-        operante: values.situacao === 'operante',
+        ...camposSituacao(values.situacao),
       })
 
       const fotosEntrada: FotosEntrada = {
@@ -758,31 +760,20 @@ export function EditarMovimentacaoForm({
       <div>
         <Label>Situação</Label>
         {podeMudarSituacao ? (
-          <div className="flex gap-3">
-            <label className="flex-1">
-              <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
-              <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-foreground cursor-pointer">
-                Operante
-              </div>
-            </label>
-            <label className="flex-1">
-              <input type="radio" value="inoperante" className="peer sr-only" {...register('situacao')} />
-              <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-danger peer-checked:bg-status-danger/10 peer-checked:text-foreground cursor-pointer">
-                Inoperante
-              </div>
-            </label>
-          </div>
+          <SituacaoVeiculoRadios registro={register('situacao')} comSinistro={isLocaliza(empresa)} />
         ) : (
           <>
             <div
               className={cn(
                 'h-12 flex items-center justify-center rounded-xl border',
-                movimentacao.veiculo?.operante === false
-                  ? 'border-status-danger bg-status-danger/10 text-foreground'
-                  : 'border-status-success bg-status-success/10 text-foreground',
+                {
+                  operante: 'border-status-success bg-status-success/10 text-foreground',
+                  inoperante: 'border-status-danger bg-status-danger/10 text-foreground',
+                  sinistro: 'border-status-warning bg-status-warning/10 text-foreground',
+                }[situacaoDoVeiculo(movimentacao.veiculo)],
               )}
             >
-              {movimentacao.veiculo?.operante === false ? 'Inoperante' : 'Operante'}
+              {ROTULO_SITUACAO[situacaoDoVeiculo(movimentacao.veiculo)]}
             </div>
             <p className="mt-1 text-[11px] text-secondary">Só o administrador pode mudar a situação.</p>
           </>

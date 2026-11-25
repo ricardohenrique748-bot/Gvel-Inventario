@@ -35,6 +35,8 @@ import { ptBR } from 'date-fns/locale'
 import { gerarUuid } from '@/lib/uuid'
 import { useAuth } from '@/contexts/AuthContext'
 import { empresaUsaClientes, isLocaliza } from '@/lib/empresasEspeciais'
+import { camposSituacao, ROTULO_SITUACAO, situacaoDoVeiculo } from '@/lib/situacaoVeiculo'
+import { SituacaoVeiculoRadios } from '@/components/SituacaoVeiculoRadios'
 
 const NOVO_VEICULO = '__novo__'
 const anoAtual = new Date().getFullYear()
@@ -47,7 +49,7 @@ const schema = z
     tipo: z.enum(['pesado', 'leve', 'trator', 'carreta']).optional(),
     cor: z.string().optional(),
     chassi: z.string().optional(),
-    situacao: z.enum(['operante', 'inoperante']).optional(),
+    situacao: z.enum(['operante', 'inoperante', 'sinistro']).optional(),
     ano: z.number().optional(),
     marcaId: z.string().optional(),
     modeloId: z.string().optional(),
@@ -318,7 +320,7 @@ export function RegistrarEntrada() {
             tipo: values.tipo!,
             cor: values.cor ?? '',
             chassi: values.chassi,
-            operante: values.situacao ? values.situacao === 'operante' : true,
+            ...(values.situacao ? camposSituacao(values.situacao) : { operante: true }),
             ano: values.ano && !Number.isNaN(values.ano) ? values.ano : new Date().getFullYear(),
             patioId: values.patioId,
             statusId: values.statusId || undefined,
@@ -508,14 +510,14 @@ export function RegistrarEntrada() {
                     ['Cor', veiculoSelecionado.cor],
                     ['Ano', veiculoSelecionado.ano],
                     ['Chassi', veiculoSelecionado.chassi],
-                    ['Situação', veiculoSelecionado.operante ? 'Operante' : 'Inoperante'],
+                    ['Situação', ROTULO_SITUACAO[situacaoDoVeiculo(veiculoSelecionado)]],
                     ...(usaClientes ? [['Cliente', veiculoSelecionado.cliente?.nome]] : []),
                   ].map(([rotulo, valor]) => (
                     <div key={String(rotulo)} className="min-w-0">
                       <dt className="text-xs text-secondary">{rotulo}</dt>
                       <dd
                         className={`truncate font-medium ${
-                          rotulo === 'Situação' && !veiculoSelecionado.operante ? 'text-status-danger' : 'text-foreground'
+                          rotulo === 'Situação' && situacaoDoVeiculo(veiculoSelecionado) !== 'operante' ? 'text-status-danger' : 'text-foreground'
                         }`}
                       >
                         {valor || '—'}
@@ -561,20 +563,7 @@ export function RegistrarEntrada() {
                     {isPesadoOuLeve && <Req />}
                     {isTratorOuCarreta && <span className="ml-1 text-xs text-secondary font-normal">(opcional)</span>}
                   </Label>
-                  <div className="flex gap-3">
-                    <label className="flex-1">
-                      <input type="radio" value="operante" className="peer sr-only" {...register('situacao')} />
-                      <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-success peer-checked:bg-status-success/10 peer-checked:text-foreground cursor-pointer">
-                        Operante
-                      </div>
-                    </label>
-                    <label className="flex-1">
-                      <input type="radio" value="inoperante" className="peer sr-only" {...register('situacao')} />
-                      <div className="h-12 flex items-center justify-center rounded-xl border border-secondary/30 text-secondary peer-checked:border-status-danger peer-checked:bg-status-danger/10 peer-checked:text-foreground cursor-pointer">
-                        Inoperante
-                      </div>
-                    </label>
-                  </div>
+                  <SituacaoVeiculoRadios registro={register('situacao')} comSinistro={isLocaliza(empresa)} />
                   <FieldError message={errors.situacao?.message} />
                 </div>
 

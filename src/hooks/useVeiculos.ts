@@ -71,6 +71,8 @@ interface UpsertVeiculoInput {
   ano?: number
   chassi?: string
   operante?: boolean
+  /** Só é gravado quando informado — telas sem a opção "Sinistro" não mexem nele. */
+  sinistro?: boolean
 }
 
 export async function upsertVeiculo(input: UpsertVeiculoInput) {
@@ -95,6 +97,7 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
     if (input.ano !== undefined) updatePayload.ano = input.ano ?? null
     if (input.chassi !== undefined) updatePayload.chassi = up(input.chassi) || null
     if (input.operante !== undefined) updatePayload.operante = input.operante
+    if (input.sinistro !== undefined) updatePayload.sinistro = input.sinistro
 
     const { data, error } = await supabase
       .from('veiculos')
@@ -118,6 +121,7 @@ export async function upsertVeiculo(input: UpsertVeiculoInput) {
       ano: input.ano ?? null,
       chassi: up(input.chassi) || null,
       operante: input.operante ?? true,
+      ...(input.sinistro !== undefined ? { sinistro: input.sinistro } : {}),
     })
     .select()
     .single()
@@ -138,6 +142,7 @@ export async function atualizarVeiculo(id: string, input: UpsertVeiculoInput) {
       ano: input.ano ?? null,
       chassi: up(input.chassi) || null,
       operante: input.operante ?? true,
+      ...(input.sinistro !== undefined ? { sinistro: input.sinistro } : {}),
     })
     .eq('id', id)
     .select()
