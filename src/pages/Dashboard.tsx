@@ -457,9 +457,22 @@ export function Dashboard() {
                     to={`/veiculos/${m.veiculo_id}`}
                     className="flex items-center gap-3 rounded-xl bg-background px-4 py-3 transition-colors hover:bg-background/70"
                   >
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
-                      <Truck className="h-6 w-6" />
-                    </div>
+                    {primeiraFotoMovimentacao(m) ? (
+                      <img
+                        src={urlMiniatura(primeiraFotoMovimentacao(m)!, 112)}
+                        onError={aoFalharMiniatura(primeiraFotoMovimentacao(m)!)}
+                        alt={`Foto — ${m.veiculo?.placa}`}
+                        loading="lazy"
+                        decoding="async"
+                        width={56}
+                        height={56}
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-secondary">
+                        <Truck className="h-6 w-6" />
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-foreground font-medium">{m.veiculo?.placa}</p>

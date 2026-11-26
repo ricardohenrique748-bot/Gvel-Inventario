@@ -45,6 +45,11 @@ export function primeiraFotoMovimentacao(m: {
   foto_lado_direito_url?: string | null
   foto_traseira_url?: string | null
   foto_painel_url?: string | null
+  foto_saida_frente_url?: string | null
+  foto_saida_lado_esquerdo_url?: string | null
+  foto_saida_lado_direito_url?: string | null
+  foto_saida_traseira_url?: string | null
+  foto_saida_painel_url?: string | null
   observacoes?: string | null
 }): string | null {
   return (
@@ -56,6 +61,12 @@ export function primeiraFotoMovimentacao(m: {
     // Entradas feitas só pela Galeria/"Adicionar foto" têm apenas fotos extras,
     // que ficam embutidas nas observações.
     fotoFrenteDasExtras(extrairFotosExtras(m.observacoes).fotosExtras) ||
+    // Último recurso: qualquer foto tirada na saída.
+    m.foto_saida_frente_url ||
+    m.foto_saida_lado_esquerdo_url ||
+    m.foto_saida_lado_direito_url ||
+    m.foto_saida_traseira_url ||
+    m.foto_saida_painel_url ||
     null
   )
 }
