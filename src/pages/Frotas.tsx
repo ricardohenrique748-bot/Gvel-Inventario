@@ -343,6 +343,7 @@ const schemaVeiculo = z.object({
   modeloId: z.string().min(1, 'Selecione o modelo'),
   vencimentoDocumento: z.string().optional(),
   vencimentoSeguro: z.string().optional(),
+  seguradora: z.string().optional(),
   semSeguro: z.boolean().optional(),
   numeroTacografo: z.string().optional(),
   emissaoTacografo: z.string().optional(),
@@ -390,6 +391,7 @@ export interface ItemFrotaCadastrada {
   vencimentoDocumento?: string // YYYY-MM-DD (Licenciamento CRLV)
   crlvPago?: boolean // Marcado manualmente quando o CRLV já foi pago, mas o sistema ainda mostra vencido/a vencer (a data nova ainda não foi atualizada)
   vencimentoSeguro?: string // YYYY-MM-DD (Seguro da Frota / Apólice)
+  seguradora?: string // Nome da seguradora (digitado no cadastro)
   seguroOk?: boolean // Marcado manualmente quando ainda não há data de vencimento cadastrada, mas o seguro já está regularizado
   semSeguro?: boolean // Veículo não tem mais seguro — sai do controle/alertas de seguro
   numeroTacografo?: string // Número do Certificado / Selo do Tacógrafo
@@ -608,6 +610,55 @@ function DetalheCampo({ label, children }: { label: string; children: ReactNode 
     <div>
       <span className="text-[9px] font-black text-secondary uppercase block">{label}</span>
       <div className="text-xs font-bold text-foreground mt-0.5">{children}</div>
+    </div>
+  )
+}
+
+const COR_STATUS_VENCIMENTO: Record<string, string> = {
+  vencido: 'border-rose-500/40 bg-rose-500/10 text-rose-400',
+  a_vencer: 'border-amber-500/40 bg-amber-500/10 text-amber-400',
+  em_dia: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+  pago: 'border-sky-500/30 bg-sky-500/10 text-sky-400',
+}
+
+// Cartão de um vencimento (CRLV / Seguro / Tacógrafo) no modal de detalhes:
+// data grande em destaque + status colorido + dados extras (seguradora, nº...).
+function CardVencimento({
+  titulo,
+  data,
+  status,
+  statusLabel,
+  extras = [],
+}: {
+  titulo: string
+  data?: string
+  status: string
+  statusLabel: string
+  extras?: { label: string; valor: string }[]
+}) {
+  const cor = COR_STATUS_VENCIMENTO[status] || 'border-border/30 bg-overlay/5 text-secondary'
+  let dataFormatada = '—'
+  if (data) {
+    try {
+      dataFormatada = format(parseISO(data), 'dd/MM/yyyy')
+    } catch {
+      dataFormatada = data
+    }
+  }
+  return (
+    <div className="rounded-xl border border-border/15 bg-overlay/5 p-3.5 space-y-2">
+      <span className="text-[10px] font-black text-secondary uppercase block">{titulo}</span>
+      <div>
+        <span className="text-[9px] font-black text-secondary uppercase block">VENCIMENTO</span>
+        <span className="text-lg font-black font-mono text-foreground">{dataFormatada}</span>
+      </div>
+      <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-black ${cor}`}>{statusLabel}</span>
+      {extras.map((e) => (
+        <div key={e.label}>
+          <span className="text-[9px] font-black text-secondary uppercase block">{e.label}</span>
+          <span className="text-xs font-bold text-foreground">{e.valor}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -2088,6 +2139,7 @@ export function Frotas() {
       modeloId: '',
       vencimentoDocumento: '',
       vencimentoSeguro: '',
+      seguradora: '',
       semSeguro: false,
       numeroTacografo: '',
       emissaoTacografo: '',
@@ -2123,6 +2175,7 @@ export function Frotas() {
       modeloId: '',
       vencimentoDocumento: v.vencimentoDocumento || '',
       vencimentoSeguro: v.vencimentoSeguro || '',
+      seguradora: v.seguradora || '',
       semSeguro: Boolean(v.semSeguro),
       numeroTacografo: v.numeroTacografo || '',
       emissaoTacografo: v.emissaoTacografo || '',
@@ -2168,6 +2221,7 @@ export function Frotas() {
       modeloNome: modeloObj?.nome || '',
       vencimentoDocumento: values.vencimentoDocumento || undefined,
       vencimentoSeguro: values.vencimentoSeguro || undefined,
+      seguradora: values.seguradora?.trim() ? values.seguradora.toUpperCase().trim() : undefined,
       // Desmarcado grava false (não undefined) para sobrescrever o que estava salvo.
       semSeguro: Boolean(values.semSeguro),
       numeroTacografo: values.numeroTacografo?.trim() || undefined,
@@ -5428,6 +5482,17 @@ export function Frotas() {
                       {...register('vencimentoSeguro')}
                       className="mt-1 text-xs font-mono"
                     />
+                    <Label htmlFor="seguradora" className="mt-3 block">Seguradora</Label>
+                    <Input
+                      id="seguradora"
+                      placeholder="Ex: PORTO SEGURO"
+                      {...register('seguradora', {
+                        onChange: (e) => {
+                          e.target.value = e.target.value.toUpperCase()
+                        },
+                      })}
+                      className="mt-1 text-xs font-bold uppercase"
+                    />
                     <label className="mt-2 flex items-center gap-2 cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -6444,6 +6509,41 @@ export function Frotas() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                  {/* Vencimentos: CRLV, Seguro e Tacógrafo — primeiro bloco do modal */}
+                  <div>
+                    <h3 className="text-[11px] font-black text-secondary uppercase tracking-wider mb-2">VENCIMENTOS</h3>
+                    <div className={`grid grid-cols-1 gap-3 ${v.tipo === 'leve' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+                      <CardVencimento
+                        titulo="CRLV / LICENCIAMENTO"
+                        data={v.vencimentoDocumento}
+                        status={v.crlvPago ? 'pago' : statusDoc.status}
+                        statusLabel={v.crlvPago ? 'PAGO (AGUARDANDO DATA NOVA)' : statusDoc.label}
+                      />
+                      <CardVencimento
+                        titulo="SEGURO"
+                        data={v.semSeguro ? undefined : v.vencimentoSeguro}
+                        status={!v.semSeguro && v.seguroOk && !v.vencimentoSeguro ? 'pago' : statusSeg.status}
+                        statusLabel={!v.semSeguro && v.seguroOk && !v.vencimentoSeguro ? 'REGULARIZADO' : statusSeg.label}
+                        extras={[{ label: 'SEGURADORA', valor: v.semSeguro ? '—' : v.seguradora || 'NÃO INFORMADA' }]}
+                      />
+                      {v.tipo !== 'leve' && (
+                        <CardVencimento
+                          titulo="TACÓGRAFO"
+                          data={v.vencimentoTacografo}
+                          status={statusTac.status}
+                          statusLabel={statusTac.label}
+                          extras={[
+                            { label: 'Nº', valor: v.numeroTacografo || '—' },
+                            {
+                              label: 'EMISSÃO',
+                              valor: v.emissaoTacografo ? format(parseISO(v.emissaoTacografo), 'dd/MM/yyyy') : '—',
+                            },
+                          ]}
+                        />
+                      )}
+                    </div>
+                  </div>
+
                   {/* Dados Gerais */}
                   <div>
                     <h3 className="text-[11px] font-black text-secondary uppercase tracking-wider mb-2">DADOS CADASTRADOS</h3>
@@ -6511,37 +6611,6 @@ export function Frotas() {
                           </span>
                         </DetalheCampo>
                       )}
-                    </div>
-                  </div>
-
-                  {/* Documentação & Seguro */}
-                  <div>
-                    <h3 className="text-[11px] font-black text-secondary uppercase tracking-wider mb-2">DOCUMENTAÇÃO, SEGURO & TACÓGRAFO</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-xl border border-border/15 bg-overlay/5">
-                      <DetalheCampo label="CRLV">
-                        {v.crlvPago ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-black text-emerald-400">PAGO</span>
-                        ) : (
-                          <span className="text-[10px] font-bold">{statusDoc.label}</span>
-                        )}
-                      </DetalheCampo>
-                      <DetalheCampo label="VENCIMENTO CRLV">
-                        {v.vencimentoDocumento ? format(parseISO(v.vencimentoDocumento), 'dd/MM/yyyy') : '—'}
-                      </DetalheCampo>
-                      <DetalheCampo label="SEGURO">
-                        {!v.semSeguro && v.seguroOk ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-black text-emerald-400">OK</span>
-                        ) : (
-                          <span className="text-[10px] font-bold">{statusSeg.label}</span>
-                        )}
-                      </DetalheCampo>
-                      <DetalheCampo label="VENCIMENTO SEGURO">
-                        {v.vencimentoSeguro ? format(parseISO(v.vencimentoSeguro), 'dd/MM/yyyy') : '—'}
-                      </DetalheCampo>
-                      <DetalheCampo label="TACÓGRAFO">
-                        <span className="text-[10px] font-bold">{statusTac.label}</span>
-                      </DetalheCampo>
-                      <DetalheCampo label="Nº TACÓGRAFO">{v.numeroTacografo || '—'}</DetalheCampo>
                     </div>
                   </div>
 
